@@ -1,0 +1,1 @@
+<!-- The full spec. What you're building, who it's for, what features exist, what's in scope, and what's explicitly out of scope. User stories, success criteria, non-goals, and every feature with specific criteria. This is your contract. AI reads this and knows exactly what "done" looks like for you. -->

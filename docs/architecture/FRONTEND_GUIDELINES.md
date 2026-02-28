@@ -1,0 +1,1 @@
+<!-- Your complete design system. Fonts, color palette with exact hex codes, spacing scale, layout rules, component styles, responsive breakpoints, and UI library preferences. Every visual decision locked down. AI references this for every component it creates. No more random colors or inconsistent spacing. -->

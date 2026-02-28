@@ -1,0 +1,1 @@
+<!-- Database schema with every table, column, type, and relationship defined. Authentication logic, API endpoint contracts, storage rules, and edge cases. If you're using Supabase, this doc contains the exact SQL structure. AI builds your backend against this blueprint, not against its own assumptions. -->

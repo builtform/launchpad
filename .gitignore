@@ -1,0 +1,41 @@
+# Research article PDFs (too large for git — store locally)
+docs/**/*.pdf
+
+# macOS
+.DS_Store
+.env.local
+.env.migrate
+.env.consultant
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+.next/
+out/
+build/
+
+# Turborepo
+.turbo/
+
+# TypeScript
+*.tsbuildinfo
+
+# Prisma generated client
+packages/db/node_modules/
+
+# Compound Product runtime files
+scripts/compound/progress.txt
+scripts/compound/prd.json
+scripts/compound/.last-branch
+scripts/compound/archive/
+scripts/compound/*.log
+
+# Claude Code local
+settings.local.json
+
+# Misc
+*.log
+.cache/

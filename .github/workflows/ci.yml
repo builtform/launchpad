@@ -1,0 +1,188 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: "9"
+
+jobs:
+  install:
+    name: Install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache node_modules
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+  lint:
+    name: Lint
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Restore node_modules
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm prettier --check .
+
+  typecheck:
+    name: Type Check
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Restore node_modules
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Type check
+        run: pnpm typecheck
+
+  build:
+    name: Build
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Restore node_modules
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Build
+        run: pnpm build
+
+  test:
+    name: Test
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Restore node_modules
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Test
+        run: pnpm test
+
+  structure:
+    name: Repo Structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check repo structure
+        run: bash scripts/maintenance/check-repo-structure.sh
+
+  summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [lint, typecheck, build, test, structure]
+    steps:
+      - name: Aggregate results
+        run: |
+          echo "Lint:      ${{ needs.lint.result }}"
+          echo "Typecheck: ${{ needs.typecheck.result }}"
+          echo "Build:     ${{ needs.build.result }}"
+          echo "Test:      ${{ needs.test.result }}"
+          echo "Structure: ${{ needs.structure.result }}"
+          if [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.typecheck.result }}" != "success" ] || \
+             [ "${{ needs.build.result }}" != "success" ] || \
+             [ "${{ needs.test.result }}" != "success" ] || \
+             [ "${{ needs.structure.result }}" != "success" ]; then
+            echo "One or more CI jobs failed."
+            exit 1
+          fi
+          echo "All CI checks passed."
