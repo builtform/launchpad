@@ -1,0 +1,78 @@
+pre-commit:
+  commands:
+    # ---- Auto-fixers (run first, fix and re-stage) ----
+
+    prettier-fix:
+      glob: "*.{js,jsx,ts,tsx,json,css,md,yml,yaml,html}"
+      run: pnpm prettier --write {staged_files}
+      stage_fixed: true
+      priority: 1
+
+    eslint-fix:
+      glob: "*.{js,jsx,ts,tsx,mjs,cjs}"
+      exclude: "next-env\\.d\\.ts$"
+      run: pnpm eslint --fix {staged_files}
+      stage_fixed: true
+      priority: 2
+
+    # ---- Read-only checks (block on failure) ----
+
+    typecheck:
+      run: pnpm typecheck
+      priority: 10
+
+    structure-check:
+      run: bash scripts/maintenance/check-repo-structure.sh
+      priority: 10
+
+    large-file-guard:
+      glob: "*.{js,jsx,ts,tsx,json,css,md,yml,yaml,html,sh,mjs,cjs}"
+      run: |
+        max_size=512000
+        violations=""
+        while IFS= read -r file; do
+          if [ -f "$file" ]; then
+            size=$(wc -c < "$file" | tr -d ' ')
+            if [ "$size" -gt "$max_size" ]; then
+              violations="$violations\n  $file ($(( size / 1024 ))KB)"
+            fi
+          fi
+        done <<< "$(echo "{staged_files}" | tr ' ' '\n')"
+        if [ -n "$violations" ]; then
+          echo "Files exceed 500KB limit:$violations"
+          exit 1
+        fi
+      priority: 10
+
+    trailing-whitespace:
+      glob: "*.{js,jsx,ts,tsx,json,css,md,yml,yaml,html,sh}"
+      run: |
+        found=0
+        while IFS= read -r file; do
+          if [ -f "$file" ] && grep -n '[[:blank:]]$' "$file" > /dev/null 2>&1; then
+            echo "$file has trailing whitespace:"
+            grep -n '[[:blank:]]$' "$file"
+            found=1
+          fi
+        done <<< "$(echo "{staged_files}" | tr ' ' '\n')"
+        if [ "$found" -eq 1 ]; then
+          exit 1
+        fi
+      priority: 10
+
+    end-of-file-newline:
+      glob: "*.{js,jsx,ts,tsx,json,css,md,yml,yaml,html,sh}"
+      run: |
+        failed=""
+        while IFS= read -r file; do
+          if [ -f "$file" ] && [ -s "$file" ]; then
+            if [ "$(tail -c 1 "$file" | od -An -tx1 | tr -d ' \n')" != "0a" ]; then
+              failed="$failed $file"
+            fi
+          fi
+        done <<< "$(echo "{staged_files}" | tr ' ' '\n')"
+        if [ -n "$failed" ]; then
+          echo "Files missing final newline:$failed"
+          exit 1
+        fi
+      priority: 10
