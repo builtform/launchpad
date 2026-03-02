@@ -1,10 +1,12 @@
 # Code of Conduct
 
-<!-- TODO: Replace conduct@thinkinghand.dev with the final contact email once confirmed. -->
+<!-- TEMPLATE: This is a template file for new projects created from Launchpad.
+     The init-project.sh script will process this file and replace placeholders.
+     Placeholders: {{PROJECT_NAME}}, [INSERT CONTACT METHOD] -->
 
 ## Our Commitment
 
-We are committed to providing a welcoming, inclusive, and productive environment for everyone who participates in Launchpad — regardless of background or experience level. We believe that a healthy community is built through mutual respect and shared purpose.
+We are committed to providing a welcoming, inclusive, and productive environment for everyone who participates in {{PROJECT_NAME}} — regardless of background or experience level. We believe that a healthy community is built through mutual respect and shared purpose.
 
 ## Expected Conduct
 
@@ -15,7 +17,7 @@ We ask all participants to:
 - **Collaborate in good faith.** Assume positive intent, ask clarifying questions before drawing conclusions, and work toward shared understanding.
 - **Support one another.** Welcome newcomers, help others learn, and recognize that contributors bring different levels of experience and expertise.
 - **Stay focused on the project's goals.** Keep discussions relevant, productive, and oriented toward what is best for the community and the project.
-- **Represent the project professionally.** When speaking or acting on behalf of Launchpad in public spaces, uphold the same standards expected here.
+- **Represent the project professionally.** When speaking or acting on behalf of {{PROJECT_NAME}} in public spaces, uphold the same standards expected here.
 
 ## Responsibilities
 
@@ -27,7 +29,7 @@ This Code of Conduct applies to all project spaces, including repositories, issu
 
 ## Enforcement
 
-Instances of conduct that do not meet these standards may be reported to the project team at **conduct@thinkinghand.dev**. All reports will be reviewed promptly and handled with confidentiality and fairness. Maintainers are obligated to respect the privacy of anyone who reports a concern.
+Instances of conduct that do not meet these standards may be reported to the project team at **[INSERT CONTACT METHOD]**. All reports will be reviewed promptly and handled with confidentiality and fairness. Maintainers are obligated to respect the privacy of anyone who reports a concern.
 
 ## Attribution
 

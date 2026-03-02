@@ -1,6 +1,6 @@
 # Repository Structure & File Placement
 
-**Last Updated**: 2026-02-25
+**Last Updated**: 2026-03-01
 **Status**: Active
 **Version**: 1.0
 
@@ -31,14 +31,21 @@ The repository root is **clean and predictable**. Only a small, explicit set of 
 
 ### 2.1 Canonical Files at Root
 
-**Documentation (singletons — one of each, no extras):**
+**Documentation & Templates (each doc may have a `.template` pair for new projects):**
 
 - `README.md` — High-level project overview for new contributors.
 - `CLAUDE.md` — AI agent operating rules for Claude Code (primary AI configuration).
 - `AGENTS.md` — OpenAI Codex agent configuration and review guidelines.
-- `CONTRIBUTING.md` — Human contribution rules, testing protocol, and PR process.
-- `CODE_OF_CONDUCT.md` — Community and behavior guidelines.
-- `SECURITY.md` — Security disclosure policy.
+- `CONTRIBUTING.md` — Contribution guidelines for Launchpad.
+- `CONTRIBUTING.template.md` — Contribution guidelines template for new projects.
+- `CODE_OF_CONDUCT.md` — Code of conduct for Launchpad.
+- `CODE_OF_CONDUCT.template.md` — Code of conduct template for new projects.
+- `SECURITY.md` — Security policy for Launchpad.
+- `SECURITY.template.md` — Security policy template for new projects.
+- `CHANGELOG.md` — Changelog for Launchpad.
+- `CHANGELOG.template.md` — Changelog template for new projects.
+- `LICENSE` — MIT license (Thinking Hand Studio LLC).
+- `LICENSE.template` — MIT license template for new projects.
 
 **Tooling & Workspace Configuration:**
 
@@ -73,6 +80,7 @@ The repository root is **clean and predictable**. Only a small, explicit set of 
 - `.claude/` — Claude Code agent configuration, slash commands, and prompt libraries.
 - `node_modules/` — Installed dependencies (gitignored).
 - `.git/` — Git internals (never touch manually).
+- `.launchpad/` — Scaffold metadata and preserved Launchpad reference docs (created by `init-project.sh`).
 - `.turbo/` — Turborepo cache (gitignored).
 - `.next/` — Next.js build output (gitignored).
 - `dist/` — Build output (gitignored).
@@ -85,7 +93,7 @@ Anything else at root is root clutter and must be moved to the correct subdirect
 ## 3. Full Annotated Directory Tree
 
 ```
-project-template/
+{{PROJECT_NAME}}/
 │
 ├── apps/                                    # User-facing applications
 │   ├── web/                                 # Next.js 15 App Router frontend
@@ -187,6 +195,7 @@ project-template/
 │   │   └── LESSONS.md
 │   ├── solutions/                           # Categorized learnings from compound loops
 │   ├── brainstorms/                         # Brainstorming documents for compound-engineering
+│   ├── guides/                              # How-to guides and tutorials
 │   ├── plans/                               # Implementation plans and roadmaps
 │   │   └── IMPLEMENTATION_PLAN.md
 │   ├── reports/                             # Investigation reports, audits, postmortems
@@ -207,6 +216,10 @@ project-template/
 │
 ├── .vscode/
 │   └── settings.json                        # Shared editor settings (format on save, etc.)
+│
+├── .launchpad/                              # Scaffold metadata and preserved Launchpad reference docs
+│   ├── GUIDE.md                             # Original Launchpad README preserved as reference
+│   └── version                              # Scaffold version for CLI upgrades
 │
 └── .claude/                                 # Claude Code configuration
     ├── agents/                              # Sub-agent definition files
@@ -244,6 +257,7 @@ Every subdirectory in `docs/` has a specific purpose. Do not use `docs/` as a ca
 | `docs/consultants/`  | Deliverables, briefs, or reports from external consultants                     | Audit reports, external review docs                                |
 | `docs/eval/`         | Evaluation results for front-end and back-end features; structured test output | Performance benchmarks, UX eval notes                              |
 | `docs/experiments/`  | Exploratory notes and write-ups for experiments not yet promoted to code       | Hypothesis docs, spike summaries                                   |
+| `docs/guides/`       | How-to guides and tutorials                                                    | Usage guides, onboarding walkthroughs                              |
 | `docs/lessons/`      | Running log of lessons learned — populated by both humans and agents           | `LESSONS.md` (append-only log)                                     |
 | `docs/solutions/`    | Categorized learnings from compound loops, accumulated by agents               | YAML-frontmatter `.md` files per pattern                           |
 | `docs/brainstorms/`  | Brainstorming documents for compound-engineering                               | Free-form brainstorm docs                                          |
@@ -339,6 +353,7 @@ When adding **any** new file, walk through this decision tree in order. Stop at 
 - External consultant deliverable → `docs/consultants/`
 - Evaluation result → `docs/eval/front_end/` or `docs/eval/back_end/`
 - Old/retired doc → `docs/archive/`
+- Preserved reference guide (e.g., original README kept after `init-project.sh`) → `.launchpad/`
 - **Never add documentation files at root** beyond the canonical singleton list in Section 2.1.
 
 ### 7.2 Is it a script?

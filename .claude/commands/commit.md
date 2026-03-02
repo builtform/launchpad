@@ -197,13 +197,31 @@ gh pr checks
 - If checks are still pending (exit code 8): wait 30 seconds and re-check. Do not attempt to diagnose pending checks.
 - If any check fails: read the CI logs with `gh run view <run-id> --log-failed`, diagnose the failure, fix locally, re-run quality gates (Step 3), push the fix, and restart this loop.
 
-### Gate B: Reviews
+### Gate B1: Human Reviews
 
 ```bash
 gh pr view --json latestReviews,comments
 ```
 
-- If there are change requests: address each comment, make the fix, re-run quality gates, commit, push, and restart this loop.
+- If there are change requests: address each comment, make the fix, re-run quality gates (Step 3), commit, push, and restart this loop.
+
+### Gate B2: Codex Automated Review
+
+Poll for the Codex review comment (posted by the `codex-review.yml` GitHub Action):
+
+```bash
+gh api repos/{owner}/{repo}/issues/{pr_number}/comments \
+  --jq '[.[] | select(.body | test("Codex Automated Code Review"))] | last'
+```
+
+- **Poll for up to 5 minutes** (10 checks, 30 seconds apart). If no Codex comment appears within that window, pass — this gate is non-blocking on timeout.
+- When the comment arrives, parse the body for **P0** and **P1** severity sections.
+- If P0 or P1 items exist (i.e., the section content is not "None found" and not empty):
+  1. Present each finding to the user with the severity, file path, and description.
+  2. Ask: **"Codex found P0/P1 issues. Should I fix these now?"**
+  3. If the user approves: fix each issue, re-run quality gates (Step 3), commit, push, and restart this loop.
+  4. If the user declines: note the user's decision and pass.
+- If only P2/P3 or all sections say "None found": pass.
 
 ### Gate C: Conflicts
 
@@ -215,8 +233,8 @@ gh pr view --json mergeable
 
 ### Loop Exit
 
-- All three gates must pass on the **same cycle** to exit the loop.
-- When all gates are green, notify the user: **"All CI checks pass, no outstanding reviews, and no conflicts. Ready to merge."**
+- All gates must pass on the **same cycle** to exit the loop.
+- When all gates are green, notify the user: **"All CI checks pass, no outstanding reviews, Codex review clean, and no conflicts. Ready to merge."**
 - **NEVER auto-merge.** The user decides when to merge.
 
 ---

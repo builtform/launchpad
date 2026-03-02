@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "../styles/globals.css";
 
 export const metadata: Metadata = {
-  title: "App",
-  description: "Built with the project template",
+  title: "{{PROJECT_NAME}}",
+  description: "{{PROJECT_DESCRIPTION}}",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

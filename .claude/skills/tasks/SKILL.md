@@ -72,7 +72,7 @@ Create `prd.json`:
 
 ```json
 {
-  "project": "Project Name",
+  "project": "{{PROJECT_NAME}}",
   "branchName": "compound/[feature-name]",
   "description": "[One-line description from PRD]",
   "tasks": [

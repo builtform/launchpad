@@ -1,4 +1,4 @@
-# [Project Name] – Claude Instructions
+# Launchpad – Claude Instructions
 
 > **Template scope:** Full-stack monorepo with a **TypeScript/Next.js frontend** and a **Hono API backend**, managed with Turborepo and pnpm workspaces. Adapt section headers and placeholder values if your topology differs.
 
@@ -11,7 +11,7 @@
 <!-- 2–4 sentences. What problem does this solve? Who are the users? What's the core value prop?   -->
 <!-- This anchors every decision Claude makes — keep it here, not in a linked doc.                 -->
 
-[PROJECT_PURPOSE_PLACEHOLDER]
+{{PROJECT_PURPOSE}}
 
 ---
 
@@ -148,16 +148,17 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 
 ### Phase B — Build It & Learn (autonomous, agent-driven)
 
-| Command                     | Purpose                                                                              |
-| --------------------------- | ------------------------------------------------------------------------------------ |
-| `/workflows:plan [feature]` | Plan implementation for a feature (compound-engineering)                             |
-| `/workflows:work`           | Implement the current plan (compound-engineering)                                    |
-| `/workflows:review`         | Review recent changes and extract learnings (compound-engineering)                   |
-| `/workflows:compound`       | Full compound cycle: plan + work + review (compound-engineering)                     |
-| `/lfg`                      | Fully autonomous pipeline: plan + implement + review + commit (compound-engineering) |
-| `/create_plan`              | Manual alternative: create a structured implementation plan                          |
-| `/implement_plan`           | Manual alternative: execute an existing plan step by step                            |
-| `/research_codebase`        | Deep codebase research and analysis                                                  |
+| Command                     | Purpose                                                                                       |
+| --------------------------- | --------------------------------------------------------------------------------------------- |
+| `/workflows:plan [feature]` | Plan implementation for a feature (compound-engineering)                                      |
+| `/workflows:work`           | Implement the current plan (compound-engineering)                                             |
+| `/workflows:review`         | Review recent changes and extract learnings (compound-engineering)                            |
+| `/workflows:compound`       | Full compound cycle: plan + work + review (compound-engineering)                              |
+| `/lfg`                      | Fully autonomous pipeline: plan + implement + review + commit (compound-engineering)          |
+| `/inf`                      | Implement next feature: report -> PRD -> tasks -> loop -> quality sweep -> Codex review -> PR |
+| `/create_plan`              | Manual alternative: create a structured implementation plan                                   |
+| `/implement_plan`           | Manual alternative: execute an existing plan step by step                                     |
+| `/research_codebase`        | Deep codebase research and analysis                                                           |
 
 ### Automation Scripts
 

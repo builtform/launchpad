@@ -10,10 +10,10 @@
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 echo "=============================================="
-echo "  PROJECT MONOREPO - AI HYDRATION"
+echo "  {{PROJECT_NAME}} - AI HYDRATION"
 echo "=============================================="
 echo ""
-echo "You are working on this project's MonoRepo."
+echo "You are working on the {{PROJECT_NAME}} monorepo."
 echo "Loading minimal session context (repo structure + active tasks)."
 echo ""
 
