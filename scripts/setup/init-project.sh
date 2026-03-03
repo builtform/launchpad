@@ -105,7 +105,7 @@ while true; do
     continue
   fi
   if printf '%s' "$PROJECT_NAME" | grep -qE '[`$()!]|[[:cntrl:]]'; then
-    warn "Project name contains invalid characters. Use letters, numbers, spaces, hyphens, or underscores."
+    warn "Project name contains invalid characters. Avoid backticks, dollar signs, parentheses, exclamation marks, and control characters."
     continue
   fi
   break
@@ -431,7 +431,7 @@ echo "    - In Claude Code: /pull-launchpad"
 echo "    - Or manually:    bash scripts/setup/pull-upstream.launchpad.sh"
 echo ""
 printf "${BOLD}  (Optional) Create a GitHub repository and push:${RESET}\n"
-echo "    gh repo create \"$REPO_SLUG\" --\"$REPO_VISIBILITY\" --source=. --push"
+echo "    gh repo create \"$REPO_SLUG\" --$REPO_VISIBILITY --source=. --push"
 echo ""
 echo "Next steps:"
 echo "  1. Install dependencies:    pnpm install && pnpm dev"
