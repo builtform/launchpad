@@ -103,9 +103,10 @@ if [[ "$BRANCH_NAME" != "$BRANCH_PREFIX"* ]]; then
   BRANCH_NAME="${BRANCH_PREFIX}$(echo "$BRANCH_NAME" | sed "s|^[^/]*/||")"
 fi
 
-# Sanitize branch name: allow only alphanumeric, hyphens, underscores, slashes
-BRANCH_NAME=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9/_-]//g' | sed 's|\.\./||g' | sed 's|^-||')
-[ -n "$BRANCH_NAME" ] || error "Branch name is empty after sanitization"
+# Validate branch name using git's own rules
+if ! git check-ref-format --branch "$BRANCH_NAME" >/dev/null 2>&1; then
+  error "Invalid branch name: $BRANCH_NAME"
+fi
 
 # Validate branch name using git's own rules
 if ! git check-ref-format --branch "$BRANCH_NAME" >/dev/null 2>&1; then
