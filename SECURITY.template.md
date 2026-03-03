@@ -1,28 +1,37 @@
 # Security Policy
 
-<!-- TODO: Replace security@thinkinghand.dev with the final contact email once confirmed. -->
+> **Template notice:** This is a template file. Replace all `{{PROJECT_NAME}}`,
+> `[INSERT CONTACT EMAIL]`, and `[INSERT CONTACT METHOD]` placeholders before publishing.
+> Update the version table to reflect your project's actual release lines.
+> Remove this notice once the file reflects your project's actual policy.
 
 ## Supported Versions
 
+Only the versions listed below currently receive security fixes. Vulnerabilities reported
+against unsupported versions will not be patched.
+
 | Version | Supported |
 | ------- | --------- |
-| 1.0.0   | Yes       |
+| x.x.x   | Yes       |
+| x.x.x   | No        |
+
+Replace the table rows with your project's actual release lines.
 
 ## Reporting a Vulnerability
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Report vulnerabilities privately by emailing: `security@thinkinghand.dev`
+Report vulnerabilities privately by emailing: `[INSERT CONTACT EMAIL]`
 
-If GitHub private vulnerability reporting is enabled on this repository, you may also use
-the "Report a vulnerability" button on the Security tab.
+Alternatively, you may use: `[INSERT CONTACT METHOD]` (e.g., GitHub private vulnerability
+reporting, a dedicated security form, or another private channel).
 
 ## What to Include
 
 A useful report contains:
 
 - A clear description of the vulnerability and its potential impact
-- The affected Launchpad version(s)
+- The affected {{PROJECT_NAME}} version(s)
 - Step-by-step reproduction instructions
 - Proof-of-concept code or a minimal example (if available)
 - Any suggested remediation (optional but appreciated)
@@ -45,7 +54,7 @@ within 48 hours, follow up at the same address.
 
 This project follows a **coordinated disclosure** model:
 
-1. The reporter notifies the Launchpad maintainers privately and provides sufficient detail to reproduce the issue.
+1. The reporter notifies the {{PROJECT_NAME}} maintainers privately and provides sufficient detail to reproduce the issue.
 2. The maintainers acknowledge receipt and begin an investigation.
 3. The maintainers develop and test a fix, aiming to resolve critical issues within 90 days.
 4. A patched release is prepared. The reporter is notified before public release.
@@ -60,7 +69,7 @@ embargo longer than 90 days without the reporter's agreement.
 The following are generally considered in scope:
 
 - Source code in this repository
-- Official releases published under the Launchpad project
+- Official releases published under this project
 
 The following are generally out of scope:
 

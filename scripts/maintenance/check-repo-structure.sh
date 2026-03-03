@@ -82,11 +82,19 @@ echo "📋 Checking for non-whitelisted root files..."
 # Define whitelist (must match REPOSITORY_STRUCTURE.md Section 2)
 ALLOWED_DOCS=(
   "README.md"
+  "README.template.md"
   "CLAUDE.md"
   "CONTRIBUTING.md"
+  "CONTRIBUTING.template.md"
   "CODE_OF_CONDUCT.md"
+  "CODE_OF_CONDUCT.template.md"
   "AGENTS.md"
   "SECURITY.md"
+  "SECURITY.template.md"
+  "LICENSE"
+  "LICENSE.template"
+  "CHANGELOG.md"
+  "CHANGELOG.template.md"
 )
 
 ALLOWED_CONFIGS=(
@@ -117,6 +125,7 @@ ALLOWED_DIRS=(
   ".github"
   ".vscode"
   ".claude"
+  ".launchpad"
   "node_modules"
   ".git"
   ".next"
@@ -244,7 +253,7 @@ flag_loose_top_level() {
     ".env.example"
     "package.json" "pnpm-lock.yaml"
     "tsconfig.json" "jest.config.js" "jest.config.ts" "jest.config.mjs" "vitest.config.js" "vitest.config.ts"
-    "next.config.js" "next.config.ts" "next.config.mjs" "postcss.config.js" "postcss.config.mjs" "tailwind.config.js" "tailwind.config.ts"
+    "next.config.js" "next.config.ts" "next.config.mjs" "next-env.d.ts" "postcss.config.js" "postcss.config.mjs" "tailwind.config.js" "tailwind.config.ts"
     ".eslintrc" ".eslintrc.js" ".eslintrc.cjs" ".eslintrc.json" "eslint.config.mjs"
     ".prettierrc" ".prettierrc.js" ".prettierrc.json"
   )

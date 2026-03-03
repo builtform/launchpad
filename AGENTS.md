@@ -1,4 +1,4 @@
-# [Project Name] – Agent Instructions
+# Launchpad – Agent Instructions
 
 > **Template scope:** Full-stack monorepo with a **TypeScript/Next.js frontend** and a **Hono API backend**, managed with Turborepo and pnpm workspaces. Adapt section headers and placeholder values if your topology differs.
 
@@ -11,7 +11,7 @@
 <!-- 2–4 sentences. What problem does this solve? Who are the users? What's the core value prop?   -->
 <!-- This anchors every decision the agent makes — keep it here, not in a linked doc.              -->
 
-[PROJECT_PURPOSE_PLACEHOLDER]
+{{PROJECT_PURPOSE}}
 
 ---
 

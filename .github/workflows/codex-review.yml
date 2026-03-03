@@ -1,0 +1,103 @@
+name: Codex Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  codex-review:
+    name: Codex Code Review
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    # Skip draft PRs and dependabot
+    if: |
+      !github.event.pull_request.draft &&
+      github.actor != 'dependabot[bot]'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@2d756ea4c53f7f6b397767d8723b3a10a9f35bf2 # v44
+        with:
+          files: |
+            # TypeScript / JavaScript source code
+            **/*.ts
+            **/*.tsx
+            **/*.js
+            **/*.jsx
+            **/*.mjs
+            **/*.cjs
+            # Infrastructure
+            **/*.prisma
+            **/*.sql
+            **/*.sh
+            **/Dockerfile
+            # Config & dependency manifests
+            **/*.json
+            **/*.toml
+            **/*.yml
+            **/*.yaml
+            # CI/CD workflows
+            .github/workflows/**/*.yml
+          files_ignore: |
+            # Test files
+            **/*.test.ts
+            **/*.test.tsx
+            **/*.spec.ts
+            **/*.spec.tsx
+            # Build artifacts & dependencies
+            **/node_modules/**
+            **/.next/**
+            **/dist/**
+            **/.turbo/**
+            # Lock files (auto-generated)
+            **/pnpm-lock.yaml
+            **/package-lock.json
+            # Generated files
+            **/*.d.ts
+            **/prisma/migrations/**/*.sql
+
+      - name: Run Codex Review
+        id: codex-review
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: openai/codex-action@086169432f1d2ab2f4057540b1754d550f6a1189 # v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: .github/codex-review-prompt.md
+          model: gpt-5.2
+          sandbox: read-only
+          safety-strategy: drop-sudo
+
+      - name: Post Review Comment
+        if: steps.changed-files.outputs.any_changed == 'true' && steps.codex-review.outcome == 'success'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEW_OUTPUT: ${{ steps.codex-review.outputs.final-message }}
+        with:
+          script: |
+            const reviewContent = process.env.REVIEW_OUTPUT || 'No issues found.';
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## Codex Automated Code Review\n\n${reviewContent}\n\n---\n*Automated review by [OpenAI Codex](https://openai.com/codex/)*`
+            });
+
+      - name: Review skipped
+        if: steps.changed-files.outputs.any_changed == 'true' && steps.codex-review.outcome != 'success'
+        run: |
+          echo "::warning::Codex review step did not succeed (outcome: ${{ steps.codex-review.outcome }}). Review comment was not posted."
+
+      - name: Skip notification
+        if: steps.changed-files.outputs.any_changed != 'true'
+        run: echo "No reviewable files changed, skipping Codex review"

@@ -33,6 +33,9 @@ scripts/compound/.last-branch
 scripts/compound/archive/
 scripts/compound/*.log
 
+# Internal strategy reports (not for public repo)
+docs/reports/launchpad_reports/
+
 # Claude Code local
 settings.local.json
 

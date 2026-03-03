@@ -280,7 +280,7 @@ Write `docs/architecture/TECH_STACK.md`:
 
 After writing both architecture docs, update `CLAUDE.md` in the project root:
 
-1. **Replace `[PROJECT_PURPOSE_PLACEHOLDER]`** in the "WHY -- Project Purpose" section with 2-4 sentences derived from the problem statement and target users. Write a concise summary -- do not copy-paste the PRD verbatim.
+1. **Update the "WHY -- Project Purpose" section** in CLAUDE.md. Replace the existing purpose description with 2-4 sentences derived from the problem statement and target users. Write a concise summary -- do not copy-paste the PRD verbatim.
 
 2. **Fill in the tech stack bullet points** in the "WHAT -- Tech Stack" section. Remove the `<!-- e.g. ... -->` HTML comment hints when filling in real values:
    - **Frontend:** [framework + styling + TypeScript version if known]
