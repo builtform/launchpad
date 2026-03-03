@@ -10,7 +10,7 @@
 # - jq installed
 # - ANTHROPIC_API_KEY environment variable set
 
-set -e
+set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -59,6 +59,7 @@ TASKS_DIR="$PROJECT_ROOT/tasks"
 command -v claude >/dev/null 2>&1 || error "claude CLI not found"
 command -v gh >/dev/null 2>&1 || error "gh CLI not found. Install with: brew install gh"
 command -v jq >/dev/null 2>&1 || error "jq not found. Install with: brew install jq"
+command -v lefthook >/dev/null 2>&1 || error "lefthook not found. Install with: brew install lefthook"
 
 cd "$PROJECT_ROOT"
 
@@ -102,6 +103,10 @@ if [[ "$BRANCH_NAME" != "$BRANCH_PREFIX"* ]]; then
   BRANCH_NAME="${BRANCH_PREFIX}$(echo "$BRANCH_NAME" | sed "s|^[^/]*/||")"
 fi
 
+# Sanitize branch name: allow only alphanumeric, hyphens, underscores, slashes
+BRANCH_NAME=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9/_-]//g' | sed 's|\.\./||g' | sed 's|^-||')
+[ -n "$BRANCH_NAME" ] || error "Branch name is empty after sanitization"
+
 log "Priority item: $PRIORITY_ITEM"
 log "Branch: $BRANCH_NAME"
 log "Rationale: $RATIONALE"
@@ -115,7 +120,7 @@ fi
 # Step 3: Create feature branch
 log "Step 3: Creating feature branch..."
 git switch main
-git switch -c "$BRANCH_NAME" 2>/dev/null || git switch "$BRANCH_NAME"
+git switch -c -- "$BRANCH_NAME" 2>/dev/null || git switch -- "$BRANCH_NAME"
 
 # Step 4: Use Claude to create PRD
 log "Step 4: Creating PRD..."

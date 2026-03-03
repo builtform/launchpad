@@ -41,4 +41,4 @@ settings.local.json
 
 # Misc
 *.log
-.cache/.DS_Store
+.cache/

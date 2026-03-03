@@ -84,6 +84,15 @@ if [ -d ".launchpad" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Clean worktree guard — prevent data loss on rollback
+# ---------------------------------------------------------------------------
+if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
+  error "Working tree has uncommitted changes."
+  error "Please commit or stash your changes before running init-project.sh."
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
 # Step 1 — Collect user inputs via interactive prompts
 # ---------------------------------------------------------------------------
 heading "Initializing your project from Launchpad..."
