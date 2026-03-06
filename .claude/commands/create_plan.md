@@ -41,20 +41,35 @@ Then wait for the user's input.
    - **CRITICAL**: DO NOT spawn sub-tasks before reading these files yourself in the main context
    - **NEVER** read files partially - if a file is mentioned, read it completely
 
-2. **Spawn initial research tasks to gather context**:
-   Before asking the user any questions, use specialized agents to research in parallel:
-   - Use the **codebase-locator** agent to find all files related to the task
-   - Use the **codebase-analyzer** agent to understand how the current implementation works
-   - Use the **web-search-researcher** agent if the task involves unfamiliar libraries, APIs, or technologies — spawn it to gather current documentation, best practices, and usage patterns before planning
+2. **Spawn initial research in two mandatory waves**:
 
-   These agents will:
+   Before asking the user any questions, gather context using the two-wave pattern:
+
+   #### Wave 1: Discovery (parallel, FAST and CHEAP — no Read tool)
+
+   Spawn these locator agents in parallel:
+   - **codebase-locator** — finds all files related to the task (Glob/Grep only)
+   - **docs-locator** — finds WHERE relevant documents live across the knowledge base: `docs/solutions/`, `docs/plans/`, `docs/reports/`, `docs/architecture/`, `docs/tasks/`, `docs/lessons/`, `docs/brainstorms/` (Glob/Grep only). **Conditional**: Only spawn this agent if `docs/solutions/`, `docs/plans/`, `docs/reports/`, or `docs/lessons/` contain files beyond stubs or placeholder READMEs — i.e., the project has accumulated real knowledge. Skip on a fresh project where these directories are empty or contain only templates.
+
+   These agents return file paths, directory structures, and pattern locations. They do NOT read file contents.
+
+   #### You MUST wait for ALL Wave 1 agents to return results before spawning Wave 2.
+
+   #### Wave 2: Analysis (parallel, AFTER Wave 1 completes)
+
+   Using the specific paths discovered by Wave 1, spawn targeted analyzer agents:
+   - **codebase-analyzer** — understands how the current implementation works at the paths found by locators
+   - **docs-analyzer** — extracts key decisions, constraints, rejected approaches, lessons learned, and promoted patterns from the documents found by docs-locator (only if docs-locator returned results)
+   - **web-search-researcher** — if the task involves unfamiliar libraries, APIs, or technologies, spawn it to gather current documentation, best practices, and usage patterns
+
+   These agents READ files — they are expensive, so target them precisely using Wave 1 results. They will:
    - Find relevant source files, configs, and tests
-   - Identify the specific directories to focus on (e.g., if the web app is mentioned, they'll focus on apps/web/)
+   - Identify the specific directories to focus on (e.g., if the web app is mentioned, they'll focus on `apps/web/`)
    - Trace data flow and key functions
    - Return detailed explanations with file:line references
 
 3. **Read all files identified by research tasks**:
-   - After research tasks complete, read ALL files they identified as relevant
+   - After Wave 2 tasks complete, read ALL files they identified as relevant
    - Read them FULLY into the main context
    - This ensures you have complete understanding before proceeding
 
@@ -94,24 +109,32 @@ After getting initial clarifications:
 
 2. **Create a research todo list** using TodoWrite to track exploration tasks
 
-3. **Spawn parallel sub-tasks for comprehensive research**:
-   - Create multiple Task agents to research different aspects concurrently
-   - Use the right agent for each type of research:
+3. **Spawn deeper research in two mandatory waves**:
 
-   **For deeper investigation:**
-   - **codebase-locator** - To find more specific files (e.g., "find all files that handle [specific component]")
-   - **codebase-analyzer** - To understand implementation details (e.g., "analyze how [system] works")
-   - **codebase-pattern-finder** - To find similar features we can model after
-   - **web-search-researcher** - To look up external documentation when the plan involves new libraries, third-party APIs, migration guides, or technology choices the codebase hasn't used before
+   #### Wave 1: Discovery (parallel, FAST and CHEAP — no Read tool)
 
-   Each agent knows how to:
-   - Find the right files and code patterns
+   Spawn locator agents in parallel:
+   - **codebase-locator** — finds more specific files (e.g., "find all files that handle [specific component]") (Glob/Grep only)
+   - **codebase-pattern-finder** — finds similar features and patterns we can model after (Glob/Grep only)
+
+   These agents return file paths and pattern locations. They do NOT read file contents.
+
+   #### You MUST wait for ALL Wave 1 agents to return results before spawning Wave 2.
+
+   #### Wave 2: Analysis (parallel, AFTER Wave 1 completes)
+
+   Using the specific paths discovered by Wave 1, spawn targeted analyzer agents:
+   - **codebase-analyzer** — understands implementation details at found paths (e.g., "analyze how [system] works at [specific files]")
+   - **docs-analyzer** — extracts decisions, constraints, and lessons from any relevant documents found in earlier waves (only if docs/ has accumulated real content)
+   - **web-search-researcher** — looks up external documentation when the plan involves new libraries, third-party APIs, migration guides, or technology choices the codebase hasn't used before
+
+   These agents READ files — they are expensive, so target them precisely using Wave 1 results. They will:
    - Identify conventions and patterns to follow
    - Look for integration points and dependencies
    - Return specific file:line references
    - Find tests and examples
 
-4. **Wait for ALL sub-tasks to complete** before proceeding
+4. **Wait for ALL Wave 2 sub-tasks to complete** before proceeding
 
 5. **Present findings and design options**:
 

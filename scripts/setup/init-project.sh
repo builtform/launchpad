@@ -278,6 +278,17 @@ swap_template "CODE_OF_CONDUCT.template.md" "CODE_OF_CONDUCT.md"
 swap_template "CHANGELOG.template.md"       "CHANGELOG.md"
 swap_template "CONTRIBUTING.template.md"    "CONTRIBUTING.md"
 
+# Move Launchpad-specific docs to .launchpad/ for reference
+if [ -f "METHODOLOGY.md" ]; then
+  mv "METHODOLOGY.md" ".launchpad/METHODOLOGY.md"
+  info "Moved METHODOLOGY.md -> .launchpad/METHODOLOGY.md"
+fi
+
+if [ -f "docs/guides/HOW_IT_WORKS.md" ]; then
+  mv "docs/guides/HOW_IT_WORKS.md" ".launchpad/HOW_IT_WORKS.md"
+  info "Moved docs/guides/HOW_IT_WORKS.md -> .launchpad/HOW_IT_WORKS.md"
+fi
+
 # ---------------------------------------------------------------------------
 # Step 3/4 — Fill all placeholders with user inputs
 # ---------------------------------------------------------------------------
@@ -410,8 +421,10 @@ echo ""
 printf "${GREEN}Project '${BOLD}%s${RESET}${GREEN}' files initialized successfully!${RESET}\n" "$PROJECT_NAME"
 echo ""
 echo "The original Launchpad documentation has been saved to:"
-echo "   .launchpad/GUIDE.md   (workflow reference)"
-echo "   .launchpad/version    (scaffold version: 1.0.0)"
+echo "   .launchpad/GUIDE.md          (workflow reference)"
+echo "   .launchpad/METHODOLOGY.md    (Launchpad methodology & principles)"
+echo "   .launchpad/HOW_IT_WORKS.md   (internal methodology reference)"
+echo "   .launchpad/version           (scaffold version: 1.0.0)"
 echo ""
 printf "${YELLOW}${BOLD}Next: set up your git history${RESET}\n"
 echo ""

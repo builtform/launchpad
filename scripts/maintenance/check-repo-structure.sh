@@ -91,10 +91,11 @@ ALLOWED_DOCS=(
   "AGENTS.md"
   "SECURITY.md"
   "SECURITY.template.md"
-  "LICENSE"
-  "LICENSE.template"
   "CHANGELOG.md"
   "CHANGELOG.template.md"
+  "LICENSE"
+  "LICENSE.template"
+  "METHODOLOGY.md"
 )
 
 ALLOWED_CONFIGS=(

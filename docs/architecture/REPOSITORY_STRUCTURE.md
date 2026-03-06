@@ -36,16 +36,17 @@ The repository root is **clean and predictable**. Only a small, explicit set of 
 - `README.md` — High-level project overview for new contributors.
 - `CLAUDE.md` — AI agent operating rules for Claude Code (primary AI configuration).
 - `AGENTS.md` — OpenAI Codex agent configuration and review guidelines.
-- `CONTRIBUTING.md` — Contribution guidelines for Launchpad.
+- `CONTRIBUTING.md` — Contribution guidelines (created by `init-project.sh` from template).
 - `CONTRIBUTING.template.md` — Contribution guidelines template for new projects.
-- `CODE_OF_CONDUCT.md` — Code of conduct for Launchpad.
+- `CODE_OF_CONDUCT.md` — Code of conduct (created by `init-project.sh` from template).
 - `CODE_OF_CONDUCT.template.md` — Code of conduct template for new projects.
-- `SECURITY.md` — Security policy for Launchpad.
+- `SECURITY.md` — Security policy (created by `init-project.sh` from template).
 - `SECURITY.template.md` — Security policy template for new projects.
-- `CHANGELOG.md` — Changelog for Launchpad.
+- `CHANGELOG.md` — Changelog (created by `init-project.sh` from template).
 - `CHANGELOG.template.md` — Changelog template for new projects.
 - `LICENSE` — MIT license (Thinking Hand Studio LLC).
 - `LICENSE.template` — MIT license template for new projects.
+- `METHODOLOGY.md` — How Launchpad works: the six layers, pipeline details, and credits.
 
 **Tooling & Workspace Configuration:**
 
@@ -176,8 +177,7 @@ Anything else at root is root clutter and must be moved to the correct subdirect
 │   │   ├── loop.sh                          # Execution loop with archive support
 │   │   ├── analyze-report.sh                # Report analysis script
 │   │   ├── config.json                      # Pipeline configuration (reports dir, iterations, etc.)
-│   │   ├── iteration-prompt.md              # Per-iteration task instructions for Claude
-│   │   └── knowledge-base.md               # Accumulated patterns and learnings from loops
+│   │   └── iteration-claude.md              # Per-iteration task instructions for AI agent
 │   └── maintenance/
 │       └── check-repo-structure.sh          # Validates repo structure against this spec
 │

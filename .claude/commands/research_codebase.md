@@ -37,28 +37,35 @@ Then wait for the user's research query.
    - Create a research plan using TodoWrite to track all subtasks
    - Consider which directories, files, or architectural patterns are relevant
 
-3. **Spawn parallel sub-agent tasks for comprehensive research:**
-   - Create multiple Task agents to research different aspects concurrently
-   - We now have specialized agents that know how to do specific research tasks:
-
-   **For codebase research:**
-   - Use the **codebase-locator** agent to find WHERE files and components live
-   - Use the **codebase-analyzer** agent to understand HOW specific code works (without critiquing it)
-   - Use the **codebase-pattern-finder** agent to find examples of existing patterns (without evaluating them)
+3. **Spawn sub-agents in two mandatory waves:**
 
    **IMPORTANT**: All agents are documentarians, not critics. They will describe what exists without suggesting improvements or identifying issues.
 
-   **For web research (only if user explicitly asks):**
-   - Use the **web-search-researcher** agent for external documentation and resources
-   - IF you use web-research agents, instruct them to return LINKS with their findings, and please INCLUDE those links in your final report
+   #### Wave 1: Discovery (parallel, FAST and CHEAP — no Read tool)
 
-   The key is to use these agents intelligently:
-   - Start with locator agents to find what exists
-   - Then use analyzer agents on the most promising findings to document how they work
-   - Run multiple agents in parallel when they're searching for different things
-   - Each agent knows its job - just tell it what you're looking for
-   - Don't write detailed prompts about HOW to search - the agents already know
+   Spawn these locator agents in parallel:
+   - **codebase-locator** — finds WHERE files and components live (Glob/Grep only)
+   - **docs-locator** — finds WHERE relevant documents live across the knowledge base: `docs/solutions/`, `docs/plans/`, `docs/reports/`, `docs/architecture/`, `docs/tasks/`, `docs/lessons/`, `docs/brainstorms/` (Glob/Grep only). **Conditional**: Only spawn this agent if `docs/solutions/`, `docs/plans/`, `docs/reports/`, or `docs/lessons/` contain files beyond stubs or placeholder READMEs — i.e., the project has accumulated real knowledge. Skip on a fresh project where these directories are empty or contain only templates.
+
+   These agents return file paths, directory structures, and pattern locations. They do NOT read file contents.
+
+   #### You MUST wait for ALL Wave 1 agents to return results before spawning Wave 2.
+
+   #### Wave 2: Analysis (parallel, AFTER Wave 1 completes)
+
+   Using the specific paths and files discovered by Wave 1, spawn targeted analyzer agents:
+   - **codebase-analyzer** — understands HOW specific code works at the paths found by locators (without critiquing it)
+   - **codebase-pattern-finder** — finds examples of existing patterns at the locations identified (without evaluating them)
+   - **docs-analyzer** — extracts key decisions, constraints, rejected approaches, lessons learned, and promoted patterns from the documents found by docs-locator (only if docs-locator returned results)
+   - **web-search-researcher** — gathers external documentation and resources (only if user explicitly asks). IF used, instruct it to return LINKS with findings, and INCLUDE those links in your final report
+
+   These agents READ files — they are expensive, so target them precisely using Wave 1 results.
+
+   **Key principles:**
+   - Each agent knows its job — just tell it what you're looking for
+   - Don't write detailed prompts about HOW to search — the agents already know
    - Remind agents they are documenting, not evaluating or improving
+   - Run multiple agents in parallel within each wave
 
 4. **Wait for all sub-agents to complete and synthesize findings:**
    - IMPORTANT: Wait for ALL sub-agent tasks to complete before proceeding

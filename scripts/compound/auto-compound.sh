@@ -1,14 +1,14 @@
 #!/bin/bash
 # Compound Product - Full Pipeline
 # Reads a report, picks #1 priority, creates PRD + tasks, runs loop, creates PR
+# Tool is configurable via config.json "tool" field (default: claude).
 #
 # Usage: ./auto-compound.sh [--dry-run]
 #
 # Requirements:
-# - claude CLI installed and authenticated
+# - claude or codex CLI installed and authenticated (based on config.json "tool")
 # - gh CLI installed and authenticated
 # - jq installed
-# - ANTHROPIC_API_KEY environment variable set
 
 set -eo pipefail
 
@@ -39,6 +39,11 @@ error() {
   exit 1
 }
 
+# Check requirements (jq needed before config loading)
+command -v jq >/dev/null 2>&1 || error "jq is required but not installed. Install with: brew install jq"
+command -v gh >/dev/null 2>&1 || error "gh CLI not found. Install with: brew install gh"
+command -v lefthook >/dev/null 2>&1 || error "lefthook not found. Install with: brew install lefthook"
+
 # Load config
 if [ ! -f "$CONFIG_FILE" ]; then
   error "Config file not found: $CONFIG_FILE. Copy config.example.json to config.json and customize."
@@ -49,17 +54,25 @@ OUTPUT_DIR=$(jq -r '.outputDir // "./scripts/compound"' "$CONFIG_FILE")
 MAX_ITERATIONS=$(jq -r '.maxIterations // 25' "$CONFIG_FILE")
 BRANCH_PREFIX=$(jq -r '.branchPrefix // "compound/"' "$CONFIG_FILE")
 ANALYZE_COMMAND=$(jq -r '.analyzeCommand // ""' "$CONFIG_FILE")
+TOOL=$(jq -r '.tool // "claude"' "$CONFIG_FILE")
+
+# Validate AI tool CLI
+command -v "$TOOL" >/dev/null 2>&1 || error "$TOOL CLI not found. Install it or change tool in config.json"
+
+# ai_run: pipes a prompt into the configured AI tool (non-interactive, full permissions)
+# Usage: echo "prompt" | ai_run 2>&1 | tee logfile
+ai_run() {
+  if [ "$TOOL" = "codex" ]; then
+    codex exec --dangerously-bypass-approvals-and-sandbox "$(cat -)"
+  else
+    claude --dangerously-skip-permissions
+  fi
+}
 
 # Resolve paths
 REPORTS_DIR="$PROJECT_ROOT/$REPORTS_DIR"
 OUTPUT_DIR="$PROJECT_ROOT/$OUTPUT_DIR"
 TASKS_DIR="$PROJECT_ROOT/tasks"
-
-# Check requirements
-command -v claude >/dev/null 2>&1 || error "claude CLI not found"
-command -v gh >/dev/null 2>&1 || error "gh CLI not found. Install with: brew install gh"
-command -v jq >/dev/null 2>&1 || error "jq not found. Install with: brew install jq"
-command -v lefthook >/dev/null 2>&1 || error "lefthook not found. Install with: brew install lefthook"
 
 cd "$PROJECT_ROOT"
 
@@ -116,6 +129,7 @@ fi
 log "Priority item: $PRIORITY_ITEM"
 log "Branch: $BRANCH_NAME"
 log "Rationale: $RATIONALE"
+echo "[CHECKPOINT] Report analyzed — priority: $PRIORITY_ITEM"
 
 if [ "$DRY_RUN" = true ]; then
   log "DRY RUN - Would proceed with:"
@@ -128,7 +142,7 @@ log "Step 3: Creating feature branch..."
 git switch main
 git switch -c -- "$BRANCH_NAME" 2>/dev/null || git switch -- "$BRANCH_NAME"
 
-# Step 4: Use Claude to create PRD
+# Step 4: Create PRD via AI tool
 log "Step 4: Creating PRD..."
 
 PRD_FILENAME="prd-$(echo "$BRANCH_NAME" | sed "s|^${BRANCH_PREFIX}||").md"
@@ -153,12 +167,13 @@ IMPORTANT CONSTRAINTS:
 
 Save the PRD to: tasks/$PRD_FILENAME"
 
-echo "$PRD_PROMPT" | claude --dangerously-skip-permissions 2>&1 | tee "$OUTPUT_DIR/auto-compound-prd.log"
+echo "$PRD_PROMPT" | ai_run 2>&1 | tee "$OUTPUT_DIR/auto-compound-prd.log"
 
 # Verify PRD was created
 PRD_PATH="$TASKS_DIR/$PRD_FILENAME"
 [ -f "$PRD_PATH" ] || error "PRD was not created at $PRD_PATH"
 log "PRD created: $PRD_PATH"
+echo "[CHECKPOINT] PRD generated. Review at: $PRD_PATH (pipeline continues...)"
 
 # Archive previous run before overwriting prd.json
 PRD_FILE="$OUTPUT_DIR/prd.json"
@@ -175,13 +190,13 @@ if [ -f "$PRD_FILE" ]; then
 
     log "Archiving previous run: $OLD_BRANCH"
     mkdir -p "$ARCHIVE_FOLDER"
-    cp "$PRD_FILE" "$ARCHIVE_FOLDER/"
-    [ -f "$PROGRESS_FILE" ] && cp "$PROGRESS_FILE" "$ARCHIVE_FOLDER/"
+    mv "$PRD_FILE" "$ARCHIVE_FOLDER/"
+    [ -f "$PROGRESS_FILE" ] && mv "$PROGRESS_FILE" "$ARCHIVE_FOLDER/"
     log "Archived to: $ARCHIVE_FOLDER"
   fi
 fi
 
-# Step 5: Use Claude to convert PRD to tasks
+# Step 5: Convert PRD to tasks via AI tool
 log "Step 5: Converting PRD to prd.json..."
 
 TASKS_PROMPT="Load the tasks skill. Convert $PRD_PATH to $OUTPUT_DIR/prd.json
@@ -190,11 +205,18 @@ Use branch name: $BRANCH_NAME
 
 Remember: Each task must be small enough to complete in one iteration."
 
-echo "$TASKS_PROMPT" | claude --dangerously-skip-permissions 2>&1 | tee "$OUTPUT_DIR/auto-compound-tasks.log"
+echo "$TASKS_PROMPT" | ai_run 2>&1 | tee "$OUTPUT_DIR/auto-compound-tasks.log"
 
 # Verify prd.json was created
 [ -f "$OUTPUT_DIR/prd.json" ] || error "prd.json was not created"
 log "Tasks created: $(cat "$OUTPUT_DIR/prd.json" | jq '.tasks | length') tasks"
+echo "[CHECKPOINT] Tasks created — $(jq '.tasks | length' "$OUTPUT_DIR/prd.json") tasks in prd.json (pipeline continues...)"
+
+# Set startedAt timestamp
+jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.startedAt = $ts' "$OUTPUT_DIR/prd.json" > "$OUTPUT_DIR/prd.json.tmp" && mv "$OUTPUT_DIR/prd.json.tmp" "$OUTPUT_DIR/prd.json"
+
+# Render initial board
+"$SCRIPT_DIR/board.sh" --md "$OUTPUT_DIR/prd.json" "$PROJECT_ROOT/docs/tasks/board.md" || true
 
 # Commit the PRD and prd.json
 git add "$PRD_PATH" "$OUTPUT_DIR/prd.json"
@@ -203,6 +225,7 @@ git commit -m "chore: add PRD and tasks for $PRIORITY_ITEM" || true
 # Step 6: Run the loop
 log "Step 6: Running execution loop (max $MAX_ITERATIONS iterations)..."
 "$SCRIPT_DIR/loop.sh" "$MAX_ITERATIONS" 2>&1 | tee "$OUTPUT_DIR/auto-compound-execution.log"
+echo "[CHECKPOINT] Execution loop complete. Starting quality sweep..."
 
 # Step 7a: Final Quality Sweep
 log "Step 7a: Running final quality sweep (lefthook pre-commit)..."
@@ -230,14 +253,14 @@ for fix_attempt in $(seq 1 $MAX_FIX_ATTEMPTS); do
     break
   fi
 
-  # If read-only checks failed, use Claude to fix
-  log "Quality sweep failed (attempt $fix_attempt). Using Claude to fix..."
+  # If read-only checks failed, use AI tool to fix
+  log "Quality sweep failed (attempt $fix_attempt). Using $TOOL to fix..."
   echo "Fix these lefthook pre-commit failures autonomously. Do NOT ask questions. Just fix the issues and stage the changes.
 
 Failures:
-$LEFTHOOK_OUTPUT" | claude --dangerously-skip-permissions 2>&1 | tee "$OUTPUT_DIR/auto-compound-quality-fix.log"
+$LEFTHOOK_OUTPUT" | ai_run 2>&1 | tee "$OUTPUT_DIR/auto-compound-quality-fix.log"
 
-  # Stage and commit Claude's fixes
+  # Stage and commit fixes
   git add -A
   if ! git diff --cached --quiet; then
     git commit -m "chore: fix quality gate issues (attempt $fix_attempt)"
@@ -265,10 +288,8 @@ $RATIONALE
 $(cat "$OUTPUT_DIR/progress.txt" 2>/dev/null | tail -50)
 \`\`\`
 
-### Tasks completed
-\`\`\`json
-$(cat "$OUTPUT_DIR/prd.json" | jq '.tasks[] | {id, title, passes}')
-\`\`\`
+### Tasks
+$(cat "$PROJECT_ROOT/docs/tasks/board.md" 2>/dev/null | tail -n +2 || cat "$OUTPUT_DIR/prd.json" | jq '.tasks[] | {id, title, passes}')
 
 ---
 *This PR was automatically generated by \`/inf\` (Implement Next Feature).*"
@@ -329,7 +350,7 @@ for cycle in $(seq 1 $MAX_PR_CYCLES); do
       echo "Fix this CI failure autonomously. Do NOT ask questions. Just fix and stage changes.
 
 CI failure log:
-$FAIL_LOG" | claude --dangerously-skip-permissions 2>&1 | tee "$OUTPUT_DIR/auto-compound-ci-fix.log"
+$FAIL_LOG" | ai_run 2>&1 | tee "$OUTPUT_DIR/auto-compound-ci-fix.log"
 
       # Commit and push the fix
       git add -A
@@ -370,7 +391,7 @@ P0 Critical Issues:
 $P0_CONTENT
 
 P1 High Priority Issues:
-$P1_CONTENT" | claude --dangerously-skip-permissions 2>&1 | tee "$OUTPUT_DIR/auto-compound-review-fix.log"
+$P1_CONTENT" | ai_run 2>&1 | tee "$OUTPUT_DIR/auto-compound-review-fix.log"
 
         # Commit and push the fix (triggers new Codex review)
         git add -A
@@ -404,7 +425,7 @@ $P1_CONTENT" | claude --dangerously-skip-permissions 2>&1 | tee "$OUTPUT_DIR/aut
     git fetch origin main
     git rebase origin/main || {
       log "Gate C: Rebase conflict. Attempting resolution..."
-      echo "Resolve these git rebase conflicts autonomously. Do NOT ask questions." | claude --dangerously-skip-permissions 2>&1
+      echo "Resolve these git rebase conflicts autonomously. Do NOT ask questions." | ai_run 2>&1
       git rebase --continue 2>/dev/null || git rebase --abort
     }
 
@@ -432,6 +453,75 @@ $P1_CONTENT" | claude --dangerously-skip-permissions 2>&1 | tee "$OUTPUT_DIR/aut
     log "WARNING: Max monitoring cycles reached ($MAX_PR_CYCLES). Manual review may be needed."
   fi
 done
+
+# Set completedAt timestamp
+jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.completedAt = $ts' "$OUTPUT_DIR/prd.json" > "$OUTPUT_DIR/prd.json.tmp" && mv "$OUTPUT_DIR/prd.json.tmp" "$OUTPUT_DIR/prd.json"
+
+# Final board render
+"$SCRIPT_DIR/board.sh" --md "$OUTPUT_DIR/prd.json" "$PROJECT_ROOT/docs/tasks/board.md" || true
+BOARD_SUMMARY=$("$SCRIPT_DIR/board.sh" --summary "$OUTPUT_DIR/prd.json" 2>/dev/null || echo "")
+if [ -n "$BOARD_SUMMARY" ]; then
+  log "Final: $BOARD_SUMMARY"
+fi
+
+# Step 8: Extract learnings into structured file
+log "Step 8: Extracting learnings from progress.txt..."
+
+FEATURE_SLUG=$(echo "$BRANCH_NAME" | sed "s|^${BRANCH_PREFIX}||")
+LEARNINGS_DIR="$PROJECT_ROOT/docs/solutions/compound-product/$FEATURE_SLUG"
+LEARNINGS_FILE="$LEARNINGS_DIR/${FEATURE_SLUG}-$(date +%Y-%m-%d).md"
+TEMPLATE_FILE="$PROJECT_ROOT/docs/solutions/compound-product/_template.md"
+
+if [ -f "$PROGRESS_FILE" ] && [ -f "$TEMPLATE_FILE" ]; then
+  mkdir -p "$LEARNINGS_DIR"
+
+  # Count task stats from prd.json
+  TASKS_TOTAL=$(jq '.tasks | length' "$OUTPUT_DIR/prd.json" 2>/dev/null || echo 0)
+  TASKS_COMPLETED=$(jq '[.tasks[] | select(.passes == true)] | length' "$OUTPUT_DIR/prd.json" 2>/dev/null || echo 0)
+  ITERATION_COUNT=$(grep -c "^## " "$PROGRESS_FILE" 2>/dev/null || echo 0)
+
+  # Extract learnings from progress.txt using AI
+  EXTRACT_PROMPT="Read this progress log and extract a structured learnings document.
+
+Progress log:
+$(cat "$PROGRESS_FILE")
+
+Template to follow (fill in the YAML frontmatter and sections):
+$(cat "$TEMPLATE_FILE")
+
+Fill in these values:
+- title: $PRIORITY_ITEM
+- feature: $FEATURE_SLUG
+- date: $(date +%Y-%m-%d)
+- branch: $BRANCH_NAME
+- report_source: $REPORT_NAME
+- tasks_total: $TASKS_TOTAL
+- tasks_completed: $TASKS_COMPLETED
+- iterations_used: $ITERATION_COUNT
+- max_iterations: $MAX_ITERATIONS
+- pr_url: $PR_URL
+
+Extract ALL learnings, patterns, gotchas, and file changes from the progress log.
+Output ONLY the filled-in markdown document, nothing else."
+
+  LEARNINGS_CONTENT=$(echo "$EXTRACT_PROMPT" | ai_run 2>&1)
+
+  if [ -n "$LEARNINGS_CONTENT" ]; then
+    echo "$LEARNINGS_CONTENT" > "$LEARNINGS_FILE"
+    git add "$LEARNINGS_FILE"
+    git commit -m "docs: extract learnings for $FEATURE_SLUG" || true
+    git push origin "$BRANCH_NAME" || true
+    log "Learnings saved to: $LEARNINGS_FILE"
+  else
+    log "WARNING: Failed to extract learnings. Review progress.txt manually."
+  fi
+else
+  log "WARNING: No progress.txt or template found. Skipping learnings extraction."
+fi
+
+log ""
+log "Review your learnings: $LEARNINGS_FILE"
+log "Promote patterns to: docs/solutions/compound-product/patterns/promoted-patterns.md"
 
 log "Complete! PR: $PR_URL"
 log "All CI checks pass, Codex review clean, no conflicts. Ready for human review and merge."
