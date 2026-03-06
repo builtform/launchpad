@@ -121,11 +121,6 @@ if ! git check-ref-format --branch "$BRANCH_NAME" >/dev/null 2>&1; then
   error "Invalid branch name: $BRANCH_NAME"
 fi
 
-# Validate branch name using git's own rules
-if ! git check-ref-format --branch "$BRANCH_NAME" >/dev/null 2>&1; then
-  error "Invalid branch name: $BRANCH_NAME"
-fi
-
 log "Priority item: $PRIORITY_ITEM"
 log "Branch: $BRANCH_NAME"
 log "Rationale: $RATIONALE"

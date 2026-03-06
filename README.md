@@ -21,7 +21,7 @@ Built on top of best practices for AI-assisted development: existing patterns (c
 
 - **[CE Plugin](https://github.com/EveryInc/compound-engineering-plugin)** by Kieran Klaassen / [Every](https://every.to/) -- 29 agents, 22 commands, 19 skills (optional)
 
-- **context engineering system** by [HumanLayer](https://github.com/humanlayer/humanlayer) -- The locator/analyzer agent pair pattern and two-wave orchestration.
+- **Context Engineering System** by [HumanLayer](https://github.com/humanlayer/humanlayer) -- The locator/analyzer agent pair pattern and two-wave orchestration.
 
 ---
 
