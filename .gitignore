@@ -33,6 +33,9 @@ scripts/compound/.last-branch
 scripts/compound/archive/
 scripts/compound/*.log
 
+# Compound Product - generated board
+docs/tasks/board.md
+
 # Internal strategy reports (not for public repo)
 docs/reports/launchpad_reports/
 

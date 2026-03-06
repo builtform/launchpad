@@ -7,7 +7,7 @@
 #
 # Environment variables (uses first one found):
 #   ANTHROPIC_API_KEY     - Anthropic API directly
-#   OPENROUTER_API_KEY    - OpenRouter (uses claude-sonnet-4-20250514)
+#   OPENROUTER_API_KEY    - OpenRouter (uses claude-opus-4.6)
 #   AI_GATEWAY_URL        - Any OpenAI-compatible endpoint (requires AI_GATEWAY_API_KEY)
 
 set -e
@@ -120,7 +120,7 @@ case "$PROVIDER" in
       -H "x-api-key: $ANTHROPIC_API_KEY" \
       -H "anthropic-version: 2023-06-01" \
       -d "{
-        \"model\": \"claude-sonnet-4-20250514\",
+        \"model\": \"claude-opus-4-6\",
         \"max_tokens\": 1024,
         \"messages\": [{\"role\": \"user\", \"content\": $PROMPT_ESCAPED}]
       }")
@@ -133,7 +133,7 @@ case "$PROVIDER" in
       -H "Authorization: Bearer $OPENAI_API_KEY" \
       -d "{
         \"model\": \"gpt-4o\",
-        \"max_tokens\": 1024,
+        \"max_completion_tokens\": 1024,
         \"messages\": [{\"role\": \"user\", \"content\": $PROMPT_ESCAPED}]
       }")
     TEXT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
@@ -144,7 +144,7 @@ case "$PROVIDER" in
       -H "Content-Type: application/json" \
       -H "Authorization: Bearer $OPENROUTER_API_KEY" \
       -d "{
-        \"model\": \"anthropic/claude-sonnet-4-20250514\",
+        \"model\": \"anthropic/claude-opus-4.6\",
         \"max_tokens\": 1024,
         \"messages\": [{\"role\": \"user\", \"content\": $PROMPT_ESCAPED}]
       }")
@@ -152,7 +152,7 @@ case "$PROVIDER" in
     ;;
 
   gateway)
-    MODEL="${AI_GATEWAY_MODEL:-anthropic/claude-sonnet-4-20250514}"
+    MODEL="${AI_GATEWAY_MODEL:-anthropic/claude-opus-4.6}"
     RESPONSE=$(curl -s "${AI_GATEWAY_URL}/chat/completions" \
       -H "Content-Type: application/json" \
       -H "Authorization: Bearer $AI_GATEWAY_AUTH_TOKEN" \

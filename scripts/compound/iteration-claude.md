@@ -8,12 +8,12 @@ You are an autonomous coding agent working on a software project.
 2. Read the PRD at `[outputDir]/prd.json` (from config)
 3. Read the progress log at `[outputDir]/progress.txt` (check Codebase Patterns section first)
 4. Check you're on the correct branch from PRD `branchName`. If not, switch to it or create from main.
-5. Pick the **highest priority** task where `passes: false`
+5. Pick the **highest priority** task where `status` is `"pending"` (or `"failed"` if no pending tasks remain)
 6. Implement that single task
 7. Run quality checks from config `qualityChecks` array
-8. Update `scripts/compound/knowledge-base.md` if you discover reusable patterns (see below)
+8. Document learnings in your progress report (see "Document Learnings" section below)
 9. If checks pass, commit ALL changes with message: `feat: [Task ID] - [Task Title]`
-10. Update the PRD to set `passes: true` for the completed task
+10. Update the PRD: set `status: "done"` and `passes: true` for the completed task
 11. Append your progress to `[outputDir]/progress.txt`
 
 ## Progress Report Format
@@ -46,24 +46,36 @@ If you discover a **reusable pattern** that future iterations should know, add i
 
 Only add patterns that are **general and reusable**, not task-specific details.
 
-## Update Knowledge Base
+## Status Transitions
 
-Before committing, check if any edited files have learnings worth preserving:
+Update the `status` field in prd.json as you work:
 
-1. **Identify directories with edited files**
-2. **Check for existing `scripts/compound/knowledge-base.md`**
-3. **Add valuable learnings** - API patterns, gotchas, dependencies, testing approaches
+```
+pending ──[picked up]──→ in_progress
+in_progress ──[checks pass]──→ done (also set passes: true)
+in_progress ──[checks fail]──→ failed (keep passes: false)
+failed ──[re-attempted]──→ in_progress
+```
 
-**Examples of good additions:**
+- Set `status: "in_progress"` BEFORE starting work on a task
+- Set `status: "done"` + `passes: true` on success
+- Set `status: "failed"` on failure (keep `passes: false`)
 
-- "When modifying X, also update Y to keep them in sync"
-- "This module uses pattern Z for all API calls"
-- "Tests require the dev server running on PORT 3000"
+## Document Learnings
 
-**Do NOT add:**
+When completing a task, include detailed learnings in your progress report (step 11). These learnings are extracted after the run completes into `docs/solutions/compound-product/`.
 
-- Task-specific implementation details
+**In your progress entry, always include:**
+
+- **Patterns discovered** — reusable knowledge (e.g., "this codebase uses X for Y")
+- **Gotchas encountered** — things that tripped you up (e.g., "don't forget to update Z when changing W")
+- **Dependencies** — unexpected coupling between files or modules
+- **Testing insights** — what tests exist, how to run them, what's missing
+
+**Do NOT include:**
+
 - Temporary debugging notes
+- Obvious implementation details (the git diff shows that)
 
 ## Quality Requirements
 

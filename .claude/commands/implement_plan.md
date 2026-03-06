@@ -69,6 +69,24 @@ Task(subagent_type="codebase-pattern-finder", prompt="Find existing patterns for
 
 Use the returned code examples as your template — match the style, naming, structure, and error handling patterns exactly.
 
+## Consulting Accumulated Knowledge
+
+Before each phase, also consider spawning a **docs-analyzer** sub-agent to check if `docs/solutions/` contains relevant learnings for the current phase's domain. This surfaces previously documented decisions, constraints, rejected approaches, and promoted patterns that may affect your implementation.
+
+**When to spawn it:**
+
+- If `docs/solutions/` contains files beyond stubs (i.e., the project has accumulated learnings from previous autonomous runs)
+- When the phase touches a domain where past learnings are likely (e.g., auth, data pipeline, deployment)
+- When the plan references constraints or decisions that may have been documented
+
+**How to spawn it:**
+
+```
+Task(subagent_type="docs-analyzer", prompt="Check docs/solutions/ and docs/lessons/ for any documented decisions, constraints, or promoted patterns related to [current phase's domain]")
+```
+
+Use the returned insights to avoid repeating mistakes and to follow previously promoted patterns. If the docs-analyzer finds relevant constraints or rejected approaches, factor them into your implementation.
+
 ## If You Get Stuck
 
 When something isn't working as expected:

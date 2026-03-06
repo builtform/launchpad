@@ -75,6 +75,8 @@ Create `prd.json`:
   "project": "{{PROJECT_NAME}}",
   "branchName": "compound/[feature-name]",
   "description": "[One-line description from PRD]",
+  "startedAt": null,
+  "completedAt": null,
   "tasks": [
     {
       "id": "T-001",
@@ -86,6 +88,7 @@ Create `prd.json`:
         "Run `pnpm typecheck` - exits with code 0"
       ],
       "priority": 1,
+      "status": "pending",
       "passes": false,
       "notes": ""
     }
@@ -242,7 +245,7 @@ Determine logical order:
 
 ### Step 5: Generate prd.json
 
-Create the JSON file with all tasks having `passes: false`.
+Create the JSON file with all tasks having `status: "pending"` and `passes: false`.
 
 ### Step 6: Save and Summarize
 
@@ -268,5 +271,5 @@ Before saving prd.json:
 - [ ] No vague words: "review", "identify", "document", "verify it works"
 - [ ] Commands specify expected exit code
 - [ ] Browser actions specify expected result
-- [ ] All tasks have `passes: false`
+- [ ] All tasks have `status: "pending"` and `passes: false`
 - [ ] Priority order reflects dependencies

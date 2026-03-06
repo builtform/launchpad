@@ -1,6 +1,7 @@
 #!/bin/bash
 # Compound Product - Execution Loop
-# Runs Claude Code repeatedly until all tasks in prd.json are complete.
+# Runs an AI coding agent repeatedly until all tasks in prd.json are complete.
+# Tool is configurable via config.json "tool" field (default: claude).
 #
 # Usage: ./loop.sh [max_iterations]
 
@@ -10,14 +11,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/config.json"
 
+# Check requirements
+command -v jq >/dev/null 2>&1 || { echo "ERROR: jq is required but not installed. Install with: brew install jq" >&2; exit 1; }
+
 # Load config
 if [ -f "$CONFIG_FILE" ]; then
   OUTPUT_DIR=$(jq -r '.outputDir // "./scripts/compound"' "$CONFIG_FILE")
   MAX_ITERATIONS=$(jq -r '.maxIterations // 10' "$CONFIG_FILE")
+  TOOL=$(jq -r '.tool // "claude"' "$CONFIG_FILE")
 else
   OUTPUT_DIR="./scripts/compound"
   MAX_ITERATIONS=10
+  TOOL="claude"
 fi
+
+# Prompt file (same for all tools — piped via stdin)
+PROMPT_FILE="$SCRIPT_DIR/iteration-claude.md"
+
+# Validate the configured CLI tool is available
+command -v "$TOOL" >/dev/null 2>&1 || { echo "ERROR: $TOOL CLI not found. Install it or change tool in config.json" >&2; exit 1; }
 
 # Resolve paths
 OUTPUT_DIR="$PROJECT_ROOT/$OUTPUT_DIR"
@@ -39,8 +51,8 @@ if [ -f "$PRD_FILE" ] && [ -f "$LAST_BRANCH_FILE" ]; then
 
     echo "Archiving previous run: $LAST_BRANCH"
     mkdir -p "$ARCHIVE_FOLDER"
-    [ -f "$PRD_FILE" ] && cp "$PRD_FILE" "$ARCHIVE_FOLDER/"
-    [ -f "$PROGRESS_FILE" ] && cp "$PROGRESS_FILE" "$ARCHIVE_FOLDER/"
+    [ -f "$PRD_FILE" ] && mv "$PRD_FILE" "$ARCHIVE_FOLDER/"
+    [ -f "$PROGRESS_FILE" ] && mv "$PROGRESS_FILE" "$ARCHIVE_FOLDER/"
     echo "   Archived to: $ARCHIVE_FOLDER"
 
     # Reset progress file for new run
@@ -73,9 +85,15 @@ if [ ! -f "$PROGRESS_FILE" ]; then
   echo "---" >> "$PROGRESS_FILE"
 fi
 
-echo "Starting Compound Product Loop - Max iterations: $MAX_ITERATIONS"
+echo "Starting Compound Product Loop - Tool: $TOOL | Max iterations: $MAX_ITERATIONS"
 
 cd "$PROJECT_ROOT"
+
+# Validate prd.json exists before entering the loop
+if [ ! -f "$PRD_FILE" ]; then
+  echo "ERROR: No prd.json found at: $PRD_FILE. Run auto-compound.sh first." >&2
+  exit 1
+fi
 
 for i in $(seq 1 $MAX_ITERATIONS); do
   echo ""
@@ -83,7 +101,18 @@ for i in $(seq 1 $MAX_ITERATIONS); do
   echo "  Iteration $i of $MAX_ITERATIONS"
   echo "==============================================================="
 
-  OUTPUT=$(claude --dangerously-skip-permissions --print < "$SCRIPT_DIR/iteration-prompt.md" 2>&1 | tee /dev/stderr) || true
+  # Invoke the configured AI tool
+  case "$TOOL" in
+    codex)
+      OUTPUT=$(codex exec --dangerously-bypass-approvals-and-sandbox "$(cat "$PROMPT_FILE")" 2>&1 | tee /dev/stderr) || true
+      ;;
+    *)
+      OUTPUT=$(claude --dangerously-skip-permissions --print < "$PROMPT_FILE" 2>&1 | tee /dev/stderr) || true
+      ;;
+  esac
+
+  # Update Kanban board after each iteration
+  "$SCRIPT_DIR/board.sh" --md "$PRD_FILE" "$PROJECT_ROOT/docs/tasks/board.md" || true
 
   # Check for completion signal
   if echo "$OUTPUT" | grep -q "<promise>COMPLETE</promise>"; then
