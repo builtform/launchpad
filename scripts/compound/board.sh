@@ -80,12 +80,12 @@ render_ascii() {
 
   # Read all data in one jq call
   DATA=$(prd_jq_r '
-    def ids_by(s): [.tasks[] | select(.status == s) | .id] | join(",");
-    def count_by(s): [.tasks[] | select(.status == s)] | length;
+    def ids_by(s): [(.tasks // [])[] | select(.status == s) | .id] | join(",");
+    def count_by(s): [(.tasks // [])[] | select(.status == s)] | length;
     [
       (.branchName // "unknown"),
       (.startedAt // ""),
-      (.tasks | length | tostring),
+      ((.tasks // []) | length | tostring),
       (count_by("pending") | tostring),
       (count_by("in_progress") | tostring),
       (count_by("done") | tostring),
