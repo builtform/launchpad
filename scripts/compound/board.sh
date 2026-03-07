@@ -41,7 +41,12 @@ fi
 PRD_DATA=$(jq '
   if (.tasks | length == 0) then .
   elif (.tasks[0] | has("status")) then .
-  else .tasks |= [.[] | . + {status: (if .passes then "done" else "pending" end)}]
+  else .tasks |= [.[] | . + {status: (
+    if .passes then "done"
+    elif (.skipped != null and .skipped != false) then "skipped"
+    else "pending"
+    end
+  )}]
   end
 ' "$PRD") || { echo "Failed to parse $PRD"; exit 0; }
 
@@ -75,20 +80,22 @@ render_ascii() {
 
   # Read all data in one jq call
   DATA=$(prd_jq_r '
-    def ids_by(s): [.tasks[] | select(.status == s) | .id] | join(",");
-    def count_by(s): [.tasks[] | select(.status == s)] | length;
+    def ids_by(s): [(.tasks // [])[] | select(.status == s) | .id] | join(",");
+    def count_by(s): [(.tasks // [])[] | select(.status == s)] | length;
     [
       (.branchName // "unknown"),
       (.startedAt // ""),
-      (.tasks | length | tostring),
+      ((.tasks // []) | length | tostring),
       (count_by("pending") | tostring),
       (count_by("in_progress") | tostring),
       (count_by("done") | tostring),
       (count_by("failed") | tostring),
+      (count_by("skipped") | tostring),
       ids_by("pending"),
       ids_by("in_progress"),
       ids_by("done"),
       ids_by("failed"),
+      ids_by("skipped"),
       ([.tasks[] | select(.status == "in_progress")][0] // null | if . then "\(.id) — \(.title)" else "" end)
     ] | .[]
   ') || true
@@ -104,11 +111,13 @@ render_ascii() {
       4) IN_PROG_COUNT="$line" ;;
       5) DONE_COUNT="$line" ;;
       6) FAILED_COUNT="$line" ;;
-      7) PENDING_CSV="$line" ;;
-      8) INPROG_CSV="$line" ;;
-      9) DONE_CSV="$line" ;;
-      10) FAILED_CSV="$line" ;;
-      11) CURRENT_TASK="$line" ;;
+      7) SKIPPED_COUNT="$line" ;;
+      8) PENDING_CSV="$line" ;;
+      9) INPROG_CSV="$line" ;;
+      10) DONE_CSV="$line" ;;
+      11) FAILED_CSV="$line" ;;
+      12) SKIPPED_CSV="$line" ;;
+      13) CURRENT_TASK="$line" ;;
     esac
     i=$((i + 1))
   done <<< "$DATA"
@@ -118,12 +127,14 @@ render_ascii() {
   IFS=',' read -ra INPROG_IDS <<< "${INPROG_CSV:-}"
   IFS=',' read -ra DONE_IDS <<< "${DONE_CSV:-}"
   IFS=',' read -ra FAILED_IDS <<< "${FAILED_CSV:-}"
+  IFS=',' read -ra SKIPPED_IDS <<< "${SKIPPED_CSV:-}"
 
   # Handle empty arrays (bash read creates single empty element)
   if [[ -z "${PENDING_IDS[0]:-}" ]]; then PENDING_IDS=(); fi
   if [[ -z "${INPROG_IDS[0]:-}" ]]; then INPROG_IDS=(); fi
   if [[ -z "${DONE_IDS[0]:-}" ]]; then DONE_IDS=(); fi
   if [[ -z "${FAILED_IDS[0]:-}" ]]; then FAILED_IDS=(); fi
+  if [[ -z "${SKIPPED_IDS[0]:-}" ]]; then SKIPPED_IDS=(); fi
 
   # Elapsed time
   ELAPSED="--:--:--"
@@ -177,10 +188,13 @@ render_ascii() {
   printf "  ${DIM}%-${COL_W}s${RESET}" "PENDING ($PENDING_COUNT)"
   printf "  ${YELLOW}${BOLD}%-${COL_W}s${RESET}" "WORKING ($IN_PROG_COUNT)"
   printf "  ${GREEN}${BOLD}%-${COL_W}s${RESET}" "DONE ($DONE_COUNT)"
+  printf "  ${CYAN}${DIM}%-${COL_W}s${RESET}" "SKIPPED ($SKIPPED_COUNT)"
   printf "  ${RED}${BOLD}%-${COL_W}s${RESET}\n" "FAILED ($FAILED_COUNT)"
 
   # Separator
   printf "  ${DIM}"
+  printf '%.0s─' $(seq 1 $((COL_W)))
+  printf "  "
   printf '%.0s─' $(seq 1 $((COL_W)))
   printf "  "
   printf '%.0s─' $(seq 1 $((COL_W)))
@@ -194,6 +208,7 @@ render_ascii() {
   MAX_ROWS=${#PENDING_IDS[@]}
   if [ ${#INPROG_IDS[@]} -gt $MAX_ROWS ]; then MAX_ROWS=${#INPROG_IDS[@]}; fi
   if [ ${#DONE_IDS[@]} -gt $MAX_ROWS ]; then MAX_ROWS=${#DONE_IDS[@]}; fi
+  if [ ${#SKIPPED_IDS[@]} -gt $MAX_ROWS ]; then MAX_ROWS=${#SKIPPED_IDS[@]}; fi
   if [ ${#FAILED_IDS[@]} -gt $MAX_ROWS ]; then MAX_ROWS=${#FAILED_IDS[@]}; fi
 
   # Render task cell
@@ -218,6 +233,7 @@ render_ascii() {
     render_cell "${PENDING_IDS[$row]:-}" "$DIM"
     render_cell "${INPROG_IDS[$row]:-}" "$YELLOW"
     render_cell "${DONE_IDS[$row]:-}" "$GREEN"
+    render_cell "${SKIPPED_IDS[$row]:-}" "${CYAN}${DIM}"
     render_cell "${FAILED_IDS[$row]:-}" "$RED"
     echo ""
     row=$((row + 1))
@@ -225,8 +241,12 @@ render_ascii() {
 
   # Footer
   echo ""
+  ACTIVE_TOTAL=$((TOTAL - SKIPPED_COUNT))
   printf "  ${BOLD}Progress:${RESET} "
-  progress_bar "$DONE_COUNT" "$TOTAL"
+  progress_bar "$DONE_COUNT" "$ACTIVE_TOTAL"
+  if [ "$SKIPPED_COUNT" -gt 0 ]; then
+    printf " ${CYAN}[${SKIPPED_COUNT} skipped]${RESET}"
+  fi
   echo ""
 
   if [[ -n "${CURRENT_TASK:-}" ]]; then
@@ -245,15 +265,17 @@ render_md() {
   BRANCH=$(prd_jq_r '.branchName // "unknown"')
   TOTAL=$(prd_jq '.tasks | length')
   DONE_COUNT=$(prd_jq '[.tasks[] | select(.status == "done")] | length')
+  SKIPPED_COUNT=$(prd_jq '[.tasks[] | select(.status == "skipped")] | length')
   CURRENT=$(prd_jq_r '[.tasks[] | select(.status == "in_progress")][0] // null | if . then "\(.id) — \(.title)" else "waiting..." end')
 
-  # Progress percentage
+  # Progress percentage (exclude skipped from denominator)
+  ACTIVE_TOTAL=$((TOTAL - SKIPPED_COUNT))
   PCT=0
-  if [ "$TOTAL" -gt 0 ]; then PCT=$((DONE_COUNT * 100 / TOTAL)); fi
+  if [ "$ACTIVE_TOTAL" -gt 0 ]; then PCT=$((DONE_COUNT * 100 / ACTIVE_TOTAL)); fi
 
   # Build progress bar (text-based for markdown)
   BAR_W=20
-  local divisor=$TOTAL
+  local divisor=$ACTIVE_TOTAL
   if [ "$divisor" -le 0 ]; then divisor=1; fi
   FILLED=$((DONE_COUNT * BAR_W / divisor))
   EMPTY=$((BAR_W - FILLED))
@@ -269,7 +291,11 @@ render_md() {
     echo "# Kanban Board"
     echo ""
     echo "> **Branch:** \`$BRANCH\`  "
-    echo "> **Progress:** \`[$BAR]\` **$DONE_COUNT/$TOTAL ($PCT%)**  "
+    if [ "$SKIPPED_COUNT" -gt 0 ]; then
+      echo "> **Progress:** \`[$BAR]\` **$DONE_COUNT/$ACTIVE_TOTAL ($PCT%)** [$SKIPPED_COUNT skipped]  "
+    else
+      echo "> **Progress:** \`[$BAR]\` **$DONE_COUNT/$ACTIVE_TOTAL ($PCT%)**  "
+    fi
     echo "> **Working:** $CURRENT  "
     echo "> **Updated:** $(date '+%H:%M:%S')  "
     echo ""
@@ -289,6 +315,9 @@ render_md() {
     # Failed
     prd_jq_r '.tasks[] | select(.status == "failed") | "| ❌ **FAILED** | \(.id) | \(.title) |"'
 
+    # Skipped
+    prd_jq_r '.tasks[] | select(.status == "skipped") | "| ⏭️ Skipped | \(.id) | \(.title) |"'
+
     # Done
     prd_jq_r '.tasks[] | select(.status == "done") | "| ✅ Done | \(.id) | \(.title) |"'
 
@@ -304,12 +333,18 @@ render_md() {
 render_summary() {
   TOTAL=$(prd_jq '.tasks | length')
   DONE_COUNT=$(prd_jq '[.tasks[] | select(.status == "done")] | length')
+  SKIPPED_COUNT=$(prd_jq '[.tasks[] | select(.status == "skipped")] | length')
   CURRENT=$(prd_jq_r '[.tasks[] | select(.status == "in_progress")][0] // null | if . then "\(.id) — \(.title)" else "none" end')
 
+  ACTIVE_TOTAL=$((TOTAL - SKIPPED_COUNT))
   PCT=0
-  if [ "$TOTAL" -gt 0 ]; then PCT=$((DONE_COUNT * 100 / TOTAL)); fi
+  if [ "$ACTIVE_TOTAL" -gt 0 ]; then PCT=$((DONE_COUNT * 100 / ACTIVE_TOTAL)); fi
 
-  echo "$DONE_COUNT/$TOTAL tasks ($PCT%) · Working: $CURRENT"
+  if [ "$SKIPPED_COUNT" -gt 0 ]; then
+    echo "$DONE_COUNT/$ACTIVE_TOTAL tasks ($PCT%) [$SKIPPED_COUNT skipped] · Working: $CURRENT"
+  else
+    echo "$DONE_COUNT/$ACTIVE_TOTAL tasks ($PCT%) · Working: $CURRENT"
+  fi
 }
 
 # ── Route to renderer ───────────────────────────────────────────

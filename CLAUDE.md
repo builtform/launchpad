@@ -171,12 +171,14 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 
 These agents are spawned as sub-agents by the commands above. Each is a read-only documentarian — it describes what exists without critiquing or suggesting changes.
 
-| Agent                     | Purpose                                                     | Used By                                                                 |
-| ------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `codebase-locator`        | Find WHERE files and components live (super Grep/Glob/LS)   | `/research_codebase`, `/create_plan`                                    |
-| `codebase-analyzer`       | Understand HOW specific code works with file:line precision | `/research_codebase`, `/create_plan`                                    |
-| `codebase-pattern-finder` | Find existing patterns and code examples to model after     | `/research_codebase`, `/create_plan`, `/implement_plan`, `/review_code` |
-| `web-search-researcher`   | External documentation, API references, and best practices  | `/research_codebase`, `/create_plan`                                    |
+| Agent                     | Purpose                                                                          | Used By                                                                            |
+| ------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `codebase-locator`        | Find WHERE files and components live (super Grep/Glob/LS)                        | `/research_codebase`, `/create_plan`, PRD skill                                    |
+| `codebase-analyzer`       | Understand HOW specific code works with file:line precision                      | `/research_codebase`, `/create_plan`                                               |
+| `codebase-pattern-finder` | Find existing patterns and code examples to model after                          | `/research_codebase`, `/create_plan`, `/implement_plan`, `/review_code`, PRD skill |
+| `docs-locator`            | Find relevant docs by frontmatter, date-prefixed filenames, directory structure  | `/research_codebase`, `/create_plan`, PRD skill                                    |
+| `docs-analyzer`           | Extract decisions, rejected approaches, constraints, promoted patterns from docs | `/research_codebase`, `/create_plan`, PRD skill                                    |
+| `web-search-researcher`   | External documentation, API references, and best practices                       | `/research_codebase`, `/create_plan`                                               |
 
 ---
 

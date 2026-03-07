@@ -47,16 +47,19 @@ Each acceptance criterion must be a **boolean check** that an agent can definiti
 
 ### Acceptance Criteria Patterns
 
-Use these patterns for agent-testable criteria:
+Use these patterns for agent-testable criteria. The **Field** column indicates where each criterion type belongs:
 
-| Type           | Pattern                                             | Example                                           |
-| -------------- | --------------------------------------------------- | ------------------------------------------------- |
-| Command        | "Run `[cmd]` - exits with code 0"                   | "Run `pnpm test` - exits with code 0"             |
-| File check     | "File `[path]` contains `[string]`"                 | "File `middleware.ts` contains `clerkMiddleware`" |
-| Browser nav    | "Navigate to `[url]` - [expected result]"           | "Navigate to /login - SignIn component renders"   |
-| Browser action | "Click `[element]` - [expected result]"             | "Click 'Submit' button - redirects to /dashboard" |
-| Console check  | "Browser console shows no errors"                   |                                                   |
-| API check      | "GET/POST `[url]` returns `[status]` with `[body]`" | "POST /api/signup returns 200"                    |
+| Type           | Pattern                                             | Example                                           | Field                |
+| -------------- | --------------------------------------------------- | ------------------------------------------------- | -------------------- |
+| Command        | "Run `[cmd]` - exits with code 0"                   | "Run `pnpm test` - exits with code 0"             | `acceptanceCriteria` |
+| File check     | "File `[path]` contains `[string]`"                 | "File `middleware.ts` contains `clerkMiddleware`" | `acceptanceCriteria` |
+| Browser nav    | "Navigate to `[url]` - [expected result]"           | "Navigate to /login - SignIn component renders"   | `acceptanceCriteria` |
+| Browser action | "Click `[element]` - [expected result]"             | "Click 'Submit' button - redirects to /dashboard" | `acceptanceCriteria` |
+| Console check  | "Browser console shows no errors"                   |                                                   | `acceptanceCriteria` |
+| API check      | "GET/POST `[url]` returns `[status]` with `[body]`" | "POST /api/signup returns 200"                    | `acceptanceCriteria` |
+| Visual check   | "[Element] appears/changes to [expected state]"     | "Dark mode toggle is visible below notifications" | `manualVerification` |
+| UX flow        | "User can [complete action] in [N] steps"           | "User can toggle dark mode in 1 click"            | `manualVerification` |
+| Responsive     | "Layout adapts correctly at [breakpoint]"           | "Layout adapts correctly at 768px"                | `manualVerification` |
 
 ---
 
@@ -75,6 +78,11 @@ Create `prd.json`:
   "project": "{{PROJECT_NAME}}",
   "branchName": "compound/[feature-name]",
   "description": "[One-line description from PRD]",
+  "desiredEndState": "[2-4 sentence description from PRD Desired End State section]",
+  "filesNotToModify": [
+    { "path": "src/components/Layout.tsx", "reason": "shared layout, already stable" },
+    { "path": "prisma/schema.prisma", "reason": "no database changes in this feature" }
+  ],
   "startedAt": null,
   "completedAt": null,
   "tasks": [
@@ -87,13 +95,47 @@ Create `prd.json`:
         "Another criterion with pass/fail condition",
         "Run `pnpm typecheck` - exits with code 0"
       ],
+      "manualVerification": [
+        "Navigate to /settings — dark mode toggle is visible below notifications",
+        "Toggle dark mode — all page backgrounds change to #1a1a2e"
+      ],
       "priority": 1,
       "status": "pending",
       "passes": false,
+      "skipped": null,
       "notes": ""
     }
   ]
 }
+```
+
+**Rules for top-level fields:**
+
+- `desiredEndState`: Always populated. Extracted verbatim from the PRD "Desired End State" section.
+- `filesNotToModify`: Always populated. If the PRD says "No restrictions", set to an empty array `[]`.
+
+**Rules for per-task fields:**
+
+- `acceptanceCriteria`: Machine-verifiable only (commands, file checks, API checks) — unchanged from current behavior. Always populated.
+- `manualVerification`: Human-testable criteria (UI appearance, UX flow, performance feel). Always populated. For tasks with no UI: `[]` (empty array).
+- `skipped`: Always `null` at generation time. Set to a reason string during execution if the task is intentionally skipped (e.g., `"Not applicable — no database in this project"`). When a task is skipped, `passes` stays `false` — the task did not actually pass its acceptance criteria, it was determined to be inapplicable. The stop condition checks `status` (done/skipped), not `passes`.
+
+### Schema Validation
+
+After generating prd.json, verify ALL required fields are present. If any are missing, apply these defaults rather than failing:
+
+| Field                           | Default Value       | Notes                                                        |
+| ------------------------------- | ------------------- | ------------------------------------------------------------ |
+| `desiredEndState`               | `""` (empty string) | Logged as warning — PRD may lack a Desired End State section |
+| `filesNotToModify`              | `[]` (empty array)  | Treated as "no restrictions"                                 |
+| `manualVerification` (per task) | `[]` (empty array)  | Treated as "no manual checks needed"                         |
+| `skipped` (per task)            | `null`              | Standard default — only set during execution                 |
+
+Log a warning for each defaulted field:
+
+```
+WARNING: prd.json field "[field]" was missing — defaulted to [value].
+This may indicate the PRD was generated before the enhanced template was adopted.
 ```
 
 ---
@@ -197,13 +239,32 @@ Each task must be completable in ONE iteration (~one context window).
 
 ## Priority Ordering
 
-Set priority based on dependencies:
+Set priority based on TWO factors: requirement tier AND dependency order.
 
-1. **Investigation tasks** - priority 1-3 (understand before changing)
-2. **Schema/database changes** - priority 4-5
-3. **Backend logic changes** - priority 6-7
-4. **UI component changes** - priority 8-9
-5. **Verification tasks** - priority 10+
+### Factor 1: Requirement Tier (from PRD Functional Requirements)
+
+- **P0 tasks** get priority range 1-49 (must be completed)
+- **P1 tasks** get priority range 50-89 (should be completed)
+- **P2 tasks** get priority range 90-99 (complete if time allows)
+
+### Factor 2: Dependency Order (within each tier)
+
+Within each priority range, order by dependencies:
+
+1. Investigation tasks (lowest numbers within range)
+2. Schema/database changes
+3. Backend logic changes
+4. UI component changes
+5. Verification tasks (highest numbers within range)
+
+### Example
+
+- T-001: [P0] Investigate auth patterns → priority 1
+- T-002: [P0] Add auth middleware → priority 5
+- T-003: [P0] Add login UI → priority 10
+- T-004: [P1] Add "remember me" checkbox → priority 50
+- T-005: [P1] Add password strength meter → priority 55
+- T-006: [P2] Add social login buttons → priority 90
 
 Lower priority number = executed first.
 
@@ -215,6 +276,33 @@ Lower priority number = executed first.
 
 Read the PRD file the user specified.
 
+### Step 1.5: Check for Unresolved Open Questions
+
+After reading the PRD, check the "Open Questions" section.
+
+**If the section says "N/A" or "None":** Proceed normally.
+
+**If the section contains unresolved questions:**
+
+1. List each unresolved question
+2. Output a WARNING:
+
+   ```
+   WARNING: The PRD contains [N] unresolved open questions:
+   1. [Question 1]
+   2. [Question 2]
+
+   Unresolved questions may lead to incorrect implementations.
+   Proceeding with conversion, but these questions should be
+   resolved before execution begins.
+   ```
+
+3. Add a note to the prd.json `description` field: `"[UNRESOLVED QUESTIONS: N]"`
+4. Proceed with conversion (do NOT block)
+
+**If autonomous mode** (piped from auto-compound.sh): Log the warning but proceed.
+**If interactive mode**: Present the warning and ask if the user wants to resolve questions first.
+
 ### Step 2: Extract High-Level Tasks
 
 Look for:
@@ -223,6 +311,8 @@ Look for:
 - User Stories (US-001, US-002, etc.)
 - Functional Requirements (FR-1, FR-2, etc.)
 - Any numbered/bulleted work items
+- Extract "Files NOT to Modify" section → populate `filesNotToModify` array
+- Extract "Desired End State" section → populate `desiredEndState` string
 
 ### Step 3: Explode Into Granular Tasks
 
@@ -273,3 +363,7 @@ Before saving prd.json:
 - [ ] Browser actions specify expected result
 - [ ] All tasks have `status: "pending"` and `passes: false`
 - [ ] Priority order reflects dependencies
+- [ ] UI tasks have `manualVerification` entries
+- [ ] Non-UI tasks have empty `manualVerification` array `[]`
+- [ ] `acceptanceCriteria` contains ONLY machine-verifiable checks
+- [ ] `skipped` is `null` for all tasks (set during execution, not generation)

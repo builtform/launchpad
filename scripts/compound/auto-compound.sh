@@ -155,8 +155,9 @@ $(echo "$ANALYSIS_JSON" | jq -r '.acceptance_criteria[]' | sed 's/^/- /')
 IMPORTANT CONSTRAINTS:
 - NO database migrations or schema changes
 - Keep scope small - this should be completable in 2-4 hours
-- Break into 3-5 small tasks maximum
+- Break into 3-5 high-level tasks (the tasks skill will expand these into 8-15 granular sub-tasks in prd.json)
 - Each task must be verifiable with quality checks and/or browser testing
+- Follow the PRD skill template exactly — include ALL sections (use N/A where not applicable)
 - DO NOT ask clarifying questions - you have enough context to proceed
 - Generate the PRD immediately without waiting for user input
 
