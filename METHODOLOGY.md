@@ -47,6 +47,14 @@ There are two paths into this layer: an **interactive path** (human-guided slash
 
 Both paths use **6 sub-agents** organized in a two-wave orchestration pattern. Wave 1 (Discovery) runs 4 locators in parallel -- codebase locator, docs locator, pattern finder, and web researcher -- using only fast tools (Grep, Glob, LS) to find relevant files without reading them. Wave 2 (Analysis) waits for Wave 1 to complete, then runs 2 analyzers in parallel -- codebase analyzer and docs analyzer -- targeting only the paths Wave 1 found. This ensures expensive Read operations are focused precisely where they'll yield useful context, preventing wasted tokens on irrelevant files.
 
+The PRD creation workflow (via the `/prd` skill or Step 4 of `auto-compound.sh`) extends this layer with several enhancements:
+
+- **Interactive MCQ mode:** When invoked interactively, the PRD skill asks 3-5 multiple-choice clarifying questions before generation. In autonomous mode (piped from the compound pipeline), it self-clarifies without user input.
+- **P0/P1/P2 priority tiers:** Every functional requirement is classified as P0 (must-have), P1 (should-have), or P2 (nice-to-have). P0 requirements must have corresponding tasks.
+- **"Files NOT to Modify" section:** Every PRD includes an explicit list of files and directories that must not be touched during implementation, preventing agents from "improving" adjacent code.
+- **Separated auto/manual verification:** Task acceptance criteria are split into machine-verifiable checks (run by the agent) and manual verification steps (logged for human follow-up).
+- **4 research agents:** Before generating a PRD, the skill spawns `codebase-locator`, `codebase-pattern-finder`, `docs-locator`, and `docs-analyzer` in parallel to gather codebase context, existing patterns, prior decisions, and documentation constraints.
+
 ### The Philosophy
 
 Spec-driven development is the practice of specifying before building. The idea comes from the broader SDD movement (Thoughtworks, GitHub SpecKit, AWS Kiro), but our implementation is different:

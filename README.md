@@ -13,15 +13,11 @@ AI coding assistants generate code without memory, conventions, or quality gates
 
 Built on top of best practices for AI-assisted development: existing patterns (compound loops, spec-driven dev, structure enforcement) wired into a single scaffold that works out of the box.
 
-- **[Compound Product](https://github.com/snarktank/compound-product)** by Ryan Carson -- autonomous pipeline from report to PR
-
-- **[Ralph](https://github.com/snarktank/ralph)** by Ryan Carson & [Ralph](https://ghuntley.com/ralph/) by Geoffrey Huntley -- fresh-context loop with git-based memory
-
-- **Spec-Driven Development** -- define architecture docs before building (SpecKit / AgentOS)
-
-- **[CE Plugin](https://github.com/EveryInc/compound-engineering-plugin)** by Kieran Klaassen / [Every](https://every.to/) -- 29 agents, 22 commands, 19 skills (optional)
-
-- **Context Engineering System** by [HumanLayer](https://github.com/humanlayer/humanlayer) -- The locator/analyzer agent pair pattern and two-wave orchestration.
+- **Context Engineering System** by **[HumanLayer](https://github.com/humanlayer/humanlayer)** -- Research → Plan → Implement workflow, The locator/analyzer agent pair pattern, and two-wave orchestration.
+- **[Compound Product](https://github.com/snarktank/compound-product)** by Ryan Carson -- Autonomous pipeline from report to PR
+- **[Ralph](https://github.com/snarktank/ralph)** by Ryan Carson & **[Ralph](https://ghuntley.com/ralph/)** by Geoffrey Huntley -- Fresh-context loop with git-based memory
+- **Spec-Driven Development** -- Define architecture docs before building (SpecKit / AgentOS)
+- **[CE Plugin](https://github.com/EveryInc/compound-engineering-plugin)** by Kieran Klaassen / **[Every](https://every.to/)** -- 29 agents, 22 commands, 19 skills (optional)
 
 ---
 
@@ -33,13 +29,15 @@ Built on top of best practices for AI-assisted development: existing patterns (c
 
 ### Prerequisites
 
-| Prerequisite                                                  | Version | Required    | Purpose                                        |
-| ------------------------------------------------------------- | ------- | ----------- | ---------------------------------------------- |
-| [Node.js](https://nodejs.org/)                                | 22.x+   | Yes         | JavaScript runtime                             |
-| [pnpm](https://pnpm.io/)                                      | 9.x+    | Yes         | Package manager (enable via `corepack enable`) |
-| [PostgreSQL](https://www.postgresql.org/)                     | 14+     | Yes         | Database                                       |
-| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Latest  | Recommended | AI development workflows                       |
-| [GitHub CLI](https://cli.github.com/)                         | Latest  | Optional    | PR creation from `/commit` and `/inf`          |
+| Prerequisite                                                  | Version | Required | Purpose                                        |
+| ------------------------------------------------------------- | ------- | -------- | ---------------------------------------------- |
+| [Node.js](https://nodejs.org/)                                | 22.x+   | Yes      | JavaScript runtime                             |
+| [pnpm](https://pnpm.io/)                                      | 9.x+    | Yes      | Package manager (enable via `corepack enable`) |
+| [PostgreSQL](https://www.postgresql.org/)                     | 14+     | Yes      | Database                                       |
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Latest  | Yes      | AI development workflows                       |
+| [Codex](https://openai.com/codex/)                            | Latest  | Optional | AI development workflows alternative           |
+| [GitHub CLI](https://cli.github.com/)                         | Latest  | Optional | PR creation from `/commit` and `/inf`          |
+|                                                               |         |          |                                                |
 
 ### Installation
 
@@ -170,9 +168,7 @@ flowchart TD
 
 Each loop iteration runs in a **fresh AI context** -- memory persists via git commits and state files (`prd.json`, `progress.txt`), not conversation history. This prevents context drift across long sessions. Layer 6 (Compound Learning) wraps the entire cycle -- after each run, learnings are captured to `docs/solutions/` and promoted into `CLAUDE.md`, so every future session benefits from past experience.
 
-> Detailed per-layer diagrams in [How It Works](docs/guides/HOW_IT_WORKS.md) | Architecture in [System Overview](docs/architecture/SYSTEM_OVERVIEW.md)
->
-> See [Methodology](METHODOLOGY.md) for the philosophy behind each layer | [How It Works](docs/guides/HOW_IT_WORKS.md) for the full operational breakdown.
+> See [How It Works](docs/guides/HOW_IT_WORKS.md) for the full operational breakdown and detailed per-layer diagrams.| [Methodology](METHODOLOGY.md) for the philosophy behind each layer. | Architecture in [System Overview](docs/architecture/SYSTEM_OVERVIEW.md)
 
 ---
 
@@ -394,7 +390,7 @@ curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_comm
 
 ---
 
-## Optional: Compound Engineering Plugin
+## Optional but Recommended: Compound Engineering Plugin
 
 ```
 /plugin marketplace add https://github.com/EveryInc/compound-engineering-plugin

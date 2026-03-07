@@ -278,7 +278,7 @@ The plan output includes phases, each with automated verification commands and m
 When running `/inf` (the autonomous pipeline), the definition step is automated:
 
 1. `analyze-report.sh` reads the most recent report from `docs/reports/` and picks the #1 actionable priority
-2. The AI agent generates a PRD (`tasks/prd-<feature>.md`) with constraints: no DB migrations, 2-4 hour scope, 3-5 tasks
+2. The AI agent generates a PRD (`tasks/prd-<feature>.md`) with constraints: no DB migrations, 2-4 hour scope, 3-5 high-level tasks (later expanded to 8-15 granular sub-tasks in prd.json)
 3. The PRD is converted to `prd.json` with machine-verifiable acceptance criteria
 
 This is the autonomous equivalent of `/define-product` + `/create_plan`, scoped to a single feature.
@@ -392,13 +392,19 @@ Checks out `main`, creates `compound/<feature>` branch (or switches to it if it 
 
 #### Step 4: Generate PRD
 
-Pipes a prompt to the AI agent that includes the priority item, description, rationale, and acceptance criteria. The agent generates `tasks/prd-<feature>.md` with:
+Pipes a prompt to the AI agent that includes the priority item, description, rationale, and acceptance criteria. The agent generates `tasks/prd-<feature>.md` with all required PRD sections:
 
 - Introduction and goals
+- Desired end state (2-4 sentence north star for the feature)
 - Tasks with verifiable acceptance criteria (T-001, T-002, etc.)
-- Functional requirements
+- Functional requirements with P0/P1/P2 priority tiers
 - Non-goals (scope boundaries)
-- Technical considerations
+- Files NOT to modify (protected files/directories)
+- Technical considerations (constraints + non-functional requirements)
+- Edge cases (structured table)
+- Success metrics
+- Open questions
+- Examples (input/output pairs, or N/A with reason)
 
 If a previous `prd.json` exists from a different branch, it's archived to `archive/<date>-<feature>/` first.
 
@@ -413,6 +419,11 @@ The PRD markdown is converted to `prd.json` -- a machine-readable task file:
   "project": "Feature Name",
   "branchName": "compound/feature-name",
   "description": "One-line description",
+  "desiredEndState": "2-4 sentence north star describing what the system looks like after completion",
+  "filesNotToModify": [
+    { "path": "path/to/protected-file.ts", "reason": "shared layout, already stable" },
+    { "path": "path/to/protected-dir/", "reason": "out of scope for this feature" }
+  ],
   "startedAt": "2026-03-06T10:30:00Z",
   "tasks": [
     {
@@ -420,9 +431,11 @@ The PRD markdown is converted to `prd.json` -- a machine-readable task file:
       "title": "Specific action verb + target",
       "description": "What and why",
       "acceptanceCriteria": ["Machine-verifiable criterion"],
+      "manualVerification": ["Human-verified criterion (logged, not auto-checked)"],
       "priority": 1,
       "passes": false,
       "status": "pending",
+      "skipped": null,
       "notes": ""
     }
   ]
@@ -449,12 +462,13 @@ Delegates to `loop.sh`, which runs up to 25 iterations (configurable). Each iter
 
 1. Reads `prd.json` to find the highest-priority pending task
 2. Reads `progress.txt` (especially the Codebase Patterns section) for cross-iteration context
-3. Implements the task
-4. Runs quality checks from `config.json`'s `qualityChecks` array
-5. Commits with `feat: [Task ID] - [Task Title]`
-6. Updates `prd.json` -- sets `status: "done"`, `passes: true`
-7. Appends to `progress.txt`: what was done, files changed, learnings
-8. Renders the Kanban board
+3. Checks `filesNotToModify` -- refuses to edit any file on the protected list
+4. Implements the task, using `desiredEndState` as a north star for implementation decisions
+5. Runs quality checks from `config.json`'s `qualityChecks` array
+6. Commits with `feat: [Task ID] - [Task Title]`
+7. Updates `prd.json` -- sets `status: "done"`, `passes: true`; logs any `manualVerification` items to `progress.txt`
+8. Appends to `progress.txt`: what was done, files changed, learnings
+9. Renders the Kanban board
 
 The loop uses **fresh context on every iteration**. No state carries in memory. Context comes only from:
 
@@ -463,7 +477,7 @@ The loop uses **fresh context on every iteration**. No state carries in memory. 
 - `prd.json` (task status and notes)
 - `CLAUDE.md` / `AGENTS.md` (project knowledge)
 
-When all tasks have `passes: true`, the agent outputs `<promise>COMPLETE</promise>` and the loop exits.
+When all tasks have `status: "done"` or `status: "skipped"`, the agent outputs `<promise>COMPLETE</promise>` and the loop exits. Skipped tasks keep `passes: false` (they didn't actually pass — they were determined to be inapplicable).
 
 > `[CHECKPOINT]` Execution loop complete -- all tasks done. Pipeline continues to quality sweep.
 
@@ -571,10 +585,10 @@ A 321-line Bash 3.x-compatible board renderer with three output modes:
 
 ### Two Paths Through the Layer
 
-| Path           | Entry Point                          | PRD Source                 | Execution                               | Human Involvement       |
-| -------------- | ------------------------------------ | -------------------------- | --------------------------------------- | ----------------------- |
-| **Autonomous** | `/inf`                               | Auto-generated from report | `loop.sh` (fresh context per iteration) | None until PR review    |
-| **Manual**     | `/create_plan` --> `/implement_plan` | Human-authored plan        | Phase-by-phase with checkpoints         | At every phase boundary |
+| Path           | Entry Point                          | PRD Source                                           | Execution                               | Human Involvement       |
+| -------------- | ------------------------------------ | ---------------------------------------------------- | --------------------------------------- | ----------------------- |
+| **Autonomous** | `/inf`                               | Auto-generated from report (self-clarified, no MCQ)  | `loop.sh` (fresh context per iteration) | None until PR review    |
+| **Manual**     | `/create_plan` --> `/implement_plan` | Human-authored plan (MCQ clarifying step before PRD) | Phase-by-phase with checkpoints         | At every phase boundary |
 
 Both paths produce the same output: committed code on a feature branch, ready for quality gates and PR creation.
 
@@ -1156,28 +1170,28 @@ Build --> Test --> Find Issue --> Fix --> Document --> Validate --> Deploy
 
 ## Quick Reference: All Scripts
 
-| Script                                        | Layer   | What It Does                                   |
-| --------------------------------------------- | ------- | ---------------------------------------------- |
-| `scripts/compound/auto-compound.sh`           | 3, 5, 6 | Full autonomous pipeline (8 steps)             |
-| `scripts/compound/loop.sh`                    | 3       | Execution loop (fresh-context iterations)      |
-| `scripts/compound/analyze-report.sh`          | 3       | Multi-provider report analysis                 |
-| `scripts/compound/board.sh`                   | 3       | Kanban board renderer (ASCII/Markdown/Summary) |
-| `scripts/compound/iteration-claude.md`        | 3       | Prompt piped to AI on each iteration           |
-| `scripts/maintenance/check-repo-structure.sh` | 1       | Structure enforcement (5 checks)               |
-| `scripts/setup/init-project.sh`               | 1       | Interactive project initialization wizard      |
+| Script                                        | Layer   | What It Does                                                                                                           |
+| --------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `scripts/compound/auto-compound.sh`           | 3, 5, 6 | Full autonomous pipeline (8 steps)                                                                                     |
+| `scripts/compound/loop.sh`                    | 3       | Execution loop (fresh-context iterations)                                                                              |
+| `scripts/compound/analyze-report.sh`          | 3       | Multi-provider report analysis                                                                                         |
+| `scripts/compound/board.sh`                   | 3       | Kanban board renderer (ASCII/Markdown/Summary)                                                                         |
+| `scripts/compound/iteration-claude.md`        | 3       | Prompt piped to AI on each iteration (enforces `filesNotToModify`, `desiredEndState`, `manualVerification`, `skipped`) |
+| `scripts/maintenance/check-repo-structure.sh` | 1       | Structure enforcement (5 checks)                                                                                       |
+| `scripts/setup/init-project.sh`               | 1       | Interactive project initialization wizard                                                                              |
 
 ---
 
 ## Quick Reference: All Sub-Agents
 
-| Agent             | File                                  | Wave          | Tools                | Purpose                                                                                           |
-| ----------------- | ------------------------------------- | ------------- | -------------------- | ------------------------------------------------------------------------------------------------- |
-| Codebase locator  | `.claude/agents/codebase-locator.md`  | 1 (Discovery) | Grep, Glob, LS       | Finds relevant source files and patterns                                                          |
-| Docs locator      | `.claude/agents/docs-locator.md`      | 1 (Discovery) | Grep, Glob, LS       | Finds relevant docs by frontmatter, date-prefixed filenames, directory structure                  |
-| Pattern finder    | `.claude/agents/pattern-finder.md`    | 1 (Discovery) | Grep, Glob, LS       | Identifies recurring code patterns                                                                |
-| Web researcher    | `.claude/agents/web-researcher.md`    | 1 (Discovery) | WebSearch, WebFetch  | Gathers external context                                                                          |
-| Codebase analyzer | `.claude/agents/codebase-analyzer.md` | 2 (Analysis)  | Read, Grep, Glob, LS | Deep analysis of architecture using paths from Wave 1                                             |
-| Docs analyzer     | `.claude/agents/docs-analyzer.md`     | 2 (Analysis)  | Read, Grep, Glob, LS | Extracts decisions, rejected approaches, constraints, promoted patterns from docs found in Wave 1 |
+| Agent             | File                                        | Wave          | Tools                | Used By                                         | Purpose                                                                                           |
+| ----------------- | ------------------------------------------- | ------------- | -------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Codebase locator  | `.claude/agents/codebase-locator.md`        | 1 (Discovery) | Grep, Glob, LS       | `/research_codebase`, `/create_plan`, PRD skill | Finds relevant source files and patterns                                                          |
+| Docs locator      | `.claude/agents/docs-locator.md`            | 1 (Discovery) | Grep, Glob, LS       | `/research_codebase`, `/create_plan`, PRD skill | Finds relevant docs by frontmatter, date-prefixed filenames, directory structure                  |
+| Pattern finder    | `.claude/agents/codebase-pattern-finder.md` | 1 (Discovery) | Grep, Glob, LS       | `/research_codebase`, `/create_plan`, PRD skill | Identifies recurring code patterns and examples to model after                                    |
+| Web researcher    | `.claude/agents/web-search-researcher.md`   | 1 (Discovery) | WebSearch, WebFetch  | `/research_codebase`, `/create_plan`            | Gathers external context                                                                          |
+| Codebase analyzer | `.claude/agents/codebase-analyzer.md`       | 2 (Analysis)  | Read, Grep, Glob, LS | `/research_codebase`, `/create_plan`            | Deep analysis of architecture using paths from Wave 1                                             |
+| Docs analyzer     | `.claude/agents/docs-analyzer.md`           | 2 (Analysis)  | Read, Grep, Glob, LS | `/research_codebase`, `/create_plan`, PRD skill | Extracts decisions, rejected approaches, constraints, promoted patterns from docs found in Wave 1 |
 
 Wave 1 agents run in parallel and use only fast tools (no file reads). Wave 2 agents wait for Wave 1 to finish, then target only the paths that were found. Both docs agents are skipped gracefully on fresh projects where `docs/` contains only stubs.
 
