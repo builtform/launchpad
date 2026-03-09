@@ -46,7 +46,7 @@ The repository root is **clean and predictable**. Only a small, explicit set of 
 - `CHANGELOG.template.md` — Changelog template for new projects.
 - `LICENSE` — MIT license (Thinking Hand Studio LLC).
 - `LICENSE.template` — MIT license template for new projects.
-- `METHODOLOGY.md` — How Launchpad works: the six layers, pipeline details, and credits.
+- `METHODOLOGY.md` — How Launchpad works: the seven layers, pipeline details, and credits.
 
 **Tooling & Workspace Configuration:**
 
@@ -225,7 +225,13 @@ Anything else at root is root clutter and must be moved to the correct subdirect
     ├── agents/                              # Sub-agent definition files
     ├── commands/                            # Slash command definitions (e.g. /Hydrate, /create_plan)
     ├── Prompts/                             # Reusable prompt templates
-    ├── skills/                              # Skill definitions
+    ├── skills/                              # Skill definitions (SKILL.md + references/)
+    │   └── <skill-name>/                    # One directory per skill
+    │       ├── SKILL.md                     # Orchestrator (<500 lines, routes to references)
+    │       ├── references/                  # On-demand reference files (one level deep only)
+    │       └── evals/                       # Evaluation scenarios (≥3 per skill)
+    ├── profiles/                            # Cognitive profiles (shared review infrastructure)
+    │   └── PROFILE-TEMPLATE.md             # Template for building profiles
     └── settings.local.json                 # Local Claude Code settings (gitignored)
 ```
 
@@ -426,11 +432,15 @@ When adding **any** new file, walk through this decision tree in order. Stop at 
   - `src/index.ts` (public exports)
 - Do not add it anywhere else; do not put it under `apps/`.
 
-### 7.12 Is it a Claude Code agent or command?
+### 7.12 Is it a Claude Code agent, command, or skill?
 
 - Sub-agent definition → `.claude/agents/`
 - Slash command definition → `.claude/commands/`
 - Reusable prompt template → `.claude/Prompts/`
+- Skill definition → `.claude/skills/<skill-name>/SKILL.md`
+- Skill reference files → `.claude/skills/<skill-name>/references/` (one level deep only — reference files must NOT reference other reference files)
+- Skill evaluation scenarios → `.claude/skills/<skill-name>/evals/`
+- Cognitive profile → `.claude/profiles/`
 
 ### If none of the above match:
 

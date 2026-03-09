@@ -6,7 +6,7 @@
 # Usage: ./auto-compound.sh [--dry-run]
 #
 # Requirements:
-# - claude or codex CLI installed and authenticated (based on config.json "tool")
+# - claude, codex, or gemini CLI installed and authenticated (based on config.json "tool")
 # - gh CLI installed and authenticated
 # - jq installed
 
@@ -62,11 +62,20 @@ command -v "$TOOL" >/dev/null 2>&1 || error "$TOOL CLI not found. Install it or 
 # ai_run: pipes a prompt into the configured AI tool (non-interactive, full permissions)
 # Usage: echo "prompt" | ai_run 2>&1 | tee logfile
 ai_run() {
-  if [ "$TOOL" = "codex" ]; then
-    codex exec --dangerously-bypass-approvals-and-sandbox "$(cat -)"
-  else
-    claude --dangerously-skip-permissions
-  fi
+  case "$TOOL" in
+    codex)
+      codex exec --dangerously-bypass-approvals-and-sandbox "$(cat -)"
+      ;;
+    gemini)
+      gemini --approval-mode=yolo
+      ;;
+    claude)
+      claude --dangerously-skip-permissions
+      ;;
+    *)
+      error "Unknown tool: $TOOL. Valid values: claude, codex, gemini"
+      ;;
+  esac
 }
 
 # Resolve paths

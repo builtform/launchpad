@@ -14,7 +14,7 @@ This document explains the philosophy and principles behind each layer. For impl
 
 ---
 
-## The Six Layers
+## The Seven Layers
 
 | Layer                                                        | What It Does                                                                                                   | Key Files                                                               |
 | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
@@ -24,8 +24,9 @@ This document explains the philosophy and principles behind each layer. For impl
 | 4. [Quality Gates](#layer-4-quality-gates)                   | Pre-commit hooks, CI pipeline, and AI-powered code review with P0--P3 severity classification                  | `lefthook.yml`, `ci.yml`, `codex-review.yml`                            |
 | 5. [Commit-to-Merge](#layer-5-commit-to-merge)               | Branch guard --> quality gates --> PR creation --> 3-gate monitoring loop. Never auto-merges                   | `/commit`, `auto-compound.sh` Steps 7a--7c                              |
 | 6. [Compound Learning](#layer-6-compound-learning)           | Structured knowledge extraction, learnings catalog, pattern promotion, and cross-run memory                    | `docs/solutions/`, `progress.txt`, `promoted-patterns.md`               |
+| 7. [Skill Creation](#layer-7-skill-creation)                 | Encode domain expertise as reusable AI skills with quality-validated reasoning patterns                        | `/create-skill`, `/update-skill`, `skill-evaluator`                     |
 
-No single competitor offers all six layers. SpecKit has Layer 2. Design OS has Layer 2. Ralph has Layer 3. Compound Product has Layers 3 and 6. Nobody has Layers 1, 4, or 5.
+No single competitor offers all seven layers. SpecKit has Layer 2. Design OS has Layer 2. Ralph has Layer 3. Compound Product has Layers 3 and 6. Nobody has Layers 1, 4, 5, or 7.
 
 ---
 
@@ -137,6 +138,47 @@ Build --> Test --> Find Issue --> Fix --> Document --> Validate --> Deploy
 
 ---
 
+## Layer 7: Skill Creation
+
+AI skills are reusable instruction sets that change how Claude reasons about specific problem domains. Without skills, every session starts from baseline — Claude applies generic reasoning to every task. With skills, Claude applies domain-specific decision frameworks, anti-patterns, and verification gates that produce structurally different output.
+
+Layer 7 provides the **infrastructure to create these skills**, not pre-built skills for specific domains. Every project derived from Launchpad inherits this infrastructure and can create domain-specific skills from day one.
+
+### The Meta-Skill Forge
+
+Skills are created through a 7-phase methodology called the Meta-Skill Forge:
+
+1. **Context Ingestion** — Two-wave sub-agent research (Discovery → Analysis) gathers codebase patterns, documentation, and external best practices
+2. **Targeted Extraction** — 4 collaborative rounds extract the user's domain expertise (or distill source material for book/article-based skills)
+3. **Contrarian Analysis** — Write out the generic/baseline version first, then engineer away from every predictable pattern
+4. **Architecture Decision** — Adaptive complexity routing: Simple (single file), Moderate (1-3 references), or Full (multiple files + templates)
+5. **Write the Skill** — Produce SKILL.md orchestrator + reference files following progressive disclosure
+6. **Quality Validation** — Recursive evaluation loop (max 3 cycles) against 14 criteria across 3 passes
+7. **Ship It** — Generate eval scenarios, register in CLAUDE.md, present to user
+
+### Three Layers Every Skill Needs
+
+| Layer                     | What It Does                                | What "Bad" Looks Like                             |
+| ------------------------- | ------------------------------------------- | ------------------------------------------------- |
+| **Trigger System**        | Defines WHEN and WHY the skill activates    | "Helps with writing" — too vague to be useful     |
+| **Thinking Architecture** | "How to THINK about this class of problems" | "Step 1, step 2, deliver" — recipe, not reasoning |
+| **Verification Gate**     | "Does this look like baseline LLM output?"  | No self-check — generates and ships               |
+
+### The Compounding Effect
+
+Skills feed directly into the compound pipeline. When `/inf` or `auto-compound.sh` runs the autonomous execution loop, every skill in `.claude/skills/` shapes how it approaches tasks. A "writing API routes" skill means the compound loop produces better API routes. A "testing React components" skill means better tests. The autonomous capabilities of the project grow with each skill added.
+
+### Key Design Decisions
+
+- **Infrastructure, not content** — Launchpad ships the skill creation workflow, not pre-built domain skills. Pre-built skills would be "running someone else's brain on your problems."
+- **Interactive, not autonomous** — Skill creation requires human domain expertise. It lives in Phase A (human-guided), not Phase B (agent-driven).
+- **Contrarian frame** — Every skill must demonstrate it produces structurally different output from baseline Claude. Formatting changes don't count.
+- **Recursive evaluation** — Skills are validated against 14 criteria across 3 passes (first-principles, baseline detection, Anthropic checklist) before shipping.
+
+> Implementation details in the skill itself: `.claude/skills/creating-skills/SKILL.md`
+
+---
+
 ## Credits and Inspirations
 
 Launchpad is built on the shoulders of three frameworks. We credit them here and throughout the codebase.
@@ -171,19 +213,20 @@ The philosophy of "specify before building." Our implementation (`/define-produc
 
 Launchpad is not a fork of Compound Product. It's a custom implementation that shares the pipeline architecture but diverges significantly in capabilities.
 
-| Aspect                    | Compound Product (Upstream)              | Launchpad                                                                                                   |
-| ------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| **AI tool dispatch**      | Amp or Claude only                       | Configurable via `config.json` (`claude` or `codex`) with `ai_run()` abstraction                            |
-| **Prompt files**          | Separate per tool (prompt.md, CLAUDE.md) | Single `iteration-claude.md` piped to all tools via stdin                                                   |
-| **Task status**           | `passes: true/false` only                | Full `status` field (pending/in_progress/done/failed) with `startedAt`/`completedAt` timestamps             |
-| **Visualization**         | None                                     | `board.sh` with 3 modes (ASCII, Markdown, Summary), rendered after every iteration, embedded in PR body     |
-| **Archive**               | `cp` (copy)                              | `mv` (move) with date-prefixed folders                                                                      |
-| **Report analysis**       | Basic, single-provider                   | `analyze-report.sh` with 5-provider LLM support, model aliases, recent-PRD deduplication                    |
-| **Quality gates**         | Basic test run in config                 | 3-attempt auto-fix loop with lefthook + AI-assisted fixing (Step 7a)                                        |
-| **PR monitoring**         | None                                     | 3-gate loop: CI checks, Codex P0/P1 parsing, merge conflict resolution (Step 7c)                            |
-| **Learnings extraction**  | Agent updates AGENTS.md                  | Structured extraction to `docs/solutions/` with YAML frontmatter, template, and promotion pipeline (Step 8) |
-| **Definition layer**      | None                                     | `/define-product` and `/define-architecture` producing 6 architecture docs                                  |
-| **Manual execution path** | None                                     | `/create_plan` + `/implement_plan` as human-supervised alternative                                          |
-| **Commit workflow**       | None                                     | `/commit` with branch guards, parallel quality gates, interactive Codex review                              |
-| **Structure enforcement** | None                                     | `check-repo-structure.sh` + `REPOSITORY_STRUCTURE.md` + Lefthook + CI                                       |
-| **Knowledge pipeline**    | AGENTS.md updates only                   | progress.txt --> learnings --> promoted-patterns --> CLAUDE.md feedback loop                                |
+| Aspect                    | Compound Product (Upstream) | Launchpad                                                                                                   |
+| ------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **AI tool dispatch**      | Claude Code only            | Configurable via `config.json` (`claude`, `codex`, or `gemini`) with `ai_run()` abstraction                 |
+| **Prompt files**          | Separate per tool           | Single `iteration-claude.md` piped to all tools via stdin                                                   |
+| **Task status**           | `passes: true/false` only   | Full `status` field (pending/in_progress/done/failed) with `startedAt`/`completedAt` timestamps             |
+| **Visualization**         | None                        | `board.sh` with 3 modes (ASCII, Markdown, Summary), rendered after every iteration, embedded in PR body     |
+| **Archive**               | `cp` (copy)                 | `mv` (move) with date-prefixed folders                                                                      |
+| **Report analysis**       | Basic, single-provider      | `analyze-report.sh` with 5-provider LLM support, model aliases, recent-PRD deduplication                    |
+| **Quality gates**         | Basic test run in config    | 3-attempt auto-fix loop with lefthook + AI-assisted fixing (Step 7a)                                        |
+| **PR monitoring**         | None                        | 3-gate loop: CI checks, Codex P0/P1 parsing, merge conflict resolution (Step 7c)                            |
+| **Learnings extraction**  | Agent updates AGENTS.md     | Structured extraction to `docs/solutions/` with YAML frontmatter, template, and promotion pipeline (Step 8) |
+| **Definition layer**      | None                        | `/define-product` and `/define-architecture` producing 6 architecture docs                                  |
+| **Manual execution path** | None                        | `/create_plan` + `/implement_plan` as human-supervised alternative                                          |
+| **Commit workflow**       | None                        | `/commit` with branch guards, parallel quality gates, interactive Codex review                              |
+| **Structure enforcement** | None                        | `check-repo-structure.sh` + `REPOSITORY_STRUCTURE.md` + Lefthook + CI                                       |
+| **Knowledge pipeline**    | AGENTS.md updates only      | progress.txt --> learnings --> promoted-patterns --> CLAUDE.md feedback loop                                |
+| **Skill creation**        | None                        | 7-phase Meta-Skill Forge with contrarian analysis, recursive evaluation, and progressive disclosure         |

@@ -136,6 +136,18 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 
 ---
 
+## Skill Creation
+
+| Command / Agent         | Purpose                                                                                 |
+| ----------------------- | --------------------------------------------------------------------------------------- |
+| `/create-skill [topic]` | Create a Claude skill using the 7-phase Meta-Skill Forge methodology (Claude Code only) |
+| `/update-skill [name]`  | Iterate on an existing skill after real-world usage reveals gaps (Claude Code only)     |
+| `skill-evaluator`       | Sub-agent that evaluates skills against 14 quality criteria (3-pass evaluation)         |
+
+> **Note:** Skill creation commands (`/create-skill`, `/update-skill`) are Claude Code slash commands. Other AI tools can reference the skill files at `.claude/skills/` but cannot invoke the creation workflow directly.
+
+---
+
 ## Quick Links
 
 | Topic                | Location                                   |
