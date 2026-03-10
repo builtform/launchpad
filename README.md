@@ -7,7 +7,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
-<!-- TODO: Add hero image / social preview card -->
+![Launchpad Architectural Outline](.github/assets/hero-image.png)
 
 AI coding assistants generate code without memory, conventions, or quality gates. Launchpad fixes this -- an opinionated project scaffold that gives AI full context about your codebase, runs it in structured loops, and enforces quality before anything reaches `main`.
 
@@ -132,7 +132,7 @@ This template is comprehensive by design. Delete what your project does not requ
 
 ## How It Works
 
-Launchpad organizes AI development into **6 layers**, each targeting a specific failure mode:
+Launchpad organizes AI development into **7 layers**, each targeting a specific failure mode:
 
 | Layer                | Purpose                                | Key Tool                                    |
 | -------------------- | -------------------------------------- | ------------------------------------------- |
@@ -142,6 +142,7 @@ Launchpad organizes AI development into **6 layers**, each targeting a specific 
 | 4. Quality           | Catch problems pre-commit              | Lefthook, TypeScript, ESLint                |
 | 5. Commit-to-Merge   | Nothing unreviewed on main             | `/commit`, Codex review                     |
 | 6. Compound Learning | Learnings improve every future session | `/compound`, `docs/solutions/`, `CLAUDE.md` |
+| 7. Skill Creation    | Encode expertise as reusable AI skills | `/create-skill`, Meta-Skill Forge           |
 
 How these layers connect -- each feeds into the next, with learnings cycling back to improve every future session:
 
@@ -153,20 +154,22 @@ flowchart TD
     L4["Layer 4 - Quality Gates"]
     L5["Layer 5 - Commit-to-Merge"]
     L6["Layer 6 - Compound Learning"]
+    L7["Layer 7 - Skill Creation"]
 
     L1 -->|"structure rules"| L2
     L2 -->|"architecture docs"| L3
     L3 -->|"code changes"| L4
     L4 -->|"validated commits"| L5
     L5 -->|"merged PRs"| L6
+    L6 -->|"learnings"| L7
+    L7 -.->|"improve execution"| L3
+    L7 -.->|"improve checks"| L4
+    L7 -.->|"improve workflow"| L5
     L6 -.->|"improve rules"| L1
     L6 -.->|"improve specs"| L2
-    L6 -.->|"improve execution"| L3
-    L6 -.->|"improve checks"| L4
-    L6 -.->|"improve workflow"| L5
 ```
 
-Each loop iteration runs in a **fresh AI context** -- memory persists via git commits and state files (`prd.json`, `progress.txt`), not conversation history. This prevents context drift across long sessions. Layer 6 (Compound Learning) wraps the entire cycle -- after each run, learnings are captured to `docs/solutions/` and promoted into `CLAUDE.md`, so every future session benefits from past experience.
+Each loop iteration runs in a **fresh AI context** -- memory persists via git commits and state files (`prd.json`, `progress.txt`), not conversation history. This prevents context drift across long sessions. Layer 6 (Compound Learning) captures learnings from each cycle, and Layer 7 (Skill Creation) encodes those learnings as reusable AI skills -- so expertise compounds not just as documentation but as executable reasoning patterns.
 
 > See [How It Works](docs/guides/HOW_IT_WORKS.md) for the full operational breakdown and detailed per-layer diagrams.| [Methodology](METHODOLOGY.md) for the philosophy behind each layer. | Architecture in [System Overview](docs/architecture/SYSTEM_OVERVIEW.md)
 
@@ -279,6 +282,8 @@ These are the files that define how the project behaves. They are the control pl
 | `/inf`                 | Full pipeline: report, PRD, tasks, execution loop, quality sweep, PR |
 | `/commit`              | Quality gates, commit, PR creation, 3-gate monitoring                |
 | `/pull-launchpad`      | Pull upstream Launchpad updates into safe directories                |
+| `/create-skill`        | Create a Claude skill using the 7-phase Meta-Skill Forge             |
+| `/update-skill`        | Iterate on an existing skill after real-world usage reveals gaps     |
 | `/Hydrate`             | Load minimal session context                                         |
 
 ### Development
@@ -385,7 +390,10 @@ The compound scripts bypass interactive approval prompts to enable unattended op
 This is intentional for automation -- the safeguards above exist to catch mistakes before they reach your main branch. To add a pattern-based safety net alongside these flags, consider installing **[Destructive Command Guard (dcg)](https://github.com/Dicklesworthstone/destructive_command_guard)** -- a Rust-based `PreToolUse` hook that intercepts shell commands before your AI agent executes them, blocking recognized destructive operations (`rm -rf`, `git reset --hard`, `DROP TABLE`, etc.) in under 5ms. It replaces the interactive approval gate with automated pattern matching, so you get autonomous speed without risking catastrophic commands:
 
 ```bash
-curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/install.sh" | bash -s -- --easy-mode
+# Download and inspect before running
+curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/install.sh" -o install-dcg.sh
+less install-dcg.sh
+bash install-dcg.sh --easy-mode
 ```
 
 ---

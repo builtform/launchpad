@@ -1,7 +1,7 @@
 #!/bin/bash
 # Compound Product - Execution Loop
 # Runs an AI coding agent repeatedly until all tasks in prd.json are complete.
-# Tool is configurable via config.json "tool" field (default: claude).
+# Tool is configurable via config.json "tool" field: claude (default), codex, or gemini.
 #
 # Usage: ./loop.sh [max_iterations]
 
@@ -106,8 +106,15 @@ for i in $(seq 1 $MAX_ITERATIONS); do
     codex)
       OUTPUT=$(codex exec --dangerously-bypass-approvals-and-sandbox "$(cat "$PROMPT_FILE")" 2>&1 | tee /dev/stderr) || true
       ;;
-    *)
+    gemini)
+      OUTPUT=$(gemini --approval-mode=yolo < "$PROMPT_FILE" 2>&1 | tee /dev/stderr) || true
+      ;;
+    claude)
       OUTPUT=$(claude --dangerously-skip-permissions --print < "$PROMPT_FILE" 2>&1 | tee /dev/stderr) || true
+      ;;
+    *)
+      echo "ERROR: Unknown tool: $TOOL. Valid values: claude, codex, gemini" >&2
+      exit 1
       ;;
   esac
 

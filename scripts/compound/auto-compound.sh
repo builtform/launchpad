@@ -6,7 +6,7 @@
 # Usage: ./auto-compound.sh [--dry-run]
 #
 # Requirements:
-# - claude or codex CLI installed and authenticated (based on config.json "tool")
+# - claude, codex, or gemini CLI installed and authenticated (based on config.json "tool")
 # - gh CLI installed and authenticated
 # - jq installed
 
@@ -46,7 +46,7 @@ command -v lefthook >/dev/null 2>&1 || error "lefthook not found. Install with: 
 
 # Load config
 if [ ! -f "$CONFIG_FILE" ]; then
-  error "Config file not found: $CONFIG_FILE. Copy config.example.json to config.json and customize."
+  error "Config file not found: $CONFIG_FILE. This file should exist at scripts/compound/config.json — re-clone or restore it."
 fi
 
 REPORTS_DIR=$(jq -r '.reportsDir // "./docs/reports"' "$CONFIG_FILE")
@@ -62,11 +62,20 @@ command -v "$TOOL" >/dev/null 2>&1 || error "$TOOL CLI not found. Install it or 
 # ai_run: pipes a prompt into the configured AI tool (non-interactive, full permissions)
 # Usage: echo "prompt" | ai_run 2>&1 | tee logfile
 ai_run() {
-  if [ "$TOOL" = "codex" ]; then
-    codex exec --dangerously-bypass-approvals-and-sandbox "$(cat -)"
-  else
-    claude --dangerously-skip-permissions
-  fi
+  case "$TOOL" in
+    codex)
+      codex exec --dangerously-bypass-approvals-and-sandbox "$(cat -)"
+      ;;
+    gemini)
+      gemini --approval-mode=yolo
+      ;;
+    claude)
+      claude --dangerously-skip-permissions --print
+      ;;
+    *)
+      error "Unknown tool: $TOOL. Valid values: claude, codex, gemini"
+      ;;
+  esac
 }
 
 # Resolve paths
@@ -85,7 +94,7 @@ fi
 
 # Step 1: Find most recent report
 log "Step 1: Finding most recent report..."
-git pull origin main 2>/dev/null || true
+git fetch origin main 2>/dev/null || true
 
 LATEST_REPORT=$(ls -t "$REPORTS_DIR"/*.md 2>/dev/null | head -1)
 [ -f "$LATEST_REPORT" ] || error "No reports found in $REPORTS_DIR"
@@ -135,6 +144,7 @@ fi
 # Step 3: Create feature branch
 log "Step 3: Creating feature branch..."
 git switch main
+git merge --ff-only origin/main
 git switch -c -- "$BRANCH_NAME" 2>/dev/null || git switch -- "$BRANCH_NAME"
 
 # Step 4: Create PRD via AI tool
@@ -150,7 +160,7 @@ Description: $DESCRIPTION
 Rationale from report analysis: $RATIONALE
 
 Acceptance criteria from analysis:
-$(echo "$ANALYSIS_JSON" | jq -r '.acceptance_criteria[]' | sed 's/^/- /')
+$(echo "$ANALYSIS_JSON" | jq -r '(.acceptance_criteria // [])[]' | sed 's/^/- /')
 
 IMPORTANT CONSTRAINTS:
 - NO database migrations or schema changes
@@ -215,7 +225,9 @@ jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.startedAt = $ts' "$OUTPUT_DIR/prd
 "$SCRIPT_DIR/board.sh" --md "$OUTPUT_DIR/prd.json" "$PROJECT_ROOT/docs/tasks/board.md" || true
 
 # Commit the PRD and prd.json
-git add "$PRD_PATH" "$OUTPUT_DIR/prd.json"
+# prd.json is gitignored (transient artifact) but committed on feature branches for task tracking
+git add "$PRD_PATH"
+git add -f "$OUTPUT_DIR/prd.json"
 git commit -m "chore: add PRD and tasks for $PRIORITY_ITEM" || true
 
 # Step 6: Run the loop

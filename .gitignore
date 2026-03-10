@@ -1,47 +1,38 @@
-# Research article PDFs (too large for git — store locally)
-docs/**/*.pdf
-
-# macOS
-.DS_Store
-.env.local
-.env.migrate
-.env.consultant
-
-# Dependencies
-node_modules/
-.pnpm-store/
 
 # Build outputs
-dist/
-.next/
-out/
-build/
-
-# Turborepo
-.turbo/
-
-# TypeScript
-*.tsbuildinfo
-
-# Prisma generated client
-packages/db/node_modules/
-
+# Claude Code local
+# Compound Product - generated board
 # Compound Product runtime files
-scripts/compound/progress.txt
-scripts/compound/prd.json
+# Dependencies
+# Internal strategy reports (not for public repo)
+# Misc
+# Prisma generated client
+# Research article PDFs (too large for git — store locally)
+# Turborepo
+# TypeScript
+# macOS
+*.log
+*.tsbuildinfo
+.DS_Store
+.cache/
+.env
+.env.consultant
+.env.local
+.env.migrate
+.next/
+.pnpm-store/
+.turbo/
+build/
+dist/
+docs/**/*.pdf
+docs/reports/launchpad_reports/
+docs/tasks/board.md
+node_modules/
+out/
+packages/db/node_modules/
+scripts/compound/*.log
 scripts/compound/.last-branch
 scripts/compound/archive/
-scripts/compound/*.log
-
-# Compound Product - generated board
-docs/tasks/board.md
-
-# Internal strategy reports (not for public repo)
-docs/reports/launchpad_reports/
-
-# Claude Code local
+scripts/compound/prd.json
+scripts/compound/progress.txt
 settings.local.json
-
-# Misc
-*.log
-.cache/

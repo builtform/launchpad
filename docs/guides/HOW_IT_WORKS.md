@@ -1,6 +1,6 @@
 # How It Works
 
-> Launchpad's 6-layer system for structured AI development.
+> Launchpad's 7-layer system for structured AI development.
 
 ```mermaid
 flowchart TD
@@ -10,6 +10,7 @@ flowchart TD
     L4["Layer 4 - Quality Gates"]
     L5["Layer 5 - Commit-to-Merge"]
     L6["Layer 6 - Compound Learning"]
+    L7["Layer 7 - Skill Creation"]
 
     L1 -->|"structure rules"| L2
     L2 -->|"architecture docs"| L3
@@ -21,11 +22,15 @@ flowchart TD
     L6 -.->|"improve execution"| L3
     L6 -.->|"improve checks"| L4
     L6 -.->|"improve workflow"| L5
+    L6 -->|"learnings"| L7
+    L7 -.->|"improve execution"| L3
+    L7 -.->|"improve checks"| L4
+    L7 -.->|"improve workflow"| L5
 ```
 
-Launchpad organizes AI-assisted development into six layers. Each layer addresses a specific failure mode of unstructured AI coding. The layers build on each other sequentially -- scaffold enforces where files go, specs define what to build, execution builds it, quality gates catch mistakes, commit-to-merge ensures review, and learning feeds improvements back into every layer.
+Launchpad organizes AI-assisted development into seven layers. Each layer addresses a specific failure mode of unstructured AI coding. The layers build on each other sequentially -- scaffold enforces where files go, specs define what to build, execution builds it, quality gates catch mistakes, commit-to-merge ensures review, learning feeds improvements back into every layer, and skill creation turns accumulated knowledge into reusable instruction sets that change how the AI reasons.
 
-The first five layers form a forward pipeline. The sixth layer wraps all of them, creating a feedback loop that makes the entire system smarter over time.
+The first five layers form a forward pipeline. The sixth layer wraps all of them, creating a feedback loop that makes the entire system smarter over time. The seventh layer extends this -- skills are the executable form of compounded knowledge, turning learnings into reusable instruction sets that reshape how the AI approaches specific problem domains.
 
 ---
 
@@ -581,7 +586,7 @@ A 321-line Bash 3.x-compatible board renderer with three output modes:
 | `maxIterations`  | Max loop iterations (default 25)                                  |
 | `branchPrefix`   | Git branch prefix (default `compound/`)                           |
 | `analyzeCommand` | Custom analysis script (empty = use built-in `analyze-report.sh`) |
-| `tool`           | AI backend: `claude` or `codex`                                   |
+| `tool`           | AI backend: `claude`, `codex`, or `gemini`                        |
 
 ### Two Paths Through the Layer
 
@@ -1098,9 +1103,84 @@ Key files:
 
 ---
 
+## Layer 7: Skill Creation
+
+Skills are reusable instruction sets that change how Claude reasons about specific problem domains. Without skills, every session starts from baseline. With skills, Claude applies domain-specific decision frameworks, anti-patterns, and verification gates that produce structurally different output.
+
+Launchpad ships the **infrastructure** to create skills, not pre-built domain skills. Every project derived from Launchpad can create domain-specific skills from day one.
+
+### How It Works
+
+Invoke `/create-skill [topic]` to start the Meta-Skill Forge -- a 7-phase methodology:
+
+| Phase                    | What Happens                                              | Output                                           |
+| ------------------------ | --------------------------------------------------------- | ------------------------------------------------ |
+| 1. Context Ingestion     | Two-wave sub-agent research (Discovery --> Analysis)      | Codebase patterns, docs, best practices          |
+| 2. Targeted Extraction   | 4 collaborative rounds with the user                      | Domain expertise distilled into structured notes |
+| 3. Contrarian Analysis   | Write out the generic version, then engineer away from it | Differentiation plan                             |
+| 4. Architecture Decision | Route to Simple / Moderate / Full complexity              | File structure decision                          |
+| 5. Write the Skill       | Produce SKILL.md orchestrator + reference files           | Skill files saved to `.claude/skills/<name>/`    |
+| 6. Quality Validation    | Recursive evaluation loop (max 3 cycles, 16 criteria)     | Pass/fail report with fix instructions           |
+| 7. Ship It               | Generate evals, register in CLAUDE.md, present to user    | Ready-to-use skill                               |
+
+### Two Modes of Extraction
+
+Phase 2 adapts based on whether the user provided source material:
+
+- **Mode A (Source-Material-Informed):** When the user provides a document ("based on docs/articles/guide.pdf"), the workflow distills it and presents draft answers. The user validates, augments, or overrides.
+- **Mode B (Open-Ended):** When no source material is provided, the user is the domain expert. The workflow asks direct questions to extract their methodology.
+
+### Adaptive Complexity
+
+Phase 4 discovers complexity -- the user never pre-tags it:
+
+| Tier     | Architecture                                    | When                                                             |
+| -------- | ----------------------------------------------- | ---------------------------------------------------------------- |
+| Simple   | Single SKILL.md, <300 lines                     | One task, procedural, no domain ambiguity                        |
+| Moderate | SKILL.md + 1-3 reference files                  | Has examples, domain concepts, or anti-patterns worth separating |
+| Full     | SKILL.md + multiple reference files + templates | Multiple conditional paths, heavy domain knowledge               |
+
+### Quality Validation
+
+The `skill-evaluator` sub-agent runs 3 evaluation passes:
+
+1. **First-Principles:** Does every component earn its place? Could you achieve the same result with fewer parts?
+2. **Baseline Detection:** Does output differ structurally from what Claude produces with no skill loaded?
+3. **Anthropic Checklist:** 10 criteria covering frontmatter validity, body length, progressive disclosure, no hedge language, trigger precision, verification gate, and more.
+
+Skills that fail are diagnosed (WHY, not just WHAT) and improved in a recursive loop -- up to 3 cycles. After that, remaining issues are presented to the user for judgment.
+
+### Updating Existing Skills
+
+Use `/update-skill [name]` to iterate on a skill after real-world usage reveals gaps. The workflow reads the existing skill files as context, performs a delta analysis to identify what changed, and re-runs only the relevant Forge phases.
+
+### Key Files
+
+| File                                                              | Purpose                                                      |
+| ----------------------------------------------------------------- | ------------------------------------------------------------ |
+| `.claude/skills/creating-skills/SKILL.md`                         | Meta-skill orchestrator (<400 lines, routes to 6 references) |
+| `.claude/skills/creating-skills/references/METHODOLOGY.md`        | 7-phase Forge methodology                                    |
+| `.claude/skills/creating-skills/references/QUALITY-GATES.md`      | Recursive evaluation loop + 16 criteria                      |
+| `.claude/skills/creating-skills/references/CONTRARIAN-FRAME.md`   | Baseline detection + anti-slop checklist                     |
+| `.claude/skills/creating-skills/references/SKILL-TEMPLATE.md`     | Annotated SKILL.md template                                  |
+| `.claude/skills/creating-skills/references/REFERENCE-TEMPLATE.md` | Template for reference files                                 |
+| `.claude/skills/creating-skills/references/EVAL-TEMPLATE.md`      | Evaluation scenario template                                 |
+| `.claude/agents/skill-evaluator.md`                               | 3-pass quality evaluation sub-agent                          |
+| `.claude/profiles/PROFILE-TEMPLATE.md`                            | Cognitive profile template (shared infrastructure)           |
+| `.claude/commands/create-skill.md`                                | `/create-skill` slash command                                |
+| `.claude/commands/update-skill.md`                                | `/update-skill` slash command                                |
+
+### The Compounding Effect
+
+Skills feed directly into the compound pipeline. When `/inf` or `auto-compound.sh` runs the autonomous execution loop, every skill in `.claude/skills/` shapes how Claude approaches tasks. The autonomous capabilities of the project grow with each skill added.
+
+> Philosophy and design decisions in [Methodology](../../METHODOLOGY.md#layer-7-skill-creation).
+
+---
+
 ## Feedback Loop
 
-Layer 6 is what makes Launchpad a living system rather than a static template. Without it, the same mistakes recur across compound cycles. With it, each cycle leaves the system better than it found it.
+Layer 6 is what makes Launchpad a living system rather than a static template. Without it, the same mistakes recur across compound cycles. With it, each cycle leaves the system better than it found it. Layer 7 extends this further -- skills are the executable form of compounded knowledge. Where Layer 6 captures what was learned, Layer 7 turns those learnings into reusable instruction sets that reshape how the AI reasons about specific problem domains.
 
 The feedback loop operates at three speeds:
 
@@ -1147,24 +1227,27 @@ Build --> Test --> Find Issue --> Fix --> Document --> Validate --> Deploy
 3. **Next occurrence:** The AI reads `progress.txt` and `docs/solutions/` and recognizes the pattern (seconds)
 4. **Pattern promotion:** If it recurs 3+ times, it's staged in `promoted-patterns.md` and eventually promoted to CLAUDE.md
 5. **Permanent knowledge:** All future sessions start with the pattern pre-loaded -- the problem is prevented, not just fixed faster
+6. **Skill creation:** When patterns accumulate around a domain, `/create-skill` distills them into a skill that changes how the AI reasons about that domain entirely
 
 ---
 
 ## Quick Reference: All Commands
 
-| Command                | Layer | What It Does                                                                                  |
-| ---------------------- | ----- | --------------------------------------------------------------------------------------------- |
-| `/define-product`      | 2     | Interactive wizard --> PRD.md + TECH_STACK.md                                                 |
-| `/define-architecture` | 2     | Interactive wizard --> APP_FLOW.md + BACKEND_STRUCTURE.md + FRONTEND_GUIDELINES.md + CI_CD.md |
-| `/create_plan`         | 2     | Research-first plan builder with two-wave sub-agents --> docs/plans/                          |
-| `/implement_plan`      | 3     | Executes a plan phase by phase with checkpoints                                               |
-| `/inf`                 | 3     | Runs the full autonomous compound pipeline (auto-compound.sh)                                 |
-| `/commit`              | 5     | 8-step commit workflow with quality gates and 3-gate PR monitoring                            |
-| `/research_codebase`   | Input | Documents the codebase with two-wave sub-agents --> docs/reports/ (input for `/inf`)          |
-| `/review_code`         | 4     | Pattern consistency review using sub-agents                                                   |
-| `/Hydrate`             | --    | Bootstraps a session with minimal context                                                     |
-| `/memory-report`       | 6     | Updates session memory files                                                                  |
-| `/pull-launchpad`      | --    | Pulls upstream Launchpad changes                                                              |
+| Command                 | Layer | What It Does                                                                                  |
+| ----------------------- | ----- | --------------------------------------------------------------------------------------------- |
+| `/define-product`       | 2     | Interactive wizard --> PRD.md + TECH_STACK.md                                                 |
+| `/define-architecture`  | 2     | Interactive wizard --> APP_FLOW.md + BACKEND_STRUCTURE.md + FRONTEND_GUIDELINES.md + CI_CD.md |
+| `/create_plan`          | 2     | Research-first plan builder with two-wave sub-agents --> docs/plans/                          |
+| `/implement_plan`       | 3     | Executes a plan phase by phase with checkpoints                                               |
+| `/inf`                  | 3     | Runs the full autonomous compound pipeline (auto-compound.sh)                                 |
+| `/commit`               | 5     | 8-step commit workflow with quality gates and 3-gate PR monitoring                            |
+| `/research_codebase`    | Input | Documents the codebase with two-wave sub-agents --> docs/reports/ (input for `/inf`)          |
+| `/review_code`          | 4     | Pattern consistency review using sub-agents                                                   |
+| `/Hydrate`              | --    | Bootstraps a session with minimal context                                                     |
+| `/memory-report`        | 6     | Updates session memory files                                                                  |
+| `/create-skill [topic]` | 7     | Create a skill using Meta-Skill Forge                                                         |
+| `/update-skill [name]`  | 7     | Iterate on an existing skill                                                                  |
+| `/pull-launchpad`       | --    | Pulls upstream Launchpad changes                                                              |
 
 ---
 
@@ -1192,6 +1275,7 @@ Build --> Test --> Find Issue --> Fix --> Document --> Validate --> Deploy
 | Web researcher    | `.claude/agents/web-search-researcher.md`   | 1 (Discovery) | WebSearch, WebFetch  | `/research_codebase`, `/create_plan`            | Gathers external context                                                                          |
 | Codebase analyzer | `.claude/agents/codebase-analyzer.md`       | 2 (Analysis)  | Read, Grep, Glob, LS | `/research_codebase`, `/create_plan`            | Deep analysis of architecture using paths from Wave 1                                             |
 | Docs analyzer     | `.claude/agents/docs-analyzer.md`           | 2 (Analysis)  | Read, Grep, Glob, LS | `/research_codebase`, `/create_plan`, PRD skill | Extracts decisions, rejected approaches, constraints, promoted patterns from docs found in Wave 1 |
+| Skill evaluator   | `.claude/agents/skill-evaluator.md`         | --            | Read, Grep, Glob, LS | `/create-skill`, `/update-skill`                | Evaluate skills against 16 quality criteria (3 passes: first-principles, baseline, Anthropic)     |
 
 Wave 1 agents run in parallel and use only fast tools (no file reads). Wave 2 agents wait for Wave 1 to finish, then target only the paths that were found. Both docs agents are skipped gracefully on fresh projects where `docs/` contains only stubs.
 
@@ -1224,7 +1308,7 @@ The enforcer detects macOS Finder artifacts (files with ` 2`, ` v2`, or ` copy` 
 The LLM returned a response that isn't valid JSON (often wrapped in markdown code fences). The script tries to extract JSON from the response, but if the LLM adds commentary, parsing fails. Fix: this is usually transient -- rerun the pipeline. If it persists, check that the API key is valid and the model is accessible on your plan.
 
 **`auto-compound.sh` fails: "Config file not found."**
-The pipeline requires `scripts/compound/config.json`. Fix: copy the example config -- `cp scripts/compound/config.example.json scripts/compound/config.json` -- and customize the values.
+The pipeline requires `scripts/compound/config.json`. Fix: this file is tracked in the repo and should already exist. If missing, restore it with `git checkout HEAD -- scripts/compound/config.json`.
 
 **`auto-compound.sh` fails: "jq is required" / "gh CLI not found" / "lefthook not found."**
 The pipeline checks for CLI tools at startup. Fix: install the missing tool with `brew install jq`, `brew install gh`, or `brew install lefthook`.
@@ -1245,7 +1329,7 @@ Step 1 of `auto-compound.sh` looks for `.md` files in `docs/reports/`. If the di
 If `/inf`, `/commit`, or other slash commands don't work, the `.claude/commands/` directory may be missing or the command files aren't present. Fix: verify the command files exist in `.claude/commands/`. If you initialized with `init-project.sh`, these should already be in place.
 
 **Large file guard blocks commit.**
-The `large-file-guard` hook in `lefthook.yml` rejects staged files over 500KB. Common culprits: lockfiles, bundled assets, or accidentally staged `node_modules` contents. Fix: add the file to `.gitignore` if it shouldn't be tracked, or split it into smaller files.
+The `large-file-guard` hook in `lefthook.yml` rejects staged text-based source files (`.js`, `.ts`, `.json`, `.css`, `.md`, `.yml`, `.yaml`, `.html`, `.sh`, `.mjs`, `.cjs`) over 500KB. Binary files (images, PDFs) are not checked by this guard. Common culprits: lockfiles, bundled assets, or accidentally staged `node_modules` contents. Fix: add the file to `.gitignore` if it shouldn't be tracked, or split it into smaller files. For large reference resources like PDFs, store them in `docs/articles/` where they are automatically gitignored via `docs/**/*.pdf`.
 
 ---
 
