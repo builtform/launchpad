@@ -94,7 +94,7 @@ fi
 
 # Step 1: Find most recent report
 log "Step 1: Finding most recent report..."
-git pull origin main 2>/dev/null || true
+git fetch origin main 2>/dev/null || true
 
 LATEST_REPORT=$(ls -t "$REPORTS_DIR"/*.md 2>/dev/null | head -1)
 [ -f "$LATEST_REPORT" ] || error "No reports found in $REPORTS_DIR"
@@ -159,7 +159,7 @@ Description: $DESCRIPTION
 Rationale from report analysis: $RATIONALE
 
 Acceptance criteria from analysis:
-$(echo "$ANALYSIS_JSON" | jq -r '.acceptance_criteria[]' | sed 's/^/- /')
+$(echo "$ANALYSIS_JSON" | jq -r '(.acceptance_criteria // [])[]' | sed 's/^/- /')
 
 IMPORTANT CONSTRAINTS:
 - NO database migrations or schema changes

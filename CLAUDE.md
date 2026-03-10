@@ -181,7 +181,7 @@ These agents are spawned as sub-agents by the commands above. Each is a read-onl
 | `docs-locator`            | Find relevant docs by frontmatter, date-prefixed filenames, directory structure                                           | `/research_codebase`, `/create_plan`, PRD skill                                    |
 | `docs-analyzer`           | Extract decisions, rejected approaches, constraints, promoted patterns from docs                                          | `/research_codebase`, `/create_plan`, PRD skill                                    |
 | `web-search-researcher`   | External documentation, API references, and best practices                                                                | `/research_codebase`, `/create_plan`                                               |
-| `skill-evaluator`         | Evaluate generated skills against 14 quality criteria (3-pass: first-principles, baseline detection, Anthropic checklist) | `/create-skill`, `/update-skill`                                                   |
+| `skill-evaluator`         | Evaluate generated skills against 16 quality criteria (3-pass: first-principles, baseline detection, Anthropic checklist) | `/create-skill`, `/update-skill`                                                   |
 
 ---
 

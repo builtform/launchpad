@@ -1120,7 +1120,7 @@ Invoke `/create-skill [topic]` to start the Meta-Skill Forge -- a 7-phase method
 | 3. Contrarian Analysis   | Write out the generic version, then engineer away from it | Differentiation plan                             |
 | 4. Architecture Decision | Route to Simple / Moderate / Full complexity              | File structure decision                          |
 | 5. Write the Skill       | Produce SKILL.md orchestrator + reference files           | Skill files saved to `.claude/skills/<name>/`    |
-| 6. Quality Validation    | Recursive evaluation loop (max 3 cycles, 14 criteria)     | Pass/fail report with fix instructions           |
+| 6. Quality Validation    | Recursive evaluation loop (max 3 cycles, 16 criteria)     | Pass/fail report with fix instructions           |
 | 7. Ship It               | Generate evals, register in CLAUDE.md, present to user    | Ready-to-use skill                               |
 
 ### Two Modes of Extraction
@@ -1160,7 +1160,7 @@ Use `/update-skill [name]` to iterate on a skill after real-world usage reveals 
 | ----------------------------------------------------------------- | ------------------------------------------------------------ |
 | `.claude/skills/creating-skills/SKILL.md`                         | Meta-skill orchestrator (<400 lines, routes to 6 references) |
 | `.claude/skills/creating-skills/references/METHODOLOGY.md`        | 7-phase Forge methodology                                    |
-| `.claude/skills/creating-skills/references/QUALITY-GATES.md`      | Recursive evaluation loop + 14 criteria                      |
+| `.claude/skills/creating-skills/references/QUALITY-GATES.md`      | Recursive evaluation loop + 16 criteria                      |
 | `.claude/skills/creating-skills/references/CONTRARIAN-FRAME.md`   | Baseline detection + anti-slop checklist                     |
 | `.claude/skills/creating-skills/references/SKILL-TEMPLATE.md`     | Annotated SKILL.md template                                  |
 | `.claude/skills/creating-skills/references/REFERENCE-TEMPLATE.md` | Template for reference files                                 |
@@ -1275,7 +1275,7 @@ Build --> Test --> Find Issue --> Fix --> Document --> Validate --> Deploy
 | Web researcher    | `.claude/agents/web-search-researcher.md`   | 1 (Discovery) | WebSearch, WebFetch  | `/research_codebase`, `/create_plan`            | Gathers external context                                                                          |
 | Codebase analyzer | `.claude/agents/codebase-analyzer.md`       | 2 (Analysis)  | Read, Grep, Glob, LS | `/research_codebase`, `/create_plan`            | Deep analysis of architecture using paths from Wave 1                                             |
 | Docs analyzer     | `.claude/agents/docs-analyzer.md`           | 2 (Analysis)  | Read, Grep, Glob, LS | `/research_codebase`, `/create_plan`, PRD skill | Extracts decisions, rejected approaches, constraints, promoted patterns from docs found in Wave 1 |
-| Skill evaluator   | `.claude/agents/skill-evaluator.md`         | --            | Read, Grep, Glob     | `/create-skill`, `/update-skill`                | Evaluate skills against 14 quality criteria (3 passes: first-principles, baseline, Anthropic)     |
+| Skill evaluator   | `.claude/agents/skill-evaluator.md`         | --            | Read, Grep, Glob, LS | `/create-skill`, `/update-skill`                | Evaluate skills against 16 quality criteria (3 passes: first-principles, baseline, Anthropic)     |
 
 Wave 1 agents run in parallel and use only fast tools (no file reads). Wave 2 agents wait for Wave 1 to finish, then target only the paths that were found. Both docs agents are skipped gracefully on fresh projects where `docs/` contains only stubs.
 

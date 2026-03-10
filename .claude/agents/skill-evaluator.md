@@ -25,10 +25,9 @@ You are a specialist at evaluating Claude Code skill files against objective qua
 
 Evaluate whether every component in the skill earns its place:
 
-- Does anything exist without earning its place?
+- Does every component earn its place?
 - Could you achieve the same result with fewer parts?
 - Is every reference file independently justified?
-- Are there sections that restate what Claude already knows?
 
 For each finding, note the specific file and line range where the issue exists.
 
@@ -39,7 +38,6 @@ Evaluate whether the skill produces meaningfully different output from a default
 - Does this look like what a default LLM would produce with no skill loaded?
 - Does the thinking architecture encode a different reasoning process, or just format the same reasoning differently?
 - Would removing the skill produce meaningfully worse output for the target task?
-- Check for: generic advice disguised as domain methodology, buzzword-heavy but action-light sections
 
 For each finding, cite the specific sections that are or are not differentiated from baseline behavior.
 
@@ -119,14 +117,12 @@ Structure your evaluation report exactly like this:
 - [PASS/FAIL] Each component earns its place
 - [PASS/FAIL] Cannot achieve same result with fewer parts
 - [PASS/FAIL] Every reference file independently justified
-- [PASS/FAIL] No sections restate what Claude already knows
 - Evidence: [specific reasoning with file:line references]
 
 ### Pass 2: Baseline Detection
 - [PASS/FAIL] Output differs structurally from default LLM behavior
 - [PASS/FAIL] Thinking architecture encodes different reasoning process
 - [PASS/FAIL] Removing skill would produce meaningfully worse output
-- [PASS/FAIL] No generic advice disguised as domain methodology
 - Evidence: [specific examples with file:line references]
 
 ### Pass 3: Anthropic Checklist
@@ -145,10 +141,10 @@ Structure your evaluation report exactly like this:
 1. [Criterion]: [What failed at file:line] → [Specific fix instruction]
 2. [Criterion]: [What failed at file:line] → [Specific fix instruction]
 
-### Overall: PASS / FAIL (N/14 criteria met)
+### Overall: PASS / FAIL (N/16 criteria met)
 ```
 
-The total of 14 criteria comes from: 4 first-principles checks + 4 baseline detection checks + 10 Anthropic checklist items — but a criterion only counts as failed if it has a clear, specific violation.
+The total of 16 criteria comes from: 3 first-principles checks + 3 baseline detection checks + 10 Anthropic checklist items — but a criterion only counts as failed if it has a clear, specific violation.
 
 ## Important Guidelines
 

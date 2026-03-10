@@ -153,7 +153,7 @@ Skills are created through a 7-phase methodology called the Meta-Skill Forge:
 3. **Contrarian Analysis** — Write out the generic/baseline version first, then engineer away from every predictable pattern
 4. **Architecture Decision** — Adaptive complexity routing: Simple (single file), Moderate (1-3 references), or Full (multiple files + templates)
 5. **Write the Skill** — Produce SKILL.md orchestrator + reference files following progressive disclosure
-6. **Quality Validation** — Recursive evaluation loop (max 3 cycles) against 14 criteria across 3 passes
+6. **Quality Validation** — Recursive evaluation loop (max 3 cycles) against 16 criteria across 3 passes
 7. **Ship It** — Generate eval scenarios, register in CLAUDE.md, present to user
 
 ### Three Layers Every Skill Needs
@@ -173,7 +173,7 @@ Skills feed directly into the compound pipeline. When `/inf` or `auto-compound.s
 - **Infrastructure, not content** — Launchpad ships the skill creation workflow, not pre-built domain skills. Pre-built skills would be "running someone else's brain on your problems."
 - **Interactive, not autonomous** — Skill creation requires human domain expertise. It lives in Phase A (human-guided), not Phase B (agent-driven).
 - **Contrarian frame** — Every skill must demonstrate it produces structurally different output from baseline Claude. Formatting changes don't count.
-- **Recursive evaluation** — Skills are validated against 14 criteria across 3 passes (first-principles, baseline detection, Anthropic checklist) before shipping.
+- **Recursive evaluation** — Skills are validated against 16 criteria across 3 passes (first-principles, baseline detection, Anthropic checklist) before shipping.
 
 > Implementation details in the skill itself: `.claude/skills/creating-skills/SKILL.md`
 

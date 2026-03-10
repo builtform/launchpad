@@ -231,8 +231,8 @@ Anything else at root is root clutter and must be moved to the correct subdirect
     │       ├── references/                  # On-demand reference files (one level deep only)
     │       └── evals/                       # Evaluation scenarios (≥3 per skill)
     ├── profiles/                            # Cognitive profiles (shared review infrastructure)
-    │   └── PROFILE-TEMPLATE.md             # Template for building profiles
-    └── settings.local.json                 # Local Claude Code settings (gitignored)
+    │   └── PROFILE-TEMPLATE.md              # Template for building profiles
+    └── settings.local.json                  # Local Claude Code settings (gitignored)
 ```
 
 ---
