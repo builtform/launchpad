@@ -1,3 +1,11 @@
+---
+source: https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/skills
+license: Content from Anthropic's official documentation. Included for reference only.
+retrieved: 2025-03-09
+---
+
+> **Attribution:** This article is sourced from [Anthropic's Claude Code Skills documentation](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/skills). All rights belong to Anthropic. Included here as a local reference for skill authors.
+
 # Skill authoring best practices
 
 Learn how to write effective Skills that Claude can discover and use successfully.

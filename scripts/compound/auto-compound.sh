@@ -224,7 +224,8 @@ jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.startedAt = $ts' "$OUTPUT_DIR/prd
 "$SCRIPT_DIR/board.sh" --md "$OUTPUT_DIR/prd.json" "$PROJECT_ROOT/docs/tasks/board.md" || true
 
 # Commit the PRD and prd.json
-git add "$PRD_PATH" "$OUTPUT_DIR/prd.json"
+git add "$PRD_PATH"
+git add -f "$OUTPUT_DIR/prd.json"
 git commit -m "chore: add PRD and tasks for $PRIORITY_ITEM" || true
 
 # Step 6: Run the loop

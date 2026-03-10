@@ -153,7 +153,7 @@ Choose complexity based on discoveries from Phases 1-3:
 
 - Single SKILL.md under 300 lines
 - No reference files
-- Fast path: executes Phases 1, 2, 4, 5 + lightweight quality check
+- Fast path: executes Phases 1, 2, 4, 5, 6 (lightweight evaluator), 7 (registration) — only Phase 3 is skipped
 - Use when: the skill's entire knowledge fits in one file without crowding
 
 ### Moderate
