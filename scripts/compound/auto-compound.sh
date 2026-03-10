@@ -46,7 +46,7 @@ command -v lefthook >/dev/null 2>&1 || error "lefthook not found. Install with: 
 
 # Load config
 if [ ! -f "$CONFIG_FILE" ]; then
-  error "Config file not found: $CONFIG_FILE. Copy config.example.json to config.json and customize."
+  error "Config file not found: $CONFIG_FILE. This file should exist at scripts/compound/config.json — re-clone or restore it."
 fi
 
 REPORTS_DIR=$(jq -r '.reportsDir // "./docs/reports"' "$CONFIG_FILE")
@@ -70,7 +70,7 @@ ai_run() {
       gemini --approval-mode=yolo
       ;;
     claude)
-      claude --dangerously-skip-permissions
+      claude --dangerously-skip-permissions --print
       ;;
     *)
       error "Unknown tool: $TOOL. Valid values: claude, codex, gemini"

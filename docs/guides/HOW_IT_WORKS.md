@@ -1308,7 +1308,7 @@ The enforcer detects macOS Finder artifacts (files with ` 2`, ` v2`, or ` copy` 
 The LLM returned a response that isn't valid JSON (often wrapped in markdown code fences). The script tries to extract JSON from the response, but if the LLM adds commentary, parsing fails. Fix: this is usually transient -- rerun the pipeline. If it persists, check that the API key is valid and the model is accessible on your plan.
 
 **`auto-compound.sh` fails: "Config file not found."**
-The pipeline requires `scripts/compound/config.json`. Fix: copy the example config -- `cp scripts/compound/config.example.json scripts/compound/config.json` -- and customize the values.
+The pipeline requires `scripts/compound/config.json`. Fix: this file is tracked in the repo and should already exist. If missing, restore it with `git checkout HEAD -- scripts/compound/config.json`.
 
 **`auto-compound.sh` fails: "jq is required" / "gh CLI not found" / "lefthook not found."**
 The pipeline checks for CLI tools at startup. Fix: install the missing tool with `brew install jq`, `brew install gh`, or `brew install lefthook`.
@@ -1329,7 +1329,7 @@ Step 1 of `auto-compound.sh` looks for `.md` files in `docs/reports/`. If the di
 If `/inf`, `/commit`, or other slash commands don't work, the `.claude/commands/` directory may be missing or the command files aren't present. Fix: verify the command files exist in `.claude/commands/`. If you initialized with `init-project.sh`, these should already be in place.
 
 **Large file guard blocks commit.**
-The `large-file-guard` hook in `lefthook.yml` rejects staged files over 500KB. Common culprits: lockfiles, bundled assets, or accidentally staged `node_modules` contents. Fix: add the file to `.gitignore` if it shouldn't be tracked, or split it into smaller files.
+The `large-file-guard` hook in `lefthook.yml` rejects staged text-based source files (`.js`, `.ts`, `.json`, `.css`, `.md`, `.yml`, `.yaml`, `.html`, `.sh`, `.mjs`, `.cjs`) over 500KB. Binary files (images, PDFs) are not checked by this guard. Common culprits: lockfiles, bundled assets, or accidentally staged `node_modules` contents. Fix: add the file to `.gitignore` if it shouldn't be tracked, or split it into smaller files. For large reference resources like PDFs, store them in `docs/articles/` where they are automatically gitignored via `docs/**/*.pdf`.
 
 ---
 

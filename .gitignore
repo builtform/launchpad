@@ -15,6 +15,7 @@
 *.tsbuildinfo
 .DS_Store
 .cache/
+.env
 .env.consultant
 .env.local
 .env.migrate
