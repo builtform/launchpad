@@ -144,6 +144,7 @@ fi
 # Step 3: Create feature branch
 log "Step 3: Creating feature branch..."
 git switch main
+git merge --ff-only origin/main
 git switch -c -- "$BRANCH_NAME" 2>/dev/null || git switch -- "$BRANCH_NAME"
 
 # Step 4: Create PRD via AI tool
@@ -224,6 +225,7 @@ jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.startedAt = $ts' "$OUTPUT_DIR/prd
 "$SCRIPT_DIR/board.sh" --md "$OUTPUT_DIR/prd.json" "$PROJECT_ROOT/docs/tasks/board.md" || true
 
 # Commit the PRD and prd.json
+# prd.json is gitignored (transient artifact) but committed on feature branches for task tracking
 git add "$PRD_PATH"
 git add -f "$OUTPUT_DIR/prd.json"
 git commit -m "chore: add PRD and tasks for $PRIORITY_ITEM" || true
