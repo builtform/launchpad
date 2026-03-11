@@ -1154,6 +1154,17 @@ Skills that fail are diagnosed (WHY, not just WHAT) and improved in a recursive 
 
 Use `/update-skill [name]` to iterate on a skill after real-world usage reveals gaps. The workflow reads the existing skill files as context, performs a delta analysis to identify what changed, and re-runs only the relevant Forge phases.
 
+### Porting External Skills
+
+Use `/port-skill based on [path]` to import a skill from any external source — Vercel's agent-skills library, Anthropic's built-in skills, community repos, or any local SKILL.md file. The 4-phase workflow:
+
+1. **Ingest** — reads all source files, parses frontmatter, emits an ingestion inventory
+2. **Adapt** — resolves dependencies (shell scripts, CLI tools, external APIs, MCP servers) and reformats to Launchpad conventions (recency-bias bookending, no hedge language, verification gate, negative boundaries)
+3. **Validate** — `skill-evaluator` sub-agent, same 16-criteria quality gates as `/create-skill`
+4. **Register** — generates eval scenarios, updates CLAUDE.md and AGENTS.md
+
+After porting, the skill is fully detached from its source — use `/update-skill` to iterate on it like any other Launchpad skill.
+
 ### Key Files
 
 | File                                                              | Purpose                                                      |
@@ -1169,6 +1180,8 @@ Use `/update-skill [name]` to iterate on a skill after real-world usage reveals 
 | `.claude/profiles/PROFILE-TEMPLATE.md`                            | Cognitive profile template (shared infrastructure)           |
 | `.claude/commands/create-skill.md`                                | `/create-skill` slash command                                |
 | `.claude/commands/update-skill.md`                                | `/update-skill` slash command                                |
+| `.claude/commands/port-skill.md`                                  | `/port-skill` slash command                                  |
+| `.claude/skills/creating-skills/references/PORTING-GUIDE.md`      | 4-phase porting methodology + dependency decision tree       |
 
 ### The Compounding Effect
 
@@ -1247,6 +1260,7 @@ Build --> Test --> Find Issue --> Fix --> Document --> Validate --> Deploy
 | `/memory-report`        | 6     | Updates session memory files                                                                  |
 | `/create-skill [topic]` | 7     | Create a skill using Meta-Skill Forge                                                         |
 | `/update-skill [name]`  | 7     | Iterate on an existing skill                                                                  |
+| `/port-skill [source]`  | 7     | Port an external skill into Launchpad format                                                  |
 | `/pull-launchpad`       | --    | Pulls upstream Launchpad changes                                                              |
 
 ---
@@ -1275,7 +1289,7 @@ Build --> Test --> Find Issue --> Fix --> Document --> Validate --> Deploy
 | Web researcher    | `.claude/agents/web-search-researcher.md`   | 1 (Discovery) | WebSearch, WebFetch  | `/research_codebase`, `/create_plan`            | Gathers external context                                                                          |
 | Codebase analyzer | `.claude/agents/codebase-analyzer.md`       | 2 (Analysis)  | Read, Grep, Glob, LS | `/research_codebase`, `/create_plan`            | Deep analysis of architecture using paths from Wave 1                                             |
 | Docs analyzer     | `.claude/agents/docs-analyzer.md`           | 2 (Analysis)  | Read, Grep, Glob, LS | `/research_codebase`, `/create_plan`, PRD skill | Extracts decisions, rejected approaches, constraints, promoted patterns from docs found in Wave 1 |
-| Skill evaluator   | `.claude/agents/skill-evaluator.md`         | --            | Read, Grep, Glob, LS | `/create-skill`, `/update-skill`                | Evaluate skills against 16 quality criteria (3 passes: first-principles, baseline, Anthropic)     |
+| Skill evaluator   | `.claude/agents/skill-evaluator.md`         | --            | Read, Grep, Glob, LS | `/create-skill`, `/update-skill`, `/port-skill` | Evaluate skills against 16 quality criteria (3 passes: first-principles, baseline, Anthropic)     |
 
 Wave 1 agents run in parallel and use only fast tools (no file reads). Wave 2 agents wait for Wave 1 to finish, then target only the paths that were found. Both docs agents are skipped gracefully on fresh projects where `docs/` contains only stubs.
 

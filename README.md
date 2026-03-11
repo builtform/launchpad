@@ -134,15 +134,15 @@ This template is comprehensive by design. Delete what your project does not requ
 
 Launchpad organizes AI development into **7 layers**, each targeting a specific failure mode:
 
-| Layer                | Purpose                                | Key Tool                                    |
-| -------------------- | -------------------------------------- | ------------------------------------------- |
-| 1. Scaffold          | Consistent file placement              | `check-repo-structure.sh`                   |
-| 2. Definition        | Spec before code                       | `/define-product`, `/define-architecture`   |
-| 3. Execution         | AI in fresh-context loops              | `/inf`, `auto-compound.sh`                  |
-| 4. Quality           | Catch problems pre-commit              | Lefthook, TypeScript, ESLint                |
-| 5. Commit-to-Merge   | Nothing unreviewed on main             | `/commit`, Codex review                     |
-| 6. Compound Learning | Learnings improve every future session | `/compound`, `docs/solutions/`, `CLAUDE.md` |
-| 7. Skill Creation    | Encode expertise as reusable AI skills | `/create-skill`, Meta-Skill Forge           |
+| Layer                | Purpose                                | Key Tool                                                          |
+| -------------------- | -------------------------------------- | ----------------------------------------------------------------- |
+| 1. Scaffold          | Consistent file placement              | `check-repo-structure.sh`                                         |
+| 2. Definition        | Spec before code                       | `/define-product`, `/define-architecture`                         |
+| 3. Execution         | AI in fresh-context loops              | `/inf`, `auto-compound.sh`                                        |
+| 4. Quality           | Catch problems pre-commit              | Lefthook, TypeScript, ESLint                                      |
+| 5. Commit-to-Merge   | Nothing unreviewed on main             | `/commit`, Codex review                                           |
+| 6. Compound Learning | Learnings improve every future session | `/compound`, `docs/solutions/`, `CLAUDE.md`                       |
+| 7. Skill Creation    | Encode expertise as reusable AI skills | `/create-skill`, `/port-skill`, `/update-skill`, Meta-Skill Forge |
 
 How these layers connect -- each feeds into the next, with learnings cycling back to improve every future session:
 
@@ -273,18 +273,19 @@ These are the files that define how the project behaves. They are the control pl
 
 ### AI Workflow
 
-| Command                | What it does                                                         |
-| ---------------------- | -------------------------------------------------------------------- |
-| `/define-product`      | Interactive Q&A to populate PRD + product vision docs                |
-| `/define-architecture` | Interactive Q&A to populate architecture docs                        |
-| `/create_plan`         | Break a feature into an implementation plan                          |
-| `/implement_plan`      | Execute a plan phase by phase                                        |
-| `/inf`                 | Full pipeline: report, PRD, tasks, execution loop, quality sweep, PR |
-| `/commit`              | Quality gates, commit, PR creation, 3-gate monitoring                |
-| `/pull-launchpad`      | Pull upstream Launchpad updates into safe directories                |
-| `/create-skill`        | Create a Claude skill using the 7-phase Meta-Skill Forge             |
-| `/update-skill`        | Iterate on an existing skill after real-world usage reveals gaps     |
-| `/Hydrate`             | Load minimal session context                                         |
+| Command                | What it does                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------- |
+| `/define-product`      | Interactive Q&A to populate PRD + product vision docs                                 |
+| `/define-architecture` | Interactive Q&A to populate architecture docs                                         |
+| `/create_plan`         | Break a feature into an implementation plan                                           |
+| `/implement_plan`      | Execute a plan phase by phase                                                         |
+| `/inf`                 | Full pipeline: report, PRD, tasks, execution loop, quality sweep, PR                  |
+| `/commit`              | Quality gates, commit, PR creation, 3-gate monitoring                                 |
+| `/pull-launchpad`      | Pull upstream Launchpad updates into safe directories                                 |
+| `/create-skill`        | Create a Claude skill using the 7-phase Meta-Skill Forge                              |
+| `/update-skill`        | Iterate on an existing skill after real-world usage reveals gaps                      |
+| `/port-skill`          | Port an external skill into Launchpad format using the 4-phase Skill Porting workflow |
+| `/Hydrate`             | Load minimal session context                                                          |
 
 ### Development
 
