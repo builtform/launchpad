@@ -24,7 +24,7 @@ This document explains the philosophy and principles behind each layer. For impl
 | 4. [Quality Gates](#layer-4-quality-gates)                   | Pre-commit hooks, CI pipeline, and AI-powered code review with P0--P3 severity classification                  | `lefthook.yml`, `ci.yml`, `codex-review.yml`                            |
 | 5. [Commit-to-Merge](#layer-5-commit-to-merge)               | Branch guard --> quality gates --> PR creation --> 3-gate monitoring loop. Never auto-merges                   | `/commit`, `auto-compound.sh` Steps 7a--7c                              |
 | 6. [Compound Learning](#layer-6-compound-learning)           | Structured knowledge extraction, learnings catalog, pattern promotion, and cross-run memory                    | `docs/solutions/`, `progress.txt`, `promoted-patterns.md`               |
-| 7. [Skill Creation](#layer-7-skill-creation)                 | Encode domain expertise as reusable AI skills with quality-validated reasoning patterns                        | `/create-skill`, `/update-skill`, `skill-evaluator`                     |
+| 7. [Skill Creation](#layer-7-skill-creation)                 | Encode domain expertise as reusable AI skills with quality-validated reasoning patterns                        | `/create-skill`, `/port-skill`, `/update-skill`, `skill-evaluator`      |
 
 No single competitor offers all seven layers. SpecKit has Layer 2. Design OS has Layer 2. Ralph has Layer 3. Compound Product has Layers 3 and 6. Nobody has Layers 1, 4, 5, or 7.
 
@@ -175,6 +175,12 @@ Skills feed directly into the compound pipeline. When `/inf` or `auto-compound.s
 - **Contrarian frame** — Every skill must demonstrate it produces structurally different output from baseline Claude. Formatting changes don't count.
 - **Recursive evaluation** — Skills are validated against 16 criteria across 3 passes (first-principles, baseline detection, Anthropic checklist) before shipping.
 
+### Porting External Skills
+
+`/port-skill` is the third command in the skill system — the porting counterpart to `/create-skill`. Where `/create-skill` builds skills from scratch through research and extraction, `/port-skill` adapts skills that already exist externally. The 7-phase creation workflow's discovery phases (research, extraction, contrarian analysis, architecture decision) are unnecessary when the skill already exists — those phases are about figuring out what to build. `/port-skill` skips them and runs only the phases that matter for adaptation: dependency resolution, format adaptation, quality validation, and registration.
+
+Ported skills are fully detached from their source immediately after import. They become native Launchpad skills with a provenance comment block (recording origin for reference) but no upstream coupling. Future updates use `/update-skill` — the same command used for any other skill in the repo.
+
 > Implementation details in the skill itself: `.claude/skills/creating-skills/SKILL.md`
 
 ---
@@ -213,20 +219,20 @@ The philosophy of "specify before building." Our implementation (`/define-produc
 
 Launchpad is not a fork of Compound Product. It's a custom implementation that shares the pipeline architecture but diverges significantly in capabilities.
 
-| Aspect                    | Compound Product (Upstream) | Launchpad                                                                                                   |
-| ------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| **AI tool dispatch**      | Claude Code only            | Configurable via `config.json` (`claude`, `codex`, or `gemini`) with `ai_run()` abstraction                 |
-| **Prompt files**          | Separate per tool           | Single `iteration-claude.md` piped to all tools via stdin                                                   |
-| **Task status**           | `passes: true/false` only   | Full `status` field (pending/in_progress/done/failed) with `startedAt`/`completedAt` timestamps             |
-| **Visualization**         | None                        | `board.sh` with 3 modes (ASCII, Markdown, Summary), rendered after every iteration, embedded in PR body     |
-| **Archive**               | `cp` (copy)                 | `mv` (move) with date-prefixed folders                                                                      |
-| **Report analysis**       | Basic, single-provider      | `analyze-report.sh` with 5-provider LLM support, model aliases, recent-PRD deduplication                    |
-| **Quality gates**         | Basic test run in config    | 3-attempt auto-fix loop with lefthook + AI-assisted fixing (Step 7a)                                        |
-| **PR monitoring**         | None                        | 3-gate loop: CI checks, Codex P0/P1 parsing, merge conflict resolution (Step 7c)                            |
-| **Learnings extraction**  | Agent updates AGENTS.md     | Structured extraction to `docs/solutions/` with YAML frontmatter, template, and promotion pipeline (Step 8) |
-| **Definition layer**      | None                        | `/define-product` and `/define-architecture` producing 6 architecture docs                                  |
-| **Manual execution path** | None                        | `/create_plan` + `/implement_plan` as human-supervised alternative                                          |
-| **Commit workflow**       | None                        | `/commit` with branch guards, parallel quality gates, interactive Codex review                              |
-| **Structure enforcement** | None                        | `check-repo-structure.sh` + `REPOSITORY_STRUCTURE.md` + Lefthook + CI                                       |
-| **Knowledge pipeline**    | AGENTS.md updates only      | progress.txt --> learnings --> promoted-patterns --> CLAUDE.md feedback loop                                |
-| **Skill creation**        | None                        | 7-phase Meta-Skill Forge with contrarian analysis, recursive evaluation, and progressive disclosure         |
+| Aspect                    | Compound Product (Upstream) | Launchpad                                                                                                               |
+| ------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **AI tool dispatch**      | Claude Code only            | Configurable via `config.json` (`claude`, `codex`, or `gemini`) with `ai_run()` abstraction                             |
+| **Prompt files**          | Separate per tool           | Single `iteration-claude.md` piped to all tools via stdin                                                               |
+| **Task status**           | `passes: true/false` only   | Full `status` field (pending/in_progress/done/failed) with `startedAt`/`completedAt` timestamps                         |
+| **Visualization**         | None                        | `board.sh` with 3 modes (ASCII, Markdown, Summary), rendered after every iteration, embedded in PR body                 |
+| **Archive**               | `cp` (copy)                 | `mv` (move) with date-prefixed folders                                                                                  |
+| **Report analysis**       | Basic, single-provider      | `analyze-report.sh` with 5-provider LLM support, model aliases, recent-PRD deduplication                                |
+| **Quality gates**         | Basic test run in config    | 3-attempt auto-fix loop with lefthook + AI-assisted fixing (Step 7a)                                                    |
+| **PR monitoring**         | None                        | 3-gate loop: CI checks, Codex P0/P1 parsing, merge conflict resolution (Step 7c)                                        |
+| **Learnings extraction**  | Agent updates AGENTS.md     | Structured extraction to `docs/solutions/` with YAML frontmatter, template, and promotion pipeline (Step 8)             |
+| **Definition layer**      | None                        | `/define-product` and `/define-architecture` producing 6 architecture docs                                              |
+| **Manual execution path** | None                        | `/create_plan` + `/implement_plan` as human-supervised alternative                                                      |
+| **Commit workflow**       | None                        | `/commit` with branch guards, parallel quality gates, interactive Codex review                                          |
+| **Structure enforcement** | None                        | `check-repo-structure.sh` + `REPOSITORY_STRUCTURE.md` + Lefthook + CI                                                   |
+| **Knowledge pipeline**    | AGENTS.md updates only      | progress.txt --> learnings --> promoted-patterns --> CLAUDE.md feedback loop                                            |
+| **Skill creation**        | None                        | 7-phase Meta-Skill Forge (`/create-skill`) + 4-phase Skill Porting (`/port-skill`) + iterative update (`/update-skill`) |

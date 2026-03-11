@@ -26,6 +26,7 @@ build/
 dist/
 docs/**/*.pdf
 docs/reports/launchpad_reports/
+docs/articles/
 docs/tasks/board.md
 node_modules/
 out/
