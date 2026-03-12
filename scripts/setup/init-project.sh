@@ -227,7 +227,8 @@ if [ "$NON_INTERACTIVE" = false ]; then
   echo "  1) MIT"
   echo "  2) Apache-2.0"
   echo "  3) GPL-3.0"
-  echo "  4) Other"
+  echo "  4) UNLICENSED (proprietary)"
+  echo "  5) Other"
   while true; do
     read -p "Select license [1]: " LICENSE_CHOICE
     LICENSE_CHOICE="${LICENSE_CHOICE:-1}"
@@ -235,11 +236,12 @@ if [ "$NON_INTERACTIVE" = false ]; then
       1) LICENSE_TYPE="MIT"; break ;;
       2) LICENSE_TYPE="Apache-2.0"; break ;;
       3) LICENSE_TYPE="GPL-3.0"; break ;;
-      4) read -p "Enter license identifier: " LICENSE_TYPE; break ;;
-      *) warn "Enter 1, 2, 3, or 4." ;;
+      4) LICENSE_TYPE="UNLICENSED"; break ;;
+      5) read -p "Enter license identifier: " LICENSE_TYPE; break ;;
+      *) warn "Enter 1, 2, 3, 4, or 5." ;;
     esac
   done
-  if [ "$LICENSE_TYPE" != "MIT" ]; then
+  if [ "$LICENSE_TYPE" != "MIT" ] && [ "$LICENSE_TYPE" != "UNLICENSED" ]; then
     warn "Only MIT license text is included in the template. Update your LICENSE file manually for $LICENSE_TYPE."
   fi
 
@@ -488,7 +490,22 @@ replace_in_file "LICENSE" '{{YEAR}}' "$CURRENT_YEAR"
 info "Replaced {{YEAR}} with $CURRENT_YEAR in LICENSE"
 
 # Replace LICENSE body for non-MIT license types (Issue #6)
-if [ "$LICENSE_TYPE" != "MIT" ]; then
+if [ "$LICENSE_TYPE" = "UNLICENSED" ]; then
+  cat > LICENSE <<LICEOF
+UNLICENSED — Proprietary Software
+
+Copyright (c) $CURRENT_YEAR $COPYRIGHT_HOLDER. All rights reserved.
+
+This software and its source code are the proprietary and confidential
+property of $COPYRIGHT_HOLDER. No part of this software may be
+reproduced, distributed, or transmitted in any form or by any means
+without the prior written permission of the copyright holder.
+
+Unauthorized copying, modification, distribution, or use of this
+software, via any medium, is strictly prohibited.
+LICEOF
+  info "LICENSE file set to proprietary (UNLICENSED)"
+elif [ "$LICENSE_TYPE" != "MIT" ]; then
   cat > LICENSE <<LICEOF
 $LICENSE_TYPE License
 
