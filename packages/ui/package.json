@@ -8,8 +8,7 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
-    },
-    "./tailwind": "./tailwind.config.ts"
+    }
   },
   "dependencies": {
     "clsx": "^2.0.0",
