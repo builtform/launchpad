@@ -60,17 +60,23 @@ USAGE
   exit 0
 }
 
+require_value() {
+  if [ $# -lt 2 ] || [[ "$2" == --* ]]; then
+    echo "Error: $1 requires a value" >&2; exit 1
+  fi
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --non-interactive) NON_INTERACTIVE=true; shift ;;
-    --name)         PROJECT_NAME="$2"; shift 2 ;;
-    --description)  PROJECT_DESCRIPTION="$2"; shift 2 ;;
-    --copyright)    COPYRIGHT_HOLDER="$2"; shift 2 ;;
-    --email)        CONTACT_EMAIL="$2"; shift 2 ;;
-    --license)      LICENSE_TYPE="$2"; shift 2 ;;
-    --visibility)   REPO_VISIBILITY="$2"; shift 2 ;;
-    --target-dir)   TARGET_DIR="$2"; shift 2 ;;
-    --github-org)   GITHUB_ORG="$2"; shift 2 ;;
+    --name)         require_value "$1" "${2:-}"; PROJECT_NAME="$2"; shift 2 ;;
+    --description)  require_value "$1" "${2:-}"; PROJECT_DESCRIPTION="$2"; shift 2 ;;
+    --copyright)    require_value "$1" "${2:-}"; COPYRIGHT_HOLDER="$2"; shift 2 ;;
+    --email)        require_value "$1" "${2:-}"; CONTACT_EMAIL="$2"; shift 2 ;;
+    --license)      require_value "$1" "${2:-}"; LICENSE_TYPE="$2"; shift 2 ;;
+    --visibility)   require_value "$1" "${2:-}"; REPO_VISIBILITY="$2"; shift 2 ;;
+    --target-dir)   require_value "$1" "${2:-}"; TARGET_DIR="$2"; shift 2 ;;
+    --github-org)   require_value "$1" "${2:-}"; GITHUB_ORG="$2"; shift 2 ;;
     -h|--help)      usage ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
@@ -84,6 +90,11 @@ if [ "$NON_INTERACTIVE" = true ]; then
   [ -z "$CONTACT_EMAIL" ] && MISSING="$MISSING --email"
   if [ -n "$MISSING" ]; then
     echo "Error: Missing required flags for --non-interactive mode:$MISSING" >&2
+    exit 1
+  fi
+  # Same character validation as interactive mode
+  if printf '%s' "$PROJECT_NAME" | grep -qE '[`$()!]|[[:cntrl:]]'; then
+    echo "Error: Project name contains invalid characters. Avoid backticks, dollar signs, parentheses, exclamation marks, and control characters." >&2
     exit 1
   fi
 elif [ ! -t 0 ]; then
