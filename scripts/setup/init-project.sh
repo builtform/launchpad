@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 # =============================================================================
-# init-project.sh — Interactive Launchpad initialization wizard
+# init-project.sh — Launchpad initialization wizard
 #
 # Transforms a fresh Launchpad clone into your project by:
-#   1. Collecting project metadata via interactive prompts
+#   1. Collecting project metadata via interactive prompts (or CLI flags)
 #   2. Preserving Launchpad docs as a reference guide
 #   3. Swapping template files into their final positions
 #   4. Replacing all placeholders with your project's values
 #
 # Git history detachment is intentionally left as a manual step (see output).
 #
-# Usage: ./scripts/setup/init-project.sh
+# Usage:
+#   Interactive:       ./scripts/setup/init-project.sh
+#   Non-interactive:   ./scripts/setup/init-project.sh --non-interactive \
+#                        --name "My Project" --copyright "Acme Inc" --email "dev@acme.com"
 #
 # This script is safe to run only ONCE. After running, review changes with
 # `git diff` and commit. You can then delete this script.
@@ -18,8 +21,85 @@
 
 set -euo pipefail
 
-if [ ! -t 0 ]; then
-  echo "Error: init-project.sh must be run interactively (stdin is not a terminal)." >&2
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+NON_INTERACTIVE=false
+PROJECT_NAME=""
+PROJECT_DESCRIPTION="A project built with Launchpad"
+COPYRIGHT_HOLDER=""
+CONTACT_EMAIL=""
+LICENSE_TYPE="MIT"
+REPO_VISIBILITY="private"
+TARGET_DIR=""
+GITHUB_ORG=""
+
+usage() {
+  cat <<USAGE
+Usage: $0 [OPTIONS]
+
+Options:
+  --non-interactive   Run without prompts (requires --name, --copyright, --email)
+  --name NAME         Project name (required in non-interactive mode)
+  --description DESC  Description (default: "A project built with Launchpad")
+  --copyright HOLDER  Copyright holder (required in non-interactive mode)
+  --email EMAIL       Contact email (required in non-interactive mode)
+  --license TYPE      License type (default: MIT)
+  --visibility TYPE   private or public (default: private)
+  --target-dir DIR    Target directory to initialize into
+  --github-org ORG    GitHub organization or username
+  -h, --help          Show this help message
+
+Examples:
+  # Interactive mode
+  $0
+
+  # AI agent / CI mode
+  $0 --non-interactive --name "My App" --copyright "Acme Inc" --email "dev@acme.com"
+USAGE
+  exit 0
+}
+
+require_value() {
+  if [ $# -lt 2 ] || [[ "$2" == --* ]]; then
+    echo "Error: $1 requires a value" >&2; exit 1
+  fi
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --non-interactive) NON_INTERACTIVE=true; shift ;;
+    --name)         require_value "$1" "${2:-}"; PROJECT_NAME="$2"; shift 2 ;;
+    --description)  require_value "$1" "${2:-}"; PROJECT_DESCRIPTION="$2"; shift 2 ;;
+    --copyright)    require_value "$1" "${2:-}"; COPYRIGHT_HOLDER="$2"; shift 2 ;;
+    --email)        require_value "$1" "${2:-}"; CONTACT_EMAIL="$2"; shift 2 ;;
+    --license)      require_value "$1" "${2:-}"; LICENSE_TYPE="$2"; shift 2 ;;
+    --visibility)   require_value "$1" "${2:-}"; REPO_VISIBILITY="$2"; shift 2 ;;
+    --target-dir)   require_value "$1" "${2:-}"; TARGET_DIR="$2"; shift 2 ;;
+    --github-org)   require_value "$1" "${2:-}"; GITHUB_ORG="$2"; shift 2 ;;
+    -h|--help)      usage ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
+  esac
+done
+
+# Validate required args in non-interactive mode
+if [ "$NON_INTERACTIVE" = true ]; then
+  MISSING=""
+  [ -z "$PROJECT_NAME" ] && MISSING="$MISSING --name"
+  [ -z "$COPYRIGHT_HOLDER" ] && MISSING="$MISSING --copyright"
+  [ -z "$CONTACT_EMAIL" ] && MISSING="$MISSING --email"
+  if [ -n "$MISSING" ]; then
+    echo "Error: Missing required flags for --non-interactive mode:$MISSING" >&2
+    exit 1
+  fi
+  # Same character validation as interactive mode
+  if printf '%s' "$PROJECT_NAME" | grep -qE '[`$()!]|[[:cntrl:]]'; then
+    echo "Error: Project name contains invalid characters. Avoid backticks, dollar signs, parentheses, exclamation marks, and control characters." >&2
+    exit 1
+  fi
+elif [ ! -t 0 ]; then
+  echo "Error: stdin is not a terminal. Use --non-interactive for AI agents / CI." >&2
+  echo "Example: $0 --non-interactive --name \"My App\" --copyright \"Acme\" --email \"dev@acme.com\"" >&2
   exit 1
 fi
 
@@ -75,6 +155,32 @@ if [ ! -f "package.json" ] || [ ! -f "CLAUDE.md" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Target directory support — copy scaffold into a different directory
+# ---------------------------------------------------------------------------
+if [ -n "${TARGET_DIR:-}" ]; then
+  if [ ! -d "$TARGET_DIR" ]; then
+    error "Target directory does not exist: $TARGET_DIR"
+    exit 1
+  fi
+  # Guard against copy-into-self (target inside the current repo)
+  _src_real="$(cd "$REPO_ROOT" && pwd -P)"
+  _tgt_real="$(cd "$TARGET_DIR" && pwd -P)"
+  if [ "$_tgt_real" = "$_src_real" ] || [[ "$_tgt_real" == "$_src_real"/* ]]; then
+    error "Target directory is inside the source repo: $TARGET_DIR"
+    exit 1
+  fi
+  # Require empty target directory to prevent silent overwrites
+  if [ -n "$(ls -A "$TARGET_DIR" 2>/dev/null)" ]; then
+    error "Target directory is not empty: $TARGET_DIR. Use an empty directory."
+    exit 1
+  fi
+  cp -r . "$TARGET_DIR/"
+  cd "$TARGET_DIR"
+  REPO_ROOT="$TARGET_DIR"
+  info "Working in target directory: $TARGET_DIR"
+fi
+
+# ---------------------------------------------------------------------------
 # Idempotency guard — prevent double-run
 # ---------------------------------------------------------------------------
 if [ -d ".launchpad" ]; then
@@ -93,66 +199,73 @@ if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; th
 fi
 
 # ---------------------------------------------------------------------------
-# Step 1 — Collect user inputs via interactive prompts
+# Step 1 — Collect user inputs via interactive prompts (or use CLI flags)
 # ---------------------------------------------------------------------------
 heading "Initializing your project from Launchpad..."
 echo ""
 
-while true; do
-  read -p "Project name (required): " PROJECT_NAME
-  if [ -z "$PROJECT_NAME" ]; then
-    warn "Project name is required."
-    continue
+if [ "$NON_INTERACTIVE" = false ]; then
+  while true; do
+    read -p "Project name (required): " PROJECT_NAME
+    if [ -z "$PROJECT_NAME" ]; then
+      warn "Project name is required."
+      continue
+    fi
+    if printf '%s' "$PROJECT_NAME" | grep -qE '[`$()!]|[[:cntrl:]]'; then
+      warn "Project name contains invalid characters. Avoid backticks, dollar signs, parentheses, exclamation marks, and control characters."
+      continue
+    fi
+    break
+  done
+
+  read -p "Description (one line) [A project built with Launchpad]: " PROJECT_DESCRIPTION
+  PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION:-A project built with Launchpad}"
+
+  while true; do
+    read -p "Copyright holder (required): " COPYRIGHT_HOLDER
+    [ -n "$COPYRIGHT_HOLDER" ] && break
+    warn "Copyright holder is required."
+  done
+
+  while true; do
+    read -p "Contact email (required): " CONTACT_EMAIL
+    [ -n "$CONTACT_EMAIL" ] && break
+    warn "Contact email is required."
+  done
+
+  echo ""
+  echo "License options:"
+  echo "  1) MIT"
+  echo "  2) Apache-2.0"
+  echo "  3) GPL-3.0"
+  echo "  4) UNLICENSED (proprietary)"
+  echo "  5) Other"
+  while true; do
+    read -p "Select license [1]: " LICENSE_CHOICE
+    LICENSE_CHOICE="${LICENSE_CHOICE:-1}"
+    case "$LICENSE_CHOICE" in
+      1) LICENSE_TYPE="MIT"; break ;;
+      2) LICENSE_TYPE="Apache-2.0"; break ;;
+      3) LICENSE_TYPE="GPL-3.0"; break ;;
+      4) LICENSE_TYPE="UNLICENSED"; break ;;
+      5) read -p "Enter license identifier: " LICENSE_TYPE; break ;;
+      *) warn "Enter 1, 2, 3, 4, or 5." ;;
+    esac
+  done
+  if [ "$LICENSE_TYPE" != "MIT" ] && [ "$LICENSE_TYPE" != "UNLICENSED" ]; then
+    warn "Only MIT license text is included in the template. Update your LICENSE file manually for $LICENSE_TYPE."
   fi
-  if printf '%s' "$PROJECT_NAME" | grep -qE '[`$()!]|[[:cntrl:]]'; then
-    warn "Project name contains invalid characters. Avoid backticks, dollar signs, parentheses, exclamation marks, and control characters."
-    continue
-  fi
-  break
-done
 
-read -p "Description (one line) [A project built with Launchpad]: " PROJECT_DESCRIPTION
-PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION:-A project built with Launchpad}"
+  while true; do
+    read -p "Repository visibility — private or public (required): " REPO_VISIBILITY
+    REPO_VISIBILITY="$(printf '%s' "$REPO_VISIBILITY" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+    [[ "$REPO_VISIBILITY" == "private" || "$REPO_VISIBILITY" == "public" ]] && break
+    warn "Please enter 'private' or 'public'."
+  done
 
-while true; do
-  read -p "Copyright holder (required): " COPYRIGHT_HOLDER
-  [ -n "$COPYRIGHT_HOLDER" ] && break
-  warn "Copyright holder is required."
-done
-
-while true; do
-  read -p "Contact email (required): " CONTACT_EMAIL
-  [ -n "$CONTACT_EMAIL" ] && break
-  warn "Contact email is required."
-done
-
-echo ""
-echo "License options:"
-echo "  1) MIT"
-echo "  2) Apache-2.0"
-echo "  3) GPL-3.0"
-echo "  4) Other"
-while true; do
-  read -p "Select license [1]: " LICENSE_CHOICE
-  LICENSE_CHOICE="${LICENSE_CHOICE:-1}"
-  case "$LICENSE_CHOICE" in
-    1) LICENSE_TYPE="MIT"; break ;;
-    2) LICENSE_TYPE="Apache-2.0"; break ;;
-    3) LICENSE_TYPE="GPL-3.0"; break ;;
-    4) read -p "Enter license identifier: " LICENSE_TYPE; break ;;
-    *) warn "Enter 1, 2, 3, or 4." ;;
-  esac
-done
-if [ "$LICENSE_TYPE" != "MIT" ]; then
-  warn "Only MIT license text is included in the template. Update your LICENSE file manually for $LICENSE_TYPE."
+  read -p "GitHub organization or username []: " GITHUB_ORG
+  GITHUB_ORG="${GITHUB_ORG:-}"
 fi
-
-while true; do
-  read -p "Repository visibility — private or public (required): " REPO_VISIBILITY
-  REPO_VISIBILITY="$(printf '%s' "$REPO_VISIBILITY" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
-  [[ "$REPO_VISIBILITY" == "private" || "$REPO_VISIBILITY" == "public" ]] && break
-  warn "Please enter 'private' or 'public'."
-done
 
 CURRENT_YEAR="$(date +%Y)"
 
@@ -167,17 +280,22 @@ echo "  Copyright holder: $COPYRIGHT_HOLDER"
 echo "  Contact email:    $CONTACT_EMAIL"
 echo "  License:          $LICENSE_TYPE"
 echo "  Repository:       $REPO_VISIBILITY"
+echo "  GitHub org:       ${GITHUB_ORG:-<not set>}"
 echo "  Year:             $CURRENT_YEAR"
 echo ""
 
-read -p "This will initialize the project. Continue? [y/N] " CONFIRM
-case "$CONFIRM" in
-  [yY]|[yY][eE][sS]) ;;
-  *)
-    warn "Aborted by user."
-    exit 0
-    ;;
-esac
+if [ "$NON_INTERACTIVE" = false ]; then
+  read -p "This will initialize the project. Continue? [y/N] " CONFIRM
+  case "$CONFIRM" in
+    [yY]|[yY][eE][sS]) ;;
+    *)
+      warn "Aborted by user."
+      exit 0
+      ;;
+  esac
+else
+  info "Non-interactive mode — auto-confirming."
+fi
 
 echo ""
 
@@ -289,6 +407,22 @@ if [ -f "docs/guides/HOW_IT_WORKS.md" ]; then
   info "Moved docs/guides/HOW_IT_WORKS.md -> .launchpad/HOW_IT_WORKS.md"
 fi
 
+# Update REPOSITORY_STRUCTURE.md to reflect moved files (Issue #10)
+replace_in_file "docs/architecture/REPOSITORY_STRUCTURE.md" \
+  '- \`METHODOLOGY.md\`' \
+  '- *(Moved to .launchpad/METHODOLOGY.md during initialization)*'
+
+if [ -f "docs/architecture/REPOSITORY_STRUCTURE.md" ]; then
+  _repo_struct_tmp="$(mktemp)"
+  sed '/\.gitattributes/d' "docs/architecture/REPOSITORY_STRUCTURE.md" > "$_repo_struct_tmp" && mv "$_repo_struct_tmp" "docs/architecture/REPOSITORY_STRUCTURE.md"
+fi
+
+# Create .gitkeep in docs/guides if it's now empty (Issue B4)
+if [ -d "docs/guides" ] && [ -z "$(ls -A docs/guides 2>/dev/null)" ]; then
+  touch docs/guides/.gitkeep
+  info "Created docs/guides/.gitkeep"
+fi
+
 # ---------------------------------------------------------------------------
 # Step 3/4 — Fill all placeholders with user inputs
 # ---------------------------------------------------------------------------
@@ -366,6 +500,36 @@ info "Replaced copyright holder in LICENSE"
 replace_in_file "LICENSE" '{{YEAR}}' "$CURRENT_YEAR"
 info "Replaced {{YEAR}} with $CURRENT_YEAR in LICENSE"
 
+# Replace LICENSE body for non-MIT license types (Issue #6)
+if [ "$LICENSE_TYPE" = "UNLICENSED" ]; then
+  cat > LICENSE <<LICEOF
+UNLICENSED — Proprietary Software
+
+Copyright (c) $CURRENT_YEAR $COPYRIGHT_HOLDER. All rights reserved.
+
+This software and its source code are the proprietary and confidential
+property of $COPYRIGHT_HOLDER. No part of this software may be
+reproduced, distributed, or transmitted in any form or by any means
+without the prior written permission of the copyright holder.
+
+Unauthorized copying, modification, distribution, or use of this
+software, via any medium, is strictly prohibited.
+LICEOF
+  info "LICENSE file set to proprietary (UNLICENSED)"
+elif [ "$LICENSE_TYPE" != "MIT" ]; then
+  cat > LICENSE <<LICEOF
+$LICENSE_TYPE License
+
+Copyright (c) $CURRENT_YEAR $COPYRIGHT_HOLDER
+
+This project is licensed under the $LICENSE_TYPE license.
+See https://spdx.org/licenses/$LICENSE_TYPE.html for the full text.
+
+TODO: Replace this file with the full $LICENSE_TYPE license text.
+LICEOF
+  warn "LICENSE file contains a $LICENSE_TYPE placeholder. Replace with the full license text."
+fi
+
 # Replace contact email in SECURITY.md
 replace_in_file "SECURITY.md" '\[INSERT CONTACT EMAIL\]' "$CONTACT_EMAIL"
 info "Replaced [INSERT CONTACT EMAIL] in SECURITY.md"
@@ -375,8 +539,13 @@ replace_in_file "SECURITY.md" '\[INSERT CONTACT METHOD\]' "$CONTACT_EMAIL"
 replace_in_file "CODE_OF_CONDUCT.md" '\[INSERT CONTACT METHOD\]' "$CONTACT_EMAIL"
 info "Replaced [INSERT CONTACT METHOD] in SECURITY.md and CODE_OF_CONDUCT.md"
 
-# Replace {{REPO_URL}} in CONTRIBUTING.md (uses REPO_SLUG computed above)
-replace_in_file "CONTRIBUTING.md" '{{REPO_URL}}' "https://github.com/YOUR_ORG/${REPO_SLUG}.git"
+# Replace {{REPO_URL}} in CONTRIBUTING.md (uses REPO_SLUG and GITHUB_ORG)
+if [ -n "$GITHUB_ORG" ]; then
+  replace_in_file "CONTRIBUTING.md" '{{REPO_URL}}' "https://github.com/${GITHUB_ORG}/${REPO_SLUG}.git"
+else
+  replace_in_file "CONTRIBUTING.md" '{{REPO_URL}}' "https://github.com/YOUR_ORG/${REPO_SLUG}.git"
+  warn "No GitHub org provided — update CONTRIBUTING.md repo URL manually."
+fi
 info "Replaced {{REPO_URL}} in CONTRIBUTING.md"
 
 # Update the "Launchpad" title references in CLAUDE.md and AGENTS.md
@@ -400,6 +569,12 @@ clean_template_notices() {
     sed '/^> \*\*Template notice:\*\*/,/^> Remove this notice/d' "$file" > "$tmp" && mv "$tmp" "$file"
     tmp="$(mktemp)"
     sed '/<!-- TEMPLATE:/,/-->/d' "$file" > "$tmp" && mv "$tmp" "$file"
+    # Collapse runs of 3+ blank lines into 2 (prevents leftover gaps after deletion)
+    tmp="$(mktemp)"
+    awk 'BEGIN{b=0} /^$/{b++;if(b<=2)print;next} {b=0;print}' "$file" > "$tmp" && mv "$tmp" "$file"
+    # Remove leading blank lines
+    tmp="$(mktemp)"
+    sed '/./,$!d' "$file" > "$tmp" && mv "$tmp" "$file"
   fi
 }
 for file in "README.md" "SECURITY.md" "CODE_OF_CONDUCT.md" "CONTRIBUTING.md"; do
@@ -407,13 +582,71 @@ for file in "README.md" "SECURITY.md" "CODE_OF_CONDUCT.md" "CONTRIBUTING.md"; do
 done
 info "Cleaned up template notices from swapped files"
 
+# Clean instructional HTML comments from CLAUDE.md (e.g., <!-- 2-4 sentences -->)
+clean_instructional_comments() {
+  local file="$1"
+  if [ -f "$file" ]; then
+    local tmp
+    tmp="$(mktemp)"
+    sed '/^<!--.*-->$/d' "$file" > "$tmp" && mv "$tmp" "$file"
+  fi
+}
+clean_instructional_comments "CLAUDE.md"
+info "Cleaned instructional comments from CLAUDE.md"
+
+# ---------------------------------------------------------------------------
+# Generate .env.local from .env.example (Issue #4)
+# ---------------------------------------------------------------------------
+if [ ! -f ".env.local" ] && [ -f ".env.example" ]; then
+  cp .env.example .env.local
+  info "Created .env.local from .env.example"
+
+  if [ "$NON_INTERACTIVE" = false ]; then
+    echo ""
+    read -p "Enter DATABASE_URL (or press Enter to use default): " DB_URL
+    if [ -n "$DB_URL" ]; then
+      replace_in_file ".env.local" 'postgresql://user:password@localhost:5432/mydb' "$DB_URL"
+      info "Updated DATABASE_URL in .env.local"
+    else
+      warn "Using placeholder DATABASE_URL in .env.local — update before running the API."
+    fi
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# Post-init verification — scan for unreplaced placeholders (Issue #9)
+# ---------------------------------------------------------------------------
+heading "Verifying initialization..."
+
+PLACEHOLDER_PATTERN='\{\{[A-Z_]+\}\}'
+VERIFICATION_FAILED=false
+
+while IFS= read -r match; do
+  case "$match" in .launchpad/*) continue ;; esac
+  case "$match" in scripts/setup/init-project.sh*) continue ;; esac
+  warn "Unreplaced placeholder found: $match"
+  VERIFICATION_FAILED=true
+done < <(grep -rn "$PLACEHOLDER_PATTERN" --include="*.md" --include="*.ts" --include="*.tsx" --include="*.json" --include="*.yml" --include="*.sh" . 2>/dev/null | grep -v node_modules | grep -v .launchpad/ | grep -v init-project.sh || true)
+
+if [ "$VERIFICATION_FAILED" = true ]; then
+  warn "Some placeholders were not replaced. Review the files above."
+else
+  info "All placeholders replaced successfully"
+fi
+
 # ---------------------------------------------------------------------------
 # Step 4/4 — Completion
 # ---------------------------------------------------------------------------
 trap - EXIT
 
-git remote add launchpad https://github.com/thinkinghand/launchpad.git 2>/dev/null || true
-info "Added 'launchpad' remote for upstream updates"
+# Rename origin → launchpad (since origin currently points to the Launchpad repo)
+if git remote get-url origin 2>/dev/null | grep -qi "launchpad"; then
+  git remote rename origin launchpad 2>/dev/null || true
+  info "Renamed 'origin' remote to 'launchpad' (upstream scaffold)"
+else
+  git remote add launchpad https://github.com/thinkinghand/launchpad.git 2>/dev/null || true
+  info "Added 'launchpad' remote for upstream updates"
+fi
 
 heading "Step 4/4 — Done!"
 
@@ -435,7 +668,6 @@ printf "${BOLD}  Option 1 — Fresh start (no upstream connection):${RESET}\n"
 echo "    rm -rf .git && git init -b main && git add -A && git commit -m \"Initial commit\""
 echo ""
 printf "${BOLD}  Option 2 — Stay connected (recommended, enables upstream updates):${RESET}\n"
-echo "    git remote rename origin launchpad"
 echo "    git remote add origin <your-repo-url>"
 echo "    git push -u origin main"
 echo ""
@@ -452,3 +684,16 @@ echo "  2. Start Claude Code:       claude"
 echo "  3. Define your product:     /define-product"
 echo "  4. See the full workflow:   .launchpad/GUIDE.md"
 echo ""
+
+# Self-cleanup (Issue #8)
+if [ "$NON_INTERACTIVE" = true ]; then
+  rm -f scripts/setup/init-project.sh
+  info "Removed init-project.sh (non-interactive cleanup)"
+else
+  echo ""
+  read -p "Remove init-project.sh? It's no longer needed. [y/N] " REMOVE_INIT
+  if [[ "$REMOVE_INIT" =~ ^[yY] ]]; then
+    rm -f scripts/setup/init-project.sh
+    info "Removed init-project.sh"
+  fi
+fi

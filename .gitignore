@@ -37,3 +37,4 @@ scripts/compound/archive/
 scripts/compound/prd.json
 scripts/compound/progress.txt
 settings.local.json
+.DS_Store
