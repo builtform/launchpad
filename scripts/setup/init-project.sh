@@ -151,6 +151,18 @@ if [ -n "${TARGET_DIR:-}" ]; then
     error "Target directory does not exist: $TARGET_DIR"
     exit 1
   fi
+  # Guard against copy-into-self (target inside the current repo)
+  _src_real="$(cd "$REPO_ROOT" && pwd -P)"
+  _tgt_real="$(cd "$TARGET_DIR" && pwd -P)"
+  if [ "$_tgt_real" = "$_src_real" ] || [[ "$_tgt_real" == "$_src_real"/* ]]; then
+    error "Target directory is inside the source repo: $TARGET_DIR"
+    exit 1
+  fi
+  # Require empty target directory to prevent silent overwrites
+  if [ -n "$(ls -A "$TARGET_DIR" 2>/dev/null)" ]; then
+    error "Target directory is not empty: $TARGET_DIR. Use an empty directory."
+    exit 1
+  fi
   cp -r . "$TARGET_DIR/"
   cd "$TARGET_DIR"
   REPO_ROOT="$TARGET_DIR"
@@ -529,6 +541,12 @@ clean_template_notices() {
     sed '/^> \*\*Template notice:\*\*/,/^> Remove this notice/d' "$file" > "$tmp" && mv "$tmp" "$file"
     tmp="$(mktemp)"
     sed '/<!-- TEMPLATE:/,/-->/d' "$file" > "$tmp" && mv "$tmp" "$file"
+    # Collapse runs of 3+ blank lines into 2 (prevents leftover gaps after deletion)
+    tmp="$(mktemp)"
+    awk 'BEGIN{b=0} /^$/{b++;if(b<=2)print;next} {b=0;print}' "$file" > "$tmp" && mv "$tmp" "$file"
+    # Remove leading blank lines
+    tmp="$(mktemp)"
+    sed '/./,$!d' "$file" > "$tmp" && mv "$tmp" "$file"
   fi
 }
 for file in "README.md" "SECURITY.md" "CODE_OF_CONDUCT.md" "CONTRIBUTING.md"; do
