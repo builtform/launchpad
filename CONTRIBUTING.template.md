@@ -198,7 +198,7 @@ When reporting a bug, include:
 - Environment details (OS, Node version, relevant package versions)
 - Steps to reproduce
 
-For security vulnerabilities, do not open a public issue. Follow the process in `SECURITY.md`.
+For security vulnerabilities, do not open a public issue. Contact the maintainers directly.
 
 ---
 

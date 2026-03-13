@@ -46,9 +46,7 @@ The repository root is **clean and predictable**. Only a small, explicit set of 
 - `CHANGELOG.template.md` — Changelog template for new projects.
 - `LICENSE` — MIT license (Thinking Hand Studio LLC).
 - `LICENSE.template` — MIT license template for new projects.
-- `METHODOLOGY.md` — How Launchpad works: the seven layers, pipeline details, and credits.
-
-**Tooling & Workspace Configuration:**
+  **Tooling & Workspace Configuration:**
 
 - `package.json` — Root workspace config, shared `devDependencies`, and workspace scripts.
 - `pnpm-workspace.yaml` — Workspace globs: `apps/*`, `packages/*`.
@@ -196,6 +194,8 @@ Anything else at root is root clutter and must be moved to the correct subdirect
 │   ├── solutions/                           # Categorized learnings from compound loops
 │   ├── brainstorms/                         # Brainstorming documents for compound-engineering
 │   ├── guides/                              # How-to guides and tutorials
+│   │   ├── HOW_IT_WORKS.md                  # Step-by-step workflow guide
+│   │   └── METHODOLOGY.md                   # Launchpad methodology — philosophy, architecture, diagrams, troubleshooting, credits
 │   ├── plans/                               # Implementation plans and roadmaps
 │   │   └── IMPLEMENTATION_PLAN.md
 │   ├── reports/                             # Investigation reports, audits, postmortems
@@ -218,7 +218,8 @@ Anything else at root is root clutter and must be moved to the correct subdirect
 │   └── settings.json                        # Shared editor settings (format on save, etc.)
 │
 ├── .launchpad/                              # Scaffold metadata and preserved Launchpad reference docs
-│   ├── GUIDE.md                             # Original Launchpad README preserved as reference
+│   ├── METHODOLOGY.md                       # Launchpad methodology — architecture, diagrams, troubleshooting, credits
+│   ├── HOW_IT_WORKS.md                      # Step-by-step workflow guide
 │   └── version                              # Scaffold version for CLI upgrades
 │
 └── .claude/                                 # Claude Code configuration
