@@ -73,7 +73,6 @@ jobs:
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: .github/codex-review-prompt.md
-          model: gpt-5.2
           sandbox: read-only
           safety-strategy: drop-sudo
 

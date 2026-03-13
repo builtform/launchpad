@@ -290,7 +290,54 @@ After writing both architecture docs, update `CLAUDE.md` in the project root:
 
 3. **Do NOT modify** any other sections of CLAUDE.md.
 
-## Step 7: Summary and Next Step
+## Step 7: Update README.md
+
+After updating CLAUDE.md, rewrite `README.md` in the project root to reflect the product that was just defined. Replace the entire file with content derived from the Q&A answers. Use this structure:
+
+````markdown
+# [Project Name]
+
+[Problem statement — 2-3 sentences from Q3, written as a product pitch, not a problem description]
+
+## Features
+
+[Core features from Q4 as a bulleted list — short, scannable descriptions]
+
+## Tech Stack
+
+| Layer        | Technology                     |
+| ------------ | ------------------------------ |
+| **Frontend** | [framework + styling]          |
+| **Backend**  | [framework]                    |
+| **Database** | [database + ORM if applicable] |
+| **Auth**     | [provider]                     |
+| **Hosting**  | [platform]                     |
+
+## Development
+
+\```bash
+pnpm install # Install dependencies
+pnpm dev # Start dev servers (web :3000, API :3001)
+pnpm build # Build all apps and packages
+pnpm test # Run tests
+pnpm typecheck # TypeScript type check
+pnpm lint # Lint all workspaces
+\```
+
+## License
+
+[Keep existing license line from the current README.md]
+````
+
+**Rules for this step:**
+
+- Use the user's exact words from the Q&A — do not embellish or add information they did not provide.
+- If any answer was "TBD", write "TBD" in the README too.
+- Omit sections that are entirely TBD (e.g., if all tech stack answers are TBD, omit the Tech Stack table).
+- Preserve the existing License section from the current README.md verbatim.
+- Do not add badges, shields, or links to Launchpad. This is the project's README now, not a template.
+
+## Step 8: Summary and Next Step
 
 After all files are written, present a summary:
 
@@ -310,6 +357,7 @@ Done. Here is what was written:
 - Hosting: [choice]
 
 **CLAUDE.md** updated with project purpose and tech stack summary.
+**README.md** updated with product description, features, and tech stack.
 
 Recommended next step: Run /define-architecture to define your app flow,
 backend structure, frontend guidelines, and CI/CD pipeline.

@@ -335,45 +335,21 @@ assert_not_symlink() {
 }
 
 # ---------------------------------------------------------------------------
-# Step 1/4 — Preserve Launchpad README as a guide
+# Step 1/3 — Preserve Launchpad documentation
 # ---------------------------------------------------------------------------
-heading "Step 1/4 — Preserving Launchpad documentation..."
+heading "Step 1/3 — Preserving Launchpad documentation..."
 
 INIT_STARTED=true
 mkdir -p .launchpad
-
-if [ -f "README.md" ] && [ ! -f ".launchpad/GUIDE.md" ]; then
-  cp README.md .launchpad/GUIDE.md
-
-  # Prepend a header note to the guide
-  GUIDE_HEADER="> **Archived reference.** This is the original Launchpad documentation, preserved for reference.
-> Your project's README is now at the repository root. For the full Launchpad workflow
-> and available commands, refer to this file.
-
----
-
-"
-  TMPFILE="$(mktemp)"
-  printf '%s' "$GUIDE_HEADER" | cat - .launchpad/GUIDE.md > "$TMPFILE"
-  mv "$TMPFILE" .launchpad/GUIDE.md
-
-  info "Saved README.md -> .launchpad/GUIDE.md"
-else
-  if [ -f ".launchpad/GUIDE.md" ]; then
-    warn ".launchpad/GUIDE.md already exists — skipping."
-  else
-    warn "README.md not found — skipping guide preservation."
-  fi
-fi
 
 # Write scaffold version (for future CLI upgrades via npx create-launchpad --upgrade)
 echo "1.0.0" > .launchpad/version
 info "Created .launchpad/version (scaffold v1.0.0)"
 
 # ---------------------------------------------------------------------------
-# Step 2/4 — Swap template files into their final positions
+# Step 2/3 — Swap template files into their final positions
 # ---------------------------------------------------------------------------
-heading "Step 2/4 — Swapping template files..."
+heading "Step 2/3 — Swapping template files..."
 
 swap_template() {
   local template="$1"
@@ -391,15 +367,20 @@ swap_template() {
 
 swap_template "README.template.md"          "README.md"
 swap_template "LICENSE.template"            "LICENSE"
-swap_template "SECURITY.template.md"        "SECURITY.md"
+if [ "$REPO_VISIBILITY" = "public" ]; then
+  swap_template "SECURITY.template.md"        "SECURITY.md"
+else
+  rm -f "SECURITY.template.md"
+  info "Skipped SECURITY.md (private repository)"
+fi
 swap_template "CODE_OF_CONDUCT.template.md" "CODE_OF_CONDUCT.md"
 swap_template "CHANGELOG.template.md"       "CHANGELOG.md"
 swap_template "CONTRIBUTING.template.md"    "CONTRIBUTING.md"
 
 # Move Launchpad-specific docs to .launchpad/ for reference
-if [ -f "METHODOLOGY.md" ]; then
-  mv "METHODOLOGY.md" ".launchpad/METHODOLOGY.md"
-  info "Moved METHODOLOGY.md -> .launchpad/METHODOLOGY.md"
+if [ -f "docs/guides/METHODOLOGY.md" ]; then
+  mv "docs/guides/METHODOLOGY.md" ".launchpad/METHODOLOGY.md"
+  info "Moved docs/guides/METHODOLOGY.md -> .launchpad/METHODOLOGY.md"
 fi
 
 if [ -f "docs/guides/HOW_IT_WORKS.md" ]; then
@@ -409,12 +390,64 @@ fi
 
 # Update REPOSITORY_STRUCTURE.md to reflect moved files (Issue #10)
 replace_in_file "docs/architecture/REPOSITORY_STRUCTURE.md" \
-  '- \`METHODOLOGY.md\`' \
-  '- *(Moved to .launchpad/METHODOLOGY.md during initialization)*'
+  '│   │   └── METHODOLOGY.md' \
+  '│   │   └── *(METHODOLOGY.md moved to .launchpad/ during initialization)*'
 
 if [ -f "docs/architecture/REPOSITORY_STRUCTURE.md" ]; then
   _repo_struct_tmp="$(mktemp)"
   sed '/\.gitattributes/d' "docs/architecture/REPOSITORY_STRUCTURE.md" > "$_repo_struct_tmp" && mv "$_repo_struct_tmp" "docs/architecture/REPOSITORY_STRUCTURE.md"
+fi
+
+# ---------------------------------------------------------------------------
+# Clean up template file references from generated project files
+# After swapping .template files → final files, references to the templates
+# in docs and scripts are no longer valid for the generated project.
+# ---------------------------------------------------------------------------
+
+# Clean template references from REPOSITORY_STRUCTURE.md
+if [ -f "docs/architecture/REPOSITORY_STRUCTURE.md" ]; then
+  _rs_file="docs/architecture/REPOSITORY_STRUCTURE.md"
+
+  # Remove the ".template pair" note from the section header
+  _tmp="$(mktemp)"
+  sed '/each doc may have a `\.template` pair/d' "$_rs_file" > "$_tmp" && mv "$_tmp" "$_rs_file"
+
+  # Remove lines referencing individual template files
+  for tpl in "CONTRIBUTING.template.md" "CODE_OF_CONDUCT.template.md" "CHANGELOG.template.md" "LICENSE.template" "SECURITY.template.md"; do
+    _tmp="$(mktemp)"
+    sed "/$(printf '%s' "$tpl" | sed 's/\./\\./g')/d" "$_rs_file" > "$_tmp" && mv "$_tmp" "$_rs_file"
+  done
+
+  info "Removed template file references from REPOSITORY_STRUCTURE.md"
+fi
+
+# Clean template entries from ALLOWED_DOCS in check-repo-structure.sh
+if [ -f "scripts/maintenance/check-repo-structure.sh" ]; then
+  _cs_file="scripts/maintenance/check-repo-structure.sh"
+
+  for tpl in "README.template.md" "CONTRIBUTING.template.md" "CODE_OF_CONDUCT.template.md" "CHANGELOG.template.md" "LICENSE.template" "SECURITY.template.md"; do
+    _tmp="$(mktemp)"
+    sed "/\"$(printf '%s' "$tpl" | sed 's/\./\\./g')\"/d" "$_cs_file" > "$_tmp" && mv "$_tmp" "$_cs_file"
+  done
+
+  info "Removed template entries from check-repo-structure.sh ALLOWED_DOCS"
+fi
+
+# For private repos, remove SECURITY.md references from generated project
+if [ "$REPO_VISIBILITY" = "private" ]; then
+  # Remove SECURITY.md from REPOSITORY_STRUCTURE.md
+  if [ -f "docs/architecture/REPOSITORY_STRUCTURE.md" ]; then
+    _tmp="$(mktemp)"
+    sed '/SECURITY\.md/d' "docs/architecture/REPOSITORY_STRUCTURE.md" > "$_tmp" && mv "$_tmp" "docs/architecture/REPOSITORY_STRUCTURE.md"
+    info "Removed SECURITY.md references from REPOSITORY_STRUCTURE.md (private repo)"
+  fi
+
+  # Remove SECURITY.md from check-repo-structure.sh ALLOWED_DOCS
+  if [ -f "scripts/maintenance/check-repo-structure.sh" ]; then
+    _tmp="$(mktemp)"
+    sed '/"SECURITY\.md"/d' "scripts/maintenance/check-repo-structure.sh" > "$_tmp" && mv "$_tmp" "scripts/maintenance/check-repo-structure.sh"
+    info "Removed SECURITY.md from check-repo-structure.sh whitelist (private repo)"
+  fi
 fi
 
 # Create .gitkeep in docs/guides if it's now empty (Issue B4)
@@ -424,19 +457,21 @@ if [ -d "docs/guides" ] && [ -z "$(ls -A docs/guides 2>/dev/null)" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 3/4 — Fill all placeholders with user inputs
+# Step 3/3 — Fill all placeholders with user inputs
 # ---------------------------------------------------------------------------
-heading "Step 3/4 — Replacing placeholders..."
+heading "Step 3/3 — Replacing placeholders..."
 
 # --- Files that were just swapped from templates ---
 TEMPLATE_TARGETS=(
   "README.md"
   "LICENSE"
-  "SECURITY.md"
   "CODE_OF_CONDUCT.md"
   "CHANGELOG.md"
   "CONTRIBUTING.md"
 )
+if [ "$REPO_VISIBILITY" = "public" ]; then
+  TEMPLATE_TARGETS+=("SECURITY.md")
+fi
 
 # --- AI instruction files ---
 AI_FILES=(
@@ -530,14 +565,15 @@ LICEOF
   warn "LICENSE file contains a $LICENSE_TYPE placeholder. Replace with the full license text."
 fi
 
-# Replace contact email in SECURITY.md
-replace_in_file "SECURITY.md" '\[INSERT CONTACT EMAIL\]' "$CONTACT_EMAIL"
-info "Replaced [INSERT CONTACT EMAIL] in SECURITY.md"
+# Replace contact email in SECURITY.md (public repos only)
+if [ "$REPO_VISIBILITY" = "public" ]; then
+  replace_in_file "SECURITY.md" '\[INSERT CONTACT EMAIL\]' "$CONTACT_EMAIL"
+  info "Replaced [INSERT CONTACT EMAIL] in SECURITY.md"
+fi
 
-# Replace contact method in SECURITY.md and CODE_OF_CONDUCT.md
-replace_in_file "SECURITY.md" '\[INSERT CONTACT METHOD\]' "$CONTACT_EMAIL"
+# Replace contact method in CODE_OF_CONDUCT.md
 replace_in_file "CODE_OF_CONDUCT.md" '\[INSERT CONTACT METHOD\]' "$CONTACT_EMAIL"
-info "Replaced [INSERT CONTACT METHOD] in SECURITY.md and CODE_OF_CONDUCT.md"
+info "Replaced [INSERT CONTACT METHOD] in CODE_OF_CONDUCT.md"
 
 # Replace {{REPO_URL}} in CONTRIBUTING.md (uses REPO_SLUG and GITHUB_ORG)
 if [ -n "$GITHUB_ORG" ]; then
@@ -577,7 +613,11 @@ clean_template_notices() {
     sed '/./,$!d' "$file" > "$tmp" && mv "$tmp" "$file"
   fi
 }
-for file in "README.md" "SECURITY.md" "CODE_OF_CONDUCT.md" "CONTRIBUTING.md"; do
+NOTICE_FILES=("README.md" "CODE_OF_CONDUCT.md" "CONTRIBUTING.md")
+if [ "$REPO_VISIBILITY" = "public" ]; then
+  NOTICE_FILES+=("SECURITY.md")
+fi
+for file in "${NOTICE_FILES[@]}"; do
   clean_template_notices "$file"
 done
 info "Cleaned up template notices from swapped files"
@@ -635,7 +675,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Step 4/4 — Completion
+# Completion
 # ---------------------------------------------------------------------------
 trap - EXIT
 
@@ -648,15 +688,14 @@ else
   info "Added 'launchpad' remote for upstream updates"
 fi
 
-heading "Step 4/4 — Done!"
+heading "Done!"
 
 echo ""
 printf "${GREEN}Project '${BOLD}%s${RESET}${GREEN}' files initialized successfully!${RESET}\n" "$PROJECT_NAME"
 echo ""
 echo "The original Launchpad documentation has been saved to:"
-echo "   .launchpad/GUIDE.md          (workflow reference)"
-echo "   .launchpad/METHODOLOGY.md    (Launchpad methodology & principles)"
-echo "   .launchpad/HOW_IT_WORKS.md   (internal methodology reference)"
+echo "   .launchpad/METHODOLOGY.md    (Launchpad architecture, diagrams, credits)"
+echo "   .launchpad/HOW_IT_WORKS.md   (step-by-step workflow guide + troubleshooting)"
 echo "   .launchpad/version           (scaffold version: 1.0.0)"
 echo ""
 printf "${YELLOW}${BOLD}Next: set up your git history${RESET}\n"
@@ -682,7 +721,7 @@ echo "Next steps:"
 echo "  1. Install dependencies:    pnpm install && pnpm dev"
 echo "  2. Start Claude Code:       claude"
 echo "  3. Define your product:     /define-product"
-echo "  4. See the full workflow:   .launchpad/GUIDE.md"
+echo "  4. See the full workflow:   .launchpad/HOW_IT_WORKS.md"
 echo ""
 
 # Self-cleanup (Issue #8)
