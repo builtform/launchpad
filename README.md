@@ -56,7 +56,7 @@ cd my-project
 ./scripts/setup/init-project.sh
 ```
 
-The wizard prompts for your project name, description, copyright holder, contact email, and license (MIT, Apache-2.0, GPL-3.0, or Other). It validates all inputs, swaps template files into place, replaces all placeholders, updates `package.json`, and preserves the original Launchpad documentation at `.launchpad/GUIDE.md`.
+The wizard prompts for your project name, description, copyright holder, contact email, and license (MIT, Apache-2.0, GPL-3.0, or Other). It validates all inputs, swaps template files into place, replaces all placeholders, updates `package.json`, and preserves the original Launchpad documentation at `.launchpad/HOW_IT_WORKS.md` and `.launchpad/METHODOLOGY.md`.
 
 **3. Set up git history**
 
@@ -171,7 +171,7 @@ flowchart TD
 
 Each loop iteration runs in a **fresh AI context** -- memory persists via git commits and state files (`prd.json`, `progress.txt`), not conversation history. This prevents context drift across long sessions. Layer 6 (Compound Learning) captures learnings from each cycle, and Layer 7 (Skill Creation) encodes those learnings as reusable AI skills -- so expertise compounds not just as documentation but as executable reasoning patterns.
 
-> See [How It Works](docs/guides/HOW_IT_WORKS.md) for the full operational breakdown and detailed per-layer diagrams.| [Methodology](METHODOLOGY.md) for the philosophy behind each layer. | Architecture in [System Overview](docs/architecture/SYSTEM_OVERVIEW.md)
+> See [How It Works](docs/guides/HOW_IT_WORKS.md) for the step-by-step workflow guide. | [Methodology](docs/guides/METHODOLOGY.md) for the full architecture, diagrams, and philosophy. | Architecture in [System Overview](docs/architecture/SYSTEM_OVERVIEW.md)
 
 ---
 
@@ -433,15 +433,15 @@ MIT -- see [LICENSE](LICENSE).
 <details>
 <summary>Documentation index</summary>
 
-| Topic                | Location                                                                                          |
-| -------------------- | ------------------------------------------------------------------------------------------------- |
-| Repository Structure | [`docs/architecture/REPOSITORY_STRUCTURE.md`](docs/architecture/REPOSITORY_STRUCTURE.md)          |
-| System Architecture  | [`docs/architecture/SYSTEM_OVERVIEW.md`](docs/architecture/SYSTEM_OVERVIEW.md)                    |
-| Compound Pipeline    | [`scripts/compound/README.md`](scripts/compound/)                                                 |
-| Prisma Migrations    | [`docs/operations/PRISMA_MIGRATION_GUIDE.md`](docs/operations/PRISMA_MIGRATION_GUIDE.md)          |
-| Learnings Catalog    | [`docs/solutions/compound-product/README.md`](docs/solutions/compound-product/README.md)          |
-| Methodology          | [`METHODOLOGY.md`](METHODOLOGY.md) -- philosophy, principles, credits                             |
-| How It Works         | [`docs/guides/HOW_IT_WORKS.md`](docs/guides/HOW_IT_WORKS.md) -- pipeline steps, config, reference |
-| Troubleshooting      | [`docs/guides/HOW_IT_WORKS.md#troubleshooting`](docs/guides/HOW_IT_WORKS.md#troubleshooting)      |
+| Topic                | Location                                                                                      |
+| -------------------- | --------------------------------------------------------------------------------------------- |
+| Repository Structure | [`docs/architecture/REPOSITORY_STRUCTURE.md`](docs/architecture/REPOSITORY_STRUCTURE.md)      |
+| System Architecture  | [`docs/architecture/SYSTEM_OVERVIEW.md`](docs/architecture/SYSTEM_OVERVIEW.md)                |
+| Compound Pipeline    | [`scripts/compound/README.md`](scripts/compound/)                                             |
+| Prisma Migrations    | [`docs/operations/PRISMA_MIGRATION_GUIDE.md`](docs/operations/PRISMA_MIGRATION_GUIDE.md)      |
+| Learnings Catalog    | [`docs/solutions/compound-product/README.md`](docs/solutions/compound-product/README.md)      |
+| Methodology          | [`docs/guides/METHODOLOGY.md`](docs/guides/METHODOLOGY.md) -- architecture, diagrams, credits |
+| How It Works         | [`docs/guides/HOW_IT_WORKS.md`](docs/guides/HOW_IT_WORKS.md) -- step-by-step workflow guide   |
+| Troubleshooting      | [`docs/guides/HOW_IT_WORKS.md#troubleshooting`](docs/guides/HOW_IT_WORKS.md#troubleshooting)  |
 
 </details>

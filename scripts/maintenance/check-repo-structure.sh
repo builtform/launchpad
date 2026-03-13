@@ -95,7 +95,6 @@ ALLOWED_DOCS=(
   "CHANGELOG.template.md"
   "LICENSE"
   "LICENSE.template"
-  "METHODOLOGY.md"
 )
 
 ALLOWED_CONFIGS=(

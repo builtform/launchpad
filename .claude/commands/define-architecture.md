@@ -301,12 +301,37 @@ Write `docs/architecture/CI_CD.md` with: header block, then sections for CI Pipe
 
 In update mode, only modify sections the user chose to change.
 
-## Step 8: Summary and Next Step
+## Step 8: Update README.md
 
-After all four files are written, summarize what was created for each file (key highlights and counts). Then suggest:
+After all four architecture docs are written, read the current `README.md` and enrich it with architecture details. **Do not rewrite the whole file** — add to or update what `/define-product` already wrote.
+
+**Add or update these sections (after the Tech Stack table, before Development):**
+
+```markdown
+## Architecture
+
+- **Pages:** [Count] routes — [list 3-5 key routes from APP_FLOW.md, e.g. `/dashboard`, `/projects/:id`, `/settings`]
+- **API:** [Backend framework] with [count] endpoint groups — [list 2-3 key groups, e.g. auth, projects, tasks]
+- **Data:** [Count] core models — [list model names from BACKEND_STRUCTURE.md]
+- **Deploy:** [Hosting platform] — [1-line deploy flow summary from CI_CD.md]
+```
+
+**Rules for this step:**
+
+- Keep it concise — 4-6 bullet points max. The architecture docs have the full detail.
+- Use the user's exact answers — do not embellish.
+- If any section was skipped or all TBD, omit the corresponding bullet.
+- Do not remove or modify any existing sections (Features, Tech Stack, Development, License).
+
+## Step 9: Summary and Next Step
+
+After all four files are written and README is updated, summarize what was created for each file (key highlights and counts). Then suggest:
 
 ```
-Your architecture docs are now defined. To start building, run:
+Your architecture docs are now defined.
+README.md updated with architecture overview.
+
+To start building, run:
   /create_plan [feature name]
 to create an implementation plan for your first feature.
 ```
