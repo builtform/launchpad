@@ -1,6 +1,6 @@
 # Launchpad – Claude Instructions
 
-> **Template scope:** Full-stack monorepo with a **TypeScript/Next.js frontend** and a **Hono API backend**, managed with Turborepo and pnpm workspaces. Adapt section headers and placeholder values if your topology differs.
+> **Harness scope:** Full-stack monorepo with a **TypeScript/Next.js frontend** and a **Hono API backend**, managed with Turborepo and pnpm workspaces. Adapt section headers and placeholder values if your topology differs.
 
 > **Extends `~/.claude/CLAUDE.md` (global).** Core principles, secret management, Context7, sub-agent rules, and Excalidraw notes live there and apply here automatically. This file adds **project-specific context only** — do not repeat global rules.
 
@@ -40,6 +40,7 @@
 ├── packages/shared/# Shared TypeScript types and utilities
 ├── packages/ui/    # Shared React components + Tailwind config + cn() helper
 ├── docs/           # Architecture docs, plans, reports, experiments
+│   └── tasks/sections/ # Section specs from /shape-section
 └── scripts/        # Compound Product pipeline, maintenance scripts
 ```
 
@@ -129,6 +130,7 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 | `docs/architecture/TECH_STACK.md`          | Evaluating or adding dependencies                  |
 | `docs/architecture/BACKEND_STRUCTURE.md`   | Modifying API routes, services, or data models     |
 | `docs/architecture/FRONTEND_GUIDELINES.md` | Building or refactoring UI components              |
+| `docs/architecture/DESIGN_SYSTEM.md`       | Defining UI components or visual design decisions  |
 | `docs/architecture/CI_CD.md`               | Configuring CI/CD pipelines or deployment          |
 
 <!-- Add project-specific docs here as they grow. Examples:                                       -->
@@ -139,29 +141,37 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 
 ## Workflow Commands
 
-### Phase A — Define What to Build (interactive, human-guided)
+### Tier 0 — Capabilities (seed skills before you build)
 
-| Command                 | Purpose                                                                                                                |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `/define-product`       | Populate `PRD.md` + `TECH_STACK.md` through guided Q&A                                                                 |
-| `/define-architecture`  | Populate `APP_FLOW.md`, `BACKEND_STRUCTURE.md`, `FRONTEND_GUIDELINES.md`, `CI_CD.md` (requires PRD + TECH_STACK first) |
-| `/create-skill [topic]` | Create a Claude skill using the 7-phase Meta-Skill Forge methodology                                                   |
-| `/update-skill [name]`  | Iterate on an existing skill after real-world usage reveals gaps                                                       |
-| `/port-skill [source]`  | Port an external skill into Launchpad format using the 4-phase Skill Porting workflow                                  |
+| Command                 | Purpose                                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------------------- |
+| `/create-skill [topic]` | Create a Claude skill using the 7-phase Meta-Skill Forge methodology                      |
+| `/update-skill [name]`  | Iterate on an existing skill after real-world usage reveals gaps                          |
+| `/port-skill [source]`  | Port an external skill into the project's format using the 4-phase Skill Porting workflow |
 
-### Phase B — Build It & Learn (autonomous, agent-driven)
+### Tier 1 — Definition (interactive, run once per project)
 
-| Command                     | Purpose                                                                                       |
-| --------------------------- | --------------------------------------------------------------------------------------------- |
-| `/workflows:plan [feature]` | Plan implementation for a feature (compound-engineering)                                      |
-| `/workflows:work`           | Implement the current plan (compound-engineering)                                             |
-| `/workflows:review`         | Review recent changes and extract learnings (compound-engineering)                            |
-| `/workflows:compound`       | Full compound cycle: plan + work + review (compound-engineering)                              |
-| `/lfg`                      | Fully autonomous pipeline: plan + implement + review + commit (compound-engineering)          |
-| `/inf`                      | Implement next feature: report -> PRD -> tasks -> loop -> quality sweep -> Codex review -> PR |
-| `/create_plan`              | Manual alternative: create a structured implementation plan                                   |
-| `/implement_plan`           | Manual alternative: execute an existing plan step by step                                     |
-| `/research_codebase`        | Deep codebase research and analysis                                                           |
+| Command                | Purpose                                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------------------------- |
+| `/define-product`      | Populate `PRD.md` + `TECH_STACK.md` through guided Q&A                                            |
+| `/define-design`       | Populate `DESIGN_SYSTEM.md` + `APP_FLOW.md` + `FRONTEND_GUIDELINES.md` through guided Q&A         |
+| `/define-architecture` | Populate `BACKEND_STRUCTURE.md` + `CI_CD.md` through guided Q&A (requires PRD + TECH_STACK first) |
+
+### Tier 2 — Development (per section, ongoing)
+
+| Command                 | Purpose                                                                    |
+| ----------------------- | -------------------------------------------------------------------------- |
+| `/shape-section [name]` | Deep-dive into a product section — creates `docs/tasks/sections/[name].md` |
+| `/update-spec`          | Scan spec files for gaps, TBDs, and inconsistencies — fix them             |
+
+### Tier 3 — Implementation (per section, autonomous or manual)
+
+| Command              | Purpose                                                                                       |
+| -------------------- | --------------------------------------------------------------------------------------------- |
+| `/pnf [section]`     | Plan Next Feature — create implementation plan from section spec                              |
+| `/inf`               | Implement next feature: report -> PRD -> tasks -> loop -> quality sweep -> Codex review -> PR |
+| `/implement_plan`    | Manual alternative: execute an existing plan step by step                                     |
+| `/research_codebase` | Deep codebase research and analysis                                                           |
 
 ### Automation Scripts
 
@@ -174,15 +184,15 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 
 These agents are spawned as sub-agents by the commands above. Each is a read-only documentarian — it describes what exists without critiquing or suggesting changes.
 
-| Agent                     | Purpose                                                                                                                   | Used By                                                                            |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `codebase-locator`        | Find WHERE files and components live (super Grep/Glob/LS)                                                                 | `/research_codebase`, `/create_plan`, PRD skill                                    |
-| `codebase-analyzer`       | Understand HOW specific code works with file:line precision                                                               | `/research_codebase`, `/create_plan`                                               |
-| `codebase-pattern-finder` | Find existing patterns and code examples to model after                                                                   | `/research_codebase`, `/create_plan`, `/implement_plan`, `/review_code`, PRD skill |
-| `docs-locator`            | Find relevant docs by frontmatter, date-prefixed filenames, directory structure                                           | `/research_codebase`, `/create_plan`, PRD skill                                    |
-| `docs-analyzer`           | Extract decisions, rejected approaches, constraints, promoted patterns from docs                                          | `/research_codebase`, `/create_plan`, PRD skill                                    |
-| `web-search-researcher`   | External documentation, API references, and best practices                                                                | `/research_codebase`, `/create_plan`                                               |
-| `skill-evaluator`         | Evaluate generated skills against 16 quality criteria (3-pass: first-principles, baseline detection, Anthropic checklist) | `/create-skill`, `/update-skill`, `/port-skill`                                    |
+| Agent                     | Purpose                                                                                                                   | Used By                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `codebase-locator`        | Find WHERE files and components live (super Grep/Glob/LS)                                                                 | `/research_codebase`, `/pnf`, PRD skill                                    |
+| `codebase-analyzer`       | Understand HOW specific code works with file:line precision                                                               | `/research_codebase`, `/pnf`                                               |
+| `codebase-pattern-finder` | Find existing patterns and code examples to model after                                                                   | `/research_codebase`, `/pnf`, `/implement_plan`, `/review_code`, PRD skill |
+| `docs-locator`            | Find relevant docs by frontmatter, date-prefixed filenames, directory structure                                           | `/research_codebase`, `/pnf`, PRD skill                                    |
+| `docs-analyzer`           | Extract decisions, rejected approaches, constraints, promoted patterns from docs                                          | `/research_codebase`, `/pnf`, PRD skill                                    |
+| `web-search-researcher`   | External documentation, API references, and best practices                                                                | `/research_codebase`, `/pnf`                                               |
+| `skill-evaluator`         | Evaluate generated skills against 16 quality criteria (3-pass: first-principles, baseline detection, Anthropic checklist) | `/create-skill`, `/update-skill`, `/port-skill`                            |
 
 ---
 
@@ -192,6 +202,7 @@ These agents are spawned as sub-agents by the commands above. Each is a read-onl
 | -------------------- | ------------------------------------------ |
 | Product requirements | `docs/architecture/PRD.md`                 |
 | App flow & auth      | `docs/architecture/APP_FLOW.md`            |
+| Design system        | `docs/architecture/DESIGN_SYSTEM.md`       |
 | Frontend patterns    | `docs/architecture/FRONTEND_GUIDELINES.md` |
 | Backend structure    | `docs/architecture/BACKEND_STRUCTURE.md`   |
 | Tech stack           | `docs/architecture/TECH_STACK.md`          |

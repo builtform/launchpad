@@ -1,57 +1,85 @@
 # How It Works
 
-Launchpad is a 7-layer system for structured AI development. This guide walks you through the workflow step by step. For the full architecture, diagrams, and implementation details, see [Methodology](METHODOLOGY.md).
+Launchpad is a 7-layer AI coding harness for structured AI development. This guide walks you through the four-tier workflow. For the full architecture, diagrams, and implementation details, see [Methodology](METHODOLOGY.md).
 
 ---
 
-## Step 1: Define Your Product
+## Tier 0 — Capabilities (seed before you build)
 
-Run `/define-product` in Claude Code. This interactive Q&A produces:
+### Step 0: Create or Port Skills
 
-- `docs/architecture/PRD.md` — product requirements, target users, MVP features
-- `docs/architecture/TECH_STACK.md` — framework, database, auth, hosting decisions
+Skills are reusable instruction sets that change how the AI reasons about specific problem domains. Loading skills **before** definition means every subsequent command — from `/define-product` to `/inf` — benefits from domain-specific reasoning instead of generic baseline output.
 
-> Deep dive: [Methodology — Layer 2](METHODOLOGY.md#layer-2-spec-driven-definition)
+- `/create-skill [topic]` — create a new skill using the 7-phase Meta-Skill Forge
+- `/port-skill [source]` — import an external skill (from Vercel, Anthropic, community repos, or any local file)
+- `/update-skill [name]` — iterate on an existing skill after real-world usage
 
----
+**Where to find skills to port:**
 
-## Step 2: Define Your Architecture
-
-Run `/define-architecture`. This produces four more docs:
-
-- `docs/architecture/APP_FLOW.md` — pages, routes, auth flow, navigation
-- `docs/architecture/BACKEND_STRUCTURE.md` — data models, API endpoints, auth strategy
-- `docs/architecture/FRONTEND_GUIDELINES.md` — design system, components, state management
-- `docs/architecture/CI_CD.md` — CI pipeline, deploy strategy, environments
-
-These six documents give every AI session full project context.
-
-> Deep dive: [Methodology — Layer 2](METHODOLOGY.md#layer-2-spec-driven-definition)
-
----
-
-## Step 3: Create Skills (Optional)
-
-Encode domain expertise as reusable AI reasoning patterns:
-
-- `/create-skill [topic]` — create a new skill (7-phase Meta-Skill Forge)
-- `/port-skill [source]` — import an external skill
-- `/update-skill [name]` — iterate on an existing skill
+- Browse the [Skills Catalog](../../skills-catalog/CATALOG.md) — curated, validated skills ready to port
+- Anthropic's [official skills](https://github.com/anthropics/skills) — maintained by the Claude team
+- Domain-specific skills for your industry or tech stack
 
 > Deep dive: [Methodology — Layer 7](METHODOLOGY.md#layer-7-skill-creation)
 
 ---
 
-## Step 4: Plan a Feature
+## Tier 1 — Definition (run once per project)
 
-- **Interactive:** `/create_plan` — research-first planning with 6 sub-agents
-- **Autonomous:** Write a report in `docs/reports/`, then run `/inf`
+### Step 1: Define Your Product
+
+Run `/define-product` in Claude Code. This interactive Q&A produces:
+
+- `docs/architecture/PRD.md` — product requirements, target users, MVP features, section registry
+- `docs/architecture/TECH_STACK.md` — framework, database, auth, hosting decisions
+
+> Deep dive: [Methodology — Layer 2](METHODOLOGY.md#layer-2-spec-driven-definition)
+
+### Step 2: Define Your Design (UI/UX)
+
+Run `/define-design`. This produces:
+
+- `docs/architecture/DESIGN_SYSTEM.md` — visual design tokens, component conventions, spacing, typography, color palette (UI)
+- `docs/architecture/APP_FLOW.md` — pages, routes, auth flow, navigation (UX)
+- `docs/architecture/FRONTEND_GUIDELINES.md` — components, state management, responsive strategy (UI/UX)
+
+### Step 3: Define Your Backend Architecture
+
+Run `/define-architecture`. This produces:
+
+- `docs/architecture/BACKEND_STRUCTURE.md` — data models, API endpoints, auth strategy
+- `docs/architecture/CI_CD.md` — CI pipeline, deploy strategy, environments
+
+These seven documents give every AI session full project context.
 
 > Deep dive: [Methodology — Layer 2](METHODOLOGY.md#layer-2-spec-driven-definition)
 
 ---
 
-## Step 5: Build It
+## Tier 2 — Development (per section, ongoing)
+
+### Step 4: Shape Sections
+
+Run `/shape-section [name]` for each product section identified in your PRD. This deep-dive produces:
+
+- `docs/tasks/sections/[name].md` — detailed section spec with user stories, data shapes, edge cases
+
+### Step 5: Maintain Spec Quality
+
+Run `/update-spec` periodically. This scans all spec files for gaps, TBDs, and cross-file inconsistencies, then fixes them.
+
+---
+
+## Tier 3 — Implementation (per section)
+
+### Step 6: Plan a Feature
+
+- **From section spec:** `/pnf [section]` — research-first planning with sub-agents, creates an implementation plan from a shaped section
+- **Autonomous:** Write a report in `docs/reports/`, then run `/inf`
+
+> Deep dive: [Methodology — Layer 2](METHODOLOGY.md#layer-2-spec-driven-definition)
+
+### Step 7: Build It
 
 - **Interactive:** `/implement_plan` — execute your plan phase by phase
 - **Autonomous:** `/inf` runs the full pipeline: report → PRD → tasks → execution loop → quality sweep → PR
@@ -62,7 +90,7 @@ Each iteration runs with fresh AI context. Memory persists through git commits, 
 
 ---
 
-## Step 6: Quality Gates
+## Quality Gates
 
 Every change passes through three stages:
 
@@ -74,7 +102,7 @@ Every change passes through three stages:
 
 ---
 
-## Step 7: Commit and Ship
+## Commit and Ship
 
 Run `/commit` for the interactive workflow, or let `/inf` handle it autonomously. Both paths use a 3-gate monitoring loop: CI checks → Codex review → merge conflict resolution.
 
@@ -84,7 +112,7 @@ The system never auto-merges — you decide when to merge.
 
 ---
 
-## Step 8: Learn and Improve
+## Learn and Improve
 
 After each cycle, learnings are captured at three levels:
 
@@ -152,20 +180,23 @@ The `large-file-guard` hook in `lefthook.yml` rejects staged text-based source f
 
 ## Quick Reference
 
-| Command                | What It Does                              |
-| ---------------------- | ----------------------------------------- |
-| `/define-product`      | Interactive Q&A → PRD + Tech Stack        |
-| `/define-architecture` | Interactive Q&A → 4 architecture docs     |
-| `/create-skill`        | Create a skill (7-phase Meta-Skill Forge) |
-| `/update-skill`        | Iterate on an existing skill              |
-| `/port-skill`          | Import an external skill                  |
-| `/create_plan`         | Research-first feature planning           |
-| `/implement_plan`      | Execute a plan phase by phase             |
-| `/inf`                 | Full autonomous pipeline (report → PR)    |
-| `/commit`              | Quality gates + commit + PR + monitoring  |
-| `/review_code`         | Review code for pattern consistency       |
-| `/research_codebase`   | Deep codebase research and analysis       |
-| `/pull-launchpad`      | Pull upstream Launchpad updates           |
+| Command                | What It Does                                                     |
+| ---------------------- | ---------------------------------------------------------------- |
+| `/create-skill`        | Create a skill (7-phase Meta-Skill Forge)                        |
+| `/port-skill`          | Import an external skill                                         |
+| `/update-skill`        | Iterate on an existing skill                                     |
+| `/define-product`      | Interactive Q&A → PRD + Tech Stack                               |
+| `/define-design`       | Interactive Q&A → Design System + App Flow + Frontend Guidelines |
+| `/define-architecture` | Interactive Q&A → Backend Structure + CI/CD                      |
+| `/shape-section`       | Deep-dive into a product section → section spec                  |
+| `/update-spec`         | Scan and fix spec gaps + inconsistencies                         |
+| `/pnf`                 | Plan Next Feature from section spec                              |
+| `/implement_plan`      | Execute a plan phase by phase                                    |
+| `/inf`                 | Implement Next Feature: Full autonomous pipeline (report → PR)   |
+| `/commit`              | Quality gates + commit + PR + monitoring                         |
+| `/review_code`         | Review code for pattern consistency                              |
+| `/research_codebase`   | Deep codebase research and analysis                              |
+| `/pull-launchpad`      | Pull upstream Launchpad updates                                  |
 
 > For all scripts, sub-agents, configuration, and security, see [Methodology](METHODOLOGY.md).
 

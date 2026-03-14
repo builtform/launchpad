@@ -1,8 +1,8 @@
 # Port Skill
 
 Port an external skill (from Vercel, Anthropic, community repos, or any local file) into
-Launchpad's format using the 4-phase Skill Porting workflow. The ported skill is fully
-detached from its source — it becomes a native Launchpad skill, updateable with /update-skill.
+the project's format using the 4-phase Skill Porting workflow. The ported skill is fully
+detached from its source — it becomes a native project skill, updateable with /update-skill.
 
 ## Step 1: Parse Input
 
@@ -21,15 +21,15 @@ Invocation patterns:
 ## Step 2: If no arguments provided, respond with:
 
 ```
-I'll help you port an external skill into Launchpad.
+I'll help you port an external skill into the project.
 
 Please provide the source:
 - A local file path: /port-skill based on path/to/SKILL.md
 - A file in the skills inbox: /port-skill based on .claude/skills-inbox/skill-name/SKILL.md
 
-The ported skill will be adapted to Launchpad's format, validated against the 16
+The ported skill will be adapted to the project's format, validated against the 16
 quality criteria, and registered in CLAUDE.md and AGENTS.md.
-After porting, use /update-skill to iterate on it like any other Launchpad skill.
+After porting, use /update-skill to iterate on it like any other project skill.
 ```
 
 Wait for user input, then proceed.
@@ -60,6 +60,6 @@ Examples:
 ## Important Notes
 
 - After porting, the skill is fully detached from its upstream source
-- Use /update-skill to iterate on ported skills (same as any other Launchpad skill)
+- Use /update-skill to iterate on ported skills (same as any other project skill)
 - Use /create-skill to build skills from scratch instead
 - The porting guide is at `.claude/skills/creating-skills/references/PORTING-GUIDE.md`

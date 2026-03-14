@@ -24,7 +24,7 @@ The Meta-Skill Forge transforms domain expertise into structured Claude Code ski
 
 ## Phase 1: Context Ingestion
 
-Build a complete understanding of the skill's domain before asking the user any questions. Follows the two-wave sub-agent pattern from `create_plan.md`.
+Build a complete understanding of the skill's domain before asking the user any questions. Follows the two-wave sub-agent pattern from `pnf.md`.
 
 ### Wave 1: Discovery (parallel, Sonnet, no Read tool)
 

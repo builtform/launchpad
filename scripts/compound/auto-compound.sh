@@ -101,6 +101,19 @@ LATEST_REPORT=$(ls -t "$REPORTS_DIR"/*.md 2>/dev/null | head -1)
 REPORT_NAME=$(basename "$LATEST_REPORT")
 log "Using report: $REPORT_NAME"
 
+# Step 1.5: Check if a section spec was provided as argument
+# If the argument is a section spec path (docs/tasks/sections/*.md), use it as
+# the primary context for the pipeline instead of report analysis.
+SECTION_SPEC=""
+for arg in "$@"; do
+  if [[ "$arg" == docs/tasks/sections/*.md ]] || [[ "$arg" == */docs/tasks/sections/*.md ]]; then
+    if [ -f "$PROJECT_ROOT/$arg" ] 2>/dev/null || [ -f "$arg" ] 2>/dev/null; then
+      SECTION_SPEC="${arg}"
+      log "Step 1.5: Using section spec as primary context: $SECTION_SPEC"
+    fi
+  fi
+done
+
 # Step 2: Analyze report
 log "Step 2: Analyzing report to pick #1 actionable priority..."
 
@@ -153,12 +166,32 @@ log "Step 4: Creating PRD..."
 PRD_FILENAME="prd-$(echo "$BRANCH_NAME" | sed "s|^${BRANCH_PREFIX}||").md"
 mkdir -p "$TASKS_DIR"
 
+SECTION_SPEC_CONTEXT=""
+if [ -n "$SECTION_SPEC" ]; then
+  SPEC_PATH=""
+  if [ -f "$PROJECT_ROOT/$SECTION_SPEC" ]; then
+    SPEC_PATH="$PROJECT_ROOT/$SECTION_SPEC"
+  elif [ -f "$SECTION_SPEC" ]; then
+    SPEC_PATH="$SECTION_SPEC"
+  fi
+  if [ -n "$SPEC_PATH" ]; then
+    SECTION_SPEC_CONTEXT="
+## Section Spec (primary context for scope and requirements)
+The following section spec defines the detailed scope, requirements, and constraints for this feature.
+Use it as the PRIMARY source of truth for what to build:
+
+$(cat "$SPEC_PATH")
+"
+    log "Injecting section spec into PRD prompt: $SPEC_PATH"
+  fi
+fi
+
 PRD_PROMPT="Load the prd skill. Create a PRD for: $PRIORITY_ITEM
 
 Description: $DESCRIPTION
 
 Rationale from report analysis: $RATIONALE
-
+${SECTION_SPEC_CONTEXT}
 Acceptance criteria from analysis:
 $(echo "$ANALYSIS_JSON" | jq -r '(.acceptance_criteria // [])[]' | sed 's/^/- /')
 

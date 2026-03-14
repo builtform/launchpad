@@ -1,6 +1,6 @@
 # Launchpad – Agent Instructions
 
-> **Template scope:** Full-stack monorepo with a **TypeScript/Next.js frontend** and a **Hono API backend**, managed with Turborepo and pnpm workspaces. Adapt section headers and placeholder values if your topology differs.
+> **Harness scope:** Full-stack monorepo with a **TypeScript/Next.js frontend** and a **Hono API backend**, managed with Turborepo and pnpm workspaces. Adapt section headers and placeholder values if your topology differs.
 
 > **File purpose:** `AGENTS.md` is the agent instruction file for AI coding tools that are **not** Claude Code (e.g. OpenAI Codex, Gemini Code Assist, OpenCode, Zed AI, Cursor). Claude Code uses `CLAUDE.md` instead. Keep both files in sync when updating project-wide conventions.
 
@@ -40,6 +40,7 @@
 ├── packages/shared/# Shared TypeScript types and utilities
 ├── packages/ui/    # Shared React components + Tailwind config + cn() helper
 ├── docs/           # Architecture docs, plans, reports, experiments
+│   └── tasks/sections/ # Section specs from /shape-section
 └── scripts/        # Compound Product pipeline, maintenance scripts
 ```
 
@@ -128,7 +129,9 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 | `docs/architecture/APP_FLOW.md`            | Working on navigation, auth flow, or user journeys |
 | `docs/architecture/TECH_STACK.md`          | Evaluating or adding dependencies                  |
 | `docs/architecture/BACKEND_STRUCTURE.md`   | Modifying API routes, services, or data models     |
+| `docs/architecture/DESIGN_SYSTEM.md`       | Defining UI components or visual design decisions  |
 | `docs/architecture/FRONTEND_GUIDELINES.md` | Building or refactoring UI components              |
+| `docs/architecture/CI_CD.md`               | Configuring CI/CD pipelines or deployment          |
 
 <!-- Add project-specific docs here as they grow. Examples:                                       -->
 <!--   docs/how-tos/database-migrations.md   → when running or writing migrations                 -->
@@ -136,16 +139,42 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 
 ---
 
-## Skill Creation
+## Workflow Commands
 
-| Command / Agent         | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/create-skill [topic]` | Create a Claude skill using the 7-phase Meta-Skill Forge methodology (Claude Code only)                                                                                                                                                                                                                                                                                                                                                                                             |
-| `/update-skill [name]`  | Iterate on an existing skill after real-world usage reveals gaps (Claude Code only)                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `/port-skill [source]`  | Port an external skill (from Vercel, Anthropic, community repos, or any local file) into Launchpad format. Adapts frontmatter, applies Launchpad conventions, resolves dependencies, validates against 16 quality criteria, and registers in CLAUDE.md and AGENTS.md. After porting, the skill is detached from upstream — use /update-skill to iterate. (Claude Code only) Triggers on: port a skill, import a skill, add an external skill, bring in a skill from, skillboarding. |
-| `skill-evaluator`       | Sub-agent that evaluates skills against 16 quality criteria (3-pass evaluation)                                                                                                                                                                                                                                                                                                                                                                                                     |
+### Tier 0 — Capabilities (seed skills before you build)
 
-> **Note:** Skill creation commands (`/create-skill`, `/update-skill`) are Claude Code slash commands. Other AI tools can reference the skill files at `.claude/skills/` but cannot invoke the creation workflow directly.
+| Command / Agent         | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/create-skill [topic]` | Create a Claude skill using the 7-phase Meta-Skill Forge methodology (Claude Code only)                                                                                                                                                                                                                                                                                                                                                                                               |
+| `/update-skill [name]`  | Iterate on an existing skill after real-world usage reveals gaps (Claude Code only)                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `/port-skill [source]`  | Port an external skill (from Vercel, Anthropic, community repos, or any local file) into the project's format. Adapts frontmatter, applies project conventions, resolves dependencies, validates against 16 quality criteria, and registers in CLAUDE.md and AGENTS.md. After porting, the skill is detached from upstream — use /update-skill to iterate. (Claude Code only) Triggers on: port a skill, import a skill, add an external skill, bring in a skill from, skillboarding. |
+| `skill-evaluator`       | Sub-agent that evaluates skills against 16 quality criteria (3-pass evaluation)                                                                                                                                                                                                                                                                                                                                                                                                       |
+
+> **Note:** Skill creation commands (`/create-skill`, `/update-skill`, `/port-skill`) are Claude Code slash commands. Other AI tools can reference the skill files at `.claude/skills/` but cannot invoke the creation workflow directly.
+
+### Tier 1 — Definition (interactive, run once per project)
+
+| Command                | Purpose                                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------------------------- |
+| `/define-product`      | Populate `PRD.md` + `TECH_STACK.md` through guided Q&A                                            |
+| `/define-design`       | Populate `DESIGN_SYSTEM.md` + `APP_FLOW.md` + `FRONTEND_GUIDELINES.md` through guided Q&A         |
+| `/define-architecture` | Populate `BACKEND_STRUCTURE.md` + `CI_CD.md` through guided Q&A (requires PRD + TECH_STACK first) |
+
+### Tier 2 — Development (per section, ongoing)
+
+| Command                 | Purpose                                                                    |
+| ----------------------- | -------------------------------------------------------------------------- |
+| `/shape-section [name]` | Deep-dive into a product section — creates `docs/tasks/sections/[name].md` |
+| `/update-spec`          | Scan spec files for gaps, TBDs, and inconsistencies — fix them             |
+
+### Tier 3 — Implementation (per section, autonomous or manual)
+
+| Command              | Purpose                                                                                       |
+| -------------------- | --------------------------------------------------------------------------------------------- |
+| `/pnf [section]`     | Plan Next Feature — create implementation plan from section spec                              |
+| `/inf`               | Implement next feature: report -> PRD -> tasks -> loop -> quality sweep -> Codex review -> PR |
+| `/implement_plan`    | Manual alternative: execute an existing plan step by step                                     |
+| `/research_codebase` | Deep codebase research and analysis                                                           |
 
 ---
 
@@ -155,6 +184,11 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 | -------------------- | ------------------------------------------ |
 | Product requirements | `docs/architecture/PRD.md`                 |
 | App flow & auth      | `docs/architecture/APP_FLOW.md`            |
+| Design system        | `docs/architecture/DESIGN_SYSTEM.md`       |
 | Frontend patterns    | `docs/architecture/FRONTEND_GUIDELINES.md` |
 | Backend structure    | `docs/architecture/BACKEND_STRUCTURE.md`   |
 | Tech stack           | `docs/architecture/TECH_STACK.md`          |
+| CI/CD pipeline       | `docs/architecture/CI_CD.md`               |
+| Compound config      | `scripts/compound/config.json`             |
+| Learnings & patterns | `docs/solutions/`                          |
+| Brainstorms          | `docs/brainstorms/`                        |

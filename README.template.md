@@ -9,33 +9,45 @@
 
 ## Status
 
-This project was scaffolded from [Launchpad](https://github.com/thinkinghand/launchpad) and is ready to be defined.
+This project was built from the [Launchpad](https://github.com/thinkinghand/launchpad) harness and is ready to be defined.
 
-**Next steps:**
+**Next steps (four-tier workflow):**
 
-1. Run `/define-product` in Claude Code to define your product requirements and tech stack
-2. Run `/define-architecture` to define app flow, backend structure, frontend guidelines, and CI/CD
-3. Start building with `/create_plan` or `/inf`
-4. Review [How It Works](.launchpad/HOW_IT_WORKS.md) for the step-by-step workflow guide and troubleshooting
-5. Review [Repository Structure](docs/architecture/REPOSITORY_STRUCTURE.md) to understand the codebase layout
-6. Read [Methodology](.launchpad/METHODOLOGY.md) for the full architecture, diagrams, and credits
+1. **Tier 0 — Capabilities** (ongoing):
+   - `/create-skill [topic]` or `/port-skill [source]` — create or port domain skills to enhance all subsequent commands
+2. **Tier 1 — Definition** (run once):
+   - `/define-product` — define product requirements, tech stack, and section registry
+   - `/define-design` — define your design system, app flow, and frontend guidelines
+   - `/define-architecture` — define backend structure and CI/CD
+3. **Tier 2 — Development** (per section):
+   - `/shape-section [name]` — deep-dive into each product section
+   - `/update-spec` — scan and fix spec gaps
+4. **Tier 3 — Implementation** (per section):
+   - `/pnf [section]` — plan next feature from section spec
+   - `/inf` — implement next feature autonomously
+5. Review [How It Works](.launchpad/HOW_IT_WORKS.md) for the step-by-step workflow guide and troubleshooting
+6. Review [Repository Structure](docs/architecture/REPOSITORY_STRUCTURE.md) to understand the codebase layout
+7. Read [Methodology](.launchpad/METHODOLOGY.md) for the full architecture, diagrams, and credits
 
 ## Commands
 
-| Command                | Purpose                                                            |
-| ---------------------- | ------------------------------------------------------------------ |
-| `/define-product`      | Define product requirements and tech stack through guided Q&A      |
-| `/define-architecture` | Define app flow, backend structure, frontend guidelines, and CI/CD |
-| `/create_plan`         | Create a structured implementation plan for a feature              |
-| `/implement_plan`      | Execute an existing implementation plan step by step               |
-| `/inf`                 | Implement next feature: PRD → tasks → build → quality sweep → PR   |
-| `/research_codebase`   | Deep codebase research and analysis                                |
-| `/review_code`         | Review code for pattern consistency                                |
-| `/commit`              | Stage changes, run quality gates, and commit                       |
-| `/create-skill`        | Create a new Claude Code skill                                     |
-| `/update-skill`        | Iterate on an existing skill                                       |
-| `/port-skill`          | Port an external skill into Launchpad format                       |
-| `/pull-launchpad`      | Pull upstream Launchpad updates                                    |
+| Command                | Purpose                                                          |
+| ---------------------- | ---------------------------------------------------------------- |
+| `/create-skill`        | Create a new Claude Code skill                                   |
+| `/port-skill`          | Port an external skill into Launchpad format                     |
+| `/update-skill`        | Iterate on an existing skill                                     |
+| `/define-product`      | Define product requirements, tech stack, and section registry    |
+| `/define-design`       | Define design system, app flow, and frontend guidelines          |
+| `/define-architecture` | Define backend structure and CI/CD                               |
+| `/shape-section`       | Deep-dive into a product section — creates section spec          |
+| `/update-spec`         | Scan spec files for gaps, TBDs, and inconsistencies — fix them   |
+| `/pnf`                 | Plan Next Feature from section spec                              |
+| `/implement_plan`      | Execute an existing implementation plan step by step             |
+| `/inf`                 | Implement next feature: PRD → tasks → build → quality sweep → PR |
+| `/research_codebase`   | Deep codebase research and analysis                              |
+| `/review_code`         | Review code for pattern consistency                              |
+| `/commit`              | Stage changes, run quality gates, and commit                     |
+| `/pull-launchpad`      | Pull upstream Launchpad updates                                  |
 
 ## Project Structure
 

@@ -155,7 +155,7 @@ if [ ! -f "package.json" ] || [ ! -f "CLAUDE.md" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Target directory support — copy scaffold into a different directory
+# Target directory support — copy harness into a different directory
 # ---------------------------------------------------------------------------
 if [ -n "${TARGET_DIR:-}" ]; then
   if [ ! -d "$TARGET_DIR" ]; then
@@ -342,9 +342,9 @@ heading "Step 1/3 — Preserving Launchpad documentation..."
 INIT_STARTED=true
 mkdir -p .launchpad
 
-# Write scaffold version (for future CLI upgrades via npx create-launchpad --upgrade)
+# Write harness version (for future CLI upgrades via npx create-launchpad --upgrade)
 echo "1.0.0" > .launchpad/version
-info "Created .launchpad/version (scaffold v1.0.0)"
+info "Created .launchpad/version (harness v1.0.0)"
 
 # ---------------------------------------------------------------------------
 # Step 2/3 — Swap template files into their final positions
@@ -454,6 +454,33 @@ fi
 if [ -d "docs/guides" ] && [ -z "$(ls -A docs/guides 2>/dev/null)" ]; then
   touch docs/guides/.gitkeep
   info "Created docs/guides/.gitkeep"
+fi
+
+# Create DESIGN_SYSTEM.md stub if it doesn't already exist
+if [ ! -f "docs/architecture/DESIGN_SYSTEM.md" ]; then
+  mkdir -p docs/architecture
+  cat > docs/architecture/DESIGN_SYSTEM.md <<'DSSTUB'
+# Design System
+
+<!-- This document is populated by running /define-design in Claude Code.
+     It captures your visual design decisions: color palette, typography, spacing,
+     component conventions, responsive breakpoints, and animation guidelines.
+
+     Until populated, this file serves as a placeholder. Do not delete it —
+     /define-design expects it to exist and will fill it with your answers.
+
+     To populate: run /define-design in Claude Code (requires PRD.md to exist first). -->
+
+> **Status:** Stub — run `/define-design` to populate.
+DSSTUB
+  info "Created docs/architecture/DESIGN_SYSTEM.md stub"
+fi
+
+# Create docs/tasks/sections/ directory for /shape-section specs
+mkdir -p docs/tasks/sections
+if [ ! -f "docs/tasks/sections/.gitkeep" ]; then
+  touch docs/tasks/sections/.gitkeep
+  info "Created docs/tasks/sections/.gitkeep"
 fi
 
 # ---------------------------------------------------------------------------
@@ -654,6 +681,46 @@ if [ ! -f ".env.local" ] && [ -f ".env.example" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Generate .env.consultant credential-sharing audit log
+# ---------------------------------------------------------------------------
+if [ ! -f ".env.consultant" ]; then
+  cat > .env.consultant <<'ENVCON'
+# ============================================================================
+# .env.consultant — Credential Sharing Manifest
+# ============================================================================
+#
+# PURPOSE: Track which environment variables/secrets were shared with
+# external contractors or consultants. This file is your rotation checklist
+# when an engagement ends.
+#
+# THIS FILE MUST NEVER CONTAIN ACTUAL SECRET VALUES.
+# Only record: variable name, recipient, date shared, and status.
+#
+# WORKFLOW:
+#   1. When you share a credential with a contractor, log it here
+#   2. Share the actual value via a secure channel (1Password, EnvShare, etc.)
+#   3. When the engagement ends, rotate every credential listed below
+#   4. Mark each entry as [ROTATED] with the rotation date
+#
+# FORMAT:
+#   VARIABLE_NAME | recipient | date-shared | status
+#
+# SECURITY:
+#   - This file is gitignored — do NOT commit it
+#   - Do NOT put actual values here — this is a manifest, not a vault
+#   - If you need to share this file itself, use an encrypted channel
+#
+# ============================================================================
+
+# Example:
+# OPENAI_API_KEY       | jane@contractor.com  | 2026-03-05 | ACTIVE
+# DATABASE_URL         | jane@contractor.com  | 2026-03-05 | ROTATED 2026-06-01
+# STRIPE_SECRET_KEY    | bob@freelance.dev    | 2026-01-15 | ROTATED 2026-04-01
+ENVCON
+  info "Created .env.consultant (credential-sharing audit log)"
+fi
+
+# ---------------------------------------------------------------------------
 # Post-init verification — scan for unreplaced placeholders (Issue #9)
 # ---------------------------------------------------------------------------
 heading "Verifying initialization..."
@@ -682,7 +749,7 @@ trap - EXIT
 # Rename origin → launchpad (since origin currently points to the Launchpad repo)
 if git remote get-url origin 2>/dev/null | grep -qi "launchpad"; then
   git remote rename origin launchpad 2>/dev/null || true
-  info "Renamed 'origin' remote to 'launchpad' (upstream scaffold)"
+  info "Renamed 'origin' remote to 'launchpad' (upstream harness)"
 else
   git remote add launchpad https://github.com/thinkinghand/launchpad.git 2>/dev/null || true
   info "Added 'launchpad' remote for upstream updates"
@@ -696,7 +763,7 @@ echo ""
 echo "The original Launchpad documentation has been saved to:"
 echo "   .launchpad/METHODOLOGY.md    (Launchpad architecture, diagrams, credits)"
 echo "   .launchpad/HOW_IT_WORKS.md   (step-by-step workflow guide + troubleshooting)"
-echo "   .launchpad/version           (scaffold version: 1.0.0)"
+echo "   .launchpad/version           (harness version: 1.0.0)"
 echo ""
 printf "${YELLOW}${BOLD}Next: set up your git history${RESET}\n"
 echo ""
@@ -717,11 +784,17 @@ echo ""
 printf "${BOLD}  (Optional) Create a GitHub repository and push:${RESET}\n"
 echo "    gh repo create \"$REPO_SLUG\" --$REPO_VISIBILITY --source=. --push"
 echo ""
-echo "Next steps:"
+echo "Next steps (four-tier workflow):"
 echo "  1. Install dependencies:    pnpm install && pnpm dev"
 echo "  2. Start Claude Code:       claude"
-echo "  3. Define your product:     /define-product"
-echo "  4. See the full workflow:   .launchpad/HOW_IT_WORKS.md"
+echo "  3. Tier 0 — Capabilities:  /create-skill or /port-skill"
+echo "  4. Tier 1 — Definition:"
+echo "     a. /define-product         (PRD + Tech Stack)"
+echo "     b. /define-design          (Design System, App Flow, Frontend Guidelines)"
+echo "     c. /define-architecture    (Backend Structure, CI/CD)"
+echo "  5. Tier 2 — Development:    /shape-section [name]"
+echo "  6. Tier 3 — Implementation: /pnf [section] then /inf"
+echo "  7. See the full workflow:   .launchpad/HOW_IT_WORKS.md"
 echo ""
 
 # Self-cleanup (Issue #8)

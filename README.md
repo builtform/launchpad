@@ -1,6 +1,6 @@
 # Launchpad
 
-> Structure for AI coding. Best practices, pre-configured.
+> The harness your AI agent didn't know it needed. With best practices pre-wired for AI coding.
 
 ![Node.js](https://img.shields.io/badge/Node.js-22.x-339933?logo=node.js&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-9.x-F69220?logo=pnpm&logoColor=white)
@@ -9,9 +9,9 @@
 
 ![Launchpad Architectural Outline](.github/assets/hero-image.png)
 
-AI coding assistants generate code without memory, conventions, or quality gates. Launchpad fixes this -- an opinionated project scaffold that gives AI full context about your codebase, runs it in structured loops, and enforces quality before anything reaches `main`.
+AI coding assistants generate code without memory, conventions, or quality gates. Launchpad fixes this -- an AI coding harness that gives AI full context about your codebase, runs it in structured loops, and enforces quality before anything reaches `main`.
 
-Built on top of best practices for AI-assisted development: existing patterns (compound loops, spec-driven dev, structure enforcement) wired into a single scaffold that works out of the box.
+Built on top of best practices for AI-assisted development: existing patterns (compound loops, spec-driven dev, structure enforcement) pre-wired into a single harness that works out of the box.
 
 - **Context Engineering System** by **[HumanLayer](https://github.com/humanlayer/humanlayer)** -- Research → Plan → Implement workflow, The locator/analyzer agent pair pattern, and two-wave orchestration.
 - **[Compound Product](https://github.com/snarktank/compound-product)** by Ryan Carson -- Autonomous pipeline from report to PR
@@ -112,14 +112,15 @@ The web app runs on `http://localhost:3000` and the API on `http://localhost:300
 
 ```
 /define-product              # Answer questions about your product vision and goals
-/define-architecture         # Answer questions about your technical architecture
+/define-design               # Answer questions about your design system, app flow, and frontend
+/define-architecture         # Answer questions about your backend structure and CI/CD
 ```
 
-This populates six architecture docs that give the AI complete context about what you are building.
+This populates seven architecture docs that give the AI complete context about what you are building.
 
 ### Trimming What You Don't Need
 
-This template is comprehensive by design. Delete what your project does not require:
+Launchpad is comprehensive by design. Delete what your project does not require:
 
 | If you don't need... | Delete              | Also remove from                                    |
 | -------------------- | ------------------- | --------------------------------------------------- |
@@ -137,11 +138,11 @@ Launchpad organizes AI development into **7 layers**, each targeting a specific 
 | Layer                | Purpose                                | Key Tool                                                          |
 | -------------------- | -------------------------------------- | ----------------------------------------------------------------- |
 | 1. Scaffold          | Consistent file placement              | `check-repo-structure.sh`                                         |
-| 2. Definition        | Spec before code                       | `/define-product`, `/define-architecture`                         |
+| 2. Definition        | Spec before code                       | `/define-product`, `/define-design`, `/define-architecture`       |
 | 3. Execution         | AI in fresh-context loops              | `/inf`, `auto-compound.sh`                                        |
 | 4. Quality           | Catch problems pre-commit              | Lefthook, TypeScript, ESLint                                      |
 | 5. Commit-to-Merge   | Nothing unreviewed on main             | `/commit`, Codex review                                           |
-| 6. Compound Learning | Learnings improve every future session | `/compound`, `docs/solutions/`, `CLAUDE.md`                       |
+| 6. Compound Learning | Learnings improve every future session | `docs/solutions/`, `CLAUDE.md`                                    |
 | 7. Skill Creation    | Encode expertise as reusable AI skills | `/create-skill`, `/port-skill`, `/update-skill`, Meta-Skill Forge |
 
 How these layers connect -- each feeds into the next, with learnings cycling back to improve every future session:
@@ -242,9 +243,10 @@ These are the files that define how the project behaves. They are the control pl
 | ------------------------------------------ | ---------------------- | ------------- |
 | `docs/architecture/PRD.md`                 | `/define-product`      | 2. Definition |
 | `docs/architecture/TECH_STACK.md`          | `/define-product`      | 2. Definition |
-| `docs/architecture/APP_FLOW.md`            | `/define-architecture` | 2. Definition |
+| `docs/architecture/DESIGN_SYSTEM.md`       | `/define-design`       | 2. Definition |
+| `docs/architecture/APP_FLOW.md`            | `/define-design`       | 2. Definition |
 | `docs/architecture/BACKEND_STRUCTURE.md`   | `/define-architecture` | 2. Definition |
-| `docs/architecture/FRONTEND_GUIDELINES.md` | `/define-architecture` | 2. Definition |
+| `docs/architecture/FRONTEND_GUIDELINES.md` | `/define-design`       | 2. Definition |
 | `docs/architecture/CI_CD.md`               | `/define-architecture` | 2. Definition |
 
 **Pipeline & Build Config** -- What controls automation and quality
@@ -271,21 +273,45 @@ These are the files that define how the project behaves. They are the control pl
 
 ## Commands
 
-### AI Workflow
+### Tier 0 — Capabilities
 
-| Command                | What it does                                                                          |
-| ---------------------- | ------------------------------------------------------------------------------------- |
-| `/define-product`      | Interactive Q&A to populate PRD + product vision docs                                 |
-| `/define-architecture` | Interactive Q&A to populate architecture docs                                         |
-| `/create_plan`         | Break a feature into an implementation plan                                           |
-| `/implement_plan`      | Execute a plan phase by phase                                                         |
-| `/inf`                 | Full pipeline: report, PRD, tasks, execution loop, quality sweep, PR                  |
-| `/commit`              | Quality gates, commit, PR creation, 3-gate monitoring                                 |
-| `/pull-launchpad`      | Pull upstream Launchpad updates into safe directories                                 |
-| `/create-skill`        | Create a Claude skill using the 7-phase Meta-Skill Forge                              |
-| `/update-skill`        | Iterate on an existing skill after real-world usage reveals gaps                      |
-| `/port-skill`          | Port an external skill into Launchpad format using the 4-phase Skill Porting workflow |
-| `/Hydrate`             | Load minimal session context                                                          |
+| Command         | What it does                                                                          |
+| --------------- | ------------------------------------------------------------------------------------- |
+| `/create-skill` | Create a Claude skill using the 7-phase Meta-Skill Forge                              |
+| `/update-skill` | Iterate on an existing skill after real-world usage reveals gaps                      |
+| `/port-skill`   | Port an external skill into Launchpad format using the 4-phase Skill Porting workflow |
+
+### Tier 1 — Definition
+
+| Command                | What it does                                                               |
+| ---------------------- | -------------------------------------------------------------------------- |
+| `/define-product`      | Interactive Q&A to populate PRD + Tech Stack + section registry            |
+| `/define-design`       | Interactive Q&A to populate Design System + App Flow + Frontend Guidelines |
+| `/define-architecture` | Interactive Q&A to populate Backend Structure + CI/CD                      |
+
+### Tier 2 — Development
+
+| Command          | What it does                                                   |
+| ---------------- | -------------------------------------------------------------- |
+| `/shape-section` | Deep-dive into a product section — creates section spec        |
+| `/update-spec`   | Scan spec files for gaps, TBDs, and inconsistencies — fix them |
+
+### Tier 3 — Implementation
+
+| Command              | What it does                                                         |
+| -------------------- | -------------------------------------------------------------------- |
+| `/pnf`               | Plan Next Feature — create implementation plan from section spec     |
+| `/implement_plan`    | Execute a plan phase by phase                                        |
+| `/inf`               | Full pipeline: report, PRD, tasks, execution loop, quality sweep, PR |
+| `/commit`            | Quality gates, commit, PR creation, 3-gate monitoring                |
+| `/research_codebase` | Deep codebase research and analysis                                  |
+
+### Utilities
+
+| Command           | What it does                                          |
+| ----------------- | ----------------------------------------------------- |
+| `/pull-launchpad` | Pull upstream Launchpad updates into safe directories |
+| `/Hydrate`        | Load minimal session context                          |
 
 ### Development
 
@@ -348,7 +374,7 @@ Every PR to `main` runs: dependency install, structure check, lint, typecheck, a
 
 ## Security Considerations
 
-**Launchpad scaffolds AI-assisted workflows that run agents with elevated permissions.** Understand the risks before using.
+**Launchpad harnesses AI-assisted workflows that run agents with elevated permissions.** Understand the risks before using.
 
 **What the agents can do**
 
@@ -406,7 +432,7 @@ bash install-dcg.sh --easy-mode
 /plugin install compound-engineering
 ```
 
-Adds `/plan`, `/lfg`, `/review`, `/compound`. See the [plugin repo](https://github.com/EveryInc/compound-engineering-plugin).
+Adds additional workflow commands. See the [plugin repo](https://github.com/EveryInc/compound-engineering-plugin).
 
 ---
 
@@ -420,7 +446,7 @@ Adds `/plan`, `/lfg`, `/review`, `/compound`. See the [plugin repo](https://gith
 
 ## Contributing
 
-PRs are welcomed to improve Launchpad's template for everyone starting fresh. Keep changes focused on tooling, scripts, documentation, or best practices that benefit all new projects. For significant changes, open an issue first to discuss your approach.
+PRs are welcomed to improve Launchpad for everyone starting fresh. Keep changes focused on tooling, scripts, documentation, or best practices that benefit all new projects. For significant changes, open an issue first to discuss your approach.
 
 ---
 
