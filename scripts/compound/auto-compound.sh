@@ -18,6 +18,7 @@ CONFIG_FILE="$SCRIPT_DIR/config.json"
 DRY_RUN=false
 
 # Parse arguments
+POSITIONAL_ARGS=()
 while [[ $# -gt 0 ]]; do
   case $1 in
     --dry-run)
@@ -25,6 +26,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     *)
+      POSITIONAL_ARGS+=("$1")
       shift
       ;;
   esac
@@ -105,7 +107,7 @@ log "Using report: $REPORT_NAME"
 # If the argument is a section spec path (docs/tasks/sections/*.md), use it as
 # the primary context for the pipeline instead of report analysis.
 SECTION_SPEC=""
-for arg in "$@"; do
+for arg in "${POSITIONAL_ARGS[@]}"; do
   if [[ "$arg" == docs/tasks/sections/*.md ]] || [[ "$arg" == */docs/tasks/sections/*.md ]]; then
     if [ -f "$PROJECT_ROOT/$arg" ] 2>/dev/null || [ -f "$arg" ] 2>/dev/null; then
       SECTION_SPEC="${arg}"

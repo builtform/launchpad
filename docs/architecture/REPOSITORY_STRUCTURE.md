@@ -80,6 +80,7 @@ The repository root is **clean and predictable**. Only a small, explicit set of 
 - `node_modules/` — Installed dependencies (gitignored).
 - `.git/` — Git internals (never touch manually).
 - `.launchpad/` — Harness metadata and preserved Launchpad reference docs (created by `init-project.sh`).
+- `skills-catalog/` — Curated catalog of reusable Claude Code skills.
 - `.turbo/` — Turborepo cache (gitignored).
 - `.next/` — Next.js build output (gitignored).
 - `dist/` — Build output (gitignored).
