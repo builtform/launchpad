@@ -20,10 +20,18 @@ Before running the pipeline, read `docs/architecture/PRD.md` and look for the se
 Run the pipeline script and relay all output:
 
 ```bash
-./scripts/compound/auto-compound.sh $ARGUMENTS
+./scripts/compound/auto-compound.sh $ARGUMENTS [SECTION_SPEC_PATH]
 ```
 
 Where `$ARGUMENTS` is whatever the user passed (e.g., `--dry-run`).
+
+**If you auto-selected a section from the registry above**, append the section spec path to the command:
+
+```bash
+./scripts/compound/auto-compound.sh $ARGUMENTS docs/tasks/sections/<section-name>.md
+```
+
+This tells the pipeline to use the section spec as primary context, bypassing report analysis.
 
 If the script exits with an error, report the failure clearly and suggest next steps.
 If the script completes successfully, report the PR URL from the output.
