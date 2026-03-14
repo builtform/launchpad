@@ -2,7 +2,7 @@
 
 > **Loaded when:** `/port-skill` is invoked. Governs all 4 phases of the skill porting workflow.
 
-**A ported skill must be indistinguishable from a native Launchpad skill. No shortcuts,
+**A ported skill must be indistinguishable from a native project skill. No shortcuts,
 no verbatim imports. Every file must pass the same 16-criteria quality gates as /create-skill.**
 
 ---
@@ -11,7 +11,7 @@ no verbatim imports. Every file must pass the same 16-criteria quality gates as 
 
 ```
 Phase 1: Ingest     → Parse source skill, produce inventory
-Phase 2: Adapt      → Resolve dependencies + reformat to Launchpad conventions
+Phase 2: Adapt      → Resolve dependencies + reformat to project conventions
 Phase 3: Validate   → skill-evaluator sub-agent, 3-pass quality gates, max 3 cycles
 Phase 4: Register   → Eval scenarios, CLAUDE.md, AGENTS.md, user summary
 ```
@@ -57,7 +57,7 @@ Files found: [count] ([list of files])
 Architecture: [single-file / multi-file]
 
 ### Frontmatter Fields
-[list all fields found, flag any unknown to Launchpad]
+[list all fields found, flag any unknown to the project]
 
 ### Dependencies Detected
 [list each dependency with type — see Phase 2 decision tree]
@@ -106,7 +106,7 @@ Skill body fetches content from an external URL at runtime (e.g., fetches a remo
 Two sub-cases:
 
 - **Artifact-producing:** Pipeline compiles or bundles output (e.g., `npm run build`, `cargo build`). → Run the build now and port the compiled output. Do not port the build configuration itself.
-- **Workflow instructions:** Pipeline steps are procedural instructions embedded in the skill (e.g., "run tests before deploying"). → Adapt the instructions to Launchpad's workflow conventions. Rewrite as imperative steps in the SKILL.md body.
+- **Workflow instructions:** Pipeline steps are procedural instructions embedded in the skill (e.g., "run tests before deploying"). → Adapt the instructions to the project's workflow conventions. Rewrite as imperative steps in the SKILL.md body.
 
 ---
 
@@ -173,7 +173,7 @@ The skill declares an MCP server dependency (e.g., in frontmatter `dependencies.
 
 → **Step 1:** Check if the MCP server is already configured in the project (look for MCP configuration in `.claude/settings.json`, `CLAUDE.md`, or `AGENTS.md`).
 
-- **If already configured:** Translate the MCP reference to Launchpad's configuration format. Continue porting.
+- **If already configured:** Translate the MCP reference to the project's configuration format. Continue porting.
 - **If NOT configured:** PAUSE. Same escalation protocol as External APIs — present options A/B/C, same handling.
 
 ---
@@ -216,13 +216,13 @@ The skill contains absolute paths from the source environment (e.g., `/Users/ali
 
 ### 2B: Format Adaptation
 
-After dependencies are resolved, adapt the skill to Launchpad's format. Apply every item below to SKILL.md and all supporting files.
+After dependencies are resolved, adapt the skill to the project's format. Apply every item below to SKILL.md and all supporting files.
 
 ---
 
 **Frontmatter Field Mapping**
 
-| Source Field        | Launchpad Treatment                                                                                       |
+| Source Field        | Project Treatment                                                                                         |
 | ------------------- | --------------------------------------------------------------------------------------------------------- |
 | `name`              | Keep. Ensure kebab-case, max 64 chars. Rename directory to match.                                         |
 | `description`       | Rewrite in third person. Ensure max 1024 chars. Add `Triggers on: phrase1, phrase2, phrase3.` at the end. |
@@ -253,14 +253,14 @@ Add immediately after frontmatter closing `---`, before any content:
 If the source skill has a `rules/` directory:
 
 1. Keep all rule files exactly as-is — do not summarize, consolidate, or split them.
-2. Move all files from `rules/` into `references/` (Launchpad's flat structure).
+2. Move all files from `rules/` into `references/` (the project's flat structure).
 3. Reformat each rule file to be independently loadable (no cross-rule dependencies if present).
 4. Update all references in SKILL.md from `rules/[file]` to `references/[file]`.
 5. Add explicit loading triggers in SKILL.md for each reference: `Read [references/file.md](mdc:references/file.md) before proceeding to [next section].`
 
 ---
 
-**Launchpad Convention Checklist**
+**Project Convention Checklist**
 
 Apply to SKILL.md (and all reference files where applicable):
 
@@ -307,7 +307,7 @@ Each scenario includes: invocation, expected output, and baseline comparison (wh
 
 ### 4b. Update CLAUDE.md
 
-Add the skill to the Phase A capabilities table. Follow the existing table format exactly.
+Add the skill to the appropriate Tier 1 — Definition table (or the relevant tier). Follow the existing table format exactly.
 
 ### 4c. Update AGENTS.md
 
@@ -372,4 +372,4 @@ Before delivering to user, confirm every item:
 
 ---
 
-**A ported skill must be indistinguishable from a native Launchpad skill.**
+**A ported skill must be indistinguishable from a native project skill.**

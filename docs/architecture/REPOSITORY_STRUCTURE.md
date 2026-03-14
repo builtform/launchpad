@@ -79,7 +79,8 @@ The repository root is **clean and predictable**. Only a small, explicit set of 
 - `.claude/` — Claude Code agent configuration, slash commands, and prompt libraries.
 - `node_modules/` — Installed dependencies (gitignored).
 - `.git/` — Git internals (never touch manually).
-- `.launchpad/` — Scaffold metadata and preserved Launchpad reference docs (created by `init-project.sh`).
+- `.launchpad/` — Harness metadata and preserved Launchpad reference docs (created by `init-project.sh`).
+- `skills-catalog/` — Curated catalog of reusable Claude Code skills.
 - `.turbo/` — Turborepo cache (gitignored).
 - `.next/` — Next.js build output (gitignored).
 - `dist/` — Build output (gitignored).
@@ -200,6 +201,7 @@ Anything else at root is root clutter and must be moved to the correct subdirect
 │   │   └── IMPLEMENTATION_PLAN.md
 │   ├── reports/                             # Investigation reports, audits, postmortems
 │   ├── tasks/                               # Active work tracking
+│   │   ├── sections/                        # Section specs from /shape-section
 │   │   └── TODO.md
 │   └── ui/                                  # UI/UX design documentation
 │       └── ux/
@@ -217,14 +219,14 @@ Anything else at root is root clutter and must be moved to the correct subdirect
 ├── .vscode/
 │   └── settings.json                        # Shared editor settings (format on save, etc.)
 │
-├── .launchpad/                              # Scaffold metadata and preserved Launchpad reference docs
+├── .launchpad/                              # Harness metadata and preserved Launchpad reference docs
 │   ├── METHODOLOGY.md                       # Launchpad methodology — architecture, diagrams, troubleshooting, credits
 │   ├── HOW_IT_WORKS.md                      # Step-by-step workflow guide
-│   └── version                              # Scaffold version for CLI upgrades
+│   └── version                              # Harness version for CLI upgrades
 │
 └── .claude/                                 # Claude Code configuration
     ├── agents/                              # Sub-agent definition files
-    ├── commands/                            # Slash command definitions (e.g. /Hydrate, /create_plan)
+    ├── commands/                            # Slash command definitions (e.g. /Hydrate, /pnf)
     ├── Prompts/                             # Reusable prompt templates
     ├── skills/                              # Skill definitions (SKILL.md + references/)
     │   └── <skill-name>/                    # One directory per skill
@@ -256,22 +258,22 @@ All packages use the `@repo/` scope. These are the canonical package names — u
 
 Every subdirectory in `docs/` has a specific purpose. Do not use `docs/` as a catch-all.
 
-| Directory            | Purpose                                                                        | Examples                                                           |
-| -------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| `docs/architecture/` | System design, ADRs, this document, tech stack, frontend/backend guidelines    | `REPOSITORY_STRUCTURE.md`, `TECH_STACK.md`, `BACKEND_STRUCTURE.md` |
-| `docs/archive/`      | Retired documentation retained for historical reference; treat as read-only    | Superseded design docs, old runbooks                               |
-| `docs/articles/`     | Long-form reference articles, research summaries, and annotated external docs  | Research summaries, annotated external docs                        |
-| `docs/consultants/`  | Deliverables, briefs, or reports from external consultants                     | Audit reports, external review docs                                |
-| `docs/eval/`         | Evaluation results for front-end and back-end features; structured test output | Performance benchmarks, UX eval notes                              |
-| `docs/experiments/`  | Exploratory notes and write-ups for experiments not yet promoted to code       | Hypothesis docs, spike summaries                                   |
-| `docs/guides/`       | How-to guides and tutorials                                                    | Usage guides, onboarding walkthroughs                              |
-| `docs/lessons/`      | Running log of lessons learned — populated by both humans and agents           | `LESSONS.md` (append-only log)                                     |
-| `docs/solutions/`    | Categorized learnings from compound loops, accumulated by agents               | YAML-frontmatter `.md` files per pattern                           |
-| `docs/brainstorms/`  | Brainstorming documents for compound-engineering                               | Free-form brainstorm docs                                          |
-| `docs/plans/`        | Implementation plans, phased roadmaps, and step-by-step build sequences        | `IMPLEMENTATION_PLAN.md`                                           |
-| `docs/reports/`      | Investigation reports, audits, postmortems, and one-off analyses               | `investigation_YYYYMMDD_<topic>.md`                                |
-| `docs/tasks/`        | Active work tracking: current TODO list                                        | `TODO.md`                                                          |
-| `docs/ui/`           | UI/UX design documentation, design system notes, style guides                  | `ux/design_styles.md`                                              |
+| Directory            | Purpose                                                                                    | Examples                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `docs/architecture/` | System design, ADRs, this document, tech stack, design system, frontend/backend guidelines | `REPOSITORY_STRUCTURE.md`, `TECH_STACK.md`, `DESIGN_SYSTEM.md`, `BACKEND_STRUCTURE.md` |
+| `docs/archive/`      | Retired documentation retained for historical reference; treat as read-only                | Superseded design docs, old runbooks                                                   |
+| `docs/articles/`     | Long-form reference articles, research summaries, and annotated external docs              | Research summaries, annotated external docs                                            |
+| `docs/consultants/`  | Deliverables, briefs, or reports from external consultants                                 | Audit reports, external review docs                                                    |
+| `docs/eval/`         | Evaluation results for front-end and back-end features; structured test output             | Performance benchmarks, UX eval notes                                                  |
+| `docs/experiments/`  | Exploratory notes and write-ups for experiments not yet promoted to code                   | Hypothesis docs, spike summaries                                                       |
+| `docs/guides/`       | How-to guides and tutorials                                                                | Usage guides, onboarding walkthroughs                                                  |
+| `docs/lessons/`      | Running log of lessons learned — populated by both humans and agents                       | `LESSONS.md` (append-only log)                                                         |
+| `docs/solutions/`    | Categorized learnings from compound loops, accumulated by agents                           | YAML-frontmatter `.md` files per pattern                                               |
+| `docs/brainstorms/`  | Brainstorming documents for compound-engineering                                           | Free-form brainstorm docs                                                              |
+| `docs/plans/`        | Implementation plans, phased roadmaps, and step-by-step build sequences                    | `IMPLEMENTATION_PLAN.md`                                                               |
+| `docs/reports/`      | Investigation reports, audits, postmortems, and one-off analyses                           | `investigation_YYYYMMDD_<topic>.md`                                                    |
+| `docs/tasks/`        | Active work tracking: current TODO list and section specs                                  | `TODO.md`, `sections/`                                                                 |
+| `docs/ui/`           | UI/UX design documentation, design system notes, style guides                              | `ux/design_styles.md`                                                                  |
 
 **Naming convention for time-stamped reports:**
 
@@ -292,7 +294,7 @@ docs/reports/analysis_YYYYMMDD_<topic>.md
 
 ## 6. Key Architectural Rules
 
-These rules encode the design decisions behind this scaffold. Violating them breaks downstream consumers, deployments, or type safety.
+These rules encode the design decisions behind this harness. Violating them breaks downstream consumers, deployments, or type safety.
 
 ### Rule 1: Prisma lives in `packages/db`, never in `apps/api`
 
@@ -333,7 +335,7 @@ The `tooling/` directory pattern is explicitly rejected. All repo-wide scripts l
 - `scripts/agent_hydration/` — AI agent context scripts.
 - `scripts/maintenance/` — Structure checks, lint helpers, repo hygiene.
 
-App-specific scripts belong inside the app: `apps/web/scripts/` or `apps/api/scripts/` (create as needed; they do not exist in the base template).
+App-specific scripts belong inside the app: `apps/web/scripts/` or `apps/api/scripts/` (create as needed; they do not exist in the base harness).
 
 ### Rule 5: TypeScript Configuration
 
@@ -349,6 +351,7 @@ When adding **any** new file, walk through this decision tree in order. Stop at 
 
 - Architecture document (system design, ADR, tech overview) → `docs/architecture/`
 - Implementation plan or roadmap → `docs/plans/`
+- Section spec (from `/shape-section`) → `docs/tasks/sections/`
 - Task list or progress tracker → `docs/tasks/`
 - Lessons learned (new entry) → append to `docs/lessons/LESSONS.md`
 - Categorized solution or reusable pattern from a compound loop → `docs/solutions/`

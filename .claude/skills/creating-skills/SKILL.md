@@ -277,7 +277,7 @@ Save to `.claude/skills/<skill-name>/evals/`.
 
 Update these files:
 
-1. **CLAUDE.md** -- Add skill to the Phase A capabilities table and Available Sub-Agents section
+1. **CLAUDE.md** -- Add skill to the Tier 1 — Definition table (or appropriate tier) and Available Sub-Agents section
 2. **AGENTS.md** -- Add skill entry with name, description, and trigger phrases
 
 ### Present to User
@@ -303,7 +303,7 @@ Deliver a structured summary:
 [PASS / FAIL] -- [summary of results]
 
 ### CLAUDE.md Changes
-- Added to Phase A table: [entry]
+- Added to workflow commands table: [entry]
 - Added to Available Sub-Agents: [entry]
 
 ### Usage

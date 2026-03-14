@@ -7,15 +7,31 @@ Fully autonomous pipeline: reads the latest report, picks the top priority, crea
 - `/inf` — run the full pipeline
 - `/inf --dry-run` — preview the priority pick without making changes
 
+## Section Registry Check
+
+Before running the pipeline, read `docs/architecture/PRD.md` and look for the section registry. If a section registry exists:
+
+1. Look for sections with status `planned` (NOT `shaped`). If exactly one is found, auto-select it. If multiple are found, present the list and ask the user which one to implement.
+2. If only `shaped` sections exist, suggest to the user: "Section [name] is shaped but not planned yet. Run `/pnf [name]` first."
+3. If no section registry exists, fall through to the standard report analysis logic below.
+
 ## Execution
 
 Run the pipeline script and relay all output:
 
 ```bash
-./scripts/compound/auto-compound.sh $ARGUMENTS
+./scripts/compound/auto-compound.sh $ARGUMENTS [SECTION_SPEC_PATH]
 ```
 
 Where `$ARGUMENTS` is whatever the user passed (e.g., `--dry-run`).
+
+**If you auto-selected a section from the registry above**, append the section spec path to the command:
+
+```bash
+./scripts/compound/auto-compound.sh $ARGUMENTS docs/tasks/sections/<section-name>.md
+```
+
+This tells the pipeline to use the section spec as primary context, bypassing report analysis.
 
 If the script exits with an error, report the failure clearly and suggest next steps.
 If the script completes successfully, report the PR URL from the output.

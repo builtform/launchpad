@@ -3,7 +3,7 @@
 # Reads a report, picks #1 priority, creates PRD + tasks, runs loop, creates PR
 # Tool is configurable via config.json "tool" field (default: claude).
 #
-# Usage: ./auto-compound.sh [--dry-run]
+# Usage: ./auto-compound.sh [--dry-run] [docs/tasks/sections/<section>.md]
 #
 # Requirements:
 # - claude, codex, or gemini CLI installed and authenticated (based on config.json "tool")
@@ -18,6 +18,7 @@ CONFIG_FILE="$SCRIPT_DIR/config.json"
 DRY_RUN=false
 
 # Parse arguments
+POSITIONAL_ARGS=()
 while [[ $# -gt 0 ]]; do
   case $1 in
     --dry-run)
@@ -25,6 +26,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     *)
+      POSITIONAL_ARGS+=("$1")
       shift
       ;;
   esac
@@ -92,33 +94,76 @@ if [ -f ".env.local" ]; then
   set +a
 fi
 
-# Step 1: Find most recent report
-log "Step 1: Finding most recent report..."
+# Step 1: Detect section spec from positional args
+SECTION_SPEC=""
+for arg in "${POSITIONAL_ARGS[@]}"; do
+  if [[ "$arg" == docs/tasks/sections/*.md ]] || [[ "$arg" == */docs/tasks/sections/*.md ]]; then
+    if [ -f "$PROJECT_ROOT/$arg" ] 2>/dev/null || [ -f "$arg" ] 2>/dev/null; then
+      SECTION_SPEC="${arg}"
+      log "Using section spec as primary context: $SECTION_SPEC"
+    fi
+  fi
+done
+
 git fetch origin main 2>/dev/null || true
 
-LATEST_REPORT=$(ls -t "$REPORTS_DIR"/*.md 2>/dev/null | head -1)
-[ -f "$LATEST_REPORT" ] || error "No reports found in $REPORTS_DIR"
-REPORT_NAME=$(basename "$LATEST_REPORT")
-log "Using report: $REPORT_NAME"
+if [ -n "$SECTION_SPEC" ]; then
+  # Section-spec mode: derive planning inputs from the spec, skip report analysis
+  log "Step 1: Section-spec mode — bypassing report analysis"
 
-# Step 2: Analyze report
-log "Step 2: Analyzing report to pick #1 actionable priority..."
+  SPEC_PATH=""
+  if [ -f "$PROJECT_ROOT/$SECTION_SPEC" ]; then
+    SPEC_PATH="$PROJECT_ROOT/$SECTION_SPEC"
+  elif [ -f "$SECTION_SPEC" ]; then
+    SPEC_PATH="$SECTION_SPEC"
+  fi
+  [ -f "$SPEC_PATH" ] || error "Section spec not found: $SECTION_SPEC"
 
-if [ -n "$ANALYZE_COMMAND" ]; then
-  ANALYSIS_JSON=$(bash -c "$ANALYZE_COMMAND \"$LATEST_REPORT\"" 2>/dev/null)
+  # Derive section name from filename (e.g., docs/tasks/sections/user-auth.md -> user-auth)
+  SECTION_NAME=$(basename "$SPEC_PATH" .md)
+  PRIORITY_ITEM="Implement $SECTION_NAME section"
+  DESCRIPTION="Implementation of the $SECTION_NAME section as defined in the section spec."
+  RATIONALE="Section spec completed via /shape-section — ready for implementation."
+  BRANCH_NAME="${BRANCH_PREFIX}${SECTION_NAME}"
+  REPORT_NAME="(section-spec: $SECTION_NAME)"
+  LATEST_REPORT=""
+
+  log "Priority item: $PRIORITY_ITEM"
+  log "Branch: $BRANCH_NAME"
+  echo "[CHECKPOINT] Section spec loaded — implementing: $SECTION_NAME"
 else
-  ANALYSIS_JSON=$("$SCRIPT_DIR/analyze-report.sh" "$LATEST_REPORT" 2>/dev/null)
+  # Report mode: find most recent report and analyze it
+  log "Step 1: Finding most recent report..."
+
+  LATEST_REPORT=$(ls -t "$REPORTS_DIR"/*.md 2>/dev/null | head -1)
+  [ -f "$LATEST_REPORT" ] || error "No reports found in $REPORTS_DIR"
+  REPORT_NAME=$(basename "$LATEST_REPORT")
+  log "Using report: $REPORT_NAME"
+
+  # Step 2: Analyze report
+  log "Step 2: Analyzing report to pick #1 actionable priority..."
+
+  if [ -n "$ANALYZE_COMMAND" ]; then
+    ANALYSIS_JSON=$(bash -c "$ANALYZE_COMMAND \"$LATEST_REPORT\"" 2>/dev/null)
+  else
+    ANALYSIS_JSON=$("$SCRIPT_DIR/analyze-report.sh" "$LATEST_REPORT" 2>/dev/null)
+  fi
+
+  [ -n "$ANALYSIS_JSON" ] || error "Failed to analyze report"
+
+  # Parse the analysis
+  PRIORITY_ITEM=$(echo "$ANALYSIS_JSON" | jq -r '.priority_item // empty')
+  DESCRIPTION=$(echo "$ANALYSIS_JSON" | jq -r '.description // empty')
+  RATIONALE=$(echo "$ANALYSIS_JSON" | jq -r '.rationale // empty')
+  BRANCH_NAME=$(echo "$ANALYSIS_JSON" | jq -r '.branch_name // empty')
+
+  [ -n "$PRIORITY_ITEM" ] || error "Failed to parse priority item from analysis"
+
+  log "Priority item: $PRIORITY_ITEM"
+  log "Branch: $BRANCH_NAME"
+  log "Rationale: $RATIONALE"
+  echo "[CHECKPOINT] Report analyzed — priority: $PRIORITY_ITEM"
 fi
-
-[ -n "$ANALYSIS_JSON" ] || error "Failed to analyze report"
-
-# Parse the analysis
-PRIORITY_ITEM=$(echo "$ANALYSIS_JSON" | jq -r '.priority_item // empty')
-DESCRIPTION=$(echo "$ANALYSIS_JSON" | jq -r '.description // empty')
-RATIONALE=$(echo "$ANALYSIS_JSON" | jq -r '.rationale // empty')
-BRANCH_NAME=$(echo "$ANALYSIS_JSON" | jq -r '.branch_name // empty')
-
-[ -n "$PRIORITY_ITEM" ] || error "Failed to parse priority item from analysis"
 
 # Ensure branch has correct prefix
 if [[ "$BRANCH_NAME" != "$BRANCH_PREFIX"* ]]; then
@@ -129,11 +174,6 @@ fi
 if ! git check-ref-format --branch "$BRANCH_NAME" >/dev/null 2>&1; then
   error "Invalid branch name: $BRANCH_NAME"
 fi
-
-log "Priority item: $PRIORITY_ITEM"
-log "Branch: $BRANCH_NAME"
-log "Rationale: $RATIONALE"
-echo "[CHECKPOINT] Report analyzed — priority: $PRIORITY_ITEM"
 
 if [ "$DRY_RUN" = true ]; then
   log "DRY RUN - Would proceed with:"
@@ -153,14 +193,40 @@ log "Step 4: Creating PRD..."
 PRD_FILENAME="prd-$(echo "$BRANCH_NAME" | sed "s|^${BRANCH_PREFIX}||").md"
 mkdir -p "$TASKS_DIR"
 
+SECTION_SPEC_CONTEXT=""
+if [ -n "$SECTION_SPEC" ]; then
+  # SPEC_PATH was already resolved in Step 1
+  if [ -f "$PROJECT_ROOT/$SECTION_SPEC" ]; then
+    SPEC_PATH="$PROJECT_ROOT/$SECTION_SPEC"
+  elif [ -f "$SECTION_SPEC" ]; then
+    SPEC_PATH="$SECTION_SPEC"
+  fi
+  if [ -n "$SPEC_PATH" ]; then
+    SECTION_SPEC_CONTEXT="
+## Section Spec (primary context for scope and requirements)
+The following section spec defines the detailed scope, requirements, and constraints for this feature.
+Use it as the PRIMARY source of truth for what to build:
+
+$(cat "$SPEC_PATH")
+"
+    log "Injecting section spec into PRD prompt: $SPEC_PATH"
+  fi
+fi
+
+# Build acceptance criteria (only available in report mode)
+ACCEPTANCE_CRITERIA=""
+if [ -n "$ANALYSIS_JSON" ]; then
+  ACCEPTANCE_CRITERIA="Acceptance criteria from analysis:
+$(echo "$ANALYSIS_JSON" | jq -r '(.acceptance_criteria // [])[]' | sed 's/^/- /')"
+fi
+
 PRD_PROMPT="Load the prd skill. Create a PRD for: $PRIORITY_ITEM
 
 Description: $DESCRIPTION
 
-Rationale from report analysis: $RATIONALE
-
-Acceptance criteria from analysis:
-$(echo "$ANALYSIS_JSON" | jq -r '(.acceptance_criteria // [])[]' | sed 's/^/- /')
+Rationale: $RATIONALE
+${SECTION_SPEC_CONTEXT}
+${ACCEPTANCE_CRITERIA}
 
 IMPORTANT CONSTRAINTS:
 - NO database migrations or schema changes

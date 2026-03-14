@@ -1,6 +1,6 @@
 # Methodology
 
-> **Structure for AI coding. Best practices, pre-configured.**
+> **The harness your AI agent didn't know it needed. With best practices pre-wired for AI coding.**
 
 AI coding tools are powerful. Without structure, they're a trap.
 
@@ -8,7 +8,7 @@ You prompt an agent to build a feature. It generates code that looks right -- un
 
 The best practices exist. Spec-driven development. Compound loops with fresh context. Structure enforcement. Automated quality gates. Context engineering via CLAUDE.md. They're scattered across blog posts, repos, and conference talks. You know you should set them up. You haven't had time.
 
-Launchpad is a monorepo template where all of it is already wired in and working. Clone it, define your product, and start building with an AI workflow that has specs, guardrails, autonomous execution loops, pre-commit hooks, CI pipelines, and automated code review -- from the first commit.
+Launchpad is an AI coding harness where all of it is already wired in and working. Clone it, define your product, and start building with an AI workflow that has specs, guardrails, autonomous execution loops, pre-commit hooks, CI pipelines, and automated code review -- from the first commit.
 
 For a step-by-step workflow guide, see [How It Works](HOW_IT_WORKS.md).
 
@@ -46,15 +46,17 @@ Launchpad organizes AI-assisted development into seven layers. Each layer addres
 
 The first five layers form a forward pipeline. The sixth layer wraps all of them, creating a feedback loop that makes the entire system smarter over time. The seventh layer extends this -- skills are the executable form of compounded knowledge, turning learnings into reusable instruction sets that reshape how the AI approaches specific problem domains.
 
-| Layer                                                        | What It Does                                                                                                   | Key Files                                                               |
-| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| 1. [Opinionated Scaffold](#layer-1-opinionated-scaffold)     | Monorepo with enforced structure, whitelisted root files, and a decision tree for file placement               | `REPOSITORY_STRUCTURE.md`, `check-repo-structure.sh`, `init-project.sh` |
-| 2. [Spec-Driven Definition](#layer-2-spec-driven-definition) | Interactive wizards that produce 6 canonical architecture docs, giving AI agents full project context          | `/define-product`, `/define-architecture`, `/create_plan`               |
-| 3. [Compound Execution](#layer-3-compound-execution)         | Report --> analysis --> PRD --> tasks --> autonomous loop --> PR. Fresh-context iterations with a Kanban board | `auto-compound.sh`, `loop.sh`, `iteration-claude.md`, `/inf`            |
-| 4. [Quality Gates](#layer-4-quality-gates)                   | Pre-commit hooks, CI pipeline, and AI-powered code review with P0--P3 severity classification                  | `lefthook.yml`, `ci.yml`, `codex-review.yml`                            |
-| 5. [Commit-to-Merge](#layer-5-commit-to-merge)               | Branch guard --> quality gates --> PR creation --> 3-gate monitoring loop. Never auto-merges                   | `/commit`, `auto-compound.sh` Steps 7a--7c                              |
-| 6. [Compound Learning](#layer-6-compound-learning)           | Structured knowledge extraction, learnings catalog, pattern promotion, and cross-run memory                    | `docs/solutions/`, `progress.txt`, `promoted-patterns.md`               |
-| 7. [Skill Creation](#layer-7-skill-creation)                 | Encode domain expertise as reusable AI skills with quality-validated reasoning patterns                        | `/create-skill`, `/port-skill`, `/update-skill`, `skill-evaluator`      |
+> **Workflow vs. architecture order:** While layers are numbered architecturally (1–7), the recommended workflow execution order starts with skills. In the four-tier workflow, skill creation is **Tier 0 — Capabilities** — users create or port skills before starting Tier 1 definition. This ensures every subsequent command benefits from domain-specific reasoning.
+
+| Layer                                                        | What It Does                                                                                                                | Key Files                                                                             |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 1. [Opinionated Scaffold](#layer-1-opinionated-scaffold)     | Monorepo with enforced structure, whitelisted root files, and a decision tree for file placement                            | `REPOSITORY_STRUCTURE.md`, `check-repo-structure.sh`, `init-project.sh`               |
+| 2. [Spec-Driven Definition](#layer-2-spec-driven-definition) | Four-tier workflow: Capabilities → Definition → Development → Implementation, producing architecture docs and section specs | `/define-product`, `/define-design`, `/define-architecture`, `/shape-section`, `/pnf` |
+| 3. [Compound Execution](#layer-3-compound-execution)         | Report --> analysis --> PRD --> tasks --> autonomous loop --> PR. Fresh-context iterations with a Kanban board              | `auto-compound.sh`, `loop.sh`, `iteration-claude.md`, `/inf`                          |
+| 4. [Quality Gates](#layer-4-quality-gates)                   | Pre-commit hooks, CI pipeline, and AI-powered code review with P0--P3 severity classification                               | `lefthook.yml`, `ci.yml`, `codex-review.yml`                                          |
+| 5. [Commit-to-Merge](#layer-5-commit-to-merge)               | Branch guard --> quality gates --> PR creation --> 3-gate monitoring loop. Never auto-merges                                | `/commit`, `auto-compound.sh` Steps 7a--7c                                            |
+| 6. [Compound Learning](#layer-6-compound-learning)           | Structured knowledge extraction, learnings catalog, pattern promotion, and cross-run memory                                 | `docs/solutions/`, `progress.txt`, `promoted-patterns.md`                             |
+| 7. [Skill Creation](#layer-7-skill-creation)                 | Encode domain expertise as reusable AI skills with quality-validated reasoning patterns                                     | `/create-skill`, `/port-skill`, `/update-skill`, `skill-evaluator`                    |
 
 No single competitor offers all seven layers. SpecKit has Layer 2. Design OS has Layer 2. Ralph has Layer 3. Compound Product has Layers 3 and 6. Nobody has Layers 1, 4, 5, or 7.
 
@@ -126,12 +128,12 @@ The canonical source of truth for the entire repository layout. Both humans and 
   7. Is it an API route? --> `apps/api/src/routes/`
   8. Is it a frontend page? --> `apps/web/src/app/`
   9. Is it CI/CD config? --> `.github/workflows/`
-  10. Is it experimental? --> `experiments/<topic>/` (never `v2` or `copy` files)
+  10. Is it experimental? --> `docs/experiments/<topic>/` (never `v2` or `copy` files)
   11. Is it a new workspace package? --> `packages/<name>/` with package.json + tsconfig + src/index.ts
   12. Is it a Claude command? --> `.claude/commands/`
   13. **Fallback: Ask the user. Do not guess.**
 
-- **Anti-patterns** -- Explicitly banned: root clutter, duplicate files, misplaced Prisma, loose scripts in source directories, importing from `experiments/` in production code
+- **Anti-patterns** -- Explicitly banned: root clutter, duplicate files, misplaced Prisma, loose scripts in source directories, importing from `docs/experiments/` in production code
 
 - **Evolution protocol** -- A 5-step process for updating the structure rules, keeping the whitelist arrays in sync with the spec
 
@@ -169,12 +171,12 @@ A 442-line interactive wizard that transforms a fresh Launchpad clone into a new
 
 1. **Collects metadata** -- Project name (validated, rejects shell injection characters), description, copyright holder, contact email, license type, repository visibility
 
-2. **Preserves Launchpad documentation** -- Copies the original README.md to `.launchpad/GUIDE.md` with a header note, so you can always reference the original workflow instructions. Creates `.launchpad/version` for future upgrade tracking.
+2. **Preserves Launchpad documentation** -- Copies `docs/guides/HOW_IT_WORKS.md` and `docs/guides/METHODOLOGY.md` to `.launchpad/` so you can always reference the original workflow instructions. Creates `.launchpad/version` for future upgrade tracking.
 
 3. **Swaps template files** -- Moves `.template.md` files into their final positions:
    - `README.template.md` --> `README.md`
    - `LICENSE.template` --> `LICENSE`
-   - `SECURITY.template.md` --> `SECURITY.md`
+   - `SECURITY.template.md` --> `SECURITY.md` (public repos only; skipped for private repos)
    - `CODE_OF_CONDUCT.template.md` --> `CODE_OF_CONDUCT.md`
    - `CHANGELOG.template.md` --> `CHANGELOG.md`
    - `CONTRIBUTING.template.md` --> `CONTRIBUTING.md`
@@ -205,11 +207,15 @@ Key files:
 
 ### Philosophy
 
-Before any code is written, the project needs specs. This layer produces six canonical architecture documents that give AI agents full context about what they're building, why, and how.
+Before any code is written, the project needs specs. This layer is organized into a **three-tier workflow** that produces architecture documents, a design system, and section specs -- giving AI agents full context about what they're building, why, and how.
 
-There are two paths into this layer: an **interactive path** (human-guided slash commands) and an **autonomous path** (AI-generated from reports via the compound pipeline). Both produce the same artifacts.
+**Tier 1 — Definition** (run once per project): `/define-product` → `/define-design` → `/define-architecture` produces seven canonical architecture documents.
 
-Both paths use **6 sub-agents** organized in a two-wave orchestration pattern. Wave 1 (Discovery) runs 4 locators in parallel -- codebase locator, docs locator, pattern finder, and web researcher -- using only fast tools (Grep, Glob, LS) to find relevant files without reading them. Wave 2 (Analysis) waits for Wave 1 to complete, then runs 2 analyzers in parallel -- codebase analyzer and docs analyzer -- targeting only the paths Wave 1 found. This ensures expensive Read operations are focused precisely where they'll yield useful context, preventing wasted tokens on irrelevant files.
+**Tier 2 — Development** (per section, ongoing): `/shape-section` deep-dives into individual product sections, producing detailed specs at `docs/tasks/sections/`. `/update-spec` scans all spec files for gaps, TBDs, and cross-file inconsistencies.
+
+**Tier 3 — Implementation** (per section): `/pnf` creates implementation plans from shaped sections. `/inf` and `/implement_plan` execute them.
+
+Both interactive and autonomous paths use **6 sub-agents** organized in a two-wave orchestration pattern. Wave 1 (Discovery) runs 4 locators in parallel -- codebase locator, docs locator, pattern finder, and web researcher -- using only fast tools (Grep, Glob, LS) to find relevant files without reading them. Wave 2 (Analysis) waits for Wave 1 to complete, then runs 2 analyzers in parallel -- codebase analyzer and docs analyzer -- targeting only the paths Wave 1 found. This ensures expensive Read operations are focused precisely where they'll yield useful context, preventing wasted tokens on irrelevant files.
 
 The PRD creation workflow extends this layer with priority tiers, scope guards, and research agents -- ensuring PRDs are grounded in what the codebase actually contains, not what the AI assumes.
 
@@ -218,11 +224,11 @@ Spec-driven development is the practice of specifying before building. The idea 
 - **SpecKit** produces per-feature specs that are consumed and discarded
 - **Launchpad** produces project-level canonical documents that persist and evolve
 
-The six architecture docs are living documents. They grow as the project grows. Every AI agent session reads them for context. Every compound pipeline iteration checks them for constraints.
+The architecture docs are living documents. They grow as the project grows. Every AI agent session reads them for context. Every compound pipeline iteration checks them for constraints.
 
 ### Implementation
 
-Before writing any code, you define what you are building through interactive AI Q&A sessions. Two slash commands walk you through structured questions and produce six architecture documents that give the AI complete context about your project.
+Before writing any code, you define what you are building through interactive AI Q&A sessions. Three slash commands walk you through structured questions and produce seven architecture documents that give the AI complete context about your project.
 
 Without these specs, every AI session starts from zero. The AI guesses at your tech stack, naming conventions, and architecture. With specs in place, every session reads the same ground truth and produces consistent output.
 
@@ -231,41 +237,51 @@ There are two paths into this layer: an **interactive path** (human-guided slash
 ```mermaid
 flowchart TD
     DP["/define-product"]
+    DD["/define-design"]
     DA["/define-architecture"]
 
     PRD["PRD"]
     TECH["Tech Stack"]
     VISION["Product Vision"]
+    DESIGN["Design System"]
     FLOW["App Flow"]
     BACKEND["Backend Structure"]
     FRONTEND["Frontend Guidelines"]
     CICD["CI/CD Plan"]
 
     ARCH["docs/architecture/"]
+    SS["/shape-section"]
+    SECTIONS["docs/tasks/sections/"]
+    PNF["/pnf"]
     L3["Layer 3\nCompound Execution"]
 
     DP --> PRD
     DP --> TECH
     DP --> VISION
-    DA --> FLOW
+    DD --> DESIGN
+    DD --> FLOW
+    DD --> FRONTEND
     DA --> BACKEND
-    DA --> FRONTEND
     DA --> CICD
 
     PRD --> ARCH
     TECH --> ARCH
     VISION --> ARCH
+    DESIGN --> ARCH
     FLOW --> ARCH
     BACKEND --> ARCH
     FRONTEND --> ARCH
     CICD --> ARCH
 
-    ARCH -->|"AI reads these\nbefore every task"| L3
+    ARCH -->|"AI reads these\nbefore every task"| SS
+    SS --> SECTIONS
+    SECTIONS --> PNF
+    PNF --> L3
 ```
 
 #### Interactive Definition: `/define-product`
 
-A 7-step interactive wizard that populates two documents through structured Q&A:
+A guided interactive wizard that populates two documents through structured Q&A (15 questions: 14 guided + 1 open):
 
 **`docs/architecture/PRD.md`** -- The product requirements:
 
@@ -275,6 +291,7 @@ A 7-step interactive wizard that populates two documents through structured Q&A:
 - What are the core features? (MVP scope)
 - What is explicitly out of scope? (non-goals)
 - How do you know it's working? (success metrics)
+- Section registry with data shapes
 
 **`docs/architecture/TECH_STACK.md`** -- The technical choices:
 
@@ -293,25 +310,40 @@ A 7-step interactive wizard that populates two documents through structured Q&A:
 - Dual-mode detection -- automatically determines create vs. update mode by checking existing content
 - After writing both docs, updates CLAUDE.md so future AI sessions inherit the context
 
+#### Interactive Definition: `/define-design`
+
+A guided interactive wizard (18 questions: 17 guided + 1 open) that populates three documents:
+
+**`docs/architecture/DESIGN_SYSTEM.md`** -- The visual design system:
+
+- Color palette and semantic tokens
+- Typography scale and font choices
+- Spacing and layout conventions
+- Component styling patterns
+- Dark mode strategy
+- Animation and interaction guidelines
+
+**`docs/architecture/APP_FLOW.md`** -- Auth flow, user journeys, pages/routes table, navigation patterns, error handling, accessibility
+
+**`docs/architecture/FRONTEND_GUIDELINES.md`** -- Component architecture, state management, responsive strategy
+
+**Prerequisite:** PRD.md (soft-required). TECH_STACK.md (soft-required for frontend guidelines questions).
+
 #### Interactive Definition: `/define-architecture`
 
-Builds on `/define-product` by populating four more architecture docs:
-
-**`docs/architecture/APP_FLOW.md`** -- Auth flow, user journeys, pages/routes table, navigation patterns, error handling
+A guided interactive wizard (9 questions: 8 guided + 1 open) that populates two architecture docs:
 
 **`docs/architecture/BACKEND_STRUCTURE.md`** -- Data models, API endpoints, auth strategy, external service integrations
 
-**`docs/architecture/FRONTEND_GUIDELINES.md`** -- Design system, component architecture, state management, responsive strategy
-
 **`docs/architecture/CI_CD.md`** -- CI pipeline configuration, deploy strategy, environments
 
-All questions are tailored to the tech stack chosen in `/define-product`. If you chose Clerk for auth, you get Clerk-specific patterns. If you chose Prisma, you get Prisma-specific data model guidance.
+All questions are tailored to the tech stack chosen in `/define-product`. If you chose Clerk for auth, you get Clerk-specific patterns. If you chose Prisma, you get Prisma-specific data model guidance. The auth strategy question (BE-3) cross-references APP_FLOW.md (from `/define-design`) to align the backend token flow with the UX auth flow.
 
-**Prerequisite:** PRD.md and TECH_STACK.md must exist (runs `/define-product` first if they don't).
+**Prerequisite:** PRD.md and TECH_STACK.md must exist. APP_FLOW.md (from `/define-design`) recommended but not required.
 
-#### Interactive Planning: `/create_plan`
+#### Interactive Planning: `/pnf` (Plan Next Feature)
 
-A research-first plan builder that produces implementation plans in `docs/plans/`.
+A research-first plan builder that produces implementation plans from section specs.
 
 Before asking any questions, it spawns **6 sub-agents** in two mandatory waves:
 
@@ -339,26 +371,28 @@ When running `/inf` (the autonomous pipeline), the definition step is automated:
 2. The AI agent generates a PRD (`tasks/prd-<feature>.md`) with constraints: no DB migrations, 2-4 hour scope, 3-5 high-level tasks (later expanded to 8-15 granular sub-tasks in prd.json)
 3. The PRD is converted to `prd.json` with machine-verifiable acceptance criteria
 
-This is the autonomous equivalent of `/define-product` + `/create_plan`, scoped to a single feature.
+This is the autonomous equivalent of `/define-product` + `/pnf`, scoped to a single feature.
 
-#### The Six Documents
+#### The Architecture Documents
 
-| Document                                   | Purpose                      | Created By             |
-| ------------------------------------------ | ---------------------------- | ---------------------- |
-| `docs/architecture/PRD.md`                 | What to build and why        | `/define-product`      |
-| `docs/architecture/TECH_STACK.md`          | Technical decisions          | `/define-product`      |
-| `docs/architecture/APP_FLOW.md`            | User flows and navigation    | `/define-architecture` |
-| `docs/architecture/BACKEND_STRUCTURE.md`   | API and data models          | `/define-architecture` |
-| `docs/architecture/FRONTEND_GUIDELINES.md` | Design system and components | `/define-architecture` |
-| `docs/architecture/CI_CD.md`               | CI/CD and deployment         | `/define-architecture` |
+| Document                                   | Purpose                   | Created By             |
+| ------------------------------------------ | ------------------------- | ---------------------- |
+| `docs/architecture/PRD.md`                 | What to build and why     | `/define-product`      |
+| `docs/architecture/TECH_STACK.md`          | Technical decisions       | `/define-product`      |
+| `docs/architecture/DESIGN_SYSTEM.md`       | Visual design system      | `/define-design`       |
+| `docs/architecture/APP_FLOW.md`            | User flows and navigation | `/define-design`       |
+| `docs/architecture/BACKEND_STRUCTURE.md`   | API and data models       | `/define-architecture` |
+| `docs/architecture/FRONTEND_GUIDELINES.md` | Components and state mgmt | `/define-design`       |
+| `docs/architecture/CI_CD.md`               | CI/CD and deployment      | `/define-architecture` |
 
-All six feed into CLAUDE.md, which means every AI agent session -- whether interactive or autonomous -- starts with full project context.
+All seven feed into CLAUDE.md, which means every AI agent session -- whether interactive or autonomous -- starts with full project context.
 
 Key files:
 
 - `.claude/commands/define-product.md` -- interactive Q&A for product definition
-- `.claude/commands/define-architecture.md` -- interactive Q&A for architecture definition
-- `docs/architecture/` -- where the six output documents live
+- `.claude/commands/define-design.md` -- interactive Q&A for design system, app flow, and frontend guidelines
+- `.claude/commands/define-architecture.md` -- interactive Q&A for backend structure and CI/CD
+- `docs/architecture/` -- where the seven output documents live
 
 ---
 
@@ -651,10 +685,10 @@ A 321-line Bash 3.x-compatible board renderer with three output modes:
 
 #### Two Paths Through the Layer
 
-| Path           | Entry Point                          | PRD Source                                           | Execution                               | Human Involvement       |
-| -------------- | ------------------------------------ | ---------------------------------------------------- | --------------------------------------- | ----------------------- |
-| **Autonomous** | `/inf`                               | Auto-generated from report (self-clarified, no MCQ)  | `loop.sh` (fresh context per iteration) | None until PR review    |
-| **Manual**     | `/create_plan` --> `/implement_plan` | Human-authored plan (MCQ clarifying step before PRD) | Phase-by-phase with checkpoints         | At every phase boundary |
+| Path           | Entry Point                  | PRD Source                                           | Execution                               | Human Involvement       |
+| -------------- | ---------------------------- | ---------------------------------------------------- | --------------------------------------- | ----------------------- |
+| **Autonomous** | `/inf`                       | Auto-generated from report (self-clarified, no MCQ)  | `loop.sh` (fresh context per iteration) | None until PR review    |
+| **Manual**     | `/pnf` --> `/implement_plan` | Human-authored plan (MCQ clarifying step before PRD) | Phase-by-phase with checkpoints         | At every phase boundary |
 
 Both paths produce the same output: committed code on a feature branch, ready for quality gates and PR creation.
 
@@ -797,7 +831,7 @@ A GitHub Action that runs on every PR (opened, updated, or converted from draft)
 
 **Repository-specific rules baked into the prompt:**
 
-- No imports from `experiments/` in production code
+- No imports from `docs/experiments/` in production code
 - Prisma migrations must use `migrate deploy`, never `migrate dev`
 - Shared packages must not import from `apps/`
 
@@ -1033,7 +1067,7 @@ The compound philosophy is that **each unit of work should make future work easi
 
 This is a synthesis of two systems: the knowledge management from [Compound Product](https://github.com/snarktank/compound-product) and the structured learning capture from the [Compound Engineering Plugin](https://github.com/EveryInc/compound-engineering-plugin) by Every.
 
-**The feedback loop is now fully closed.** Earlier versions could only _write_ knowledge (extracting learnings into `docs/solutions/` and `promoted-patterns.md`). Now, dedicated docs agents (`docs-locator` and `docs-analyzer`) can _read_ that accumulated knowledge back during `/research_codebase` and `/create_plan`. This means prior decisions, rejected approaches, constraints, and promoted patterns are surfaced during planning -- not just stored for future manual discovery. On fresh projects where `docs/` contains only stubs, the docs agents are skipped gracefully.
+**The feedback loop is now fully closed.** Earlier versions could only _write_ knowledge (extracting learnings into `docs/solutions/` and `promoted-patterns.md`). Now, dedicated docs agents (`docs-locator` and `docs-analyzer`) can _read_ that accumulated knowledge back during `/research_codebase` and `/pnf`. This means prior decisions, rejected approaches, constraints, and promoted patterns are surfaced during planning -- not just stored for future manual discovery. On fresh projects where `docs/` contains only stubs, the docs agents are skipped gracefully.
 
 The feedback loop converts debugging time into permanent velocity. A 30-minute fix becomes a seconds-long pattern match on the next occurrence, and eventually a pre-loaded rule that prevents the problem entirely.
 
@@ -1043,7 +1077,7 @@ After each compound execution cycle, learnings are extracted from the iteration 
 
 The compound philosophy is that **each unit of work should make future work easier -- not harder**. This layer wraps all other layers. A learning might improve scaffold rules (Layer 1), spec templates (Layer 2), execution patterns (Layer 3), quality standards (Layer 4), or commit practices (Layer 5). The system gets smarter with every cycle.
 
-**The feedback loop is fully closed.** Two dedicated docs agents -- `docs-locator` and `docs-analyzer` (in `.claude/agents/`) -- can read accumulated knowledge back during `/research_codebase` and `/create_plan`. The docs-locator finds relevant documents across `docs/` by searching YAML frontmatter, date-prefixed filenames, and directory structure (fast, no file reads). The docs-analyzer then extracts high-value insights: decisions made, approaches rejected, constraints discovered, and patterns promoted. This means learnings written by Step 8 are actively surfaced in future planning sessions, not just passively stored.
+**The feedback loop is fully closed.** Two dedicated docs agents -- `docs-locator` and `docs-analyzer` (in `.claude/agents/`) -- can read accumulated knowledge back during `/research_codebase` and `/pnf`. The docs-locator finds relevant documents across `docs/` by searching YAML frontmatter, date-prefixed filenames, and directory structure (fast, no file reads). The docs-analyzer then extracts high-value insights: decisions made, approaches rejected, constraints discovered, and patterns promoted. This means learnings written by Step 8 are actively surfaced in future planning sessions, not just passively stored.
 
 This is a synthesis of two systems: the knowledge management from [Compound Product](https://github.com/snarktank/compound-product) and the structured learning capture from the [Compound Engineering Plugin](https://github.com/EveryInc/compound-engineering-plugin) by Every.
 
@@ -1180,7 +1214,7 @@ Each iteration of `loop.sh` runs with **fresh context**. No state carries in mem
 | `prd.json`        | Current run | Start of every iteration (task status + notes) |
 | `CLAUDE.md`       | Permanent   | Start of every session                         |
 | `AGENTS.md`       | Permanent   | Start of every session (non-Claude agents)     |
-| `docs/solutions/` | Permanent   | During planning (`/create_plan`) and review    |
+| `docs/solutions/` | Permanent   | During planning (`/pnf`) and review            |
 | Git history       | Permanent   | When agent needs context on previous changes   |
 
 Key files:
@@ -1195,6 +1229,8 @@ Key files:
 ## Layer 7: Skill Creation
 
 ### Philosophy
+
+> **Tier 0 in the workflow.** While numbered Layer 7 in the architectural model (skills build on the infrastructure of all previous layers), skill creation is positioned as **Tier 0 — Capabilities** in the four-tier workflow. Users should create or port relevant skills before starting Tier 1 definition, so that every definition and implementation command benefits from domain-specific reasoning from the start.
 
 AI skills are reusable instruction sets that change how Claude reasons about specific problem domains. Without skills, every session starts from baseline — Claude applies generic reasoning to every task. With skills, Claude applies domain-specific decision frameworks, anti-patterns, and verification gates that produce structurally different output.
 
@@ -1307,7 +1343,7 @@ After porting, the skill is fully detached from its source — use `/update-skil
 
 ## Feedback Loop
 
-Layer 6 is what makes Launchpad a living system rather than a static template. Without it, the same mistakes recur across compound cycles. With it, each cycle leaves the system better than it found it. Layer 7 extends this further -- skills are the executable form of compounded knowledge. Where Layer 6 captures what was learned, Layer 7 turns those learnings into reusable instruction sets that reshape how the AI reasons about specific problem domains.
+Layer 6 is what makes Launchpad a living harness rather than a static scaffold. Without it, the same mistakes recur across compound cycles. With it, each cycle leaves the system better than it found it. Layer 7 extends this further -- skills are the executable form of compounded knowledge. Where Layer 6 captures what was learned, Layer 7 turns those learnings into reusable instruction sets that reshape how the AI reasons about specific problem domains.
 
 The feedback loop operates at three speeds:
 
@@ -1360,22 +1396,25 @@ Build --> Test --> Find Issue --> Fix --> Document --> Validate --> Deploy
 
 ## Quick Reference: All Commands
 
-| Command                 | Layer | What It Does                                                                                  |
-| ----------------------- | ----- | --------------------------------------------------------------------------------------------- |
-| `/define-product`       | 2     | Interactive wizard --> PRD.md + TECH_STACK.md                                                 |
-| `/define-architecture`  | 2     | Interactive wizard --> APP_FLOW.md + BACKEND_STRUCTURE.md + FRONTEND_GUIDELINES.md + CI_CD.md |
-| `/create_plan`          | 2     | Research-first plan builder with two-wave sub-agents --> docs/plans/                          |
-| `/implement_plan`       | 3     | Executes a plan phase by phase with checkpoints                                               |
-| `/inf`                  | 3     | Runs the full autonomous compound pipeline (auto-compound.sh)                                 |
-| `/commit`               | 5     | 8-step commit workflow with quality gates and 3-gate PR monitoring                            |
-| `/research_codebase`    | Input | Documents the codebase with two-wave sub-agents --> docs/reports/ (input for `/inf`)          |
-| `/review_code`          | 4     | Pattern consistency review using sub-agents                                                   |
-| `/Hydrate`              | --    | Bootstraps a session with minimal context                                                     |
-| `/memory-report`        | 6     | Updates session memory files                                                                  |
-| `/create-skill [topic]` | 7     | Create a skill using Meta-Skill Forge                                                         |
-| `/update-skill [name]`  | 7     | Iterate on an existing skill                                                                  |
-| `/port-skill [source]`  | 7     | Port an external skill into Launchpad format                                                  |
-| `/pull-launchpad`       | --    | Pulls upstream Launchpad changes                                                              |
+| Command                 | Layer | What It Does                                                                         |
+| ----------------------- | ----- | ------------------------------------------------------------------------------------ |
+| `/define-product`       | 2     | Interactive wizard --> PRD.md + TECH_STACK.md + section registry                     |
+| `/define-design`        | 2     | Interactive wizard --> DESIGN_SYSTEM.md + APP_FLOW.md + FRONTEND_GUIDELINES.md       |
+| `/define-architecture`  | 2     | Interactive wizard --> BACKEND_STRUCTURE.md + CI_CD.md                               |
+| `/shape-section [name]` | 2     | Deep-dive into a product section --> docs/tasks/sections/[name].md                   |
+| `/update-spec`          | 2     | Scan spec files for gaps, TBDs, and inconsistencies --> fix them                     |
+| `/pnf [section]`        | 2     | Plan Next Feature from section spec --> implementation plan                          |
+| `/implement_plan`       | 3     | Executes a plan phase by phase with checkpoints                                      |
+| `/inf`                  | 3     | Runs the full autonomous compound pipeline (auto-compound.sh)                        |
+| `/commit`               | 5     | 8-step commit workflow with quality gates and 3-gate PR monitoring                   |
+| `/research_codebase`    | Input | Documents the codebase with two-wave sub-agents --> docs/reports/ (input for `/inf`) |
+| `/review_code`          | 4     | Pattern consistency review using sub-agents                                          |
+| `/Hydrate`              | --    | Bootstraps a session with minimal context                                            |
+| `/memory-report`        | 6     | Updates session memory files                                                         |
+| `/create-skill [topic]` | 7     | Create a skill using Meta-Skill Forge                                                |
+| `/update-skill [name]`  | 7     | Iterate on an existing skill                                                         |
+| `/port-skill [source]`  | 7     | Port an external skill into Launchpad format                                         |
+| `/pull-launchpad`       | --    | Pulls upstream Launchpad changes                                                     |
 
 ## Quick Reference: All Scripts
 
@@ -1393,12 +1432,12 @@ Build --> Test --> Find Issue --> Fix --> Document --> Validate --> Deploy
 
 | Agent             | File                                        | Wave          | Tools                | Used By                                         | Purpose                                                                                           |
 | ----------------- | ------------------------------------------- | ------------- | -------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Codebase locator  | `.claude/agents/codebase-locator.md`        | 1 (Discovery) | Grep, Glob, LS       | `/research_codebase`, `/create_plan`, PRD skill | Finds relevant source files and patterns                                                          |
-| Docs locator      | `.claude/agents/docs-locator.md`            | 1 (Discovery) | Grep, Glob, LS       | `/research_codebase`, `/create_plan`, PRD skill | Finds relevant docs by frontmatter, date-prefixed filenames, directory structure                  |
-| Pattern finder    | `.claude/agents/codebase-pattern-finder.md` | 1 (Discovery) | Grep, Glob, LS       | `/research_codebase`, `/create_plan`, PRD skill | Identifies recurring code patterns and examples to model after                                    |
-| Web researcher    | `.claude/agents/web-search-researcher.md`   | 1 (Discovery) | WebSearch, WebFetch  | `/research_codebase`, `/create_plan`            | Gathers external context                                                                          |
-| Codebase analyzer | `.claude/agents/codebase-analyzer.md`       | 2 (Analysis)  | Read, Grep, Glob, LS | `/research_codebase`, `/create_plan`            | Deep analysis of architecture using paths from Wave 1                                             |
-| Docs analyzer     | `.claude/agents/docs-analyzer.md`           | 2 (Analysis)  | Read, Grep, Glob, LS | `/research_codebase`, `/create_plan`, PRD skill | Extracts decisions, rejected approaches, constraints, promoted patterns from docs found in Wave 1 |
+| Codebase locator  | `.claude/agents/codebase-locator.md`        | 1 (Discovery) | Grep, Glob, LS       | `/research_codebase`, `/pnf`, PRD skill         | Finds relevant source files and patterns                                                          |
+| Docs locator      | `.claude/agents/docs-locator.md`            | 1 (Discovery) | Grep, Glob, LS       | `/research_codebase`, `/pnf`, PRD skill         | Finds relevant docs by frontmatter, date-prefixed filenames, directory structure                  |
+| Pattern finder    | `.claude/agents/codebase-pattern-finder.md` | 1 (Discovery) | Grep, Glob, LS       | `/research_codebase`, `/pnf`, PRD skill         | Identifies recurring code patterns and examples to model after                                    |
+| Web researcher    | `.claude/agents/web-search-researcher.md`   | 1 (Discovery) | WebSearch, WebFetch  | `/research_codebase`, `/pnf`                    | Gathers external context                                                                          |
+| Codebase analyzer | `.claude/agents/codebase-analyzer.md`       | 2 (Analysis)  | Read, Grep, Glob, LS | `/research_codebase`, `/pnf`                    | Deep analysis of architecture using paths from Wave 1                                             |
+| Docs analyzer     | `.claude/agents/docs-analyzer.md`           | 2 (Analysis)  | Read, Grep, Glob, LS | `/research_codebase`, `/pnf`, PRD skill         | Extracts decisions, rejected approaches, constraints, promoted patterns from docs found in Wave 1 |
 | Skill evaluator   | `.claude/agents/skill-evaluator.md`         | --            | Read, Grep, Glob, LS | `/create-skill`, `/update-skill`, `/port-skill` | Evaluate skills against 16 quality criteria (3 passes: first-principles, baseline, Anthropic)     |
 
 Wave 1 agents run in parallel and use only fast tools (no file reads). Wave 2 agents wait for Wave 1 to finish, then target only the paths that were found. Both docs agents are skipped gracefully on fresh projects where `docs/` contains only stubs.
@@ -1431,7 +1470,7 @@ The autonomous execution loop concept -- fresh context per iteration, git as mem
 
 **Inspired by:** Thoughtworks Technology Radar, GitHub SpecKit, AWS Kiro
 
-The philosophy of "specify before building." Our implementation (`/define-product`, `/define-architecture`) is our own -- different from SpecKit's per-feature specs. Ours produce project-level canonical documents that persist and evolve.
+The philosophy of "specify before building." Our implementation (`/define-product`, `/define-design`, `/define-architecture`) is our own -- different from SpecKit's per-feature specs. Ours produce project-level canonical documents that persist and evolve.
 
 ---
 
@@ -1450,8 +1489,8 @@ Launchpad is not a fork of Compound Product. It's a custom implementation that s
 | **Quality gates**         | Basic test run in config    | 3-attempt auto-fix loop with lefthook + AI-assisted fixing (Step 7a)                                                    |
 | **PR monitoring**         | None                        | 3-gate loop: CI checks, Codex P0/P1 parsing, merge conflict resolution (Step 7c)                                        |
 | **Learnings extraction**  | Agent updates AGENTS.md     | Structured extraction to `docs/solutions/` with YAML frontmatter, template, and promotion pipeline (Step 8)             |
-| **Definition layer**      | None                        | `/define-product` and `/define-architecture` producing 6 architecture docs                                              |
-| **Manual execution path** | None                        | `/create_plan` + `/implement_plan` as human-supervised alternative                                                      |
+| **Definition layer**      | None                        | `/define-product`, `/define-design`, and `/define-architecture` producing 7 architecture docs                           |
+| **Manual execution path** | None                        | `/pnf` + `/implement_plan` as human-supervised alternative; `/shape-section` for section-level specs                    |
 | **Commit workflow**       | None                        | `/commit` with branch guards, parallel quality gates, interactive Codex review                                          |
 | **Structure enforcement** | None                        | `check-repo-structure.sh` + `REPOSITORY_STRUCTURE.md` + Lefthook + CI                                                   |
 | **Knowledge pipeline**    | AGENTS.md updates only      | progress.txt --> learnings --> promoted-patterns --> CLAUDE.md feedback loop                                            |
