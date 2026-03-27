@@ -215,13 +215,63 @@ gh api repos/{owner}/{repo}/issues/{pr_number}/comments \
 ```
 
 - **Poll for up to 5 minutes** (10 checks, 30 seconds apart). If no Codex comment appears within that window, pass — this gate is non-blocking on timeout.
-- When the comment arrives, parse the body for **P0** and **P1** severity sections.
-- If P0 or P1 items exist (i.e., the section content is not "None found" and not empty):
-  1. Present each finding to the user with the severity, file path, and description.
-  2. Ask: **"Codex found P0/P1 issues. Should I fix these now?"**
-  3. If the user approves: fix each issue, re-run quality gates (Step 3), commit, push, and restart this loop.
-  4. If the user declines: note the user's decision and pass.
-- If only P2/P3 or all sections say "None found": pass.
+- When the comment arrives, parse **all** severity sections (P0, P1, P2, P3) from the body.
+- If every section says "None found" or is empty: pass.
+- If any findings exist, **evaluate each one independently** before presenting to the user:
+
+#### Evaluation Process
+
+For each finding in the Codex comment:
+
+1. **Read the referenced file and line number** using the Read tool. Include surrounding context (±10 lines) to understand the code in situ.
+2. **Determine accuracy:** Does the issue Codex describes actually exist in the code? Check for false positives — Codex may misread intent, miss context from other files, or flag patterns that are intentional.
+3. **Assess severity:** Does Codex's severity rating (P0–P3) match the actual impact? A P0 may really be a P2 style nit, or a P2 may hide a genuine P0 bug.
+4. **Form an opinion** for the finding — one of:
+   - **AGREE** — the issue exists and the severity is appropriate.
+   - **PARTIALLY AGREE** — the issue exists but the severity should be adjusted, or the description is misleading.
+   - **DISAGREE** — the finding is a false positive, irrelevant, or the code is correct as-is.
+5. **Write a one-sentence justification** explaining the opinion.
+
+#### Presentation
+
+Present all findings to the user grouped by Codex severity, with the agent's evaluation alongside each one:
+
+```
+## Codex Review Findings
+
+### P0 — Critical
+| # | File | Codex Description | Agent Opinion | Justification |
+|---|------|-------------------|---------------|---------------|
+| 1 | `path/to/file:42` | ... | AGREE | ... |
+
+### P1 — High
+| # | File | Codex Description | Agent Opinion | Justification |
+|---|------|-------------------|---------------|---------------|
+| 2 | `path/to/file:88` | ... | DISAGREE | ... |
+
+### P2 — Medium
+(same table format)
+
+### P3 — Low
+(same table format)
+```
+
+Omit any severity group that has no findings.
+
+#### Verdict
+
+After the tables, provide a **Verdict** section:
+
+1. **Fix now** — list the finding numbers that should be addressed before merge, with a brief justification for each (e.g., "genuine null-pointer risk", "security implication").
+2. **Defer or ignore** — list the finding numbers that should be skipped, with a brief justification for each (e.g., "false positive — variable is validated upstream", "style preference, not a bug").
+
+#### User Decision
+
+Ask: **"Should I fix the recommended issues, or do you want to adjust the list?"**
+
+- If the user approves the recommended list: fix those issues, re-run quality gates (Step 3), commit, push, and restart this loop.
+- If the user adjusts the list: fix only the user-specified issues, re-run quality gates (Step 3), commit, push, and restart this loop.
+- If the user declines all fixes: note the user's decision and pass.
 
 ### Gate C: Conflicts
 

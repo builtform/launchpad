@@ -40,7 +40,8 @@
 ├── packages/shared/# Shared TypeScript types and utilities
 ├── packages/ui/    # Shared React components + Tailwind config + cn() helper
 ├── docs/           # Architecture docs, plans, reports, experiments
-│   └── tasks/sections/ # Section specs from /shape-section
+│   ├── tasks/sections/ # Section specs from /shape-section
+│   └── skills-catalog/ # Skill usage tracking and user-facing index
 └── scripts/        # Compound Product pipeline, maintenance scripts
 ```
 
@@ -132,6 +133,7 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 | `docs/architecture/FRONTEND_GUIDELINES.md` | Building or refactoring UI components              |
 | `docs/architecture/DESIGN_SYSTEM.md`       | Defining UI components or visual design decisions  |
 | `docs/architecture/CI_CD.md`               | Configuring CI/CD pipelines or deployment          |
+| `docs/skills-catalog/skills-index.md`      | Managing, reviewing, or auditing installed skills  |
 
 <!-- Add project-specific docs here as they grow. Examples:                                       -->
 <!--   docs/how-tos/database-migrations.md   → when running or writing migrations                 -->
@@ -139,74 +141,16 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 
 ---
 
-## Workflow Commands
+## Available Sub-Agents
 
-### Tier 0 — Capabilities (seed skills before you build)
+These agents are spawned as sub-agents by commands and skills. Each is a read-only documentarian — it describes what exists without critiquing or suggesting changes.
 
-| Command                 | Purpose                                                                                   |
-| ----------------------- | ----------------------------------------------------------------------------------------- |
-| `/create-skill [topic]` | Create a Claude skill using the 7-phase Meta-Skill Forge methodology                      |
-| `/update-skill [name]`  | Iterate on an existing skill after real-world usage reveals gaps                          |
-| `/port-skill [source]`  | Port an external skill into the project's format using the 4-phase Skill Porting workflow |
-
-### Tier 1 — Definition (interactive, run once per project)
-
-| Command                | Purpose                                                                                           |
-| ---------------------- | ------------------------------------------------------------------------------------------------- |
-| `/define-product`      | Populate `PRD.md` + `TECH_STACK.md` through guided Q&A                                            |
-| `/define-design`       | Populate `DESIGN_SYSTEM.md` + `APP_FLOW.md` + `FRONTEND_GUIDELINES.md` through guided Q&A         |
-| `/define-architecture` | Populate `BACKEND_STRUCTURE.md` + `CI_CD.md` through guided Q&A (requires PRD + TECH_STACK first) |
-
-### Tier 2 — Development (per section, ongoing)
-
-| Command                 | Purpose                                                                    |
-| ----------------------- | -------------------------------------------------------------------------- |
-| `/shape-section [name]` | Deep-dive into a product section — creates `docs/tasks/sections/[name].md` |
-| `/update-spec`          | Scan spec files for gaps, TBDs, and inconsistencies — fix them             |
-
-### Tier 3 — Implementation (per section, autonomous or manual)
-
-| Command              | Purpose                                                                                       |
-| -------------------- | --------------------------------------------------------------------------------------------- |
-| `/pnf [section]`     | Plan Next Feature — create implementation plan from section spec                              |
-| `/inf`               | Implement next feature: report -> PRD -> tasks -> loop -> quality sweep -> Codex review -> PR |
-| `/implement_plan`    | Manual alternative: execute an existing plan step by step                                     |
-| `/research_codebase` | Deep codebase research and analysis                                                           |
-
-### Automation Scripts
-
-| Script                              | Purpose                                                          |
-| ----------------------------------- | ---------------------------------------------------------------- |
-| `scripts/compound/auto-compound.sh` | Full pipeline: report -> PRD -> tasks -> loop -> PR              |
-| `scripts/compound/loop.sh`          | Execution loop with archive support (requires existing prd.json) |
-
-### Available Sub-Agents
-
-These agents are spawned as sub-agents by the commands above. Each is a read-only documentarian — it describes what exists without critiquing or suggesting changes.
-
-| Agent                     | Purpose                                                                                                                   | Used By                                                                    |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `codebase-locator`        | Find WHERE files and components live (super Grep/Glob/LS)                                                                 | `/research_codebase`, `/pnf`, PRD skill                                    |
-| `codebase-analyzer`       | Understand HOW specific code works with file:line precision                                                               | `/research_codebase`, `/pnf`                                               |
-| `codebase-pattern-finder` | Find existing patterns and code examples to model after                                                                   | `/research_codebase`, `/pnf`, `/implement_plan`, `/review_code`, PRD skill |
-| `docs-locator`            | Find relevant docs by frontmatter, date-prefixed filenames, directory structure                                           | `/research_codebase`, `/pnf`, PRD skill                                    |
-| `docs-analyzer`           | Extract decisions, rejected approaches, constraints, promoted patterns from docs                                          | `/research_codebase`, `/pnf`, PRD skill                                    |
-| `web-search-researcher`   | External documentation, API references, and best practices                                                                | `/research_codebase`, `/pnf`                                               |
-| `skill-evaluator`         | Evaluate generated skills against 16 quality criteria (3-pass: first-principles, baseline detection, Anthropic checklist) | `/create-skill`, `/update-skill`, `/port-skill`                            |
-
----
-
-## Quick Links
-
-| Topic                | Location                                   |
-| -------------------- | ------------------------------------------ |
-| Product requirements | `docs/architecture/PRD.md`                 |
-| App flow & auth      | `docs/architecture/APP_FLOW.md`            |
-| Design system        | `docs/architecture/DESIGN_SYSTEM.md`       |
-| Frontend patterns    | `docs/architecture/FRONTEND_GUIDELINES.md` |
-| Backend structure    | `docs/architecture/BACKEND_STRUCTURE.md`   |
-| Tech stack           | `docs/architecture/TECH_STACK.md`          |
-| CI/CD pipeline       | `docs/architecture/CI_CD.md`               |
-| Compound config      | `scripts/compound/config.json`             |
-| Learnings & patterns | `docs/solutions/`                          |
-| Brainstorms          | `docs/brainstorms/`                        |
+| Agent                     | Purpose                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `codebase-locator`        | Find WHERE files and components live (super Grep/Glob/LS)                                                                 |
+| `codebase-analyzer`       | Understand HOW specific code works with file:line precision                                                               |
+| `codebase-pattern-finder` | Find existing patterns and code examples to model after                                                                   |
+| `docs-locator`            | Find relevant docs by frontmatter, date-prefixed filenames, directory structure                                           |
+| `docs-analyzer`           | Extract decisions, rejected approaches, constraints, promoted patterns from docs                                          |
+| `web-search-researcher`   | External documentation, API references, and best practices                                                                |
+| `skill-evaluator`         | Evaluate generated skills against 16 quality criteria (3-pass: first-principles, baseline detection, Anthropic checklist) |

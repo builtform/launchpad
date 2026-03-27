@@ -423,7 +423,40 @@ If this was a newly added section (not previously in the registry), insert a new
 
 ---
 
-## Step 8: Summary and Next Step
+## Step 8: Web Copy (Public-Facing Pages Only)
+
+After writing the section spec, determine if this section is a **public-facing page** — a page that visitors (not logged-in users) see. This includes: landing pages, pricing pages, about pages, feature pages, product pages, homepages, and contact/demo pages.
+
+**If the section IS a public-facing page:**
+
+Present to the user:
+
+```
+This is a public-facing page. Good copy is critical for conversion.
+
+Would you like to create the page copy now using the web-copy skill?
+- Yes — I'll run the web-copy workflow to produce a copy brief and full copy document
+- No — I'll note that copy is needed and you can run it later
+
+(The web-copy skill produces: copy brief, full copy document with rationale, A/B variants, and quality gates)
+```
+
+If the user says **yes**: Read `.claude/skills/web-copy/SKILL.md` and execute its 7-phase workflow, using the section spec just created as input for Phase 1 (Context Gathering).
+
+If the user says **no**: Add a note to the section spec under a new `## Copy Status` section:
+
+```markdown
+## Copy Status
+
+**Status:** Not yet created
+**Action:** Run web-copy skill for this section before implementation
+```
+
+**If the section is NOT a public-facing page** (e.g., admin dashboard, settings, internal tools): Skip this step entirely.
+
+---
+
+## Step 9: Summary and Next Step
 
 ```
 Done. Section "[section-name]" has been shaped.
@@ -434,6 +467,7 @@ Done. Section "[section-name]" has been shaped.
 - [N] user flows documented
 - [N] UI patterns chosen
 - [N] edge cases identified
+- Copy: [created / pending / not applicable]
 
 **docs/architecture/PRD.md** registry updated: [section-name] → shaped
 

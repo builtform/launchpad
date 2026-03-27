@@ -483,6 +483,94 @@ if [ ! -f "docs/tasks/sections/.gitkeep" ]; then
   info "Created docs/tasks/sections/.gitkeep"
 fi
 
+# Create docs/skills-catalog/ directory and initial skill tracking files
+mkdir -p docs/skills-catalog
+if [ ! -f "docs/skills-catalog/skills-usage.json" ]; then
+  cat > docs/skills-catalog/skills-usage.json <<'SUEOF'
+{
+  "last_audit_date": null,
+  "skills": {}
+}
+SUEOF
+  info "Created docs/skills-catalog/skills-usage.json"
+fi
+if [ ! -f "docs/skills-catalog/skills-index.md" ]; then
+  cat > docs/skills-catalog/skills-index.md <<'SIEOF'
+# Skills Index
+
+A user-facing reference for all installed skills in this project. Each skill is a reusable workflow that Claude Code executes when triggered by a slash command or natural language.
+
+---
+
+## How Skill Tracking Works
+
+- **Installation:** Skills are added via `/create-skill` or `/port-skill` and registered in this index, `CLAUDE.md`, `AGENTS.md`, and `skills-usage.json`.
+- **Usage tracking:** `scripts/hooks/track-skill-usage.sh` fires after every skill invocation and records the date in `skills-usage.json`.
+- **Staleness audit:** `scripts/hooks/audit-skills.sh` fires at session end. If 2+ weeks have passed since the last audit, it reports which skills are stale or unused.
+
+---
+
+## Quick Reference
+
+No skills installed yet. Use `/create-skill` or `/port-skill` to add skills.
+
+---
+
+## Detailed Descriptions
+
+No skills installed yet.
+SIEOF
+  info "Created docs/skills-catalog/skills-index.md stub"
+fi
+
+# Create scripts/hooks/ directory and copy hook scripts
+mkdir -p scripts/hooks
+if [ ! -f "scripts/hooks/track-skill-usage.sh" ]; then
+  warn "scripts/hooks/track-skill-usage.sh not found — skill tracking hook unavailable"
+else
+  chmod +x scripts/hooks/track-skill-usage.sh
+fi
+if [ ! -f "scripts/hooks/audit-skills.sh" ]; then
+  warn "scripts/hooks/audit-skills.sh not found — skill audit hook unavailable"
+else
+  chmod +x scripts/hooks/audit-skills.sh
+fi
+
+# Set up .claude/settings.json with skill tracking hooks (if not already configured)
+if [ ! -f ".claude/settings.json" ]; then
+  cat > .claude/settings.json <<'CSEOF'
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/hooks/track-skill-usage.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/hooks/audit-skills.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+CSEOF
+  info "Created .claude/settings.json with skill tracking hooks"
+else
+  info ".claude/settings.json already exists — verify skill tracking hooks are configured"
+fi
+
 # ---------------------------------------------------------------------------
 # Step 3/3 — Fill all placeholders with user inputs
 # ---------------------------------------------------------------------------

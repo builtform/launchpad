@@ -17,7 +17,7 @@ Create detailed Product Requirements Documents that are clear, actionable, and s
 4. **Research:** Scan codebase and documentation for relevant patterns
 5. **Self-clarify:** Ask yourself 3-5 critical questions and answer them based on context + research
 6. Generate a structured PRD based on your answers
-7. Save to `/tasks/prd-[feature-name].md`
+7. Save to `docs/tasks/prd-[feature-name].md`
 
 **Important:**
 
@@ -353,7 +353,7 @@ The PRD reader may be an AI agent. Therefore:
 ## Output
 
 - **Format:** Markdown (`.md`)
-- **Location:** `/tasks/`
+- **Location:** `docs/tasks/`
 - **Filename:** `prd-[feature-name].md` (kebab-case)
 
 ---
@@ -498,4 +498,4 @@ Before saving the PRD:
 - [ ] Edge Cases section is present (table format, or N/A with reason)
 - [ ] Open Questions section is present
 - [ ] Examples section is present (input/output pairs, or N/A with reason)
-- [ ] Saved to `/tasks/prd-[feature-name].md`
+- [ ] Saved to `docs/tasks/prd-[feature-name].md`

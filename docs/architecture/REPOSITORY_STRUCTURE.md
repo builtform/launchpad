@@ -80,7 +80,6 @@ The repository root is **clean and predictable**. Only a small, explicit set of 
 - `node_modules/` — Installed dependencies (gitignored).
 - `.git/` — Git internals (never touch manually).
 - `.launchpad/` — Harness metadata and preserved Launchpad reference docs (created by `init-project.sh`).
-- `skills-catalog/` — Curated catalog of reusable Claude Code skills.
 - `.turbo/` — Turborepo cache (gitignored).
 - `.next/` — Next.js build output (gitignored).
 - `dist/` — Build output (gitignored).
@@ -177,8 +176,14 @@ Anything else at root is root clutter and must be moved to the correct subdirect
 │   │   ├── analyze-report.sh                # Report analysis script
 │   │   ├── config.json                      # Pipeline configuration (reports dir, iterations, etc.)
 │   │   └── iteration-claude.md              # Per-iteration task instructions for AI agent
-│   └── maintenance/
-│       └── check-repo-structure.sh          # Validates repo structure against this spec
+│   ├── hooks/                               # Claude Code hook scripts
+│   │   ├── track-skill-usage.sh             # PostToolUse hook — tracks skill invocation dates
+│   │   └── audit-skills.sh                  # Stop hook — reports stale/unused skills
+│   ├── maintenance/
+│   │   └── check-repo-structure.sh          # Validates repo structure against this spec
+│   └── setup/                               # Project initialization and upstream sync
+│       ├── init-project.sh                  # Initializes a new project from LaunchPad template
+│       └── pull-upstream.launchpad.sh       # Pulls upstream LaunchPad updates into project
 │
 ├── docs/                                    # Centralized documentation hub (see Section 5)
 │   ├── README.md                            # Index of the docs directory
@@ -235,6 +240,7 @@ Anything else at root is root clutter and must be moved to the correct subdirect
     │       └── evals/                       # Evaluation scenarios (≥3 per skill)
     ├── profiles/                            # Cognitive profiles (shared review infrastructure)
     │   └── PROFILE-TEMPLATE.md              # Template for building profiles
+    ├── settings.json                        # Project-level hook configuration (committed)
     └── settings.local.json                  # Local Claude Code settings (gitignored)
 ```
 
@@ -258,22 +264,23 @@ All packages use the `@repo/` scope. These are the canonical package names — u
 
 Every subdirectory in `docs/` has a specific purpose. Do not use `docs/` as a catch-all.
 
-| Directory            | Purpose                                                                                    | Examples                                                                               |
-| -------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| `docs/architecture/` | System design, ADRs, this document, tech stack, design system, frontend/backend guidelines | `REPOSITORY_STRUCTURE.md`, `TECH_STACK.md`, `DESIGN_SYSTEM.md`, `BACKEND_STRUCTURE.md` |
-| `docs/archive/`      | Retired documentation retained for historical reference; treat as read-only                | Superseded design docs, old runbooks                                                   |
-| `docs/articles/`     | Long-form reference articles, research summaries, and annotated external docs              | Research summaries, annotated external docs                                            |
-| `docs/consultants/`  | Deliverables, briefs, or reports from external consultants                                 | Audit reports, external review docs                                                    |
-| `docs/eval/`         | Evaluation results for front-end and back-end features; structured test output             | Performance benchmarks, UX eval notes                                                  |
-| `docs/experiments/`  | Exploratory notes and write-ups for experiments not yet promoted to code                   | Hypothesis docs, spike summaries                                                       |
-| `docs/guides/`       | How-to guides and tutorials                                                                | Usage guides, onboarding walkthroughs                                                  |
-| `docs/lessons/`      | Running log of lessons learned — populated by both humans and agents                       | `LESSONS.md` (append-only log)                                                         |
-| `docs/solutions/`    | Categorized learnings from compound loops, accumulated by agents                           | YAML-frontmatter `.md` files per pattern                                               |
-| `docs/brainstorms/`  | Brainstorming documents for compound-engineering                                           | Free-form brainstorm docs                                                              |
-| `docs/plans/`        | Implementation plans, phased roadmaps, and step-by-step build sequences                    | `IMPLEMENTATION_PLAN.md`                                                               |
-| `docs/reports/`      | Investigation reports, audits, postmortems, and one-off analyses                           | `investigation_YYYYMMDD_<topic>.md`                                                    |
-| `docs/tasks/`        | Active work tracking: current TODO list and section specs                                  | `TODO.md`, `sections/`                                                                 |
-| `docs/ui/`           | UI/UX design documentation, design system notes, style guides                              | `ux/design_styles.md`                                                                  |
+| Directory              | Purpose                                                                                    | Examples                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `docs/architecture/`   | System design, ADRs, this document, tech stack, design system, frontend/backend guidelines | `REPOSITORY_STRUCTURE.md`, `TECH_STACK.md`, `DESIGN_SYSTEM.md`, `BACKEND_STRUCTURE.md` |
+| `docs/archive/`        | Retired documentation retained for historical reference; treat as read-only                | Superseded design docs, old runbooks                                                   |
+| `docs/articles/`       | Long-form reference articles, research summaries, and annotated external docs              | Research summaries, annotated external docs                                            |
+| `docs/consultants/`    | Deliverables, briefs, or reports from external consultants                                 | Audit reports, external review docs                                                    |
+| `docs/eval/`           | Evaluation results for front-end and back-end features; structured test output             | Performance benchmarks, UX eval notes                                                  |
+| `docs/experiments/`    | Exploratory notes and write-ups for experiments not yet promoted to code                   | Hypothesis docs, spike summaries                                                       |
+| `docs/guides/`         | How-to guides and tutorials                                                                | Usage guides, onboarding walkthroughs                                                  |
+| `docs/lessons/`        | Running log of lessons learned — populated by both humans and agents                       | `LESSONS.md` (append-only log)                                                         |
+| `docs/solutions/`      | Categorized learnings from compound loops, accumulated by agents                           | YAML-frontmatter `.md` files per pattern                                               |
+| `docs/brainstorms/`    | Brainstorming documents for compound-engineering                                           | Free-form brainstorm docs                                                              |
+| `docs/plans/`          | Implementation plans, phased roadmaps, and step-by-step build sequences                    | `IMPLEMENTATION_PLAN.md`                                                               |
+| `docs/reports/`        | Investigation reports, audits, postmortems, and one-off analyses                           | `investigation_YYYYMMDD_<topic>.md`                                                    |
+| `docs/tasks/`          | Active work tracking: current TODO list and section specs                                  | `TODO.md`, `sections/`                                                                 |
+| `docs/ui/`             | UI/UX design documentation, design system notes, style guides                              | `ux/design_styles.md`                                                                  |
+| `docs/skills-catalog/` | Curated catalog of reusable Claude Code skills, usage tracking, and skills index           | `CATALOG.md`, `README.md`, `skills-index.md`, `skills-usage.json`                      |
 
 **Naming convention for time-stamped reports:**
 
@@ -333,7 +340,10 @@ Docker is not used in this stack. Do not add `Dockerfile`, `docker-compose.yml`,
 The `tooling/` directory pattern is explicitly rejected. All repo-wide scripts live directly in `scripts/` with clear subdirectory naming:
 
 - `scripts/agent_hydration/` — AI agent context scripts.
+- `scripts/compound/` — Compound Product pipeline scripts (auto-compound, loop, analysis, config).
+- `scripts/hooks/` — Claude Code hook scripts (PostToolUse, Stop).
 - `scripts/maintenance/` — Structure checks, lint helpers, repo hygiene.
+- `scripts/setup/` — Project initialization and upstream sync scripts.
 
 App-specific scripts belong inside the app: `apps/web/scripts/` or `apps/api/scripts/` (create as needed; they do not exist in the base harness).
 
@@ -362,6 +372,9 @@ When adding **any** new file, walk through this decision tree in order. Stop at 
 - Article or long-form research → `docs/articles/`
 - External consultant deliverable → `docs/consultants/`
 - Evaluation result → `docs/eval/front_end/` or `docs/eval/back_end/`
+- Skill catalog entry or recommendation → `docs/skills-catalog/CATALOG.md`
+- Skill usage tracking data → `docs/skills-catalog/skills-usage.json`
+- Skill index (user-facing skill reference) → `docs/skills-catalog/skills-index.md`
 - Old/retired doc → `docs/archive/`
 - Preserved reference guide (e.g., original README kept after `init-project.sh`) → `.launchpad/`
 - **Never add documentation files at root** beyond the canonical singleton list in Section 2.1.
@@ -370,6 +383,7 @@ When adding **any** new file, walk through this decision tree in order. Stop at 
 
 - Repo-wide maintenance or structure check → `scripts/maintenance/`
 - AI agent hydration or context script → `scripts/agent_hydration/`
+- Claude Code hook script (PostToolUse, Stop, etc.) → `scripts/hooks/`
 - Frontend-specific script → `apps/web/scripts/` (create the directory if it doesn't exist)
 - Backend-specific script → `apps/api/scripts/` (create the directory if it doesn't exist)
 - **Never put scripts at the repo root.**

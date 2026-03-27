@@ -61,6 +61,41 @@ TOOL=$(jq -r '.tool // "claude"' "$CONFIG_FILE")
 # Validate AI tool CLI
 command -v "$TOOL" >/dev/null 2>&1 || error "$TOOL CLI not found. Install it or change tool in config.json"
 
+# Load enhancement defaults from config
+AMBITION_MODE=$(jq -r '.ambitionMode // false' "$CONFIG_FILE")
+EVALUATOR_ENABLED=$(jq -r '.evaluator.enabled // false' "$CONFIG_FILE")
+SPRINT_CONTRACT=$(jq -r '.evaluator.sprintContract // false' "$CONFIG_FILE")
+
+# Step 0: Interactive enhancement selection (only when stdin is a terminal)
+if [ -t 0 ]; then
+  echo ""
+  echo "This feature will be implemented autonomously."
+  echo ""
+  echo "Default: Build exactly what the spec describes, static quality gates only."
+  echo ""
+  echo "Optional enhancements (comma-separated, or press Enter for default):"
+  echo ""
+  echo "  [A] Ambition mode — expand scope beyond the spec, suggest AI features, add polish"
+  echo "      +5-10 tasks · +30-60 min · +\$15-30 estimated"
+  echo ""
+  echo "  [B] Sprint contract — generator and evaluator agree on \"done\" criteria before building"
+  echo "      +3 negotiation rounds max · +5-10 min · +\$5-10 estimated"
+  echo ""
+  echo "  [C] Live evaluator — test the running app via Playwright after build, grade against criteria"
+  echo "      +3 evaluation cycles max · +20-40 min · +\$30-55 estimated"
+  echo "      Requires: Playwright MCP available"
+  echo ""
+  read -rp "Choose [A,B,C / Enter for default]: " ENHANCEMENTS
+
+  # Parse user selection (case-insensitive)
+  ENHANCEMENTS=$(echo "$ENHANCEMENTS" | tr '[:lower:]' '[:upper:]' | tr -d ' ')
+  if [[ "$ENHANCEMENTS" == *"A"* ]]; then AMBITION_MODE="true"; fi
+  if [[ "$ENHANCEMENTS" == *"B"* ]]; then SPRINT_CONTRACT="true"; EVALUATOR_ENABLED="true"; fi
+  if [[ "$ENHANCEMENTS" == *"C"* ]]; then EVALUATOR_ENABLED="true"; fi
+
+  log "Enhancements: ambition=$AMBITION_MODE, contract=$SPRINT_CONTRACT, evaluator=$EVALUATOR_ENABLED"
+fi
+
 # ai_run: pipes a prompt into the configured AI tool (non-interactive, full permissions)
 # Usage: echo "prompt" | ai_run 2>&1 | tee logfile
 ai_run() {
@@ -80,10 +115,14 @@ ai_run() {
   esac
 }
 
+# Export ai_run so evaluate.sh can use it
+export -f ai_run
+export TOOL
+
 # Resolve paths
 REPORTS_DIR="$PROJECT_ROOT/$REPORTS_DIR"
 OUTPUT_DIR="$PROJECT_ROOT/$OUTPUT_DIR"
-TASKS_DIR="$PROJECT_ROOT/tasks"
+TASKS_DIR="$PROJECT_ROOT/docs/tasks"
 
 cd "$PROJECT_ROOT"
 
@@ -177,7 +216,11 @@ fi
 
 if [ "$DRY_RUN" = true ]; then
   log "DRY RUN - Would proceed with:"
-  echo "$ANALYSIS_JSON" | jq .
+  if [ -n "$SECTION_SPEC" ]; then
+    echo "{\"mode\":\"section-spec\",\"section_spec\":\"$SECTION_SPEC\",\"priority_item\":\"$PRIORITY_ITEM\",\"branch_name\":\"$BRANCH_NAME\",\"description\":\"$DESCRIPTION\",\"rationale\":\"$RATIONALE\"}" | jq .
+  else
+    echo "$ANALYSIS_JSON" | jq .
+  fi
   exit 0
 fi
 
@@ -237,7 +280,18 @@ IMPORTANT CONSTRAINTS:
 - DO NOT ask clarifying questions - you have enough context to proceed
 - Generate the PRD immediately without waiting for user input
 
-Save the PRD to: tasks/$PRD_FILENAME"
+Save the PRD to: docs/tasks/$PRD_FILENAME"
+
+if [ "$AMBITION_MODE" = "true" ]; then
+  PRD_PROMPT="$PRD_PROMPT
+
+AMBITION MODE ENABLED:
+- Be ambitious about scope. Push beyond the minimum viable implementation.
+- Suggest AI-powered features where they add genuine value.
+- Include micro-interactions, loading states, empty states, error states.
+- Think about what would make a user say 'this is well-built.'
+- Still keep it completable within the iteration budget."
+fi
 
 echo "$PRD_PROMPT" | ai_run 2>&1 | tee "$OUTPUT_DIR/auto-compound-prd.log"
 
@@ -290,6 +344,44 @@ jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.startedAt = $ts' "$OUTPUT_DIR/prd
 # Render initial board
 "$SCRIPT_DIR/board.sh" --md "$OUTPUT_DIR/prd.json" "$PROJECT_ROOT/docs/tasks/board.md" || true
 
+# Step 5.5: Sprint Contract Negotiation (opt-in)
+if [ "$SPRINT_CONTRACT" = "true" ]; then
+  log "Step 5.5: Negotiating sprint contract..."
+  MAX_CONTRACT_ROUNDS=3
+  CONTRACT_FILE="$OUTPUT_DIR/sprint-contract.json"
+
+  # Generator proposes contract
+  echo "$(cat "$SCRIPT_DIR/contract-prompt.md")
+
+Read $OUTPUT_DIR/prd.json for task context.
+Read $SCRIPT_DIR/grading-criteria.md for the four grading dimensions.
+Write a sprint contract to $CONTRACT_FILE." | ai_run 2>&1 | tee "$OUTPUT_DIR/auto-compound-contract.log"
+
+  for round in $(seq 1 $MAX_CONTRACT_ROUNDS); do
+    # Evaluator challenges contract
+    echo "You are an evaluator reviewing a sprint contract. Read $CONTRACT_FILE and $SCRIPT_DIR/grading-criteria.md.
+Challenge any vague criteria, missing verification steps, or untestable claims.
+Write your response back to $CONTRACT_FILE with approved: true if acceptable, or approved: false with challenges array." | ai_run 2>&1 | tee -a "$OUTPUT_DIR/auto-compound-contract.log"
+
+    APPROVED=$(jq -r '.approved // false' "$CONTRACT_FILE" 2>/dev/null || echo "false")
+    if [ "$APPROVED" = "true" ]; then
+      log "Sprint contract approved after $round round(s)"
+      break
+    fi
+
+    if [ "$round" -lt "$MAX_CONTRACT_ROUNDS" ]; then
+      # Generator revises contract based on evaluator challenges
+      log "Contract challenged (round $round). Running generator revision..."
+      echo "You are a generator revising a sprint contract after evaluator feedback. Read $CONTRACT_FILE — the evaluator set approved: false and listed challenges.
+Address each challenge: make criteria more specific, add missing verification steps, clarify testable outcomes.
+Write the revised contract back to $CONTRACT_FILE with approved: false (the evaluator will re-review)." | ai_run 2>&1 | tee -a "$OUTPUT_DIR/auto-compound-contract.log"
+    else
+      log "Sprint contract: max rounds reached, proceeding with latest version"
+    fi
+  done
+  echo "[CHECKPOINT] Sprint contract negotiated (pipeline continues...)"
+fi
+
 # Commit the PRD and prd.json
 # prd.json is gitignored (transient artifact) but committed on feature branches for task tracking
 git add "$PRD_PATH"
@@ -300,6 +392,13 @@ git commit -m "chore: add PRD and tasks for $PRIORITY_ITEM" || true
 log "Step 6: Running execution loop (max $MAX_ITERATIONS iterations)..."
 "$SCRIPT_DIR/loop.sh" "$MAX_ITERATIONS" 2>&1 | tee "$OUTPUT_DIR/auto-compound-execution.log"
 echo "[CHECKPOINT] Execution loop complete. Starting quality sweep..."
+
+# Step 6.5: Evaluator Loop (opt-in)
+if [ "$EVALUATOR_ENABLED" = "true" ]; then
+  log "Step 6.5: Running evaluator loop..."
+  PRD_PATH="$PRD_PATH" "$SCRIPT_DIR/evaluate.sh" 2>&1 | tee "$OUTPUT_DIR/auto-compound-evaluator.log"
+  echo "[CHECKPOINT] Evaluator loop complete (pipeline continues...)"
+fi
 
 # Step 7a: Final Quality Sweep
 log "Step 7a: Running final quality sweep (lefthook pre-commit)..."
