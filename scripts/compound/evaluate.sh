@@ -41,11 +41,13 @@ for port in 3000 3001; do
   fi
 done
 
-# Start dev server
+# Start dev server in its own process group so cleanup kills all children
 cd "$PROJECT_ROOT"
+set -m  # enable job control for process groups
 pnpm dev &
 DEV_PID=$!
-trap "kill $DEV_PID 2>/dev/null || true" EXIT
+set +m
+trap "kill -- -$DEV_PID 2>/dev/null || kill $DEV_PID 2>/dev/null || true" EXIT
 
 # Wait for readiness (both web :3000 and API :3001)
 WEB_READY=false
@@ -121,6 +123,6 @@ $CONTRACT_CONTEXT"
   fi
 done
 
-# Cleanup
-kill $DEV_PID 2>/dev/null || true
+# Cleanup (trap handles this, but be explicit)
+kill -- -$DEV_PID 2>/dev/null || kill $DEV_PID 2>/dev/null || true
 exit 0

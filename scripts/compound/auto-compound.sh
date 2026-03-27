@@ -361,14 +361,23 @@ Write a sprint contract to $CONTRACT_FILE." | ai_run 2>&1 | tee "$OUTPUT_DIR/aut
     # Evaluator challenges contract
     echo "You are an evaluator reviewing a sprint contract. Read $CONTRACT_FILE and $SCRIPT_DIR/grading-criteria.md.
 Challenge any vague criteria, missing verification steps, or untestable claims.
-Write your response back to $CONTRACT_FILE with approved: true if acceptable, or approved: false with challenges." | ai_run 2>&1 | tee -a "$OUTPUT_DIR/auto-compound-contract.log"
+Write your response back to $CONTRACT_FILE with approved: true if acceptable, or approved: false with challenges array." | ai_run 2>&1 | tee -a "$OUTPUT_DIR/auto-compound-contract.log"
 
     APPROVED=$(jq -r '.approved // false' "$CONTRACT_FILE" 2>/dev/null || echo "false")
     if [ "$APPROVED" = "true" ]; then
       log "Sprint contract approved after $round round(s)"
       break
     fi
-    [ "$round" -eq "$MAX_CONTRACT_ROUNDS" ] && log "Sprint contract: max rounds reached, proceeding with latest version"
+
+    if [ "$round" -lt "$MAX_CONTRACT_ROUNDS" ]; then
+      # Generator revises contract based on evaluator challenges
+      log "Contract challenged (round $round). Running generator revision..."
+      echo "You are a generator revising a sprint contract after evaluator feedback. Read $CONTRACT_FILE — the evaluator set approved: false and listed challenges.
+Address each challenge: make criteria more specific, add missing verification steps, clarify testable outcomes.
+Write the revised contract back to $CONTRACT_FILE with approved: false (the evaluator will re-review)." | ai_run 2>&1 | tee -a "$OUTPUT_DIR/auto-compound-contract.log"
+    else
+      log "Sprint contract: max rounds reached, proceeding with latest version"
+    fi
   done
   echo "[CHECKPOINT] Sprint contract negotiated (pipeline continues...)"
 fi
