@@ -37,9 +37,9 @@ The script outputs a `CONFLICTS:` line listing the conflicting files and `OLD_SH
 For each conflicting file, read three versions to understand the conflict:
 
 ```bash
-git show $OLD_SHA:$file   # what upstream looked like when this project last synced
-git show $NEW_SHA:$file   # what upstream looks like now
-cat $file                  # what this project has (with downstream customizations)
+git show "$OLD_SHA:$file"   # what upstream looked like when this project last synced
+git show "$NEW_SHA:$file"   # what upstream looks like now
+cat "$file"                  # what this project has (with downstream customizations)
 ```
 
 For each conflict, explain to the user:
@@ -53,7 +53,7 @@ For each conflict, explain to the user:
 For conflicts the user wants to apply:
 
 ```bash
-git diff $OLD_SHA $NEW_SHA -- $file | git apply -3
+git diff "$OLD_SHA" "$NEW_SHA" -- "$file" | git apply -3
 ```
 
 This creates conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) where the patches overlap. Tell the user to resolve the markers, then review with `git diff --cached` and commit.
