@@ -85,7 +85,7 @@ jobs:
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: .github/codex-review-prompt.md
-          sandbox: workspace-write
+          sandbox: read-only
           safety-strategy: drop-sudo
 
       - name: Post Review Comment

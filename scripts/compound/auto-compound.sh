@@ -363,7 +363,7 @@ Write a sprint contract to $CONTRACT_FILE." | ai_run 2>&1 | tee "$OUTPUT_DIR/aut
 Challenge any vague criteria, missing verification steps, or untestable claims.
 Write your response back to $CONTRACT_FILE with approved: true if acceptable, or approved: false with challenges." | ai_run 2>&1 | tee -a "$OUTPUT_DIR/auto-compound-contract.log"
 
-    APPROVED=$(jq -r '.approved // false' "$CONTRACT_FILE" 2>/dev/null)
+    APPROVED=$(jq -r '.approved // false' "$CONTRACT_FILE" 2>/dev/null || echo "false")
     if [ "$APPROVED" = "true" ]; then
       log "Sprint contract approved after $round round(s)"
       break
@@ -387,7 +387,7 @@ echo "[CHECKPOINT] Execution loop complete. Starting quality sweep..."
 # Step 6.5: Evaluator Loop (opt-in)
 if [ "$EVALUATOR_ENABLED" = "true" ]; then
   log "Step 6.5: Running evaluator loop..."
-  "$SCRIPT_DIR/evaluate.sh" 2>&1 | tee "$OUTPUT_DIR/auto-compound-evaluator.log"
+  PRD_PATH="$PRD_PATH" "$SCRIPT_DIR/evaluate.sh" 2>&1 | tee "$OUTPUT_DIR/auto-compound-evaluator.log"
   echo "[CHECKPOINT] Evaluator loop complete (pipeline continues...)"
 fi
 

@@ -10,6 +10,12 @@ MAX_CYCLES=$(jq -r '.evaluator.maxCycles // 3' "$CONFIG_FILE")
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [EVALUATOR] $1"; }
 
+# Require ai_run (exported by auto-compound.sh)
+if ! declare -f ai_run >/dev/null 2>&1; then
+  log "Error: ai_run function not available. evaluate.sh must be called from auto-compound.sh."
+  exit 1
+fi
+
 # Check Playwright availability
 if ! command -v npx >/dev/null 2>&1 || ! npx playwright --version >/dev/null 2>&1; then
   log "Skipped: Playwright not available. Install with: npx playwright install"
@@ -30,17 +36,21 @@ pnpm dev &
 DEV_PID=$!
 trap "kill $DEV_PID 2>/dev/null || true" EXIT
 
-# Wait for readiness
+# Wait for readiness (both web :3000 and API :3001)
+WEB_READY=false
+API_READY=false
 for i in $(seq 1 30); do
-  if curl -s http://localhost:3000 >/dev/null 2>&1; then break; fi
+  if [ "$WEB_READY" = "false" ] && curl -s http://localhost:3000 >/dev/null 2>&1; then WEB_READY=true; fi
+  if [ "$API_READY" = "false" ] && curl -s http://localhost:3001/health >/dev/null 2>&1; then API_READY=true; fi
+  if [ "$WEB_READY" = "true" ] && [ "$API_READY" = "true" ]; then break; fi
   if [ "$i" -eq 30 ]; then
-    log "Skipped: dev server did not start within 30s"
+    log "Skipped: servers did not start within 30s (web=$WEB_READY, api=$API_READY)"
     exit 0
   fi
   sleep 1
 done
 
-log "Dev server ready."
+log "Dev servers ready (web + API)."
 
 # Read sprint contract if it exists
 CONTRACT_CONTEXT=""
@@ -59,7 +69,7 @@ for cycle in $(seq 1 $MAX_CYCLES); do
 Read the grading criteria: $SCRIPT_DIR/grading-criteria.md
 Web URL: http://localhost:3000
 API URL: http://localhost:3001
-PRD file: $(ls "$PROJECT_ROOT"/docs/tasks/prd-*.md 2>/dev/null | head -1)
+PRD file: ${PRD_PATH:-$(ls "$PROJECT_ROOT"/docs/tasks/prd-*.md 2>/dev/null | head -1)}
 Task file: $OUTPUT_DIR/prd.json
 Report output: $OUTPUT_DIR/evaluator-report.json
 $CONTRACT_CONTEXT"
@@ -75,7 +85,7 @@ $CONTRACT_CONTEXT"
   # Check if all 4 dimensions passed
   ALL_PASS=true
   for dim in design originality craft functionality; do
-    RESULT=$(jq -r ".$dim.result" "$OUTPUT_DIR/evaluator-report.json" 2>/dev/null)
+    RESULT=$(jq -r ".$dim.result" "$OUTPUT_DIR/evaluator-report.json" 2>/dev/null || echo "fail")
     if [ "$RESULT" != "pass" ]; then ALL_PASS=false; fi
   done
 
