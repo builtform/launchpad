@@ -90,7 +90,17 @@ Load `.claude/skills/creating-skills/SKILL.md` and execute ONLY the phases from 
 
 ### CLAUDE.md / AGENTS.md
 - [Updated / No changes needed]
+
+### Skills Catalog
+- [Updated / No changes needed]
 ```
+
+### Update Skills Catalog
+
+The skill must already exist in the catalog (added during `/create-skill` or `/port-skill`). Do NOT add new entries here — only update existing ones.
+
+- Update the skill's date in `docs/skills-catalog/skills-usage.json` to today's date
+- If description, outputs, or triggers changed, update the skill's existing row in `docs/skills-catalog/skills-index.md`
 
 Ask: **"Commit these changes, or adjust something first?"**
 
@@ -104,6 +114,8 @@ Confirm every item before delivering:
 - [ ] No hedge language introduced
 - [ ] Evaluation PASS with no regressions
 - [ ] CLAUDE.md/AGENTS.md entries accurate
+- [ ] `docs/skills-catalog/skills-usage.json` date updated
+- [ ] `docs/skills-catalog/skills-index.md` entry updated (if description/outputs/triggers changed)
 - [ ] Eval scenarios cover new behavior
 - [ ] Output still differs structurally from baseline Claude
 

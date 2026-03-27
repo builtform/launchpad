@@ -1,5 +1,5 @@
 ---
-description: "Interactively define your design system, app flow, and frontend guidelines"
+description: "Interactively define your design system, app flow, and frontend guidelines with Jobs/Ive quality bar"
 ---
 
 # Define Design
@@ -11,6 +11,31 @@ You are guiding the user through defining their design system, app flow, and fro
 - `docs/architecture/FRONTEND_GUIDELINES.md`
 
 Every question uses the **guided format**: context explaining WHY the question matters, a dynamically generated options table with "Best When" guidance and examples, a context-aware recommendation based on prior answers, and a TBD escape hatch.
+
+---
+
+## Design Quality Bar (Jobs/Ive Lens)
+
+Throughout this entire definition process, apply the following design philosophy as a quality filter on every answer, recommendation, and generated output. These are not optional aesthetics — they are architectural constraints.
+
+### Core Principles
+
+1. **Simplicity is architecture** — Every element must justify its existence. If it doesn't serve the user's immediate goal, it's clutter. The best interface is the one the user never notices.
+2. **Hierarchy drives everything** — Every screen has one primary action. Make it unmissable. Secondary actions support, they never compete. If everything is bold, nothing is bold.
+3. **Whitespace is a feature** — Space is not empty. It is structure. Crowded interfaces feel cheap. Breathing room feels premium.
+4. **Alignment is precision** — Every element sits on a grid. No exceptions. If something is off by 1-2 pixels, it's wrong.
+5. **Consistency is non-negotiable** — The same component must look and behave identically everywhere. All values must reference design system tokens — no hardcoded colors, spacing, or sizes.
+6. **Design the feeling** — Premium apps feel calm, confident, and quiet. Every interaction should feel responsive and intentional.
+
+### The Density Principle
+
+> "Remove until it breaks, then add back the last thing."
+
+When defining components, tokens, or layouts during this Q&A, apply this filter: if an element, color role, spacing value, or component variant can be removed without losing meaning, it should not exist in the system.
+
+### Responsive-First Thinking
+
+Mobile is the starting point. Tablet and desktop are enhancements. Every design decision made during this definition must be considered at mobile viewport first, then scaled up. If a design token, component, or layout pattern doesn't work on a phone screen, it needs rethinking — not just resizing.
 
 ---
 
@@ -51,8 +76,8 @@ I have loaded your project context:
 - Sections: [list from registry]
 - Frontend: [framework + styling if known]
 
-I'll walk you through 18 questions to define your design across three files:
-- Design System (8 questions): philosophy, colors, typography, spacing, components, dark mode, icons, animation
+I'll walk you through 19 questions to define your design across three files:
+- Design System (9 questions): brand identity, philosophy, colors, typography, spacing, components, dark mode, icons, animation
 - App Flow (6 questions): auth, user journey, pages/routes, navigation, errors, accessibility
 - Frontend Guidelines (3 questions): component architecture, state management, responsive strategy
 — plus an open-ended catch-all at the end for anything we missed.
@@ -78,7 +103,7 @@ File status:
 
 ---
 
-## Step 4: Gather Design System Information (DS-1 through DS-8)
+## Step 4: Gather Design System Information (DS-0 through DS-8)
 
 Ask these questions **one at a time**. Wait for the user's answer before asking the next question. Accept "TBD" for any question.
 
@@ -92,16 +117,88 @@ Ask these questions **one at a time**. Wait for the user's answer before asking 
 
 The options tables below are starting points. Adapt them based on prior answers and project context.
 
+**IMPORTANT — Design References:** For any visual question (DS-0 through DS-8), the user may provide a **product name** or **URL** instead of (or alongside) a direct answer. Handle each case:
+
+- **Product name** (e.g., "I like Linear's typography" or "Stripe's color palette"): Use your existing knowledge of that product's design language. Propose specific values (hex codes, font names, spacing values) based on what you know, and confirm with the user.
+- **URL** (e.g., "https://example.com — I like their color scheme"): Use WebFetch to crawl the page. Extract CSS custom properties (`--color-*`, `--font-*`), `font-family` declarations, hex/rgb color values from stylesheets, and `<meta name="theme-color">` tags. Propose extracted values to the user for confirmation. If extraction is partial, say what was found and ask the user to fill gaps.
+- **Multiple references** (e.g., "Linear for typography, Stripe for colors"): Extract from each reference independently and compose the answers. Note the sources in the design system doc for future reference.
+
+Add this note to every visual question (DS-0 through DS-8):
+
+```
+You can also name a product you admire (e.g., "Like Linear") or paste a URL and
+I'll extract the relevant design values from it.
+```
+
+---
+
+### DS-0: Brand Identity
+
+WHY: Brand identity anchors every visual and verbal decision that follows. Without it, color choices are arbitrary, font choices are aesthetic preferences, and UI copy sounds like it was written by five different people. Defining brand personality, voice, and tone BEFORE visual tokens ensures that colors, fonts, spacing, and copy all express a coherent identity.
+
+```
+Let's define your brand identity before we make any visual decisions.
+This anchors everything that follows — colors, fonts, and UI copy will all flow from these answers.
+```
+
+**Part A — Brand Personality**
+
+Pick 1 primary + 1 secondary personality dimension:
+
+| Dimension      | Traits                                     | Brands That Express This      |
+| -------------- | ------------------------------------------ | ----------------------------- |
+| Sincerity      | Honest, wholesome, cheerful, grounded      | Mailchimp, Basecamp, Notion   |
+| Excitement     | Daring, spirited, imaginative, current     | Figma, Arc, Vercel            |
+| Competence     | Reliable, intelligent, successful, precise | Linear, Stripe, GitHub        |
+| Sophistication | Upper-class, charming, elegant, refined    | Apple, Squarespace, Aesop     |
+| Ruggedness     | Outdoorsy, tough, bold, no-nonsense        | Patagonia, Carhartt, Basecamp |
+
+**Recommended:** Generate based on V-3 (target users) from PRD. Developer tools → Competence. Consumer apps → Sincerity or Excitement. B2B SaaS → Competence or Sophistication. AEC/construction → Competence + Ruggedness.
+
+**Part B — Tone Fingerprint**
+
+Place your brand on each spectrum (1-5 scale, or just pick a side):
+
+| Spectrum  | 1 (Left)     | 5 (Right)      |
+| --------- | ------------ | -------------- |
+| Humor     | Funny        | Serious        |
+| Formality | Casual       | Formal         |
+| Attitude  | Irreverent   | Respectful     |
+| Energy    | Enthusiastic | Matter-of-fact |
+
+**Recommended:** Generate based on Part A. Competence → Serious, Formal, Respectful, Matter-of-fact. Sincerity → Funny-leaning, Casual, Respectful, Enthusiastic. Excitement → Funny-leaning, Casual, Irreverent, Enthusiastic.
+
+**Part C — Voice Attributes**
+
+Pick 3-4 adjectives that describe how your brand speaks. For each, generate a "Write this / Not that" example pair:
+
+```
+Example voice attributes with This/Not That:
+
+| Attribute | Write This | Not That |
+|-----------|-----------|----------|
+| Plainspoken | "Your project was created." | "Your project has been successfully instantiated." |
+| Confident | "Here's what to do next." | "You might want to consider possibly trying..." |
+| Warm | "Welcome back, let's pick up where you left off." | "Session restored." |
+| Precise | "3 tasks remaining, 2 due today." | "You have some tasks to do!" |
+```
+
+Ask the user to pick 3-4 attributes or provide their own. Generate the This/Not That pairs for their choices.
+
+**Key rule from research:** In high-stakes moments (payment failure, data loss, security alerts), clarity always trumps personality. Dial personality to zero when the user is stressed.
+
 ---
 
 ### DS-1: Design Philosophy
 
-WHY: Your design philosophy sets the tone for every visual decision. It's the difference between an app that feels like Apple and one that feels like Craigslist — both valid, but intentionally chosen.
+WHY: Your design philosophy sets the tone for every visual decision. It's the difference between an app that feels like Apple and one that feels like Craigslist — both valid, but intentionally chosen. Regardless of which aesthetic you pick, the Jobs/Ive quality bar applies: simplicity, hierarchy, whitespace, alignment, consistency, and calm confidence are non-negotiable qualities layered on top of any aesthetic direction.
 
 ```
 What is your overall design philosophy?
 
 Pick the aesthetic direction that best fits your product and users.
+Every option below will be held to the same quality standard: simplicity as architecture,
+hierarchy that guides the eye, and whitespace that breathes.
 ```
 
 | Option                  | Best When                                | Example                    |
@@ -114,6 +211,18 @@ Pick the aesthetic direction that best fits your product and users.
 | Neobrutalist            | Indie tools, creative brands, portfolios | Gumroad, early Notion      |
 
 **Recommended:** Generate based on V-3 (target users) from PRD. Developer tools → Minimal. Consumer apps → Playful. B2B SaaS → Enterprise or Minimal.
+
+**Quality lens follow-up:** After the user picks a philosophy, confirm how the Jobs/Ive principles map to their choice:
+
+```
+Your choice: [philosophy]
+
+Here's how the premium quality bar applies to [philosophy]:
+- Hierarchy: [how hierarchy manifests in this style]
+- Whitespace: [how breathing room works in this style]
+- Density: [what "remove until it breaks" means for this style]
+- Feeling: [what calm/confident/quiet looks like in this style]
+```
 
 Reference `docs/ui/ux/design_styles.md` for detailed descriptions of styles like glassmorphism, neobrutalism, neumorphism, bento grid, and kinetic typography if the user wants to explore specific aesthetics.
 
@@ -150,6 +259,20 @@ Ask for these specific color roles:
 
 **Recommended:** Generate based on DS-1 philosophy. Minimal → muted neutrals + single accent. Bold → vibrant primary + contrasting accent. Data-dense → high-contrast neutrals.
 
+**Quality lens:** Apply color restraint — color should guide attention, not scatter it. Ask: "Is each color role earning its place? Could two roles be merged without losing meaning?" Fewer colors used with purpose always beats a large palette used inconsistently. Ensure contrast ratios meet WCAG AA minimum (4.5:1 for text, 3:1 for large text/UI elements).
+
+**Brand lens:** Reference DS-0 brand personality to guide palette direction:
+
+| Personality    | Color Direction                                       | Why                                           |
+| -------------- | ----------------------------------------------------- | --------------------------------------------- |
+| Sincerity      | Warm tones, earth tones, soft blues                   | Conveys trust, approachability, honesty       |
+| Excitement     | Vibrant primaries, bold contrasts, saturated accents  | Conveys energy, daring, imagination           |
+| Competence     | Blues, cool neutrals, precise accents                 | Conveys reliability, intelligence, precision  |
+| Sophistication | Deep purples, blacks, muted golds, restrained palette | Conveys elegance, refinement, premium quality |
+| Ruggedness     | Earth tones, deep greens, warm grays, high contrast   | Conveys strength, durability, no-nonsense     |
+
+Ask: "Does this palette express your [primary personality] brand? A user should feel [personality traits] when they see these colors."
+
 ---
 
 ### DS-3: Typography
@@ -178,6 +301,20 @@ Also ask:
 
 **Recommended:** Generate based on DS-1 and target users. Developer tools → Geist or Inter + JetBrains Mono. Consumer → Plus Jakarta Sans. Enterprise → Inter or system fonts.
 
+**Quality lens:** Typography establishes hierarchy before the user reads a single word. Apply the density principle: how many distinct type sizes are truly needed? Most premium apps use 5-7 sizes total. If there are more than 3 font weights in regular use, the hierarchy is competing with itself. Type should feel calm, not chaotic — too many sizes or weights fighting for attention is a design failure.
+
+**Brand lens:** Reference DS-0 brand personality to guide font category:
+
+| Personality    | Font Category                                          | Why                                  |
+| -------------- | ------------------------------------------------------ | ------------------------------------ |
+| Sincerity      | Humanist sans-serif (Plus Jakarta Sans, Source Sans)   | Warm, approachable, natural curves   |
+| Excitement     | Geometric sans-serif (Space Grotesk, Clash Display)    | Modern, precise, forward-looking     |
+| Competence     | Geometric or neo-grotesque (Inter, Geist, DM Sans)     | Clean, reliable, technical precision |
+| Sophistication | Serif or refined sans-serif (Playfair Display, Outfit) | Established, elegant, authoritative  |
+| Ruggedness     | Slab serif or bold sans-serif (Roboto Slab, Work Sans) | Grounded, confident, no-frills       |
+
+Ask: "Does this font feel like your brand speaking? If your brand were a person using [primary personality] voice, would they write in this typeface?"
+
 ---
 
 ### DS-4: Spacing & Layout
@@ -202,6 +339,8 @@ Also ask:
 
 **Recommended:** Generate based on DS-1. Minimal → 4px base, 1280px max. Data-dense → 4px base, full-width. Enterprise → 8px base, 1440px max.
 
+**Quality lens:** Whitespace is a feature, not wasted space. When in doubt, add more space, not more elements. The spacing scale should create visual rhythm — a harmonious vertical flow where elements breathe. Consider responsive container padding carefully: mobile screens need tighter but still intentional spacing, not cramped afterthoughts. Every spacing value in the system must be from the scale — no magic numbers, no one-off padding values.
+
 ---
 
 ### DS-5: Component Library
@@ -223,6 +362,26 @@ What component library will you use?
 | Custom from scratch | Unique brand, full control                                        | When off-the-shelf doesn't fit                |
 
 **Recommended:** Generate based on TS-1 (frontend framework) and TS-2 (CSS approach) from TECH_STACK. If Next.js + Tailwind → strongly recommend shadcn/ui. If Vue/Nuxt → suggest PrimeVue or Vuetify. If Svelte → suggest Skeleton or Melt UI.
+
+**Quality lens — Jobs Filter for Components:** When the user selects a library, apply these questions to their component strategy before moving on:
+
+```
+Before we continue, let's apply the design quality filter to your component choices:
+
+1. "Would a user need to be told this exists?" — Every interactive element should be
+   obviously interactive. If a button doesn't look pressable, it needs redesign.
+2. "Can this be removed without losing meaning?" — Which component variants
+   (sizes, styles) do you actually need? Start with the minimum set and add only
+   when a real use case demands it.
+3. "Does this feel inevitable?" — When a user sees your components, they should
+   feel like no other design was possible. This means consistent border radius,
+   consistent shadow depth, consistent padding — across every component.
+
+How many component variants do you anticipate needing? (e.g., Button: primary,
+secondary, ghost, destructive — or can we start with fewer?)
+```
+
+Record the user's answer. Use it to constrain the component section in DESIGN_SYSTEM.md.
 
 ---
 
@@ -297,6 +456,8 @@ Also ask:
 
 **Recommended:** Generate based on DS-1 and V-3. Minimal → Subtle transitions. Playful → Purposeful motion. Enterprise → None/minimal. Developer tools → Subtle transitions.
 
+**Quality lens:** Transitions should feel like physics, not decoration. Every animation must have a purpose: guide attention, explain a state change, or provide feedback. If an animation exists for no functional reason, remove it. The density principle applies here too — fewer, more intentional animations always beat many decorative ones.
+
 ---
 
 ## Step 5: Write DESIGN_SYSTEM.md
@@ -310,9 +471,76 @@ Write `docs/architecture/DESIGN_SYSTEM.md`:
 **Status**: Draft
 **Version**: 1.0
 
+## Brand Identity
+
+### Personality
+
+- **Primary dimension**: [DS-0 Part A — e.g., Competence]
+- **Secondary dimension**: [DS-0 Part A — e.g., Sophistication]
+
+### Tone Fingerprint
+
+| Spectrum  | Position                             | Notes     |
+| --------- | ------------------------------------ | --------- |
+| Humor     | [1-5: Funny ↔ Serious]               | [context] |
+| Formality | [1-5: Casual ↔ Formal]               | [context] |
+| Attitude  | [1-5: Irreverent ↔ Respectful]       | [context] |
+| Energy    | [1-5: Enthusiastic ↔ Matter-of-fact] | [context] |
+
+### Voice Attributes
+
+| Attribute | Write This | Not That          |
+| --------- | ---------- | ----------------- |
+| [attr 1]  | [example]  | [counter-example] |
+| [attr 2]  | [example]  | [counter-example] |
+| [attr 3]  | [example]  | [counter-example] |
+
+### Tone by Context
+
+How voice adapts to user emotional state (clarity always trumps personality in high-stakes moments):
+
+| UI Context       | Tone Shift                   | Example                         |
+| ---------------- | ---------------------------- | ------------------------------- |
+| Onboarding       | [warmer, more encouraging]   | [example from voice attributes] |
+| Success          | [celebratory but restrained] | [example]                       |
+| Error            | [empathetic, clarity-first]  | [example]                       |
+| Empty state      | [action-oriented, warm]      | [example]                       |
+| Payment/security | [serious, zero personality]  | [example]                       |
+| Tooltip/helper   | [concise, informative]       | [example]                       |
+
+## Design References
+
+_Products and URLs that inspired this design system. Not copied — used as directional reference._
+
+| Aspect                | Reference                   | What We Took                                         |
+| --------------------- | --------------------------- | ---------------------------------------------------- |
+| [e.g., Typography]    | [e.g., Linear]              | [e.g., Clean geometric sans-serif, tight type scale] |
+| [e.g., Color palette] | [e.g., https://example.com] | [e.g., Muted blue primary, warm neutral backgrounds] |
+
 ## Design Philosophy
 
 [DS-1 answer — chosen philosophy with reasoning]
+
+### Quality Principles
+
+These principles apply to every design decision, regardless of aesthetic direction:
+
+- **Simplicity is architecture** — Every element justifies its existence. Complexity is a design failure.
+- **Hierarchy drives everything** — Every screen has one primary action. Visual weight matches functional importance.
+- **Whitespace is a feature** — Space is structure. When in doubt, add more space, not more elements.
+- **Alignment is precision** — Every element sits on a grid. No exceptions.
+- **Consistency is non-negotiable** — All values reference design system tokens. No hardcoded one-offs.
+- **Density test** — Remove until it breaks, then add back the last thing.
+- **Responsive-first** — Mobile is the starting point. Desktop is the enhancement.
+
+### Jobs Filter (Component Validation)
+
+Before adding any new component or variant, ask:
+
+1. "Would a user need to be told this exists?" — if yes, redesign until obvious
+2. "Can this be removed without losing meaning?" — if yes, remove it
+3. "Does this feel inevitable, like no other design was possible?" — if no, keep refining
+4. "Say no to 1,000 things" — cut good ideas to keep great ones
 
 ## Color Palette
 
@@ -377,6 +605,7 @@ Write `docs/architecture/DESIGN_SYSTEM.md`:
 - **Easing**: [value]
 - **Library**: [choice or "CSS only"]
 - **Reduced motion**: Always respect `prefers-reduced-motion`
+- **Motion rule**: Transitions feel like physics, not decoration. No animation without purpose.
 ```
 
 **In update mode:** Only modify sections the user chose to update. Preserve everything else.
@@ -511,6 +740,8 @@ Cover: 404, 500, network offline, unauthorized (expired session), and empty stat
 
 **Recommended:** Generate based on target users and frontend framework. Consumer → friendly pages. Developer tools → technical details. React → error boundaries.
 
+**Quality lens:** Error states, empty states, and loading states are design surfaces, not afterthoughts. A blank screen should feel intentional, not broken. Error messages should feel helpful and clear, never hostile or technical. These "edge" states are where premium apps separate from adequate ones — the back of the fence must be painted too.
+
 ---
 
 ### AF-6: Accessibility Patterns
@@ -624,6 +855,8 @@ Also ask:
 
 **Recommended:** Generate based on target users and product type. Consumer → mobile-first. SaaS dashboard → desktop-first. Internal tool → desktop-only.
 
+**Quality lens:** Regardless of which strategy the user picks, responsive design is the real design. Every screen must feel intentional at every viewport — not just resized. Design for thumbs first, then cursors. Touch targets must be sized for thumbs on touch devices (minimum 44x44px). The layout should adapt fluidly across all viewport sizes, not just snap at breakpoints. No screen size should feel like an afterthought. If it looks "off" at any size, it's not done.
+
 ---
 
 ## Step 9: Write FRONTEND_GUIDELINES.md
@@ -665,7 +898,37 @@ If not, just say "No, we're good" and I'll finalize the output files.
 - "No gradients anywhere" → add as a constraint in DESIGN_SYSTEM.md Design Philosophy section
 - "We're using a monorepo" → add to FRONTEND_GUIDELINES.md
 
-If the user says "No" or "We're good", proceed directly to the summary.
+If the user says "No" or "We're good", proceed to the design quality validation.
+
+---
+
+## Step 10b: Design Quality Validation
+
+Before writing final files, silently run the Jobs Filter across all collected answers. Present the results to the user:
+
+```
+Design Quality Check (Jobs/Ive Lens):
+
+SIMPLICITY
+- Total color roles defined: [N] — [OK if ≤10 / REVIEW if >10: "Can any roles be merged?"]
+- Total type sizes in scale: [N] — [OK if ≤7 / REVIEW if >7: "Consider reducing"]
+- Component variants requested: [N] — [OK / REVIEW: "Start with fewer, add when needed"]
+
+HIERARCHY
+- Primary action clarity: [Does every screen description imply a single primary action?]
+- Navigation pattern: [Does it support clear hierarchy or flatten everything equally?]
+
+DENSITY
+- Any element, token, or variant that could be removed without losing meaning? [List if found]
+
+RESPONSIVENESS
+- Mobile consideration: [Are all layout decisions mobile-aware?]
+- Touch targets: [Noted in component strategy? Yes/No]
+
+[Any specific recommendations for the user to consider before finalizing]
+```
+
+If issues are found, present them and ask: "Would you like to adjust any of these before I write the files?" Accept the user's decision — do not push.
 
 ---
 
@@ -677,9 +940,10 @@ After all files are written, present a summary:
 Done. Here is what was written:
 
 **docs/architecture/DESIGN_SYSTEM.md**
+- Brand: [primary personality] + [secondary personality], [N] voice attributes
 - Philosophy: [choice]
-- Colors: [primary color] + [N] semantic colors
-- Typography: [heading font] / [body font]
+- Colors: [primary color] + [N] semantic colors (aligned with brand personality)
+- Typography: [heading font] / [body font] (aligned with brand voice)
 - Components: [library]
 - Dark mode: [strategy]
 - Icons: [set]
@@ -718,3 +982,6 @@ After that, use `/shape-section [name]` to deep-dive into each product section.
 9. **Reference design_styles.md when relevant.** If the user asks about specific aesthetics (glassmorphism, bento grid, etc.), reference `docs/ui/ux/design_styles.md` for detailed descriptions.
 10. **Integrate open-ended answers.** Parse the catch-all response and place information in the appropriate document sections.
 11. **Allow skipping.** If the user wants to skip a file, accept it, write "TBD" for all its sections, and move on.
+12. **Apply the quality lens, not enforce it.** Present the Jobs/Ive principles as guidance in recommendations and quality checks. If the user chooses differently, respect their decision. The quality bar informs — the user decides.
+13. **No cosmetic suggestions without structural reasoning.** Never say "add more padding" without explaining what the spacing change does to rhythm. Never say "make this blue" without explaining what the color change accomplishes in hierarchy. Every recommendation must have a design reason, not just a preference.
+14. **Premium means calm, confident, quiet.** When generating recommendations or defaults, bias toward restraint. Fewer colors, fewer type sizes, fewer component variants, more whitespace. Less but better.

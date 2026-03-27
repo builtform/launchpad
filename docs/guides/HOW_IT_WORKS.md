@@ -16,11 +16,70 @@ Skills are reusable instruction sets that change how the AI reasons about specif
 
 **Where to find skills to port:**
 
-- Browse the [Skills Catalog](../../skills-catalog/CATALOG.md) — curated, validated skills ready to port
+- Browse the [Skills Catalog](../skills-catalog/CATALOG.md) — curated, validated skills ready to port
 - Anthropic's [official skills](https://github.com/anthropics/skills) — maintained by the Claude team
 - Domain-specific skills for your industry or tech stack
 
 > Deep dive: [Methodology — Layer 7](METHODOLOGY.md#layer-7-skill-creation)
+
+### How Skills Work
+
+Skills live in `.claude/skills/<name>/` and are loaded automatically by the AI when a matching trigger phrase appears. Each skill directory contains:
+
+| File              | Audience | Purpose                                                   |
+| ----------------- | -------- | --------------------------------------------------------- |
+| `SKILL.md`        | Agent    | The orchestrator — defines phases, triggers, and workflow |
+| `references/*.md` | Agent    | Deep knowledge files loaded on demand by SKILL.md         |
+| `evals/*.md`      | Agent    | Test scenarios for validating skill quality               |
+
+Skills are **agent-facing** — the AI reads them, not you. As a user, you interact with skills through commands (`/create-skill`, `/port-skill`, `/update-skill`) and through the catalog described below.
+
+### Skill Lifecycle
+
+```
+Create or Port          Use              Track             Audit
+─────────────── → ─────────────── → ─────────────── → ───────────────
+/create-skill     AI auto-loads       PostToolUse hook    Every 2 weeks
+/port-skill       on trigger match    updates date in     at session end,
+                                      skills-usage.json   reports stale skills
+       │                                                        │
+       ▼                                                        ▼
+  Registered in:                                          User decides:
+  • CLAUDE.md (agent)                                     keep, update,
+  • AGENTS.md (agent)                                     or archive
+  • skills-index.md (you)
+  • skills-usage.json (auto)
+```
+
+### Skills Catalog (User-Facing)
+
+Two files in `docs/skills-catalog/` give you visibility into what skills are installed and how actively they're used:
+
+| File                | Maintained By                                   | What It Shows                                                                                     |
+| ------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `skills-index.md`   | `/create-skill`, `/port-skill`, `/update-skill` | All installed skills with descriptions, outputs, triggers, related commands, and interconnections |
+| `skills-usage.json` | PostToolUse hook (automatic)                    | Last-used date per skill + last audit date                                                        |
+
+`skills-index.md` is the file to read when you want to know what skills your project has and what each one does.
+
+### Skill Tracking and Staleness Audit
+
+Two hook scripts in `scripts/hooks/` run automatically — no action needed from you:
+
+1. **`track-skill-usage.sh`** — Fires after every skill invocation. Records the skill name and date in `skills-usage.json`. You never run this manually.
+
+2. **`audit-skills.sh`** — Fires at session end. If 14+ days have passed since the last audit, it scans all installed skills against `skills-usage.json` and reports which skills are stale (never used or unused for 2+ weeks). It does not remove anything — it informs you, and you decide what to do.
+
+These hooks are configured in `.claude/settings.json` (project-level).
+
+### When Skills Get Registered
+
+| Action                 | Adds to Catalog?                                                | Updates Catalog?                                                     |
+| ---------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `/create-skill`        | Yes — adds new entry to `skills-index.md` + `skills-usage.json` | —                                                                    |
+| `/port-skill`          | Yes — adds new entry to both files                              | —                                                                    |
+| `/update-skill`        | No — skill must already exist                                   | Yes — updates date and entry if description/outputs/triggers changed |
+| Every skill invocation | No                                                              | Yes — hook updates last-used date                                    |
 
 ---
 
@@ -64,9 +123,11 @@ Run `/shape-section [name]` for each product section identified in your PRD. Thi
 
 - `docs/tasks/sections/[name].md` — detailed section spec with user stories, data shapes, edge cases
 
+For **public-facing pages** (landing, pricing, about, feature, product, homepage, contact), `/shape-section` will prompt you to create the page copy using the `web-copy` skill (if installed). This produces a copy brief and full copy document with conversion-optimized headlines, body text, CTAs, trust signals, and A/B variants — all before any design or implementation begins. Copy informs design, not the other way around.
+
 ### Step 5: Maintain Spec Quality
 
-Run `/update-spec` periodically. This scans all spec files for gaps, TBDs, and cross-file inconsistencies, then fixes them.
+Run `/update-spec` periodically. This scans all spec files for gaps, TBDs, and cross-file inconsistencies, then fixes them. It also detects public-facing sections that are missing copy documents and flags them for action.
 
 ---
 
@@ -180,23 +241,48 @@ The `large-file-guard` hook in `lefthook.yml` rejects staged text-based source f
 
 ## Quick Reference
 
-| Command                | What It Does                                                     |
-| ---------------------- | ---------------------------------------------------------------- |
-| `/create-skill`        | Create a skill (7-phase Meta-Skill Forge)                        |
-| `/port-skill`          | Import an external skill                                         |
-| `/update-skill`        | Iterate on an existing skill                                     |
-| `/define-product`      | Interactive Q&A → PRD + Tech Stack                               |
-| `/define-design`       | Interactive Q&A → Design System + App Flow + Frontend Guidelines |
-| `/define-architecture` | Interactive Q&A → Backend Structure + CI/CD                      |
-| `/shape-section`       | Deep-dive into a product section → section spec                  |
-| `/update-spec`         | Scan and fix spec gaps + inconsistencies                         |
-| `/pnf`                 | Plan Next Feature from section spec                              |
-| `/implement_plan`      | Execute a plan phase by phase                                    |
-| `/inf`                 | Implement Next Feature: Full autonomous pipeline (report → PR)   |
-| `/commit`              | Quality gates + commit + PR + monitoring                         |
-| `/review_code`         | Review code for pattern consistency                              |
-| `/research_codebase`   | Deep codebase research and analysis                              |
-| `/pull-launchpad`      | Pull upstream Launchpad updates                                  |
+> This section lists LaunchPad's built-in commands. Downstream projects add their own commands (design quality, billing, etc.) in their own HOW_IT_WORKS.md.
+
+### Skill Management
+
+| Command                 | What It Does                                                                  | When to Use                                                 |
+| ----------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `/create-skill [topic]` | Create a new skill using the 7-phase Meta-Skill Forge methodology             | When you need Claude to learn a new domain                  |
+| `/port-skill [source]`  | Import an external skill from GitHub repos or local files into project format | When you find a useful community skill and want to adapt it |
+| `/update-skill [name]`  | Iterate on an existing skill after real-world usage reveals gaps              | When a skill produces wrong guidance or misses edge cases   |
+
+### Project Definition
+
+| Command                | What It Does                                                                                | When to Use                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `/define-product`      | Interactive Q&A that produces `PRD.md` + `TECH_STACK.md`                                    | At project start — defines what you're building, for whom, and with what                         |
+| `/define-design`       | Interactive Q&A that produces `DESIGN_SYSTEM.md` + `APP_FLOW.md` + `FRONTEND_GUIDELINES.md` | After `/define-product` — establishes visual language, navigation, and component conventions     |
+| `/define-architecture` | Interactive Q&A that produces `BACKEND_STRUCTURE.md` + `CI_CD.md`                           | After product + design are defined — establishes data models, API structure, and deploy pipeline |
+
+### Spec Development
+
+| Command                 | What It Does                                                                                                                                                                  | When to Use                                                                                         |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `/shape-section [name]` | Deep-dive Q&A into a product section, produces `docs/tasks/sections/[name].md`. For public-facing pages, prompts to create page copy via the `web-copy` skill (if installed). | Before building any feature — shapes user stories, data shapes, edge cases, and acceptance criteria |
+| `/update-spec`          | Scans all spec files for gaps, TBDs, cross-file inconsistencies, and missing copy for public-facing pages                                                                     | Periodically, or after multiple sections have been shaped — keeps specs internally consistent       |
+
+### Implementation
+
+| Command              | What It Does                                                                                                     | When to Use                                                                   |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `/pnf [section]`     | Plan Next Feature: Research-first planning with sub-agents, creates an implementation plan from a shaped section | Before writing any code — turns a section spec into a step-by-step build plan |
+| `/inf`               | Implement Next Feature: Full autonomous pipeline: report → PRD → tasks → execution loop → quality sweep → PR     | When you want Claude to build a feature end-to-end with minimal intervention  |
+| `/implement_plan`    | Execute an existing plan phase by phase with your oversight                                                      | When you prefer to guide implementation manually rather than using `/inf`     |
+| `/research_codebase` | Deep codebase research and analysis using multiple sub-agents                                                    | When you need to understand how something works before changing it            |
+| `/review_code`       | Review code for pattern consistency against project conventions                                                  | After implementing a feature — catches deviations from established patterns   |
+| `/commit`            | Stage changes, run quality gates (test/typecheck/lint), generate commit message, optionally create PR            | When you're ready to commit — handles the full commit-to-PR workflow          |
+
+### Maintenance
+
+| Command           | What It Does                                                        | When to Use                                                      |
+| ----------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `/pull-launchpad` | Pull upstream LaunchPad template updates into the project           | When LaunchPad has new features or fixes you want to incorporate |
+| `/memory-report`  | Save session findings to persistent memory for future conversations | At the end of a long session to preserve context                 |
 
 > For all scripts, sub-agents, configuration, and security, see [Methodology](METHODOLOGY.md).
 

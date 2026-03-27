@@ -408,22 +408,36 @@ The methodology is adapted from [Compound Product](https://github.com/snarktank/
 
 ### Implementation
 
-This is the core build loop. The `/inf` command runs an 8-step pipeline that takes a report, identifies the highest-priority item, creates a branch, generates a PRD, decomposes it into tasks, executes them in a fresh-context loop, runs quality checks, and opens a pull request.
+This is the core build loop. The `/inf` command runs a 10-step pipeline that takes a report, identifies the highest-priority item, creates a branch, generates a PRD, decomposes it into tasks, optionally negotiates a sprint contract, executes them in a fresh-context loop, optionally runs a live application evaluator, runs quality checks, and opens a pull request.
 
 The critical design choice is that each iteration of the inner loop runs in a fresh AI context. Memory does not persist in the AI's conversation history. Instead, it persists in git commits, `prd.json` (task status), and `progress.txt` (learnings log). This prevents context window overflow and keeps the AI focused on one task at a time.
+
+Two optional steps (5.5 and 6.5) implement a GAN-inspired Generator/Evaluator architecture based on findings from [Anthropic's harness design research](https://www.anthropic.com/engineering/harness-design-long-running-apps). These are opt-in via `config.json` and do not affect the existing pipeline when disabled. See `docs/reports/2026-03-25-evaluator-architecture-implementation-plan.md` for the full specification.
 
 ```mermaid
 flowchart TD
     REPORT["docs/reports/*.md"]
     ANALYZE["Step 1-2: Analyze report\nIdentify priority item"]
     BRANCH["Step 3: Create branch"]
-    PRD["Step 4: Generate PRD"]
-    TASKS["Step 5: Decompose\nto prd.json"]
+    PRD["Step 4: Generate PRD\n(+ ambition mode)"]
+    TASKS["Step 5: Decompose\nto prd.json\n(+ evaluator criteria)"]
 
-    subgraph "Step 6: Execution Loop"
+    subgraph CONTRACT["Step 5.5: Sprint Contract (opt-in)"]
+        PROPOSE["Generator proposes\nwhat to build +\nhow to verify"]
+        CHALLENGE["Evaluator challenges\nambiguity, missing criteria"]
+        AGREE{"Contract\nagreed?"}
+        REVISE["Revise proposal"]
+
+        PROPOSE --> CHALLENGE
+        CHALLENGE --> AGREE
+        AGREE -->|"no"| REVISE
+        REVISE --> CHALLENGE
+    end
+
+    subgraph EXECLOOP["Step 6: Execution Loop"]
         PICK["Pick next task"]
         INVOKE["Fresh AI context"]
-        READ["Read prd.json\nprogress.txt\ngit history"]
+        READ["Read prd.json\nprogress.txt\nevaluator-feedback.json"]
         IMPL["Implement task"]
         COMMIT["Git commit"]
         UPDATE["Update status"]
@@ -440,6 +454,22 @@ flowchart TD
         DONE -->|"no"| PICK
     end
 
+    subgraph EVALLOOP["Step 6.5: Evaluator Loop (opt-in)"]
+        START_APP["Start dev server\n(pnpm dev)"]
+        EVAL_RUN["Evaluator agent\n(fresh context)"]
+        GRADE["Grade 4 dimensions:\nDesign · Originality\nCraft · Functionality"]
+        THRESH{"All ≥\nthreshold?"}
+        FEEDBACK["Write feedback JSON\nwith specific fixes"]
+        FIX_LOOP["Generator fixes\n(read evaluator-feedback.json)"]
+
+        START_APP --> EVAL_RUN
+        EVAL_RUN --> GRADE
+        GRADE --> THRESH
+        THRESH -->|"no"| FEEDBACK
+        FEEDBACK --> FIX_LOOP
+        FIX_LOOP --> EVAL_RUN
+    end
+
     QUALITY["Step 7: Quality sweep\nand PR creation"]
     LEARN["Step 8: Extract learnings"]
 
@@ -447,14 +477,21 @@ flowchart TD
     ANALYZE --> BRANCH
     BRANCH --> PRD
     PRD --> TASKS
-    TASKS --> PICK
-    DONE -->|"yes"| QUALITY
+    TASKS --> PROPOSE
+    AGREE -->|"yes"| PICK
+    DONE -->|"yes"| START_APP
+    THRESH -->|"yes"| QUALITY
     QUALITY --> LEARN
+
+    style CONTRACT stroke-dasharray: 5 5
+    style EVALLOOP stroke-dasharray: 5 5
 ```
+
+> **Dashed borders** indicate opt-in steps controlled by `config.json`. When `evaluator.enabled` is `false` (default), Steps 5.5 and 6.5 are skipped entirely and the pipeline flows directly from Step 5 → Step 6 → Step 7 as before.
 
 #### The Pipeline: `auto-compound.sh`
 
-An 8-step fully autonomous pipeline orchestrated by a single 519-line bash script.
+A 10-step autonomous pipeline (8 core + 2 opt-in evaluator steps) orchestrated by bash scripts in `scripts/compound/`.
 
 ##### Step 1: Find the Report
 
@@ -582,6 +619,44 @@ When all tasks have `status: "done"` or `status: "skipped"`, the agent outputs `
 > `[CHECKPOINT]` Execution loop complete -- all tasks done. Pipeline continues to quality sweep.
 
 These four checkpoint messages are informational only -- the pipeline continues autonomously. They make the autonomous process observable for developers watching the terminal output.
+
+##### Step 5.5: Sprint Contract (opt-in)
+
+When `evaluator.sprintContract` is `true` in `config.json`, the pipeline pauses after task decomposition for a contract negotiation. The generator proposes what it will build and exactly how the evaluator should verify it. The evaluator reviews the proposal and challenges vague criteria, missing test steps, or untestable claims.
+
+This negotiation runs up to 3 rounds. The contract is saved to `scripts/compound/sprint-contract.json` and consumed by the evaluator in Step 6.5. Sprint contracts prevent the "I built it but the evaluator tested the wrong thing" failure mode. They force the generator to think about testability before writing code.
+
+**Contract format:** JSON with deliverables (each containing verification steps, API checks, and visual checks), grading expectations per dimension, and out-of-scope exclusions.
+
+**Communication:** File-based, round-robin. Generator writes → evaluator reads and challenges → generator revises → evaluator approves or challenges again.
+
+> `[CHECKPOINT]` Sprint contract finalized. Pipeline continues.
+
+##### Step 6.5: Evaluator Loop (opt-in)
+
+When `evaluator.enabled` is `true` in `config.json`, the pipeline runs a live application evaluation after the execution loop completes. This implements a GAN-inspired Generator/Evaluator separation: the agent that builds the code is not the agent that tests it.
+
+**Process:**
+
+1. Start the dev server (`pnpm dev` or configured `startCommand`)
+2. Wait for server readiness (poll health endpoints, configurable timeout)
+3. Run the evaluator agent in a fresh context (no shared memory with the generator)
+4. The evaluator navigates the running application via Playwright MCP and grades four dimensions:
+   - **Design** -- Does the UI feel like a coherent whole? (threshold: 7)
+   - **Originality** -- Evidence of custom decisions vs. template layouts? (threshold: 6)
+   - **Craft** -- Typography, spacing, color harmony, error handling? (threshold: 7)
+   - **Functionality** -- Can users complete tasks end-to-end? (threshold: 8)
+5. If any dimension is below its threshold, feedback is written to `evaluator-feedback.json` and the generator runs a fix cycle
+6. Repeat up to `maxCycles` (default: 3)
+7. Stop the dev server
+
+**Graceful degradation:** If Playwright MCP is not available, the evaluator falls back to API testing via curl, HTML inspection, code quality assessment, and running the project's test suite. Design and Functionality scores are reduced by 1 point to reflect lower confidence. The report notes `"mode": "static-only"`.
+
+**File-based communication:** The evaluator writes `evaluator-report.json` (full grading report) and `evaluator-feedback.json` (actionable fixes for the generator). The generator reads feedback at the start of each fix iteration via `iteration-claude.md`. Both agents run in fresh contexts with no shared memory.
+
+**Configuration:** All evaluator settings live in `config.json` under the `evaluator` key. See the implementation plan for the full schema.
+
+> `[CHECKPOINT]` Evaluator loop complete. Pipeline continues to quality sweep.
 
 ##### Steps 7 and 8
 

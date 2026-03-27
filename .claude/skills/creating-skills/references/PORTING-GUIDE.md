@@ -307,13 +307,18 @@ Each scenario includes: invocation, expected output, and baseline comparison (wh
 
 ### 4b. Update CLAUDE.md
 
-Add the skill to the appropriate Tier 1 — Definition table (or the relevant tier). Follow the existing table format exactly.
+Add the skill to the Progressive Disclosure table and Available Sub-Agents section. Follow the existing table format exactly.
 
 ### 4c. Update AGENTS.md
 
-Add a skill entry to the Skill Creation section. Follow the existing entry format exactly.
+Add the skill to the Progressive Disclosure table and Available Sub-Agents section. Follow the existing entry format exactly.
 
-### 4d. Present Summary
+### 4d. Update Skills Catalog
+
+1. **`docs/skills-catalog/skills-usage.json`** -- Add `"<skill-name>": "YYYY-MM-DD"` to the `skills` object (use today's date). Create the file with initial structure if it doesn't exist.
+2. **`docs/skills-catalog/skills-index.md`** -- Add the skill to the correct group in both the Quick Reference table and Detailed Descriptions section. Canonical groups (in order): Design & UI, Frontend Engineering, Backend Engineering, Data & Database, Testing & QA, DevOps & Infrastructure, Security & Auth, API & Integrations, Billing & Payments, Build Pipeline, Quality & Workflow, Documentation, Meta (Skill Management), Other. Assign the next sequential number. Place the skill in the best-fit group. Use "Other" only if no canonical group fits.
+
+### 4e. Present Summary
 
 ```
 ## Skill Ported: <name>
@@ -366,6 +371,8 @@ Before delivering to user, confirm every item:
 - [ ] Evaluation report shows PASS
 - [ ] CLAUDE.md updated
 - [ ] AGENTS.md updated
+- [ ] `docs/skills-catalog/skills-usage.json` updated with ported skill
+- [ ] `docs/skills-catalog/skills-index.md` updated with ported skill entry
 - [ ] At least 3 eval scenarios created
 - [ ] All Phase 2A dependency decisions documented in skill or summary
 - [ ] Output structurally different from what Claude produces without this skill

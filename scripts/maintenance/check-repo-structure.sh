@@ -126,7 +126,6 @@ ALLOWED_DIRS=(
   ".vscode"
   ".claude"
   ".launchpad"
-  "skills-catalog"
   "node_modules"
   ".git"
   ".next"

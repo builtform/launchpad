@@ -69,6 +69,12 @@ After scanning for gaps, check for **inconsistencies across files**:
 - A section marked `defined` should NOT have a section spec file yet (or the file is a stub)
 - **Flag:** Any status mismatch
 
+### 3e: Copy Gap Detection
+
+- For each shaped section spec in `docs/tasks/sections/`, check if the section is a **public-facing page** (landing, pricing, about, feature, product, homepage, contact/demo)
+- If it is public-facing, check for a `## Copy Status` section in the spec. If it says "Not yet created" or if no Copy Status section exists, flag it.
+- **Flag:** "Section [name] is a public-facing page with no copy document. Run the web-copy skill to create page copy before implementation."
+
 ---
 
 ## Step 4: Present Completeness Report

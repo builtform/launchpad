@@ -28,7 +28,8 @@ Please provide the source:
 - A file in the skills inbox: /port-skill based on .claude/skills-inbox/skill-name/SKILL.md
 
 The ported skill will be adapted to the project's format, validated against the 16
-quality criteria, and registered in CLAUDE.md and AGENTS.md.
+quality criteria, and registered in CLAUDE.md, AGENTS.md, and the skills catalog
+(docs/skills-catalog/skills-index.md + skills-usage.json).
 After porting, use /update-skill to iterate on it like any other project skill.
 ```
 

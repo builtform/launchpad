@@ -65,7 +65,7 @@ Use these patterns for agent-testable criteria. The **Field** column indicates w
 
 ## Input
 
-A PRD file created by the `prd` skill, typically at `tasks/prd-[feature-name].md`.
+A PRD file created by the `prd` skill, typically at `docs/tasks/prd-[feature-name].md`.
 
 ---
 

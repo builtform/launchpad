@@ -42,6 +42,8 @@ When this command is invoked:
    - `/create-skill "API testing" based on docs/articles/api-testing-guide.md`
    - `/create-skill code review` (no source material — I'll extract your expertise directly)
 
+   The skill will be registered in CLAUDE.md, AGENTS.md, and the skills catalog (docs/skills-catalog/skills-index.md + skills-usage.json) automatically.
+
    Tip: If you have a long article, book, or course you want to encode as a skill, use "based on [file]" and the workflow will distill it automatically.
    ```
 

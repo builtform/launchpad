@@ -277,8 +277,10 @@ Save to `.claude/skills/<skill-name>/evals/`.
 
 Update these files:
 
-1. **CLAUDE.md** -- Add skill to the Tier 1 — Definition table (or appropriate tier) and Available Sub-Agents section
+1. **CLAUDE.md** -- Add skill to the Progressive Disclosure table and Available Sub-Agents section
 2. **AGENTS.md** -- Add skill entry with name, description, and trigger phrases
+3. **`docs/skills-catalog/skills-usage.json`** -- Add `"<skill-name>": "YYYY-MM-DD"` to the `skills` object (use today's date). Create the file with initial structure if it doesn't exist: `{"last_audit_date": "YYYY-MM-DD", "skills": {}}`
+4. **`docs/skills-catalog/skills-index.md`** -- Add the skill to the correct group in both the Quick Reference table and Detailed Descriptions section. Canonical groups (in order): Design & UI, Frontend Engineering, Backend Engineering, Data & Database, Testing & QA, DevOps & Infrastructure, Security & Auth, API & Integrations, Billing & Payments, Build Pipeline, Quality & Workflow, Documentation, Meta (Skill Management), Other. Assign the next sequential number. Place the skill in the best-fit group. Use "Other" only if no canonical group fits. Add a row to the group's Quick Reference table and a full description entry under the group's Detailed Descriptions heading.
 
 ### Present to User
 
@@ -325,6 +327,9 @@ Before delivering the skill to the user, confirm every item:
 - [ ] No hedge language in any skill file
 - [ ] Evaluation report shows PASS
 - [ ] CLAUDE.md updated with skill entry
+- [ ] AGENTS.md updated with skill entry
+- [ ] `docs/skills-catalog/skills-usage.json` updated with new skill
+- [ ] `docs/skills-catalog/skills-index.md` updated with new skill entry
 - [ ] At least 3 eval scenarios created
 - [ ] Output differs structurally from what Claude would produce without this skill
 
