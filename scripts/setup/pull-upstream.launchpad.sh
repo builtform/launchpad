@@ -84,7 +84,7 @@ printf "${BOLD}Upstream delta: ${OLD_SHA:0:7} -> ${NEW_SHA:0:7}${RESET}\n"
 # ---------------------------------------------------------------------------
 # Step 3: Compute Upstream Delta
 # ---------------------------------------------------------------------------
-CHANGED_FILES=$(git diff --name-status "$OLD_SHA" "$NEW_SHA")
+CHANGED_FILES=$(git diff --no-renames --name-status "$OLD_SHA" "$NEW_SHA")
 
 if [ -z "$CHANGED_FILES" ]; then
   info "No file changes in upstream delta."
@@ -315,8 +315,22 @@ fi
 git tag -d _pre-upstream-sync 2>/dev/null || true
 git tag _pre-upstream-sync
 
+# Track files we create (for rollback cleanup)
+CREATED_FILES=()
+
 # Trap for cleanup on failure/interrupt
-trap 'echo ""; warn "Interrupted. Rolling back..."; git checkout -- . 2>/dev/null; git tag -d _pre-upstream-sync 2>/dev/null || true; echo "Rolled back. Re-run to try again."' INT TERM
+rollback() {
+  echo ""
+  warn "Interrupted. Rolling back..."
+  git checkout -- . 2>/dev/null
+  # Remove NEW files that were created during this run
+  for f in "${CREATED_FILES[@]}"; do
+    rm -f "$f" 2>/dev/null
+  done
+  git tag -d _pre-upstream-sync 2>/dev/null || true
+  echo "Rolled back. Re-run to try again."
+}
+trap rollback INT TERM
 
 APPLIED_FILES=()
 FAILED_FILES=()
@@ -330,6 +344,7 @@ for idx in "${SELECTED_INDICES[@]}"; do
     NEW)
       mkdir -p "$(dirname "$file")"
       git show "$NEW_SHA:$file" > "$file"
+      CREATED_FILES+=("$file")
       APPLIED_FILES+=("$file")
       info "Added: $file"
       ;;
@@ -373,26 +388,29 @@ for file in "${APPLIED_FILES[@]}"; do
   git add "$file" 2>/dev/null || true
 done
 
-# Anchor update policy: advance only when all files are resolved
-RESOLVED=$(( ${#APPLIED_FILES[@]} + ${#FAILED_FILES[@]} ))
-if [ "$RESOLVED" -eq "$TOTAL_ITEMS" ] && [ ${#FAILED_FILES[@]} -eq 0 ]; then
+# Anchor update policy: advance only when all files resolved AND no failures
+ATTEMPTED=$(( ${#APPLIED_FILES[@]} + ${#FAILED_FILES[@]} ))
+if [ "$ATTEMPTED" -eq "$TOTAL_ITEMS" ] && [ ${#FAILED_FILES[@]} -eq 0 ]; then
   echo "$NEW_SHA" > "$ANCHOR_FILE"
   git add "$ANCHOR_FILE"
-  info "Anchor updated to ${NEW_SHA:0:7} (all files resolved)."
-elif [ "$RESOLVED" -eq "$TOTAL_ITEMS" ]; then
-  # All files attempted but some failed — still advance since user saw everything
-  echo "$NEW_SHA" > "$ANCHOR_FILE"
-  git add "$ANCHOR_FILE"
-  warn "Anchor updated to ${NEW_SHA:0:7} (${#FAILED_FILES[@]} file(s) had conflicts — resolve manually)."
+  info "Anchor updated to ${NEW_SHA:0:7} (all files resolved successfully)."
+elif [ ${#FAILED_FILES[@]} -gt 0 ]; then
+  # Some files had conflicts — do NOT advance anchor
+  warn "Anchor NOT updated (${#FAILED_FILES[@]} file(s) had conflicts)."
+  echo "  Resolve conflicts and re-run, or advance manually: echo '$NEW_SHA' > $ANCHOR_FILE"
 else
-  warn "Anchor NOT updated (${RESOLVED}/${TOTAL_ITEMS} files processed)."
+  warn "Anchor NOT updated (${ATTEMPTED}/${TOTAL_ITEMS} files processed)."
   echo "  Skipped files will reappear on next sync."
   echo "  To advance manually: echo '$NEW_SHA' > $ANCHOR_FILE"
 fi
 
 echo ""
 echo "Review staged changes: git diff --cached"
-echo "If something went wrong: git checkout -- . && git tag -d _pre-upstream-sync"
+ROLLBACK_CMD="git checkout -- ."
+if [ ${#CREATED_FILES[@]} -gt 0 ]; then
+  ROLLBACK_CMD="$ROLLBACK_CMD && rm -f ${CREATED_FILES[*]}"
+fi
+echo "If something went wrong: $ROLLBACK_CMD"
 
 # Exit with code 2 if there are unresolved conflicts (for Claude command handoff)
 if [ "$HAS_CONFLICTS" = true ]; then
