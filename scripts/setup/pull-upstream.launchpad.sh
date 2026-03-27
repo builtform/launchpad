@@ -3,8 +3,8 @@
 # pull-upstream.launchpad.sh — Delta patching from upstream LaunchPad
 #
 # Computes the diff between the last-synced LaunchPad commit and the current
-# LaunchPad main, classifies each changed file against the downstream project,
-# and applies selected changes with conflict detection.
+# LaunchPad main, classifies each changed file via git hash comparison,
+# and applies selected changes with direct file copy (no git apply).
 #
 # Usage:
 #   Interactive:  bash scripts/setup/pull-upstream.launchpad.sh
@@ -93,21 +93,31 @@ if [ -z "$CHANGED_FILES" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 4: Classify (Try-and-Report)
+# Step 4: Classify via Git Hash Comparison
 # ---------------------------------------------------------------------------
 CLEAN_FILES=()
 CONFLICTED=()
 NEW_FILES=()
 DELETED_FILES=()
 SKIPPED=()
-MODIFIED_FILES=()
 
-# Collect files by type (here-string avoids subshell variable loss)
 while IFS=$'\t' read -r status file; do
   case "$status" in
     A)
       if [ ! -f "$file" ]; then
+        # Upstream added, downstream doesn't have it
         NEW_FILES+=("$file")
+      else
+        # Upstream added, downstream already has it — compare content
+        NEW_HASH=$(git rev-parse "$NEW_SHA:$file" 2>/dev/null || echo "none")
+        CURRENT_HASH=$(git hash-object "$file" 2>/dev/null || echo "none")
+        if [ "$NEW_HASH" = "$CURRENT_HASH" ]; then
+          # Identical content — silently skip
+          SKIPPED+=("$file")
+        else
+          # Different content — conflict
+          CONFLICTED+=("$file")
+        fi
       fi
       ;;
     D)
@@ -117,35 +127,26 @@ while IFS=$'\t' read -r status file; do
       ;;
     M)
       if [ ! -f "$file" ]; then
+        # Upstream modified, downstream removed it
         SKIPPED+=("$file")
       else
-        MODIFIED_FILES+=("$file")
+        # Compare downstream against old upstream via hash
+        OLD_HASH=$(git rev-parse "$OLD_SHA:$file" 2>/dev/null || echo "none")
+        CURRENT_HASH=$(git hash-object "$file" 2>/dev/null || echo "none")
+        if [ "$OLD_HASH" = "$CURRENT_HASH" ]; then
+          # Downstream never modified this file
+          CLEAN_FILES+=("$file")
+        else
+          # Downstream has customizations
+          CONFLICTED+=("$file")
+        fi
       fi
       ;;
   esac
 done <<< "$CHANGED_FILES"
 
-# Optimistic fast-path: try all modified files at once
-if [ ${#MODIFIED_FILES[@]} -gt 0 ]; then
-  FULL_PATCH=$(git diff "$OLD_SHA" "$NEW_SHA" -- "${MODIFIED_FILES[@]}")
-  if echo "$FULL_PATCH" | git apply -3 --check 2>/dev/null; then
-    # Everything applies cleanly
-    CLEAN_FILES=("${MODIFIED_FILES[@]}")
-  else
-    # Fall back to per-file classification
-    for file in "${MODIFIED_FILES[@]}"; do
-      PATCH=$(git diff "$OLD_SHA" "$NEW_SHA" -- "$file")
-      if echo "$PATCH" | git apply -3 --check 2>/dev/null; then
-        CLEAN_FILES+=("$file")
-      else
-        CONFLICTED+=("$file")
-      fi
-    done
-  fi
-fi
-
 # ---------------------------------------------------------------------------
-# Step 5: Interactive Presentation
+# Step 5: Structured Report
 # ---------------------------------------------------------------------------
 echo ""
 
@@ -157,14 +158,21 @@ get_stats() {
   local added removed
   added=$(echo "$FILE_STATS" | awk -v f="$f" '$3==f {print $1}')
   removed=$(echo "$FILE_STATS" | awk -v f="$f" '$3==f {print $2}')
-  if [ -n "$added" ] && [ -n "$removed" ]; then
-    echo "+${added}/-${removed}"
+  if [ -n "$added" ] && [ "$removed" != "0" ] && [ -n "$removed" ]; then
+    echo "+${added}/-${removed} lines"
   elif [ -n "$added" ]; then
-    echo "+${added}"
+    echo "+${added} lines"
   else
     echo ""
   fi
 }
+
+# Box-drawing header
+printf "════════════════════════════════════════════════════\n"
+printf "  LaunchPad Upstream Changes\n"
+printf "  ${OLD_SHA:0:7} → ${NEW_SHA:0:7}\n"
+printf "════════════════════════════════════════════════════\n"
+echo ""
 
 # Build numbered list for selection
 ALL_ITEMS=()
@@ -172,10 +180,10 @@ ITEM_CATEGORIES=()
 INDEX=1
 
 if [ ${#NEW_FILES[@]} -gt 0 ]; then
-  printf "${BOLD}NEW (safe to add):${RESET}\n"
+  printf "── NEW (upstream added, you don't have) ───────────\n"
   for file in "${NEW_FILES[@]}"; do
     stats=$(get_stats "$file")
-    printf "  [%d] %-50s (%s lines)\n" "$INDEX" "$file" "$stats"
+    printf "  [%d]  %-45s %s\n" "$INDEX" "$file" "$stats"
     ALL_ITEMS+=("$file")
     ITEM_CATEGORIES+=("NEW")
     ((INDEX++))
@@ -184,10 +192,10 @@ if [ ${#NEW_FILES[@]} -gt 0 ]; then
 fi
 
 if [ ${#CLEAN_FILES[@]} -gt 0 ]; then
-  printf "${BOLD}CLEAN (applies cleanly, local edits preserved):${RESET}\n"
+  printf "── CLEAN (upstream updated, you haven't modified) ─\n"
   for file in "${CLEAN_FILES[@]}"; do
     stats=$(get_stats "$file")
-    printf "  [%d] %-50s (%s lines)\n" "$INDEX" "$file" "$stats"
+    printf "  [%d]  %-45s %s\n" "$INDEX" "$file" "$stats"
     ALL_ITEMS+=("$file")
     ITEM_CATEGORIES+=("CLEAN")
     ((INDEX++))
@@ -196,21 +204,22 @@ if [ ${#CLEAN_FILES[@]} -gt 0 ]; then
 fi
 
 if [ ${#CONFLICTED[@]} -gt 0 ]; then
-  printf "${BOLD}${YELLOW}CONFLICT (needs manual resolution):${RESET}\n"
+  printf "── CONFLICT (both sides changed) ──────────────────\n"
   for file in "${CONFLICTED[@]}"; do
-    stats=$(get_stats "$file")
-    printf "  [%d] %-50s (%s lines, patch cannot apply cleanly)\n" "$INDEX" "$file" "$stats"
+    printf "  [%d]  %-45s you customized · upstream also changed\n" "$INDEX" "$file"
     ALL_ITEMS+=("$file")
     ITEM_CATEGORIES+=("CONFLICT")
     ((INDEX++))
   done
+  printf "       ℹ View upstream:  git show ${NEW_SHA:0:7}:<file>\n"
+  printf "       ℹ View old:       git show ${OLD_SHA:0:7}:<file>\n"
   echo ""
 fi
 
 if [ ${#DELETED_FILES[@]} -gt 0 ]; then
-  printf "${BOLD}DELETED upstream:${RESET}\n"
+  printf "── DELETED (upstream removed) ─────────────────────\n"
   for file in "${DELETED_FILES[@]}"; do
-    printf "  [%d] %s\n" "$INDEX" "$file"
+    printf "  [%d]  %s\n" "$INDEX" "$file"
     ALL_ITEMS+=("$file")
     ITEM_CATEGORIES+=("DELETED")
     ((INDEX++))
@@ -219,12 +228,19 @@ if [ ${#DELETED_FILES[@]} -gt 0 ]; then
 fi
 
 if [ ${#SKIPPED[@]} -gt 0 ]; then
-  printf "${YELLOW}Skipped (you removed these files locally):${RESET}\n"
+  printf "── SKIPPED (upstream updated, you removed locally) ─\n"
   for file in "${SKIPPED[@]}"; do
-    printf "  - %s\n" "$file"
+    printf "   •  %s\n" "$file"
   done
   echo ""
 fi
+
+# Summary line
+printf "════════════════════════════════════════════════════\n"
+printf "  %d NEW · %d CLEAN · %d CONFLICT · %d DELETED · %d SKIPPED\n" \
+  "${#NEW_FILES[@]}" "${#CLEAN_FILES[@]}" "${#CONFLICTED[@]}" "${#DELETED_FILES[@]}" "${#SKIPPED[@]}"
+printf "════════════════════════════════════════════════════\n"
+echo ""
 
 TOTAL_ITEMS=${#ALL_ITEMS[@]}
 
@@ -296,9 +312,12 @@ if [ -t 0 ]; then
   # Deduplicate
   SELECTED_INDICES=($(printf '%s\n' "${SELECTED_INDICES[@]}" | sort -un))
 else
-  # Non-interactive: apply all
+  # Non-interactive: apply all non-CONFLICT files automatically
+  SELECTED_INDICES=()
   for i in $(seq 0 $((TOTAL_ITEMS - 1))); do
-    SELECTED_INDICES+=("$i")
+    if [ "${ITEM_CATEGORIES[$i]}" != "CONFLICT" ]; then
+      SELECTED_INDICES+=("$i")
+    fi
   done
 fi
 
@@ -308,12 +327,8 @@ if [ ${#SELECTED_INDICES[@]} -eq 0 ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 6: Apply and Update Anchor
+# Step 6: Apply via Direct File Copy and Update Anchor
 # ---------------------------------------------------------------------------
-
-# Backup tag for rollback
-git tag -d _pre-upstream-sync 2>/dev/null || true
-git tag _pre-upstream-sync
 
 # Track files we create (for rollback cleanup)
 CREATED_FILES=()
@@ -327,14 +342,24 @@ rollback() {
   for f in "${CREATED_FILES[@]}"; do
     rm -f "$f" 2>/dev/null
   done
-  git tag -d _pre-upstream-sync 2>/dev/null || true
   echo "Rolled back. Re-run to try again."
 }
 trap rollback INT TERM
 
+# Propagate executable permissions from upstream
+propagate_permissions() {
+  local file="$1"
+  if git ls-tree "$NEW_SHA" -- "$file" | grep -q '^100755'; then
+    chmod +x "$file"
+  fi
+}
+
 APPLIED_FILES=()
-FAILED_FILES=()
-HAS_CONFLICTS=false
+
+SELECTED_ALL=false
+if [ ${#SELECTED_INDICES[@]} -eq "$TOTAL_ITEMS" ]; then
+  SELECTED_ALL=true
+fi
 
 for idx in "${SELECTED_INDICES[@]}"; do
   file="${ALL_ITEMS[$idx]}"
@@ -344,34 +369,23 @@ for idx in "${SELECTED_INDICES[@]}"; do
     NEW)
       mkdir -p "$(dirname "$file")"
       git show "$NEW_SHA:$file" > "$file"
+      propagate_permissions "$file"
       CREATED_FILES+=("$file")
       APPLIED_FILES+=("$file")
       info "Added: $file"
       ;;
     CLEAN)
-      PATCH=$(git diff "$OLD_SHA" "$NEW_SHA" -- "$file")
-      if echo "$PATCH" | git apply -3 2>/dev/null; then
-        APPLIED_FILES+=("$file")
-        info "Patched: $file"
-      else
-        FAILED_FILES+=("$file")
-        error "Failed to apply: $file (retrieve manually: git show $NEW_SHA:$file)"
-      fi
+      git show "$NEW_SHA:$file" > "$file"
+      propagate_permissions "$file"
+      APPLIED_FILES+=("$file")
+      info "Updated: $file"
       ;;
     CONFLICT)
-      PATCH=$(git diff "$OLD_SHA" "$NEW_SHA" -- "$file")
-      if echo "$PATCH" | git apply -3 2>/dev/null; then
-        APPLIED_FILES+=("$file")
-        info "Patched (unexpectedly clean): $file"
-      else
-        # Try without -3 to get partial application
-        warn "Conflict in: $file — resolve manually or retrieve with: git show $NEW_SHA:$file"
-        FAILED_FILES+=("$file")
-        HAS_CONFLICTS=true
-      fi
+      warn "Skipping CONFLICT file: $file"
+      echo "  Retrieve upstream version with: git show $NEW_SHA:$file"
       ;;
     DELETED)
-      rm -f "$file"
+      rm -f -- "$file"
       APPLIED_FILES+=("$file")
       info "Deleted: $file"
       ;;
@@ -388,20 +402,20 @@ for file in "${APPLIED_FILES[@]}"; do
   git add "$file" 2>/dev/null || true
 done
 
-# Anchor update policy: advance only when all files resolved AND no failures
-ATTEMPTED=$(( ${#APPLIED_FILES[@]} + ${#FAILED_FILES[@]} ))
-if [ "$ATTEMPTED" -eq "$TOTAL_ITEMS" ] && [ ${#FAILED_FILES[@]} -eq 0 ]; then
+# Anchor update policy: advance only when ALL files processed AND zero CONFLICT files
+if [ "$SELECTED_ALL" = true ] && [ ${#CONFLICTED[@]} -eq 0 ]; then
   echo "$NEW_SHA" > "$ANCHOR_FILE"
   git add "$ANCHOR_FILE"
-  info "Anchor updated to ${NEW_SHA:0:7} (all files resolved successfully)."
-elif [ ${#FAILED_FILES[@]} -gt 0 ]; then
-  # Some files had conflicts — do NOT advance anchor
-  warn "Anchor NOT updated (${#FAILED_FILES[@]} file(s) had conflicts)."
-  echo "  Resolve conflicts and re-run, or advance manually: echo '$NEW_SHA' > $ANCHOR_FILE"
+  info "Anchor updated to ${NEW_SHA:0:7} (all files resolved, zero conflicts)."
 else
-  warn "Anchor NOT updated (${ATTEMPTED}/${TOTAL_ITEMS} files processed)."
-  echo "  Skipped files will reappear on next sync."
-  echo "  To advance manually: echo '$NEW_SHA' > $ANCHOR_FILE"
+  if [ ${#CONFLICTED[@]} -gt 0 ]; then
+    warn "Anchor NOT updated (${#CONFLICTED[@]} CONFLICT file(s) in delta)."
+    echo "  Resolve conflicts and re-run, or advance manually: echo '$NEW_SHA' > $ANCHOR_FILE"
+  else
+    warn "Anchor NOT updated (not all files were selected)."
+    echo "  Skipped files will reappear on next sync."
+    echo "  To advance manually: echo '$NEW_SHA' > $ANCHOR_FILE"
+  fi
 fi
 
 echo ""
@@ -411,14 +425,5 @@ if [ ${#CREATED_FILES[@]} -gt 0 ]; then
   ROLLBACK_CMD="$ROLLBACK_CMD && rm -f ${CREATED_FILES[*]}"
 fi
 echo "If something went wrong: $ROLLBACK_CMD"
-
-# Exit with code 2 if there are unresolved conflicts (for Claude command handoff)
-if [ "$HAS_CONFLICTS" = true ]; then
-  echo ""
-  echo "CONFLICTS: ${FAILED_FILES[*]}"
-  echo "OLD_SHA=$OLD_SHA"
-  echo "NEW_SHA=$NEW_SHA"
-  exit 2
-fi
 
 exit 0
