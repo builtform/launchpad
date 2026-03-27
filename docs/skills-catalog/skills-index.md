@@ -43,7 +43,7 @@ A user-facing reference for all installed skills in LaunchPad. Each skill is a r
 
 Generates Product Requirements Documents from a feature description. Supports interactive (MCQ questions) and autonomous (piped input) modes. Includes codebase research, self-clarification, and structured PRD output.
 
-- **Key Outputs:** `tasks/prd-[feature-name].md`
+- **Key Outputs:** `docs/tasks/prd-[feature-name].md`
 - **Related Commands:** `/define-product`
 - **Interconnections:** Feeds into the `tasks` skill for JSON conversion. Uses `codebase-locator`, `codebase-pattern-finder`, `docs-locator`, `docs-analyzer` sub-agents.
 

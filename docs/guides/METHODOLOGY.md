@@ -638,21 +638,21 @@ When `evaluator.enabled` is `true` in `config.json`, the pipeline runs a live ap
 
 **Process:**
 
-1. Start the dev server (`pnpm dev` or configured `startCommand`)
-2. Wait for server readiness (poll health endpoints, configurable timeout)
+1. Start the dev server (`pnpm dev`)
+2. Wait for server readiness (poll both web `:3000` and API `:3001` health endpoints, 30s timeout)
 3. Run the evaluator agent in a fresh context (no shared memory with the generator)
 4. The evaluator navigates the running application via Playwright MCP and grades four dimensions:
    - **Design** -- Does the UI feel like a coherent whole? (threshold: 7)
    - **Originality** -- Evidence of custom decisions vs. template layouts? (threshold: 6)
    - **Craft** -- Typography, spacing, color harmony, error handling? (threshold: 7)
    - **Functionality** -- Can users complete tasks end-to-end? (threshold: 8)
-5. If any dimension is below its threshold, feedback is written to `evaluator-feedback.json` and the generator runs a fix cycle
+5. If any dimension is below its threshold, feedback is written to `evaluator-report.json` and the generator runs a fix cycle
 6. Repeat up to `maxCycles` (default: 3)
 7. Stop the dev server
 
-**Graceful degradation:** If Playwright MCP is not available, the evaluator falls back to API testing via curl, HTML inspection, code quality assessment, and running the project's test suite. Design and Functionality scores are reduced by 1 point to reflect lower confidence. The report notes `"mode": "static-only"`.
+**Skip behavior:** If Playwright is not available, ports are already in use, or the dev server fails to start, the evaluator writes a `{"status": "skipped"}` report and exits. The pipeline continues to Step 7 — no evaluation is performed but the skip is explicitly recorded. A future enhancement will add static-only fallback (API testing via curl, HTML inspection, code quality assessment) when Playwright is unavailable.
 
-**File-based communication:** The evaluator writes `evaluator-report.json` (full grading report) and `evaluator-feedback.json` (actionable fixes for the generator). The generator reads feedback at the start of each fix iteration via `iteration-claude.md`. Both agents run in fresh contexts with no shared memory.
+**File-based communication:** The evaluator writes `evaluator-report.json` (full grading report with per-dimension scores and actionable feedback). The generator reads the report at the start of each fix iteration. Both agents run in fresh contexts with no shared memory.
 
 **Configuration:** All evaluator settings live in `config.json` under the `evaluator` key. See the implementation plan for the full schema.
 

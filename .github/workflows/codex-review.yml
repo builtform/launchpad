@@ -24,6 +24,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Ubuntu 24.04+ blocks unprivileged user namespaces via AppArmor, which
+      # prevents Codex's vendored bubblewrap (bwrap) from setting up its sandbox.
+      # This relaxation is scoped to this ephemeral runner job only.
+      # TODO: Consider gating to non-fork PRs for additional hardening.
       - name: Relax AppArmor for Codex sandbox (Ubuntu 24.04+)
         run: |
           if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then

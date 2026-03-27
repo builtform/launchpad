@@ -16,16 +16,27 @@ if ! declare -f ai_run >/dev/null 2>&1; then
   exit 1
 fi
 
+# Write a skipped report so the pipeline knows no evaluation occurred
+write_skipped_report() {
+  local reason="$1"
+  cat > "$OUTPUT_DIR/evaluator-report.json" <<SKIP_EOF
+{"status":"skipped","reason":"$reason","design":null,"originality":null,"craft":null,"functionality":null}
+SKIP_EOF
+  log "Wrote skipped report: $reason"
+}
+
 # Check Playwright availability
 if ! command -v npx >/dev/null 2>&1 || ! npx playwright --version >/dev/null 2>&1; then
-  log "Skipped: Playwright not available. Install with: npx playwright install"
+  write_skipped_report "Playwright not available. Install with: npx playwright install"
+  log "Warning: Playwright not available — evaluator skipped (no evaluation performed)"
   exit 0
 fi
 
 # Check port availability
 for port in 3000 3001; do
   if lsof -i :"$port" >/dev/null 2>&1; then
-    log "Skipped: port $port already in use"
+    write_skipped_report "Port $port already in use"
+    log "Warning: port $port already in use — evaluator skipped (no evaluation performed)"
     exit 0
   fi
 done
@@ -44,7 +55,8 @@ for i in $(seq 1 30); do
   if [ "$API_READY" = "false" ] && curl -s http://localhost:3001/health >/dev/null 2>&1; then API_READY=true; fi
   if [ "$WEB_READY" = "true" ] && [ "$API_READY" = "true" ]; then break; fi
   if [ "$i" -eq 30 ]; then
-    log "Skipped: servers did not start within 30s (web=$WEB_READY, api=$API_READY)"
+    write_skipped_report "Servers did not start within 30s (web=$WEB_READY, api=$API_READY)"
+    log "Warning: servers did not start — evaluator skipped (no evaluation performed)"
     exit 0
   fi
   sleep 1
