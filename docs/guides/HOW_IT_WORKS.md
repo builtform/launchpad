@@ -279,10 +279,29 @@ The `large-file-guard` hook in `lefthook.yml` rejects staged text-based source f
 
 ### Maintenance
 
-| Command           | What It Does                                                        | When to Use                                                      |
-| ----------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `/pull-launchpad` | Pull upstream LaunchPad template updates into the project           | When LaunchPad has new features or fixes you want to incorporate |
-| `/memory-report`  | Save session findings to persistent memory for future conversations | At the end of a long session to preserve context                 |
+| Command           | What It Does                                                                                                           | When to Use                                                      |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `/pull-launchpad` | Pull upstream LaunchPad changes using delta patching — shows only what changed upstream, preserves your customizations | When LaunchPad has new features or fixes you want to incorporate |
+| `/memory-report`  | Save session findings to persistent memory for future conversations                                                    | At the end of a long session to preserve context                 |
+
+### How `/pull-launchpad` Works
+
+The pull mechanism uses **upstream delta patching** — it diffs LaunchPad's old version against LaunchPad's new version to isolate only what changed upstream. Your downstream customizations are invisible to the diff.
+
+**Anchor file:** `.launchpad/upstream-commit` stores the LaunchPad commit SHA your project was last synced from. This is the starting point for computing the delta.
+
+**Classification:** Each upstream change is classified by trying to apply it:
+
+- **NEW** — file added upstream, doesn't exist locally. Safe to add.
+- **CLEAN** — file modified upstream, patch applies cleanly. Your local edits (if any) are on different lines.
+- **CONFLICT** — file modified upstream, but your local edits overlap with the upstream changes. Needs manual resolution.
+- **DELETED** — file deleted upstream.
+
+**Interactive selection:** You choose which changes to apply by category (`n` for all NEW, `c` for all CLEAN, `a` for all) or by individual file numbers.
+
+**Anchor policy:** The anchor advances only when all files in the delta are resolved (applied or skipped). Partial syncs leave the anchor unchanged — skipped files reappear next time.
+
+**Rollback:** If anything goes wrong: `git checkout -- .` restores the pre-sync state.
 
 > For all scripts, sub-agents, configuration, and security, see [Methodology](METHODOLOGY.md).
 

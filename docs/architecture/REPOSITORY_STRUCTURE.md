@@ -227,7 +227,8 @@ Anything else at root is root clutter and must be moved to the correct subdirect
 ├── .launchpad/                              # Harness metadata and preserved Launchpad reference docs
 │   ├── METHODOLOGY.md                       # Launchpad methodology — architecture, diagrams, troubleshooting, credits
 │   ├── HOW_IT_WORKS.md                      # Step-by-step workflow guide
-│   └── version                              # Harness version for CLI upgrades
+│   ├── version                              # Harness version for CLI upgrades
+│   └── upstream-commit                      # LaunchPad commit SHA last synced from (used by pull-upstream for delta computation)
 │
 └── .claude/                                 # Claude Code configuration
     ├── agents/                              # Sub-agent definition files

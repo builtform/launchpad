@@ -346,6 +346,11 @@ mkdir -p .launchpad
 echo "1.0.0" > .launchpad/version
 info "Created .launchpad/version (harness v1.0.0)"
 
+# Write upstream commit SHA for delta patching during pull-upstream
+UPSTREAM_SHA="$(git rev-parse HEAD)"
+echo "$UPSTREAM_SHA" > .launchpad/upstream-commit
+info "Created .launchpad/upstream-commit ($UPSTREAM_SHA)"
+
 # ---------------------------------------------------------------------------
 # Step 2/3 — Swap template files into their final positions
 # ---------------------------------------------------------------------------
