@@ -156,8 +156,18 @@ while IFS=$'\t' read -r status file; do
           # Already matches new upstream — silently skip
           continue
         else
-          # Different from new upstream — conflict
-          CONFLICTED+=("$file")
+          # Downstream has this file but with different content.
+          # Check if upstream is purely additive — every line in downstream
+          # also exists in upstream, upstream just added more. This catches
+          # files copied from an older upstream version.
+          REMOVED_LINES=$(diff <(cat "$file") <(git show "$NEW_SHA:$file") | grep -c '^< ' || true)
+          if [ "$REMOVED_LINES" -eq 0 ]; then
+            # Upstream only added lines on top of what downstream has — safe to overwrite
+            CLEAN_FILES+=("$file")
+          else
+            # Upstream changed or removed downstream content — genuine conflict
+            CONFLICTED+=("$file")
+          fi
         fi
       fi
       ;;
