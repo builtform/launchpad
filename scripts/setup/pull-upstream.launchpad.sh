@@ -116,6 +116,10 @@ is_excluded() {
   case "${file##*/}" in
     *.template.md|*.template) return 0 ;;
   esac
+  # Directory-level exclusions (LaunchPad-internal content, not for downstream)
+  case "$file" in
+    docs/reports/*|docs/plans/*|docs/skills-catalog/*) return 0 ;;
+  esac
   # Check exact paths from manifest
   local p
   for p in "${EXCLUDED_PATHS[@]}"; do
@@ -359,13 +363,10 @@ if [ -t 0 ]; then
   # Deduplicate
   SELECTED_INDICES=($(printf '%s\n' "${SELECTED_INDICES[@]}" | sort -un))
 else
-  # Non-interactive: apply all non-CONFLICT files automatically
-  SELECTED_INDICES=()
-  for i in $(seq 0 $((TOTAL_ITEMS - 1))); do
-    if [ "${ITEM_CATEGORIES[$i]}" != "CONFLICT" ]; then
-      SELECTED_INDICES+=("$i")
-    fi
-  done
+  # Non-interactive: report only, do not apply anything.
+  # The /pull-launchpad command (Claude) handles user interaction and approval.
+  echo "Non-interactive mode — report complete. Use /pull-launchpad for guided approval."
+  exit 0
 fi
 
 if [ ${#SELECTED_INDICES[@]} -eq 0 ]; then
