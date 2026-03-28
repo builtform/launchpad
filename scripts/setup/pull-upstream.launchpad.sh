@@ -93,7 +93,39 @@ if [ -z "$CHANGED_FILES" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 4: Classify via Git Hash Comparison
+# Step 3.5: Load Exclusion Manifest
+# ---------------------------------------------------------------------------
+# init-project.sh writes .launchpad/init-touched-files listing every file it
+# customized. These files diverge by design and should not appear in sync
+# results. Exclusions apply to A (added) and M (modified) only — upstream
+# deletions (D) are always shown.
+
+EXCLUDED_PATHS=()
+EXCLUDED_MANIFEST=".launchpad/init-touched-files"
+if [ -f "$EXCLUDED_MANIFEST" ]; then
+  while IFS= read -r line; do
+    # Skip empty lines and comments
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    EXCLUDED_PATHS+=("$line")
+  done < "$EXCLUDED_MANIFEST"
+fi
+
+is_excluded() {
+  local file="$1"
+  # Glob patterns for template source files (deleted by init, never in manifest)
+  case "${file##*/}" in
+    *.template.md|*.template) return 0 ;;
+  esac
+  # Check exact paths from manifest
+  local p
+  for p in "${EXCLUDED_PATHS[@]}"; do
+    [ "$file" = "$p" ] && return 0
+  done
+  return 1
+}
+
+# ---------------------------------------------------------------------------
+# Step 4: Classify via Dual Hash Comparison (OLD + NEW upstream)
 # ---------------------------------------------------------------------------
 CLEAN_FILES=()
 CONFLICTED=()
@@ -102,20 +134,25 @@ DELETED_FILES=()
 SKIPPED=()
 
 while IFS=$'\t' read -r status file; do
+  # Exclusions apply to A and M only — deletions always shown
+  if [ "$status" != "D" ] && is_excluded "$file"; then
+    continue
+  fi
+
   case "$status" in
     A)
       if [ ! -f "$file" ]; then
         # Upstream added, downstream doesn't have it
         NEW_FILES+=("$file")
       else
-        # Upstream added, downstream already has it — compare content
+        # Upstream added, downstream already has it — compare against NEW upstream
         NEW_HASH=$(git rev-parse "$NEW_SHA:$file" 2>/dev/null || echo "none")
-        CURRENT_HASH=$(git rev-parse "HEAD:$file" 2>/dev/null || echo "none")
+        CURRENT_HASH=$(git hash-object "$file" 2>/dev/null || echo "none")
         if [ "$NEW_HASH" = "$CURRENT_HASH" ]; then
-          # Already matches upstream — skip (identical or previously resolved)
-          SKIPPED+=("$file")
+          # Already matches new upstream — silently skip
+          continue
         else
-          # Different content — conflict
+          # Different from new upstream — conflict
           CONFLICTED+=("$file")
         fi
       fi
@@ -130,23 +167,27 @@ while IFS=$'\t' read -r status file; do
         # Upstream modified, downstream removed it
         SKIPPED+=("$file")
       else
-        # Compare downstream against both old and new upstream via hash
+        # Step A: Does downstream already match NEW upstream?
         NEW_HASH=$(git rev-parse "$NEW_SHA:$file" 2>/dev/null || echo "none")
-        CURRENT_HASH=$(git rev-parse "HEAD:$file" 2>/dev/null || echo "none")
+        CURRENT_HASH=$(git hash-object "$file" 2>/dev/null || echo "none")
         if [ "$NEW_HASH" = "$CURRENT_HASH" ]; then
-          # Already matches upstream — skip (previously resolved)
-          SKIPPED+=("$file")
+          # Already up to date — silently skip
+          continue
+        fi
+
+        # Step B: Does downstream match OLD upstream? (never modified)
+        OLD_HASH=$(git rev-parse "$OLD_SHA:$file" 2>/dev/null || echo "none")
+        if [ "$OLD_HASH" = "$CURRENT_HASH" ]; then
+          # Downstream never modified this file — safe to update
+          CLEAN_FILES+=("$file")
         else
-          OLD_HASH=$(git rev-parse "$OLD_SHA:$file" 2>/dev/null || echo "none")
-          if [ "$OLD_HASH" = "$CURRENT_HASH" ]; then
-            # Downstream never modified this file
-            CLEAN_FILES+=("$file")
-          else
-            # Downstream has customizations
-            CONFLICTED+=("$file")
-          fi
+          # Downstream modified AND doesn't match new upstream — conflict
+          CONFLICTED+=("$file")
         fi
       fi
+      ;;
+    *)
+      warn "Unknown git status '$status' for $file — skipping"
       ;;
   esac
 done <<< "$CHANGED_FILES"
@@ -251,7 +292,7 @@ echo ""
 TOTAL_ITEMS=${#ALL_ITEMS[@]}
 
 if [ "$TOTAL_ITEMS" -eq 0 ]; then
-  info "No applicable changes (all upstream changes are to files you removed)."
+  info "No applicable changes (upstream changes are to excluded or already-synced files)."
   echo "$NEW_SHA" > "$ANCHOR_FILE"
   exit 0
 fi

@@ -351,6 +351,52 @@ UPSTREAM_SHA="$(git rev-parse HEAD)"
 echo "$UPSTREAM_SHA" > .launchpad/upstream-commit
 info "Created .launchpad/upstream-commit ($UPSTREAM_SHA)"
 
+# Write init-touched manifest for upstream sync exclusion.
+# pull-upstream.launchpad.sh reads this to know which files were customized
+# during init and should be excluded from sync results.
+cat > .launchpad/init-touched-files << 'MANIFEST'
+# Files customized, created, or moved by init-project.sh.
+# pull-upstream.launchpad.sh excludes these from sync (A/M status only).
+# One file path per line. Lines starting with # are comments.
+#
+# --- Project identity (placeholder-injected) ---
+README.md
+LICENSE
+CODE_OF_CONDUCT.md
+CHANGELOG.md
+CONTRIBUTING.md
+CLAUDE.md
+AGENTS.md
+package.json
+# --- App source (project metadata injected) ---
+apps/web/src/app/layout.tsx
+# --- Commands/skills (project name injected) ---
+.claude/commands/define-product.md
+.claude/skills/tasks/SKILL.md
+scripts/agent_hydration/hydrate.sh
+docs/architecture/CI_CD.md
+# --- Structure files (template refs removed by init) ---
+docs/architecture/REPOSITORY_STRUCTURE.md
+scripts/maintenance/check-repo-structure.sh
+# --- Files created fresh by init ---
+.claude/settings.json
+docs/skills-catalog/skills-usage.json
+docs/skills-catalog/skills-index.md
+docs/architecture/DESIGN_SYSTEM.md
+docs/tasks/sections/.gitkeep
+# --- Files moved/deleted by init (original paths) ---
+scripts/setup/init-project.sh
+docs/guides/METHODOLOGY.md
+docs/guides/HOW_IT_WORKS.md
+MANIFEST
+
+# Conditional entries based on init choices
+if [ "$REPO_VISIBILITY" = "public" ]; then
+  echo "SECURITY.md" >> .launchpad/init-touched-files
+fi
+
+info "Created .launchpad/init-touched-files (upstream sync exclusion manifest)"
+
 # ---------------------------------------------------------------------------
 # Step 2/3 — Swap template files into their final positions
 # ---------------------------------------------------------------------------
@@ -458,6 +504,7 @@ fi
 # Create .gitkeep in docs/guides if it's now empty (Issue B4)
 if [ -d "docs/guides" ] && [ -z "$(ls -A docs/guides 2>/dev/null)" ]; then
   touch docs/guides/.gitkeep
+  echo "docs/guides/.gitkeep" >> .launchpad/init-touched-files
   info "Created docs/guides/.gitkeep"
 fi
 

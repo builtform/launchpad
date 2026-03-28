@@ -16,13 +16,25 @@ Then re-run.
 
 ## After the script completes
 
-- If CONFLICT files exist, help the user resolve them:
-  - Read the current file and the upstream version (via git show)
-  - Explain what the user customized and what upstream changed
-  - Help merge the changes or recommend which version to keep
+### If CONFLICT files exist — automatically present diffs
+
+Do NOT wait for the user to ask. For each CONFLICT file, immediately:
+
+1. Run `git diff $OLD_SHA $NEW_SHA -- $file` to get what upstream changed
+2. Read the current downstream file to understand local customizations
+3. Present each conflict to the user:
+   - **File:** `path/to/file`
+   - **What upstream changed:** summarize the upstream diff
+   - **What you customized:** summarize what differs from the original LaunchPad version
+   - **Recommendation:** accept upstream, keep local, or merge specific sections
+4. If the user wants to merge, help them edit the file to incorporate upstream changes
+   while preserving their customizations
+
+### After conflicts are resolved (or if none exist)
+
 - Remind the user to review staged changes with `git diff --cached` and commit
-- If anchor didn't advance (conflicts exist), note that re-running after
-  resolving conflicts will advance it
+- If anchor didn't advance (conflicts existed), note that re-running `/pull-launchpad`
+  after resolving conflicts will advance it
 
 ## Key Concepts
 
