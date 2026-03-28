@@ -110,7 +110,7 @@ while IFS=$'\t' read -r status file; do
       else
         # Upstream added, downstream already has it — compare content
         NEW_HASH=$(git rev-parse "$NEW_SHA:$file" 2>/dev/null || echo "none")
-        CURRENT_HASH=$(git hash-object "$file" 2>/dev/null || echo "none")
+        CURRENT_HASH=$(git rev-parse "HEAD:$file" 2>/dev/null || echo "none")
         if [ "$NEW_HASH" = "$CURRENT_HASH" ]; then
           # Identical content — silently skip
           SKIPPED+=("$file")
@@ -132,7 +132,7 @@ while IFS=$'\t' read -r status file; do
       else
         # Compare downstream against old upstream via hash
         OLD_HASH=$(git rev-parse "$OLD_SHA:$file" 2>/dev/null || echo "none")
-        CURRENT_HASH=$(git hash-object "$file" 2>/dev/null || echo "none")
+        CURRENT_HASH=$(git rev-parse "HEAD:$file" 2>/dev/null || echo "none")
         if [ "$OLD_HASH" = "$CURRENT_HASH" ]; then
           # Downstream never modified this file
           CLEAN_FILES+=("$file")
@@ -351,6 +351,8 @@ propagate_permissions() {
   local file="$1"
   if git ls-tree "$NEW_SHA" -- "$file" | grep -q '^100755'; then
     chmod +x "$file"
+  else
+    chmod -x "$file"
   fi
 }
 
