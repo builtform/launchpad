@@ -112,7 +112,7 @@ while IFS=$'\t' read -r status file; do
         NEW_HASH=$(git rev-parse "$NEW_SHA:$file" 2>/dev/null || echo "none")
         CURRENT_HASH=$(git rev-parse "HEAD:$file" 2>/dev/null || echo "none")
         if [ "$NEW_HASH" = "$CURRENT_HASH" ]; then
-          # Identical content — silently skip
+          # Already matches upstream — skip (identical or previously resolved)
           SKIPPED+=("$file")
         else
           # Different content — conflict
@@ -130,15 +130,21 @@ while IFS=$'\t' read -r status file; do
         # Upstream modified, downstream removed it
         SKIPPED+=("$file")
       else
-        # Compare downstream against old upstream via hash
-        OLD_HASH=$(git rev-parse "$OLD_SHA:$file" 2>/dev/null || echo "none")
+        # Compare downstream against both old and new upstream via hash
+        NEW_HASH=$(git rev-parse "$NEW_SHA:$file" 2>/dev/null || echo "none")
         CURRENT_HASH=$(git rev-parse "HEAD:$file" 2>/dev/null || echo "none")
-        if [ "$OLD_HASH" = "$CURRENT_HASH" ]; then
-          # Downstream never modified this file
-          CLEAN_FILES+=("$file")
+        if [ "$NEW_HASH" = "$CURRENT_HASH" ]; then
+          # Already matches upstream — skip (previously resolved)
+          SKIPPED+=("$file")
         else
-          # Downstream has customizations
-          CONFLICTED+=("$file")
+          OLD_HASH=$(git rev-parse "$OLD_SHA:$file" 2>/dev/null || echo "none")
+          if [ "$OLD_HASH" = "$CURRENT_HASH" ]; then
+            # Downstream never modified this file
+            CLEAN_FILES+=("$file")
+          else
+            # Downstream has customizations
+            CONFLICTED+=("$file")
+          fi
         fi
       fi
       ;;
