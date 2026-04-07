@@ -579,7 +579,7 @@ A user-facing reference for all installed skills in this project. Each skill is 
 
 - **Installation:** Skills are added via `/create-skill` or `/port-skill` and registered in this index, `CLAUDE.md`, `AGENTS.md`, and `skills-usage.json`.
 - **Usage tracking:** `scripts/hooks/track-skill-usage.sh` fires after every skill invocation and records the date in `skills-usage.json`.
-- **Staleness audit:** `scripts/hooks/audit-skills.sh` fires at session end. If 2+ weeks have passed since the last audit, it reports which skills are stale or unused.
+- **Staleness audit:** `scripts/hooks/audit-skills.sh` runs during `/commit` and `/ship`. If 2+ weeks have passed since the last audit, it reports which skills are stale or unused.
 
 ---
 
@@ -621,17 +621,6 @@ if [ ! -f ".claude/settings.json" ]; then
           {
             "type": "command",
             "command": "bash scripts/hooks/track-skill-usage.sh"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash scripts/hooks/audit-skills.sh"
           }
         ]
       }
