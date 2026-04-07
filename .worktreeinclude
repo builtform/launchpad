@@ -1,8 +1,6 @@
 # Environment files — copied to worktrees automatically by Claude Code
 # Uses .gitignore syntax. Only files that match AND are gitignored get copied.
-.env
-.env.local
-.env.consultant
-.env.migrate
+# Glob pattern catches future .env.* additions automatically.
+.env*
 apps/**/.env*
 packages/**/.env*
