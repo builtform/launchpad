@@ -1,70 +1,112 @@
 ---
 name: harden-plan
-description: Stress-tests implementation plans using multiple review agents. Dispatches agents based on plan characteristics and synthesizes findings into P1/P2/P3.
+description: Stress-tests implementation plans using multiple review agents. Dispatches code-focused and document-review agents, with optional interactive deepening.
 ---
 
 # /harden-plan
 
-Stress-tests an implementation plan using specialized review agents.
+Stress-tests an implementation plan using specialized review agents — both code-focused (technical gaps) and document-focused (quality/coherence).
 
 ## Usage
 
 ```
-/harden-plan [plan-path] --full          → 8 agents (section builds)
-/harden-plan [plan-path] --lightweight   → 4 agents (standalone default)
+/harden-plan [plan-path] --full          → all agents (section builds)
+/harden-plan [plan-path] --lightweight   → core agents (standalone default)
 /harden-plan [plan-path] --auto          → Auto-apply (used by /harness:plan)
+/harden-plan [plan-path] --interactive   → Present findings one-by-one for accept/reject/discuss
 ```
 
-**Arguments:** `$ARGUMENTS` (parse for plan path, `--full`/`--lightweight`, `--auto`)
+**Arguments:** `$ARGUMENTS` (parse for plan path, `--full`/`--lightweight`, `--auto`, `--interactive`)
 
 If no intensity flag provided, default to `--lightweight`.
+`--interactive` is default when called from `/harness:plan`.
 
 ---
 
 ## Step 1: Read Project Context
 
+- Read `.launchpad/agents.yml` → extract `harden_plan_agents`, `harden_plan_conditional_agents`, `harden_document_agents`
 - Read `.harness/harness.local.md` for project context
 - Read the plan file at the provided path
 
-## Step 2: Idempotency Check
+## Step 1.5: Idempotency Check
 
 - IF the plan file already contains `## Hardening Notes` → skip with message "Plan already hardened"
 - This makes `/harden-plan` safe to re-run
 
-## Step 3: Dispatch Agents (all model: inherit)
+## Step 2: Document Quality Pre-Check
+
+1. Load `document-review` skill
+2. Fast-path: if initial scan finds no critical clarity issues (ambiguity, missing scope, contradictions), skip immediately
+3. Only run full 5-question assessment when a red flag is detected
+4. IF critical clarity issues found:
+   - Auto-fix minor issues (log what was changed)
+   - Ask approval for substantive issues
+   - IF user declines a suggestion: discard silently (not written to observations — advisory only)
+   - Re-read plan after fixes
+5. This prevents dispatching agents against a plan with fundamental clarity problems
+
+## Step 2.5: Learnings Scan (parallel with Step 2.7)
+
+- Scan `docs/solutions/` for past learnings relevant to this plan
+- Match by: tags, category, module in YAML frontmatter
+- Skip files with malformed or missing frontmatter
+- IF `docs/solutions/` empty or missing: skip silently (dormant until Phase 6)
+- IF matches found: pass at most 5 most-recent matches (key insight only, not full document)
+- This ensures past mistakes and discoveries inform plan review
+
+## Step 2.7: Context7 Technology Enrichment (parallel with Step 2.5)
+
+- Parse plan for technology references (frameworks, libraries, APIs)
+- Query Context7 MCP for current documentation — ALL queries run IN PARALLEL
+- Focus on: breaking changes, deprecated APIs, version-specific gotchas
+- Collect insights → pass to agents as supplementary context
+- IF Context7 MCP unavailable: skip silently (graceful degradation)
+- Per-query timeout: 10s. Total step timeout: 30s.
+- IMPORTANT: Queries MUST contain only library names + version numbers. NEVER include plan content or business logic in queries.
+
+## Step 3: Dispatch Code-Focused Agents (all model: inherit)
 
 Read agent names from `.launchpad/agents.yml`:
 
 ### Always dispatched (both `--full` and `--lightweight`):
 
-Read `harden_plan_agents` from `agents.yml`. Dispatch all listed agents in parallel.
-
-Current defaults: `pattern-finder`, `security-auditor`, `performance-auditor` (+ `spec-flow-analyzer` when created in Phase 3).
+Read `harden_plan_agents` from `agents.yml`. Dispatch all listed agents in parallel with plan + project context + learnings + Context7 enrichment.
 
 ### Conditional (`--full` only):
 
 Read `harden_plan_conditional_agents` from `agents.yml`. Dispatch all listed agents in parallel.
 
-Current defaults: `architecture-strategist`, `code-simplicity-reviewer`, `frontend-races-reviewer` (+ `schema-drift-detector` when created in Phase 2).
+**Agent resolution:** Scan all `.claude/agents/` subdirectories for `{name}.md`. First match wins. If agent file not found, skip silently with a note.
 
-**Agent resolution:** Scan all `.claude/agents/` subdirectories for `{name}.md`. First match wins. If agent file not found, skip silently with a note — this handles future-phase agents gracefully.
-
-**Note:** The YAML is the single source of truth. Plan review ≠ code review — different agents for different purposes.
-
-## Step 3.5: Document-Review Agents [Phase 3 v7]
+## Step 3.5: Dispatch Document-Review Agents
 
 - Read `harden_document_agents` from `.launchpad/agents.yml`
-- IF not empty: dispatch all document-review agents in parallel
-- These review the plan as a document (clarity, completeness, structure)
-- [Phase 3] — skipped until agents are created and key is populated
+- IF not empty: dispatch all document-review agents in parallel with plan + project context
+- `design-lens-reviewer`: ONLY dispatched when section has UI components (skip when `"design:skipped"`)
+- Runs AFTER Step 3 code-focused agents complete, so document reviewers can reference code-focused findings
+
+## Step 3.7: Interactive Deepening
+
+IF `--interactive` (default when called from `/harness:plan`):
+
+1. Collect all findings from Step 3 + Step 3.5
+2. Present each agent's findings one-by-one, grouped by agent
+3. For each set: "Accept / Reject / Discuss?"
+   - **Accept:** integrate into Hardening Notes
+   - **Reject:** discard (not written anywhere — advisory only)
+   - **Discuss:** open dialogue, then re-present for accept/reject
+4. This gives the human control over what goes into the plan
+
+IF `--auto`: skip interactive deepening, auto-merge all findings
 
 ## Step 4: Synthesize Findings
 
-- Collect all agent findings
+- Collect all accepted findings (from interactive deepening) or all findings (from --auto)
 - Deduplicate overlapping concerns
 - Prioritize: P1 (must fix before build), P2 (should fix), P3 (nice to have)
 
-## Step 5: Apply or Present
+## Step 5: Apply
 
 ### IF `--auto` (used by `/harness:plan`):
 

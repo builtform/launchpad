@@ -28,7 +28,7 @@ harden_plan_agents:
   - pattern-finder
   - security-auditor
   - performance-auditor
-  # - spec-flow-analyzer          # [Phase 3]
+  - spec-flow-analyzer
 
 # Conditional plan hardening agents — dispatched by /harden-plan (full only)
 harden_plan_conditional_agents:
@@ -37,8 +37,16 @@ harden_plan_conditional_agents:
   - frontend-races-reviewer
   - schema-drift-detector
 
-# Document-review agents — dispatched by /harden-plan Step 3.5 [Phase 3 v7]
-harden_document_agents: []
+# Document-review agents — dispatched by /harden-plan Step 3.5
+# These review the plan DOCUMENT (not code) with multiple lenses
+harden_document_agents:
+  - adversarial-document-reviewer
+  - coherence-reviewer
+  - feasibility-reviewer
+  - scope-guardian-reviewer
+  - product-lens-reviewer
+  - security-lens-reviewer
+  # - design-lens-reviewer          # Conditional: only when section has UI
 
 # Opt-in agents — not dispatched by default
 # To enable for /review: move to review_agents

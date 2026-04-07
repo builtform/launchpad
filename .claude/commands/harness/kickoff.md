@@ -1,37 +1,24 @@
 ---
 name: harness:kickoff
-description: Meta-orchestrator for brainstorming. Loads brainstorming skill, facilitates open-ended dialogue, captures to docs/brainstorms/.
+description: Meta-orchestrator for brainstorming. Delegates to /brainstorm for collaborative idea exploration, then hands off to /harness:define.
 ---
 
 # /harness:kickoff
 
-Meta-orchestrator for the brainstorming phase. Opens creative exploration before defining product scope.
+Meta-orchestrator for the brainstorming phase. Delegates to `/brainstorm` for the actual brainstorming process.
 
 ---
 
-## Step 1: Load Brainstorming Skill
+## Step 1: Run /brainstorm
 
-Load the brainstorming skill to guide open-ended dialogue. If the skill is not available, proceed with general brainstorming guidance.
+Delegate to `/brainstorm` — the brainstorm command handles:
 
-## Step 2: Open-Ended Dialogue
+- Loading the brainstorming skill
+- Dispatching research agents when codebase exists
+- Collaborative dialogue
+- Design document capture to `docs/brainstorms/`
+- Post-capture refinement via document-review skill
 
-Facilitate open-ended exploration with the user:
+## Step 2: Transition
 
-- What problem are they solving?
-- Who is the target user?
-- What does success look like?
-- What constraints exist (time, budget, tech)?
-- What alternatives have they considered?
-
-## Step 3: Capture Output
-
-Save the brainstorm to `docs/brainstorms/YYYY-MM-DD-[topic].md` with:
-
-- Key ideas discussed
-- Decisions made
-- Open questions
-- Next steps
-
-## Step 4: Transition
-
-"Run `/harness:define` to define your product."
+"Brainstorm captured. Run `/harness:define` to define your product."
