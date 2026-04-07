@@ -535,6 +535,25 @@ if [ ! -f "docs/tasks/sections/.gitkeep" ]; then
   info "Created docs/tasks/sections/.gitkeep"
 fi
 
+# Create .worktreeinclude for Claude Code worktree env file copying
+if [ ! -f ".worktreeinclude" ]; then
+  cat > .worktreeinclude <<'WTEOF'
+# Environment files — copied to worktrees automatically by Claude Code
+# Uses .gitignore syntax. Only files that match AND are gitignored get copied.
+.env
+.env.local
+apps/**/.env*
+packages/**/.env*
+WTEOF
+  info "Created .worktreeinclude (Claude Code worktree env file declarations)"
+fi
+
+# Ensure .claude/worktrees/ is gitignored
+if ! grep -q '\.claude/worktrees/' .gitignore 2>/dev/null; then
+  printf '\n# Claude Code worktrees (isolated parallel development sessions)\n.claude/worktrees/\n' >> .gitignore
+  info "Added .claude/worktrees/ to .gitignore"
+fi
+
 # Create docs/skills-catalog/ directory and initial skill tracking files
 mkdir -p docs/skills-catalog
 if [ ! -f "docs/skills-catalog/skills-usage.json" ]; then
