@@ -70,11 +70,16 @@ Autonomous execution pipeline orchestrator. Resolves target from section registr
 - Stage only reported files → commit "fix: resolve review findings"
 - Commit is DURABLE (safe from crashes)
 
-## Step 3: /test-browser [Phase 5]
+## Step 3: /test-browser (auto-dispatched, self-scoping)
 
-- Browser testing on pages affected by current PR
+- Run `/test-browser` — maps changed files to UI routes (max 15)
+- Self-scoping: detects agent-browser CLI or Playwright MCP
+- Graceful skip: no browser tool, no dev server, no UI routes → skip with note
+- Tests routes (30s per route, 5min total) → writes findings to `.harness/todos/`
+- Browser test findings are NOT resolved by a second `/resolve_todo_parallel` — they proceed to `/ship` and are included in the PR description for human review
 - Set registry status → `reviewed` (code reviewed + browser tested)
 - **NOTE:** If `/test-browser` is skipped or unavailable, `/review` (Step 2) writes `reviewed` status instead.
+- **Proceed to Step 4 regardless of findings** — browser failures are informational, not blocking
 
 ## Step 4: /ship
 
