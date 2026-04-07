@@ -380,6 +380,8 @@ docs/architecture/REPOSITORY_STRUCTURE.md
 scripts/maintenance/check-repo-structure.sh
 # --- Files created fresh by init ---
 .claude/settings.json
+.worktreeinclude
+.gitignore
 docs/skills-catalog/skills-usage.json
 docs/skills-catalog/skills-index.md
 docs/architecture/DESIGN_SYSTEM.md
