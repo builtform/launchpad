@@ -55,6 +55,27 @@ Branch naming convention:
 
 ---
 
+## Step 2.5: Optional Code Review
+
+After staging, ask: **"Run code review before committing? (yes/no)"**
+
+Total timeout for this step: 20 minutes. If exceeded, report: "Review chain exceeded timeout. Findings in .harness/todos/ — resolve with /resolve_todo_parallel."
+
+### If yes:
+
+1. Run `/review --headless` — dispatches review agents, writes findings to `.harness/todos/`
+2. IF zero findings: "Code review passed." → continue to Step 3
+3. IF findings: Run `/triage` — user sorts each finding (fix/drop/defer)
+4. IF any findings marked "fix": Run `/resolve_todo_parallel` (max 5 concurrent agents)
+5. Re-stage: `git add` resolver-reported files. Check for untracked files — ask to stage. Re-run secret scan on resolver-touched files. Show `git diff --cached --stat`.
+6. Continue to Step 3
+
+### If no:
+
+Continue to Step 3 immediately.
+
+---
+
 ## Step 3: Skill Staleness Audit
 
 Run the skill staleness audit before committing:
@@ -203,9 +224,9 @@ EOF
 
 ---
 
-## Step 9: PR Monitoring Loop
+## Step 9: PR Monitoring Loop (max 3 cycles, 60min timeout)
 
-After PR creation, enter the three-gate monitoring loop. Run all three gates on each cycle:
+After PR creation, enter the three-gate monitoring loop. Run all three gates on each cycle. Maximum 3 cycles. Maximum 60-minute total wall-clock timeout. Gate A CI polling capped at 20 retries (10 minutes) per cycle. After max cycles or timeout: "PR monitoring reached maximum cycles/timeout. Remaining issues require manual attention."
 
 ### Gate A: CI Checks
 
