@@ -9,7 +9,11 @@ review_agents:
   - testing-reviewer
 
 # DB agents — only when diff touches Prisma files
-review_db_agents: []
+# Dispatch order defined in /review Step 4 (sequential-then-parallel), not by list order
+review_db_agents:
+  - schema-drift-detector
+  - data-migration-auditor
+  - data-integrity-auditor
 
 # Design review agents — dispatched by /review when section status = "designed"
 # Populated in Phase 10 when design agents are created
@@ -31,7 +35,7 @@ harden_plan_conditional_agents:
   - architecture-strategist
   - code-simplicity-reviewer
   - frontend-races-reviewer
-  # - schema-drift-detector       # [Phase 2]
+  - schema-drift-detector
 
 # Document-review agents — dispatched by /harden-plan Step 3.5 [Phase 3 v7]
 harden_document_agents: []

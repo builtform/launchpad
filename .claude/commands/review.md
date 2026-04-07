@@ -58,10 +58,21 @@ For each agent in `review_agents`:
 - For `code-simplicity-reviewer`: additionally pass "Changed Files: {list}. Suggest changes only to these files. Return observation text for anything outside this list."
 - Prompt: "Review this code diff for issues in your domain. Return findings as structured list with file:line, severity (P1/P2/P3), and description."
 
-## Step 4: Conditional DB Agents
+## Step 4: Conditional DB Agent Dispatch (sequential-then-parallel)
 
-- IF `db_changes == true` AND `review_db_agents` is not empty:
-  - Dispatch all `review_db_agents` in parallel with same inputs
+IF changed files match `prisma/schema.prisma` OR `prisma/migrations/*`:
+
+**Step 4a:** Dispatch `schema-drift-detector` (SEQUENTIAL — runs first)
+
+- Pass: diff + Prisma files + review context
+- Wait for output → `drift_report`
+
+**Step 4b:** Dispatch IN PARALLEL with drift report as context:
+
+- `data-migration-auditor` — receives: diff + Prisma files + review context + `drift_report`
+- `data-integrity-auditor` — receives: diff + Prisma files + review context + `drift_report`
+
+The drift report lets downstream agents focus only on legitimate changes, ignoring drifted changes that should be removed.
 
 ## Step 4.5: Conditional Design Agents
 
