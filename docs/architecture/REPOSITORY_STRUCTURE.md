@@ -120,7 +120,7 @@ packages/
 scripts/
 ├── agent_hydration/                         # AI agent context scripts
 ├── compound/                                # Compound Product pipeline scripts
-├── hooks/                                   # Claude Code hook scripts (PostToolUse, Stop)
+├── hooks/                                   # Claude Code hook scripts (PostToolUse)
 ├── maintenance/                             # Structure checks, repo hygiene
 └── setup/                                   # Project init and upstream sync
 
