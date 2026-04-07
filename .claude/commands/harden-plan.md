@@ -33,27 +33,23 @@ If no intensity flag provided, default to `--lightweight`.
 
 ## Step 3: Dispatch Agents (all model: inherit)
 
+Read agent names from `.launchpad/agents.yml`:
+
 ### Always dispatched (both `--full` and `--lightweight`):
 
-| Agent                 | Purpose                | Notes                             |
-| --------------------- | ---------------------- | --------------------------------- |
-| `spec-flow-analyzer`  | User flow completeness | [Phase 3] — skipped until created |
-| `security-auditor`    | Security review        | [Phase 1] — skipped until created |
-| `performance-auditor` | Performance review     | [Phase 1] — skipped until created |
-| `pattern-finder`      | Pattern consistency    | Available now                     |
+Read `harden_plan_agents` from `agents.yml`. Dispatch all listed agents in parallel.
+
+Current defaults: `pattern-finder`, `security-auditor`, `performance-auditor` (+ `spec-flow-analyzer` when created in Phase 3).
 
 ### Conditional (`--full` only):
 
-| Agent                      | Purpose               | Condition                     |
-| -------------------------- | --------------------- | ----------------------------- |
-| `architecture-strategist`  | Architecture review   | [Phase 1] — IF multi-package  |
-| `code-simplicity-reviewer` | Complexity review     | [Phase 1] — IF 4+ phases      |
-| `frontend-races-reviewer`  | Race condition review | [Phase 1] — IF async UI       |
-| `schema-drift-detector`    | Schema review         | [Phase 2] — IF Prisma changes |
+Read `harden_plan_conditional_agents` from `agents.yml`. Dispatch all listed agents in parallel.
+
+Current defaults: `architecture-strategist`, `code-simplicity-reviewer`, `frontend-races-reviewer` (+ `schema-drift-detector` when created in Phase 2).
 
 **Agent resolution:** Scan all `.claude/agents/` subdirectories for `{name}.md`. First match wins. If agent file not found, skip silently with a note — this handles future-phase agents gracefully.
 
-**Note:** Phase 1 will move `/harden-plan` to read agent names from `agents.yml` keys `harden_plan_agents` and `harden_plan_conditional_agents`. For now, agent names are hardcoded above. Plan review ≠ code review — different agents for different purposes.
+**Note:** The YAML is the single source of truth. Plan review ≠ code review — different agents for different purposes.
 
 ## Step 3.5: Document-Review Agents [Phase 3 v7]
 

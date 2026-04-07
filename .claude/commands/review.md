@@ -53,7 +53,9 @@ git diff --name-only origin/main...HEAD
 
 For each agent in `review_agents`:
 
-- Spawn agent with: diff content + changed file list + review context from `.harness/harness.local.md`
+- Spawn agent with: diff content + changed file list + files they directly import (1-hop) + review context from `.harness/harness.local.md`
+- Agents use Grep/Glob for broader pattern checks — do NOT Read every file in the repo
+- For `code-simplicity-reviewer`: additionally pass "Changed Files: {list}. Suggest changes only to these files. Return observation text for anything outside this list."
 - Prompt: "Review this code diff for issues in your domain. Return findings as structured list with file:line, severity (P1/P2/P3), and description."
 
 ## Step 4: Conditional DB Agents
@@ -167,6 +169,12 @@ Score each finding 0.00-1.00 using this rubric:
    ```
 
 4. IF zero findings above threshold: write "Clean review — no actionable findings" to summary
+
+5. Write observation text from `code-simplicity-reviewer` to `.harness/observations/`:
+   - For each observation, create `.harness/observations/{id}-{description}.md`
+   - YAML frontmatter: `status: observation`, `priority: p3`, `issue_id: "obs-{N}"`, `tags: [simplification]`, `observed_in: "path/to/file"`, `feature_scope: "{changed files list}"`
+   - Body: Observation description + "Why Not Actioned: Outside the current feature scope."
+   - Agents return observation text — `/review` owns all file writes
 
 ## Step 7: Report (SKIPPED in --headless mode)
 

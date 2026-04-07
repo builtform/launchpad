@@ -1,6 +1,12 @@
 # Code review agents — dispatched by /review
 review_agents:
   - pattern-finder
+  - security-auditor
+  - kieran-foad-ts-reviewer
+  - performance-auditor
+  - code-simplicity-reviewer
+  - architecture-strategist
+  - testing-reviewer
 
 # DB agents — only when diff touches Prisma files
 review_db_agents: []
@@ -13,17 +19,29 @@ review_design_agents: [] # [Phase 10]
 # Populated by downstream projects (e.g., BuiltForm adds copy-auditor in Phase 11)
 review_copy_agents: [] # [Phase 10]
 
-# Plan hardening agents — always dispatched by /harden-plan
-# Populated in Phase 1 when review agents are created
-harden_plan_agents: []
+# Plan hardening agents — always dispatched by /harden-plan (both intensities)
+harden_plan_agents:
+  - pattern-finder
+  - security-auditor
+  - performance-auditor
+  # - spec-flow-analyzer          # [Phase 3]
 
-# Conditional plan hardening agents — dispatched based on plan characteristics
-# Populated in Phase 1-2 (architecture-strategist, code-simplicity-reviewer,
-# frontend-races-reviewer, schema-drift-detector)
-harden_plan_conditional_agents: []
+# Conditional plan hardening agents — dispatched by /harden-plan (full only)
+harden_plan_conditional_agents:
+  - architecture-strategist
+  - code-simplicity-reviewer
+  - frontend-races-reviewer
+  # - schema-drift-detector       # [Phase 2]
 
 # Document-review agents — dispatched by /harden-plan Step 3.5 [Phase 3 v7]
 harden_document_agents: []
+
+# Opt-in agents — not dispatched by default
+# To enable for /review: move to review_agents
+# To enable for /harden-plan: move to appropriate harden list
+#   - deployment-verification-agent
+#   - frontend-races-reviewer      # already in harden conditional
+#   - kieran-foad-python-reviewer
 
 # Protected branches — read by /ship, /commit, /resolve-pr-comments
 protected_branches:
