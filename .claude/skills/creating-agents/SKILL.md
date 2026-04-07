@@ -90,7 +90,7 @@ Present the spec to the user for confirmation before proceeding.
 
 Spawn one sub-agent (Sonnet):
 
-- **codebase-pattern-finder** — Read all files in `.claude/agents/` (and subdirectories if they exist). Report the exact frontmatter schema, body section structure, tool assignments, description style, and naming patterns used by existing agents.
+- **pattern-finder** — Read all files in `.claude/agents/` (and subdirectories if they exist). Report the exact frontmatter schema, body section structure, tool assignments, description style, and naming patterns used by existing agents.
 
 After the sub-agent returns, check for overlap:
 

@@ -57,7 +57,8 @@ Note: Files marked with `.template` or `.template.md` are used by `init-project.
 | `.github/`                                              | GitHub Actions, issue/PR templates                                           |
 | `.vscode/`                                              | Shared editor settings                                                       |
 | `.claude/`                                              | Claude Code agents, commands, skills, hooks                                  |
-| `.launchpad/`                                           | Harness metadata (downstream only — created by `init-project.sh`)            |
+| `.launchpad/`                                           | Harness metadata — agent lists, secret patterns (upstream-synced)            |
+| `.harness/`                                             | Runtime artifacts — todos, observations, design artifacts                    |
 | `node_modules/`, `.turbo/`, `.next/`, `dist/`, `build/` | Build/cache artifacts (gitignored)                                           |
 | `.git/`                                                 | Git internals                                                                |
 

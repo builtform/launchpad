@@ -143,14 +143,33 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 
 ## Available Sub-Agents
 
-These agents are spawned as sub-agents by commands and skills. Each is a read-only documentarian — it describes what exists without critiquing or suggesting changes.
+Agents are organized into namespace subdirectories under `.claude/agents/`:
 
-| Agent                     | Purpose                                                                                                                   |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `codebase-locator`        | Find WHERE files and components live (super Grep/Glob/LS)                                                                 |
-| `codebase-analyzer`       | Understand HOW specific code works with file:line precision                                                               |
-| `codebase-pattern-finder` | Find existing patterns and code examples to model after                                                                   |
-| `docs-locator`            | Find relevant docs by frontmatter, date-prefixed filenames, directory structure                                           |
-| `docs-analyzer`           | Extract decisions, rejected approaches, constraints, promoted patterns from docs                                          |
-| `web-search-researcher`   | External documentation, API references, and best practices                                                                |
-| `skill-evaluator`         | Evaluate generated skills against 16 quality criteria (3-pass: first-principles, baseline detection, Anthropic checklist) |
+### research/ — Read-only documentarians
+
+| Agent            | Purpose                                                                          |
+| ---------------- | -------------------------------------------------------------------------------- |
+| `file-locator`   | Find WHERE files and components live (super Grep/Glob/LS)                        |
+| `code-analyzer`  | Understand HOW specific code works with file:line precision                      |
+| `pattern-finder` | Find existing patterns and code examples to model after                          |
+| `docs-locator`   | Find relevant docs by frontmatter, date-prefixed filenames, directory structure  |
+| `docs-analyzer`  | Extract decisions, rejected approaches, constraints, promoted patterns from docs |
+| `web-researcher` | External documentation, API references, and best practices                       |
+
+### skills/
+
+| Agent             | Purpose                                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `skill-evaluator` | Evaluate generated skills against 16 quality criteria (3-pass: first-principles, baseline detection, Anthropic checklist) |
+
+### resolve/
+
+| Agent                   | Purpose                                               |
+| ----------------------- | ----------------------------------------------------- |
+| `harness-todo-resolver` | Fix individual review findings from `.harness/todos/` |
+
+### review/ — [Phases 1-2]
+
+### document-review/ — [Phase 3]
+
+### design/ — [Phase 10]

@@ -124,34 +124,51 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 <!-- Claude reads these only when the task is relevant — never all upfront.                       -->
 <!-- Pointers only. Never copy content here — it will go stale. No inline code snippets.          -->
 
-| Doc                                        | Read When                                          |
-| ------------------------------------------ | -------------------------------------------------- |
-| `docs/architecture/PRD.md`                 | Understanding feature intent or product scope      |
-| `docs/architecture/APP_FLOW.md`            | Working on navigation, auth flow, or user journeys |
-| `docs/architecture/TECH_STACK.md`          | Evaluating or adding dependencies                  |
-| `docs/architecture/BACKEND_STRUCTURE.md`   | Modifying API routes, services, or data models     |
-| `docs/architecture/FRONTEND_GUIDELINES.md` | Building or refactoring UI components              |
-| `docs/architecture/DESIGN_SYSTEM.md`       | Defining UI components or visual design decisions  |
-| `docs/architecture/CI_CD.md`               | Configuring CI/CD pipelines or deployment          |
-| `docs/skills-catalog/skills-index.md`      | Managing, reviewing, or auditing installed skills  |
-| `.claude/skills/creating-agents/SKILL.md`  | Creating new agents or converting skills to agents |
-
-<!-- Add project-specific docs here as they grow. Examples:                                       -->
-<!--   docs/how-tos/database-migrations.md   → when running or writing migrations                 -->
-<!--   docs/how-tos/deployment.md            → when deploying or configuring CI/CD                -->
+| Doc                                        | Read When                                           |
+| ------------------------------------------ | --------------------------------------------------- |
+| `docs/architecture/PRD.md`                 | Understanding feature intent or product scope       |
+| `docs/architecture/APP_FLOW.md`            | Working on navigation, auth flow, or user journeys  |
+| `docs/architecture/TECH_STACK.md`          | Evaluating or adding dependencies                   |
+| `docs/architecture/BACKEND_STRUCTURE.md`   | Modifying API routes, services, or data models      |
+| `docs/architecture/FRONTEND_GUIDELINES.md` | Building or refactoring UI components               |
+| `docs/architecture/DESIGN_SYSTEM.md`       | Defining UI components or visual design decisions   |
+| `docs/architecture/CI_CD.md`               | Configuring CI/CD pipelines or deployment           |
+| `docs/skills-catalog/skills-index.md`      | Managing, reviewing, or auditing installed skills   |
+| `.claude/skills/creating-agents/SKILL.md`  | Creating new agents or converting skills to agents  |
+| `.launchpad/agents.yml`                    | Configuring review agent lists                      |
+| `.harness/harness.local.md`                | Viewing or updating project-specific review context |
 
 ---
 
 ## Available Sub-Agents
 
-These agents are spawned as sub-agents by commands and skills. Each is a read-only documentarian — it describes what exists without critiquing or suggesting changes.
+Agents are organized into namespace subdirectories under `.claude/agents/`:
 
-| Agent                     | Purpose                                                                                                                   |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `codebase-locator`        | Find WHERE files and components live (super Grep/Glob/LS)                                                                 |
-| `codebase-analyzer`       | Understand HOW specific code works with file:line precision                                                               |
-| `codebase-pattern-finder` | Find existing patterns and code examples to model after                                                                   |
-| `docs-locator`            | Find relevant docs by frontmatter, date-prefixed filenames, directory structure                                           |
-| `docs-analyzer`           | Extract decisions, rejected approaches, constraints, promoted patterns from docs                                          |
-| `web-search-researcher`   | External documentation, API references, and best practices                                                                |
-| `skill-evaluator`         | Evaluate generated skills against 16 quality criteria (3-pass: first-principles, baseline detection, Anthropic checklist) |
+### research/ — Read-only documentarians
+
+| Agent            | Purpose                                                                          |
+| ---------------- | -------------------------------------------------------------------------------- |
+| `file-locator`   | Find WHERE files and components live (super Grep/Glob/LS)                        |
+| `code-analyzer`  | Understand HOW specific code works with file:line precision                      |
+| `pattern-finder` | Find existing patterns and code examples to model after                          |
+| `docs-locator`   | Find relevant docs by frontmatter, date-prefixed filenames, directory structure  |
+| `docs-analyzer`  | Extract decisions, rejected approaches, constraints, promoted patterns from docs |
+| `web-researcher` | External documentation, API references, and best practices                       |
+
+### skills/
+
+| Agent             | Purpose                                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `skill-evaluator` | Evaluate generated skills against 16 quality criteria (3-pass: first-principles, baseline detection, Anthropic checklist) |
+
+### resolve/
+
+| Agent                   | Purpose                                               |
+| ----------------------- | ----------------------------------------------------- |
+| `harness-todo-resolver` | Fix individual review findings from `.harness/todos/` |
+
+### review/ — [Phases 1-2]
+
+### document-review/ — [Phase 3]
+
+### design/ — [Phase 10]

@@ -53,7 +53,7 @@ Don't let verification interrupt your flow - batch it at natural stopping points
 
 ## Matching Existing Patterns
 
-Before implementing each phase, spawn a **codebase-pattern-finder** sub-agent to find existing patterns you should follow. This ensures new code is consistent with established conventions.
+Before implementing each phase, spawn a **pattern-finder** sub-agent to find existing patterns you should follow. This ensures new code is consistent with established conventions.
 
 **When to spawn it:**
 
@@ -64,7 +64,7 @@ Before implementing each phase, spawn a **codebase-pattern-finder** sub-agent to
 **How to spawn it:**
 
 ```
-Task(subagent_type="codebase-pattern-finder", prompt="Find existing patterns for [what you're about to implement] in [relevant directory]")
+Task(subagent_type="pattern-finder", prompt="Find existing patterns for [what you're about to implement] in [relevant directory]")
 ```
 
 Use the returned code examples as your template — match the style, naming, structure, and error handling patterns exactly.
@@ -97,7 +97,7 @@ When something isn't working as expected:
 
 Use sub-tasks for:
 
-- **Pattern matching**: Spawn **codebase-pattern-finder** to find similar implementations to model after
+- **Pattern matching**: Spawn **pattern-finder** to find similar implementations to model after
 - **Targeted debugging**: Understanding unfamiliar code paths
 - **Exploring unfamiliar territory**: Locating relevant files and understanding how they work
 

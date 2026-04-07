@@ -46,7 +46,7 @@ Generates Product Requirements Documents from a feature description. Supports in
 
 - **Key Outputs:** `docs/tasks/prd-[feature-name].md`
 - **Related Commands:** `/define-product`
-- **Interconnections:** Feeds into the `tasks` skill for JSON conversion. Uses `codebase-locator`, `codebase-pattern-finder`, `docs-locator`, `docs-analyzer` sub-agents.
+- **Interconnections:** Feeds into the `tasks` skill for JSON conversion. Uses `file-locator`, `pattern-finder`, `docs-locator`, `docs-analyzer` sub-agents.
 
 #### 2. tasks
 
@@ -54,7 +54,7 @@ Converts PRD markdown documents into `prd.json` format for the compound executio
 
 - **Key Outputs:** `prd.json` at specified location
 - **Related Commands:** `/pnf`, `/inf`
-- **Interconnections:** Consumes output from `prd` skill. Output is consumed by `auto-compound.sh` and `loop.sh` execution pipeline.
+- **Interconnections:** Consumes output from `prd` skill. Output is consumed by `build.sh` and `loop.sh` execution pipeline.
 
 ### Quality & Workflow
 
@@ -74,7 +74,7 @@ Creates new Claude Code skills using the 7-phase Meta-Skill Forge methodology. I
 
 - **Key Outputs:** `.claude/skills/<name>/SKILL.md`, reference files in `references/`, eval scenarios in `evals/`, updates to `CLAUDE.md` and `AGENTS.md`
 - **Related Commands:** `/create-skill`, `/update-skill`, `/port-skill`
-- **Interconnections:** Uses `codebase-pattern-finder`, `docs-locator`, `codebase-locator`, `codebase-analyzer`, `docs-analyzer`, `web-search-researcher`, and `skill-evaluator` sub-agents.
+- **Interconnections:** Uses `pattern-finder`, `docs-locator`, `file-locator`, `code-analyzer`, `docs-analyzer`, `web-researcher`, and `skill-evaluator` sub-agents.
 
 #### 5. creating-agents
 
@@ -82,14 +82,14 @@ Creates new Claude Code agents or converts existing skills into agents. Produces
 
 - **Key Outputs:** `.claude/agents/[namespace/]<name>.md`, updates to `CLAUDE.md` and `AGENTS.md`
 - **Related Commands:** `/create-agent` (wrapper command that detects mode and delegates)
-- **Interconnections:** Uses `codebase-pattern-finder` sub-agent for researching existing agent patterns. Companion to `creating-skills` — skills orchestrate, agents execute.
+- **Interconnections:** Uses `pattern-finder` sub-agent for researching existing agent patterns. Companion to `creating-skills` — skills orchestrate, agents execute.
 
 ---
 
 ## Skill Relationship Map
 
 ```
-/define-product ──→ prd ──→ tasks ──→ auto-compound.sh / loop.sh
+/define-product ──→ prd ──→ tasks ──→ build.sh / loop.sh
                                          │
                                          ▼
                                       commit (quality gates → git → PR)

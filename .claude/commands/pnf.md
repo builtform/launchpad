@@ -124,8 +124,8 @@ Conduct two-wave sub-agent research to understand the codebase before planning.
 
 Spawn these locator agents in parallel:
 
-- **codebase-locator** — finds all files related to this section's entities, routes, and features (Glob/Grep only)
-- **codebase-pattern-finder** — finds similar features and patterns we can model after (Glob/Grep only)
+- **file-locator** — finds all files related to this section's entities, routes, and features (Glob/Grep only)
+- **pattern-finder** — finds similar features and patterns we can model after (Glob/Grep only)
 - **docs-locator** — finds relevant documents in `docs/solutions/`, `docs/plans/`, `docs/reports/`, `docs/lessons/` (Glob/Grep only). **Conditional**: Only spawn if these directories contain real content beyond stubs.
 
 These agents return file paths and pattern locations. They do NOT read file contents.
@@ -136,9 +136,9 @@ These agents return file paths and pattern locations. They do NOT read file cont
 
 Using the specific paths discovered by Wave 1, spawn targeted analyzer agents:
 
-- **codebase-analyzer** — understands how relevant code works at the paths found by locators. Focus on: existing implementations of similar features, database schema, API patterns, component structure
+- **code-analyzer** — understands how relevant code works at the paths found by locators. Focus on: existing implementations of similar features, database schema, API patterns, component structure
 - **docs-analyzer** — extracts decisions, constraints, rejected approaches, and promoted patterns from documents found by docs-locator (only if docs-locator returned results)
-- **web-search-researcher** — if the section involves unfamiliar libraries, APIs, or patterns, research current documentation and best practices
+- **web-researcher** — if the section involves unfamiliar libraries, APIs, or patterns, research current documentation and best practices
 
 **Wait for ALL Wave 2 agents to complete.**
 

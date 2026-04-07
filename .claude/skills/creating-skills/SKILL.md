@@ -59,21 +59,21 @@ Every step produces a visible artifact. No step is skipped.
 
 Read [references/METHODOLOGY.md](mdc:references/METHODOLOGY.md) for the full two-wave sub-agent protocol before proceeding.
 
-### Wave 1: Discovery (parallel, Sonnet)
+### Wave 1: Discovery (parallel, inherit)
 
 Spawn three sub-agents simultaneously:
 
-1. **codebase-pattern-finder** -- Find existing skills, commands, and agent patterns in the codebase. Report file paths, structural conventions, and naming patterns.
+1. **pattern-finder** -- Find existing skills, commands, and agent patterns in the codebase. Report file paths, structural conventions, and naming patterns.
 2. **docs-locator** -- Find all documentation related to the skill topic. Include architecture docs, guides, learnings, and prior decisions.
-3. **codebase-locator** -- Find all implementation files related to the skill topic. Include configs, scripts, and test files.
+3. **file-locator** -- Find all implementation files related to the skill topic. Include configs, scripts, and test files.
 
-### Wave 2: Analysis (parallel, Sonnet)
+### Wave 2: Analysis (parallel, inherit)
 
 After Wave 1 completes, spawn three more:
 
-1. **codebase-analyzer** -- Analyze Wave 1 findings for patterns, anti-patterns, and conventions to follow.
+1. **code-analyzer** -- Analyze Wave 1 findings for patterns, anti-patterns, and conventions to follow.
 2. **docs-analyzer** -- Extract decisions, constraints, rejected approaches, and promoted patterns from documentation.
-3. **web-search-researcher** -- Search the web for best practices, common pitfalls, and expert approaches to the skill topic.
+3. **web-researcher** -- Search the web for best practices, common pitfalls, and expert approaches to the skill topic.
 
 ### Source Material Handling
 

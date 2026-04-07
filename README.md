@@ -139,7 +139,7 @@ Launchpad organizes AI development into **7 layers**, each targeting a specific 
 | -------------------- | -------------------------------------- | ----------------------------------------------------------------- |
 | 1. Scaffold          | Consistent file placement              | `check-repo-structure.sh`                                         |
 | 2. Definition        | Spec before code                       | `/define-product`, `/define-design`, `/define-architecture`       |
-| 3. Execution         | AI in fresh-context loops              | `/inf`, `auto-compound.sh`                                        |
+| 3. Execution         | AI in fresh-context loops              | `/inf`, `build.sh`                                                |
 | 4. Quality           | Catch problems pre-commit              | Lefthook, TypeScript, ESLint                                      |
 | 5. Commit-to-Merge   | Nothing unreviewed on main             | `/commit`, Codex review                                           |
 | 6. Compound Learning | Learnings improve every future session | `docs/solutions/`, `CLAUDE.md`                                    |

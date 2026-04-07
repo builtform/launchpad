@@ -26,23 +26,23 @@ The Meta-Skill Forge transforms domain expertise into structured Claude Code ski
 
 Build a complete understanding of the skill's domain before asking the user any questions. Follows the two-wave sub-agent pattern from `pnf.md`.
 
-### Wave 1: Discovery (parallel, Sonnet, no Read tool)
+### Wave 1: Discovery (parallel, inherit, no Read tool)
 
-| Agent                     | Task                                                                | Tools      |
-| ------------------------- | ------------------------------------------------------------------- | ---------- |
-| `codebase-pattern-finder` | Find existing skills, commands, and workflow patterns in `.claude/` | Glob, Grep |
-| `docs-locator`            | Find relevant docs across `docs/`, `CLAUDE.md`, `AGENTS.md`         | Glob, Grep |
-| `codebase-locator`        | Find implementation files related to the skill's target domain      | Glob, Grep |
+| Agent            | Task                                                                | Tools      |
+| ---------------- | ------------------------------------------------------------------- | ---------- |
+| `pattern-finder` | Find existing skills, commands, and workflow patterns in `.claude/` | Glob, Grep |
+| `docs-locator`   | Find relevant docs across `docs/`, `CLAUDE.md`, `AGENTS.md`         | Glob, Grep |
+| `file-locator`   | Find implementation files related to the skill's target domain      | Glob, Grep |
 
 **Wait for ALL Wave 1 agents before spawning Wave 2.**
 
-### Wave 2: Analysis (parallel, Sonnet, targeted by Wave 1)
+### Wave 2: Analysis (parallel, inherit, targeted by Wave 1)
 
-| Agent                   | Task                                                          | Tools               |
-| ----------------------- | ------------------------------------------------------------- | ------------------- |
-| `codebase-analyzer`     | Read and understand patterns at paths from Wave 1             | Read, Glob, Grep    |
-| `docs-analyzer`         | Extract decisions, constraints, conventions from located docs | Read, Glob, Grep    |
-| `web-search-researcher` | Gather current docs for unfamiliar libraries or techniques    | WebSearch, WebFetch |
+| Agent            | Task                                                          | Tools               |
+| ---------------- | ------------------------------------------------------------- | ------------------- |
+| `code-analyzer`  | Read and understand patterns at paths from Wave 1             | Read, Glob, Grep    |
+| `docs-analyzer`  | Extract decisions, constraints, conventions from located docs | Read, Glob, Grep    |
+| `web-researcher` | Gather current docs for unfamiliar libraries or techniques    | WebSearch, WebFetch |
 
 **Wait for ALL Wave 2 agents before proceeding.**
 
@@ -219,17 +219,17 @@ Phase 4 retroactively determines depth of Phases 5-7 but never skips them. A Sim
 
 ## Sub-Agent Summary
 
-| Agent                        | Phase | Model  | Mode      | Spawned When                |
-| ---------------------------- | ----- | ------ | --------- | --------------------------- |
-| `codebase-pattern-finder`    | 1     | Sonnet | Read-only | Always (Wave 1)             |
-| `docs-locator`               | 1     | Sonnet | Read-only | Always (Wave 1)             |
-| `codebase-locator`           | 1     | Sonnet | Read-only | Always (Wave 1)             |
-| `codebase-analyzer`          | 1     | Sonnet | Read-only | Always (Wave 2)             |
-| `docs-analyzer`              | 1     | Sonnet | Read-only | Always (Wave 2)             |
-| `web-search-researcher`      | 1     | Sonnet | Read-only | Unfamiliar tech involved    |
-| `source-material-researcher` | 1     | Opus   | Read-only | Source document > 10 pages  |
-| `fidelity-check`             | 5     | Sonnet | Read-only | Skill built from source doc |
-| `skill-evaluator`            | 6     | Sonnet | Read-only | Always                      |
+| Agent                        | Phase | Model   | Mode      | Spawned When                |
+| ---------------------------- | ----- | ------- | --------- | --------------------------- |
+| `pattern-finder`             | 1     | inherit | Read-only | Always (Wave 1)             |
+| `docs-locator`               | 1     | Sonnet  | Read-only | Always (Wave 1)             |
+| `file-locator`               | 1     | inherit | Read-only | Always (Wave 1)             |
+| `code-analyzer`              | 1     | inherit | Read-only | Always (Wave 2)             |
+| `docs-analyzer`              | 1     | Sonnet  | Read-only | Always (Wave 2)             |
+| `web-researcher`             | 1     | inherit | Read-only | Unfamiliar tech involved    |
+| `source-material-researcher` | 1     | Opus    | Read-only | Source document > 10 pages  |
+| `fidelity-check`             | 5     | Sonnet  | Read-only | Skill built from source doc |
+| `skill-evaluator`            | 6     | Sonnet  | Read-only | Always                      |
 
 **Wave 1 agents:** Never use the Read tool. Glob and Grep only. Fast and cheap.
 **Wave 2 agents:** Use Read on targeted paths from Wave 1. Expensive -- precision matters.

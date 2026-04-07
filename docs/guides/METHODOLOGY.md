@@ -52,9 +52,9 @@ The first five layers form a forward pipeline. The sixth layer wraps all of them
 | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | 1. [Opinionated Scaffold](#layer-1-opinionated-scaffold)     | Monorepo with enforced structure, whitelisted root files, and a decision tree for file placement                            | `REPOSITORY_STRUCTURE.md`, `check-repo-structure.sh`, `init-project.sh`               |
 | 2. [Spec-Driven Definition](#layer-2-spec-driven-definition) | Four-tier workflow: Capabilities → Definition → Development → Implementation, producing architecture docs and section specs | `/define-product`, `/define-design`, `/define-architecture`, `/shape-section`, `/pnf` |
-| 3. [Compound Execution](#layer-3-compound-execution)         | Report --> analysis --> PRD --> tasks --> autonomous loop --> PR. Fresh-context iterations with a Kanban board              | `auto-compound.sh`, `loop.sh`, `iteration-claude.md`, `/inf`                          |
+| 3. [Compound Execution](#layer-3-compound-execution)         | Report --> analysis --> PRD --> tasks --> autonomous loop --> PR. Fresh-context iterations with a Kanban board              | `build.sh`, `loop.sh`, `iteration-claude.md`, `/inf`                                  |
 | 4. [Quality Gates](#layer-4-quality-gates)                   | Pre-commit hooks, CI pipeline, and AI-powered code review with P0--P3 severity classification                               | `lefthook.yml`, `ci.yml`, `codex-review.yml`                                          |
-| 5. [Commit-to-Merge](#layer-5-commit-to-merge)               | Branch guard --> quality gates --> PR creation --> 3-gate monitoring loop. Never auto-merges                                | `/commit`, `auto-compound.sh` Steps 7a--7c                                            |
+| 5. [Commit-to-Merge](#layer-5-commit-to-merge)               | Branch guard --> quality gates --> PR creation --> 3-gate monitoring loop. Never auto-merges                                | `/commit`, `build.sh` Steps 7a--7c                                                    |
 | 6. [Compound Learning](#layer-6-compound-learning)           | Structured knowledge extraction, learnings catalog, pattern promotion, and cross-run memory                                 | `docs/solutions/`, `progress.txt`, `promoted-patterns.md`                             |
 | 7. [Skill Creation](#layer-7-skill-creation)                 | Encode domain expertise as reusable AI skills with quality-validated reasoning patterns                                     | `/create-skill`, `/port-skill`, `/update-skill`, `skill-evaluator`                    |
 
@@ -489,7 +489,7 @@ flowchart TD
 
 > **Dashed borders** indicate opt-in steps controlled by `config.json`. When `evaluator.enabled` is `false` (default), Steps 5.5 and 6.5 are skipped entirely and the pipeline flows directly from Step 5 → Step 6 → Step 7 as before.
 
-#### The Pipeline: `auto-compound.sh`
+#### The Pipeline: `build.sh`
 
 A 10-step autonomous pipeline (8 core + 2 opt-in evaluator steps) orchestrated by bash scripts in `scripts/compound/`.
 
@@ -769,7 +769,7 @@ Both paths produce the same output: committed code on a feature branch, ready fo
 
 Key files:
 
-- `scripts/compound/auto-compound.sh` -- main orchestrator (Steps 1-8)
+- `scripts/compound/build.sh` -- main orchestrator (Steps 1-8)
 - `scripts/compound/loop.sh` -- Ralph execution loop (Step 6)
 - `scripts/compound/analyze-report.sh` -- LLM report analysis (Step 1-2)
 - `scripts/compound/board.sh` -- Kanban board renderer (3 modes: ASCII, Markdown, summary)
@@ -943,7 +943,7 @@ Key files:
 
 ### Philosophy
 
-This layer governs everything from the moment code is ready to commit through PR creation and monitoring. It exists in two modes: **interactive** (the `/commit` slash command) and **autonomous** (Steps 7a--7c of `auto-compound.sh`).
+This layer governs everything from the moment code is ready to commit through PR creation and monitoring. It exists in two modes: **interactive** (the `/commit` slash command) and **autonomous** (Steps 7a--7c of `build.sh`).
 
 Both modes share the same three-gate architecture but differ in human involvement.
 
@@ -953,7 +953,7 @@ Ten non-negotiable rules govern every commit path. They exist because AI agents 
 
 The `/commit` command guides every change from local branch to merged PR through a structured pipeline. It enforces branch naming, runs parallel quality checks, generates a Conventional Commits message, pushes, creates the PR, and then monitors three gates until the PR is ready to merge.
 
-This layer exists in two modes: **interactive** (the `/commit` slash command) and **autonomous** (Steps 7a-7c of `auto-compound.sh`). Both modes share the same three-gate architecture but differ in human involvement.
+This layer exists in two modes: **interactive** (the `/commit` slash command) and **autonomous** (Steps 7a-7c of `build.sh`). Both modes share the same three-gate architecture but differ in human involvement.
 
 ```mermaid
 flowchart TD
@@ -1084,7 +1084,7 @@ gh pr view --json mergeable
 
 **The loop only exits when all three gates pass on the same cycle.** It never auto-merges -- the user decides when to merge.
 
-#### Autonomous Mode: `auto-compound.sh` Steps 7a-7c
+#### Autonomous Mode: `build.sh` Steps 7a-7c
 
 The autonomous equivalent runs the same three gates but without human involvement.
 
@@ -1210,7 +1210,7 @@ Only general, reusable patterns go here -- not task-specific details. Every iter
 
 ##### Tier 2: `docs/solutions/` (Long-term, per-feature)
 
-After each compound run completes, `auto-compound.sh` Step 8 extracts structured learnings from `progress.txt` into a permanent document:
+After each compound run completes, `compound-learning.sh` extracts structured learnings from `progress.txt` into a permanent document:
 
 **Location:** `docs/solutions/compound-product/<feature-slug>/<feature-slug>-<date>.md`
 
@@ -1250,7 +1250,7 @@ The highest tier of knowledge. Patterns that prove themselves across multiple fe
 
 ```
 progress.txt (per-iteration)
-  --> docs/solutions/<feature>/ (per-feature, extracted by auto-compound.sh)
+  --> docs/solutions/<feature>/ (per-feature, extracted by compound-learning.sh)
     --> docs/solutions/compound-product/patterns/promoted-patterns.md (staging area)
       --> CLAUDE.md (permanent, project-level)
 ```
@@ -1294,7 +1294,7 @@ Each iteration of `loop.sh` runs with **fresh context**. No state carries in mem
 
 Key files:
 
-- `scripts/compound/auto-compound.sh` -- Step 8 extracts learnings
+- `scripts/compound/compound-learning.sh` -- extracts learnings
 - `docs/solutions/compound-product/` -- learnings catalog organized by feature
 - `docs/solutions/compound-product/patterns/promoted-patterns.md` -- staging area for pattern promotion
 - `CLAUDE.md` -- graduated patterns become permanent AI instructions
@@ -1321,7 +1321,7 @@ Layer 7 provides the **infrastructure to create these skills**, not pre-built sk
 
 #### The Compounding Effect
 
-Skills feed directly into the compound pipeline. When `/inf` or `auto-compound.sh` runs the autonomous execution loop, every skill in `.claude/skills/` shapes how it approaches tasks. A "writing API routes" skill means the compound loop produces better API routes. A "testing React components" skill means better tests. The autonomous capabilities of the project grow with each skill added.
+Skills feed directly into the compound pipeline. When `/inf` or `build.sh` runs the autonomous execution loop, every skill in `.claude/skills/` shapes how it approaches tasks. A "writing API routes" skill means the compound loop produces better API routes. A "testing React components" skill means better tests. The autonomous capabilities of the project grow with each skill added.
 
 #### Key Design Decisions
 
@@ -1461,7 +1461,7 @@ Build --> Test --> Find Issue --> Fix --> Document --> Validate --> Deploy
 ```
 
 1. **First occurrence:** A problem takes 30 minutes to research and solve
-2. **Document:** `auto-compound.sh` Step 8 extracts the learnings (automatic, ~2 minutes)
+2. **Document:** `compound-learning.sh` extracts the learnings (automatic, ~2 minutes)
 3. **Next occurrence:** The AI reads `progress.txt` and `docs/solutions/` and recognizes the pattern (seconds)
 4. **Pattern promotion:** If it recurs 3+ times, it's staged in `promoted-patterns.md` and eventually promoted to CLAUDE.md
 5. **Permanent knowledge:** All future sessions start with the pattern pre-loaded -- the problem is prevented, not just fixed faster
@@ -1480,10 +1480,10 @@ Build --> Test --> Find Issue --> Fix --> Document --> Validate --> Deploy
 | `/update-spec`          | 2     | Scan spec files for gaps, TBDs, and inconsistencies --> fix them                     |
 | `/pnf [section]`        | 2     | Plan Next Feature from section spec --> implementation plan                          |
 | `/implement_plan`       | 3     | Executes a plan phase by phase with checkpoints                                      |
-| `/inf`                  | 3     | Runs the full autonomous compound pipeline (auto-compound.sh)                        |
+| `/inf`                  | 3     | Runs the full autonomous compound pipeline (build.sh)                                |
 | `/commit`               | 5     | 8-step commit workflow with quality gates and 3-gate PR monitoring                   |
 | `/research_codebase`    | Input | Documents the codebase with two-wave sub-agents --> docs/reports/ (input for `/inf`) |
-| `/review_code`          | 4     | Pattern consistency review using sub-agents                                          |
+| `/review`               | 4     | Pattern consistency review using sub-agents                                          |
 | `/Hydrate`              | --    | Bootstraps a session with minimal context                                            |
 | `/memory-report`        | 6     | Updates session memory files                                                         |
 | `/create-skill [topic]` | 7     | Create a skill using Meta-Skill Forge                                                |
@@ -1495,7 +1495,7 @@ Build --> Test --> Find Issue --> Fix --> Document --> Validate --> Deploy
 
 | Script                                        | Layer   | What It Does                                                                                                           |
 | --------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `scripts/compound/auto-compound.sh`           | 3, 5, 6 | Full autonomous pipeline (8 steps)                                                                                     |
+| `scripts/compound/build.sh`                   | 3, 5, 6 | Full autonomous pipeline (8 steps)                                                                                     |
 | `scripts/compound/loop.sh`                    | 3       | Execution loop (fresh-context iterations)                                                                              |
 | `scripts/compound/analyze-report.sh`          | 3       | Multi-provider report analysis                                                                                         |
 | `scripts/compound/board.sh`                   | 3       | Kanban board renderer (ASCII/Markdown/Summary)                                                                         |
@@ -1505,15 +1505,15 @@ Build --> Test --> Find Issue --> Fix --> Document --> Validate --> Deploy
 
 ## Quick Reference: All Sub-Agents
 
-| Agent             | File                                        | Wave          | Tools                | Used By                                         | Purpose                                                                                           |
-| ----------------- | ------------------------------------------- | ------------- | -------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Codebase locator  | `.claude/agents/codebase-locator.md`        | 1 (Discovery) | Grep, Glob, LS       | `/research_codebase`, `/pnf`, PRD skill         | Finds relevant source files and patterns                                                          |
-| Docs locator      | `.claude/agents/docs-locator.md`            | 1 (Discovery) | Grep, Glob, LS       | `/research_codebase`, `/pnf`, PRD skill         | Finds relevant docs by frontmatter, date-prefixed filenames, directory structure                  |
-| Pattern finder    | `.claude/agents/codebase-pattern-finder.md` | 1 (Discovery) | Grep, Glob, LS       | `/research_codebase`, `/pnf`, PRD skill         | Identifies recurring code patterns and examples to model after                                    |
-| Web researcher    | `.claude/agents/web-search-researcher.md`   | 1 (Discovery) | WebSearch, WebFetch  | `/research_codebase`, `/pnf`                    | Gathers external context                                                                          |
-| Codebase analyzer | `.claude/agents/codebase-analyzer.md`       | 2 (Analysis)  | Read, Grep, Glob, LS | `/research_codebase`, `/pnf`                    | Deep analysis of architecture using paths from Wave 1                                             |
-| Docs analyzer     | `.claude/agents/docs-analyzer.md`           | 2 (Analysis)  | Read, Grep, Glob, LS | `/research_codebase`, `/pnf`, PRD skill         | Extracts decisions, rejected approaches, constraints, promoted patterns from docs found in Wave 1 |
-| Skill evaluator   | `.claude/agents/skill-evaluator.md`         | --            | Read, Grep, Glob, LS | `/create-skill`, `/update-skill`, `/port-skill` | Evaluate skills against 16 quality criteria (3 passes: first-principles, baseline, Anthropic)     |
+| Agent           | File                                        | Wave          | Tools                | Used By                                         | Purpose                                                                                           |
+| --------------- | ------------------------------------------- | ------------- | -------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| File locator    | `.claude/agents/research/file-locator.md`   | 1 (Discovery) | Grep, Glob, LS       | `/research_codebase`, `/pnf`, PRD skill         | Finds relevant source files and patterns                                                          |
+| Docs locator    | `.claude/agents/research/docs-locator.md`   | 1 (Discovery) | Grep, Glob, LS       | `/research_codebase`, `/pnf`, PRD skill         | Finds relevant docs by frontmatter, date-prefixed filenames, directory structure                  |
+| Pattern finder  | `.claude/agents/research/pattern-finder.md` | 1 (Discovery) | Grep, Glob, LS       | `/research_codebase`, `/pnf`, PRD skill         | Identifies recurring code patterns and examples to model after                                    |
+| Web researcher  | `.claude/agents/research/web-researcher.md` | 1 (Discovery) | WebSearch, WebFetch  | `/research_codebase`, `/pnf`                    | Gathers external context                                                                          |
+| Code analyzer   | `.claude/agents/research/code-analyzer.md`  | 2 (Analysis)  | Read, Grep, Glob, LS | `/research_codebase`, `/pnf`                    | Deep analysis of architecture using paths from Wave 1                                             |
+| Docs analyzer   | `.claude/agents/research/docs-analyzer.md`  | 2 (Analysis)  | Read, Grep, Glob, LS | `/research_codebase`, `/pnf`, PRD skill         | Extracts decisions, rejected approaches, constraints, promoted patterns from docs found in Wave 1 |
+| Skill evaluator | `.claude/agents/skills/skill-evaluator.md`  | --            | Read, Grep, Glob, LS | `/create-skill`, `/update-skill`, `/port-skill` | Evaluate skills against 16 quality criteria (3 passes: first-principles, baseline, Anthropic)     |
 
 Wave 1 agents run in parallel and use only fast tools (no file reads). Wave 2 agents wait for Wave 1 to finish, then target only the paths that were found. Both docs agents are skipped gracefully on fresh projects where `docs/` contains only stubs.
 

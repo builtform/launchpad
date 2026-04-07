@@ -66,6 +66,11 @@ bash scripts/hooks/audit-skills.sh
 - If the audit outputs a staleness report, present it to the user as an informational notice.
 - This is **non-blocking** — proceed to the next step regardless of output.
 - The script self-throttles (runs the full check only once every 14 days).
+- The script may update `docs/skills-catalog/skills-usage.json` (`last_audit_date`). Re-stage if modified:
+
+```bash
+git diff --quiet docs/skills-catalog/skills-usage.json || git add docs/skills-catalog/skills-usage.json
+```
 
 ---
 

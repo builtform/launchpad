@@ -45,7 +45,7 @@ This project was built from the [Launchpad](https://github.com/thinkinghand/laun
 | `/implement_plan`      | Execute an existing implementation plan step by step             |
 | `/inf`                 | Implement next feature: PRD → tasks → build → quality sweep → PR |
 | `/research_codebase`   | Deep codebase research and analysis                              |
-| `/review_code`         | Review code for pattern consistency                              |
+| `/review`              | Review code for pattern consistency                              |
 | `/commit`              | Stage changes, run quality gates, and commit                     |
 | `/pull-launchpad`      | Pull upstream Launchpad updates                                  |
 

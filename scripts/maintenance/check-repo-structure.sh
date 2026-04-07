@@ -126,6 +126,7 @@ ALLOWED_DIRS=(
   ".github"
   ".vscode"
   ".claude"
+  ".harness"
   ".launchpad"
   "node_modules"
   ".git"

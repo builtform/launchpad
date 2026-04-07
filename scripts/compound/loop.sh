@@ -91,7 +91,7 @@ cd "$PROJECT_ROOT"
 
 # Validate prd.json exists before entering the loop
 if [ ! -f "$PRD_FILE" ]; then
-  echo "ERROR: No prd.json found at: $PRD_FILE. Run auto-compound.sh first." >&2
+  echo "ERROR: No prd.json found at: $PRD_FILE. Run build.sh first." >&2
   exit 1
 fi
 

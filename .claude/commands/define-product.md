@@ -537,6 +537,22 @@ pnpm lint      # Lint all workspaces
 
 ---
 
+## Step 6b: Update Harness Context
+
+After writing product docs, update `.harness/harness.local.md` with product context extracted from the Q&A:
+
+1. Read `.harness/harness.local.md`
+2. Update the `## Review Context` section with:
+   - Product name (from V-1)
+   - Target users (from V-2)
+   - External services and integrations mentioned
+   - Data sensitivity notes (from D-1/D-2 if applicable)
+3. Write the updated file
+
+This enriches the review context that `/review` agents use for more relevant findings.
+
+---
+
 ## Step 7: Summary and Next Step
 
 After all files are written, present a summary:

@@ -234,6 +234,22 @@ In update mode, only modify sections the user chose to change.
 
 ---
 
+## Step 4b: Update Harness Context
+
+After writing BACKEND_STRUCTURE.md, update `.harness/harness.local.md` with architecture context:
+
+1. Read `.harness/harness.local.md`
+2. Append to the `## Review Context` section:
+   - Auth strategy (from A-1)
+   - Database patterns (from the data model questions)
+   - External integrations mentioned
+   - API patterns (REST, GraphQL, etc.)
+3. Write the updated file
+
+This enriches the review context that `/review` agents use for architecture-aware findings.
+
+---
+
 ## Step 5: CI_CD.md (3 questions)
 
 Tailor questions to the hosting platform from TECH_STACK.md.

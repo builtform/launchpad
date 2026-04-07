@@ -1,20 +1,12 @@
 #!/bin/bash
 set -eo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-CONFIG_FILE="$SCRIPT_DIR/config.json"
-OUTPUT_DIR=$(jq -r '.outputDir // "./scripts/compound"' "$CONFIG_FILE")
-OUTPUT_DIR="$PROJECT_ROOT/$OUTPUT_DIR"
+# Source shared functions (provides ai_run, log, config vars)
+source "$(dirname "$0")/lib.sh"
+
 MAX_CYCLES=$(jq -r '.evaluator.maxCycles // 3' "$CONFIG_FILE")
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [EVALUATOR] $1"; }
-
-# Require ai_run (exported by auto-compound.sh)
-if ! declare -f ai_run >/dev/null 2>&1; then
-  log "Error: ai_run function not available. evaluate.sh must be called from auto-compound.sh."
-  exit 1
-fi
 
 # Write a skipped report so the pipeline knows no evaluation occurred
 write_skipped_report() {

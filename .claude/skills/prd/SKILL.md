@@ -78,11 +78,11 @@ PRDs that conflict with established conventions or repeat already-documented mis
 
 Spawn FOUR parallel sub-agents (2 codebase + 2 docs):
 
-1. **codebase-locator** — Find all files related to the feature topic
+1. **file-locator** — Find all files related to the feature topic
    - Prompt: "Find all files related to [feature topic]. Include implementation files,
      tests, configs, and documentation."
 
-2. **codebase-pattern-finder** — Find similar implementations to model after
+2. **pattern-finder** — Find similar implementations to model after
    - Prompt: "Find existing patterns for [similar feature type]. Show code examples
      with file:line references."
 

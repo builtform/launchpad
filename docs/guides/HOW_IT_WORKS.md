@@ -193,7 +193,7 @@ The system gets smarter with every cycle.
 The loop exits with code 1 when it reaches `maxIterations` (default 25) without all tasks passing. Check `scripts/compound/progress.txt` for the last iteration's output. Common causes: tasks are too large for a single iteration, quality checks keep failing on committed code, or context overflow causes the agent to lose track. Fix: break large tasks into smaller ones in `prd.json`, reduce scope in the PRD, or increase `maxIterations` in `config.json`.
 
 **Loop exits immediately with "No prd.json found."**
-`loop.sh` requires `scripts/compound/prd.json` to exist before entering the loop. This file is created by Step 5 of `auto-compound.sh`. If running `loop.sh` standalone, run the full pipeline with `/inf` or `auto-compound.sh` first.
+`loop.sh` requires `scripts/compound/prd.json` to exist before entering the loop. This file is created by Step 5 of `build.sh`. If running `loop.sh` standalone, run the full pipeline with `/inf` or `build.sh` first.
 
 **Lefthook pre-commit hooks fail and block your commit.**
 Lefthook runs 7 checks: Prettier, ESLint (both auto-fix), then typecheck, structure-check, large-file-guard, trailing-whitespace, and end-of-file-newline (all blocking). If an auto-fixer fails, check that `pnpm` dependencies are installed (`pnpm install`). If a read-only check fails, the error message explains the violation. Never use `--no-verify` to bypass -- fix the root cause.
@@ -208,15 +208,15 @@ The `check-repo-structure.sh` enforcer validates every file at the repo root aga
 The enforcer detects macOS Finder artifacts (files with ` 2`, ` v2`, or ` copy` in the name). The error message says "MANUAL REVIEW REQUIRED -- DO NOT AUTO-DELETE." Fix: compare both versions with `diff`, keep the better one, delete the other, and rename if needed.
 
 **Report analysis fails: "No LLM provider configured."**
-`analyze-report.sh` needs at least one API key. It checks in order: `AI_GATEWAY_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`. Fix: add one of these to `.env.local` at the project root. The script sources `.env.local` automatically via `auto-compound.sh`.
+`analyze-report.sh` needs at least one API key. It checks in order: `AI_GATEWAY_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`. Fix: add one of these to `.env.local` at the project root. The script sources `.env.local` automatically via `build.sh`.
 
 **Report analysis fails: "Could not parse response as JSON."**
 The LLM returned a response that isn't valid JSON (often wrapped in markdown code fences). The script tries to extract JSON from the response, but if the LLM adds commentary, parsing fails. Fix: this is usually transient -- rerun the pipeline. If it persists, check that the API key is valid and the model is accessible on your plan.
 
-**`auto-compound.sh` fails: "Config file not found."**
+**`build.sh` fails: "Config file not found."**
 The pipeline requires `scripts/compound/config.json`. Fix: this file is tracked in the repo and should already exist. If missing, restore it with `git checkout HEAD -- scripts/compound/config.json`.
 
-**`auto-compound.sh` fails: "jq is required" / "gh CLI not found" / "lefthook not found."**
+**`build.sh` fails: "jq is required" / "gh CLI not found" / "lefthook not found."**
 The pipeline checks for CLI tools at startup. Fix: install the missing tool with `brew install jq`, `brew install gh`, or `brew install lefthook`.
 
 **`prd.json` parse errors.**
@@ -229,7 +229,7 @@ Step 7b uses `gh pr create` which requires GitHub CLI authentication. Fix: run `
 The `codex-review.yml` workflow requires `OPENAI_API_KEY` in GitHub repository secrets. Fix: go to Settings > Secrets and variables > Actions in your GitHub repo and add `OPENAI_API_KEY`.
 
 **No reports found in `docs/reports/`.**
-Step 1 of `auto-compound.sh` looks for `.md` files in `docs/reports/`. If the directory is empty, the pipeline exits. Fix: write a report describing what needs attention, or run `/research_codebase` to generate one.
+Step 1 of `build.sh` looks for `.md` files in `docs/reports/`. If the directory is empty, the pipeline exits. Fix: write a report describing what needs attention, or run `/research_codebase` to generate one.
 
 **Agent can't find slash commands or skills.**
 If `/inf`, `/commit`, or other slash commands don't work, the `.claude/commands/` directory may be missing or the command files aren't present. Fix: verify the command files exist in `.claude/commands/`. If you initialized with `init-project.sh`, these should already be in place.
@@ -274,7 +274,7 @@ The `large-file-guard` hook in `lefthook.yml` rejects staged text-based source f
 | `/inf`               | Implement Next Feature: Full autonomous pipeline: report → PRD → tasks → execution loop → quality sweep → PR     | When you want Claude to build a feature end-to-end with minimal intervention  |
 | `/implement_plan`    | Execute an existing plan phase by phase with your oversight                                                      | When you prefer to guide implementation manually rather than using `/inf`     |
 | `/research_codebase` | Deep codebase research and analysis using multiple sub-agents                                                    | When you need to understand how something works before changing it            |
-| `/review_code`       | Review code for pattern consistency against project conventions                                                  | After implementing a feature — catches deviations from established patterns   |
+| `/review`            | Review code for pattern consistency against project conventions                                                  | After implementing a feature — catches deviations from established patterns   |
 | `/commit`            | Stage changes, run quality gates (test/typecheck/lint), generate commit message, optionally create PR            | When you're ready to commit — handles the full commit-to-PR workflow          |
 
 ### Maintenance

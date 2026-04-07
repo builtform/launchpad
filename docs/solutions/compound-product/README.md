@@ -5,7 +5,7 @@ Structured learnings from autonomous compound product runs. Each feature run pro
 ## How It Works
 
 1. During a compound run, the agent writes learnings to `progress.txt`
-2. After the run completes, `auto-compound.sh` extracts learnings into a structured file here
+2. After the run completes, `compound-learning.sh` extracts learnings into a structured file here
 3. Patterns worth promoting are staged in `patterns/promoted-patterns.md`
 4. Periodically, promoted patterns are added to the root `CLAUDE.md`
 

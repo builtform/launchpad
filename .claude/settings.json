@@ -1,5 +1,16 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'echo \"$CLAUDE_TOOL_INPUT\" | grep -qiE \"(gh pr merge|git merge (main|master)|git push.*(origin\\s+main|origin\\s+master|HEAD:main|HEAD:master)|gh pr review --approve)\" && echo \"BLOCKED: Merge commands are prohibited. The pipeline stops at PR creation.\" && exit 1 || exit 0'"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Skill",
