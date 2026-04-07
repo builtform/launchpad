@@ -89,14 +89,13 @@ Autonomous execution pipeline orchestrator. Resolves target from section registr
 - PR monitoring (CI + Codex + conflicts)
 - **STOPS at "all gates green" — NEVER merges**
 
-## Step 5: compound-learning.sh
+## Step 5: /learn
 
-```bash
-bash scripts/compound/compound-learning.sh
-```
-
-- Extract learnings → `docs/solutions/`
+- Run `/learn` — captures learnings from the build session
+- Loads compound-docs skill, spawns 5 inline research sub-agents in parallel
+- Writes structured solution doc to `docs/solutions/[category]/`
 - Non-critical — failure here doesn't block shipping
+- Fallback: if `/learn` fails, run `bash scripts/compound/compound-learning.sh` (basic extraction)
 
 ## Step 6: Report
 

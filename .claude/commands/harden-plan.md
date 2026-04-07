@@ -51,7 +51,8 @@ If no intensity flag provided, default to `--lightweight`.
 - Scan `docs/solutions/` for past learnings relevant to this plan
 - Match by: tags, category, module in YAML frontmatter
 - Skip files with malformed or missing frontmatter
-- IF `docs/solutions/` empty or missing: skip silently (dormant until Phase 6)
+- IF `docs/solutions/` empty or missing: skip silently
+- Dispatch `learnings-researcher` agent to search by frontmatter metadata
 - IF matches found: pass at most 5 most-recent matches (key insight only, not full document)
 - This ensures past mistakes and discoveries inform plan review
 
