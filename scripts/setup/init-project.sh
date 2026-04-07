@@ -380,6 +380,8 @@ docs/architecture/REPOSITORY_STRUCTURE.md
 scripts/maintenance/check-repo-structure.sh
 # --- Files created fresh by init ---
 .claude/settings.json
+.worktreeinclude
+.gitignore
 docs/skills-catalog/skills-usage.json
 docs/skills-catalog/skills-index.md
 docs/architecture/DESIGN_SYSTEM.md
@@ -535,6 +537,27 @@ if [ ! -f "docs/tasks/sections/.gitkeep" ]; then
   info "Created docs/tasks/sections/.gitkeep"
 fi
 
+# Create .worktreeinclude for Claude Code worktree env file copying
+if [ ! -f ".worktreeinclude" ]; then
+  cat > .worktreeinclude <<'WTEOF'
+# Environment files — copied to worktrees automatically by Claude Code
+# Uses .gitignore syntax. Only files that match AND are gitignored get copied.
+.env
+.env.local
+.env.consultant
+.env.migrate
+apps/**/.env*
+packages/**/.env*
+WTEOF
+  info "Created .worktreeinclude (Claude Code worktree env file declarations)"
+fi
+
+# Ensure .claude/worktrees/ is gitignored
+if ! grep -q '\.claude/worktrees/' .gitignore 2>/dev/null; then
+  printf '\n# Claude Code worktrees (isolated parallel development sessions)\n.claude/worktrees/\n' >> .gitignore
+  info "Added .claude/worktrees/ to .gitignore"
+fi
+
 # Create docs/skills-catalog/ directory and initial skill tracking files
 mkdir -p docs/skills-catalog
 if [ ! -f "docs/skills-catalog/skills-usage.json" ]; then
@@ -558,7 +581,7 @@ A user-facing reference for all installed skills in this project. Each skill is 
 
 - **Installation:** Skills are added via `/create-skill` or `/port-skill` and registered in this index, `CLAUDE.md`, `AGENTS.md`, and `skills-usage.json`.
 - **Usage tracking:** `scripts/hooks/track-skill-usage.sh` fires after every skill invocation and records the date in `skills-usage.json`.
-- **Staleness audit:** `scripts/hooks/audit-skills.sh` fires at session end. If 2+ weeks have passed since the last audit, it reports which skills are stale or unused.
+- **Staleness audit:** `scripts/hooks/audit-skills.sh` runs during `/commit` and `/ship`. If 2+ weeks have passed since the last audit, it reports which skills are stale or unused.
 
 ---
 
@@ -600,17 +623,6 @@ if [ ! -f ".claude/settings.json" ]; then
           {
             "type": "command",
             "command": "bash scripts/hooks/track-skill-usage.sh"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash scripts/hooks/audit-skills.sh"
           }
         ]
       }

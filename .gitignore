@@ -24,8 +24,10 @@
 .turbo/
 build/
 dist/
+generated_images/
 docs/**/*.pdf
 docs/reports/launchpad_reports/
+docs/handoffs/launchpad_handoffs/
 docs/articles/
 docs/tasks/board.md
 node_modules/
@@ -37,3 +39,6 @@ scripts/compound/archive/
 scripts/compound/prd.json
 scripts/compound/progress.txt
 settings.local.json
+
+# Claude Code worktrees (isolated parallel development sessions)
+.claude/worktrees/

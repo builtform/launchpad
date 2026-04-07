@@ -46,7 +46,7 @@
 ```
 
 > Before creating, moving, or deleting any file: check `docs/architecture/REPOSITORY_STRUCTURE.md`
-> for the layout decision tree (Section 7).
+> for the layout decision tree (Section 6).
 
 ---
 
@@ -112,7 +112,7 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 | Don't                                      | Do Instead                                                 | Why                                  |
 | ------------------------------------------ | ---------------------------------------------------------- | ------------------------------------ |
 | Inline secrets in commands                 | Use `.env.local` + `process.env`                           | Secrets must never be in git history |
-| Create files without checking structure    | Read `docs/architecture/REPOSITORY_STRUCTURE.md` Section 7 | CI enforces structure compliance     |
+| Create files without checking structure    | Read `docs/architecture/REPOSITORY_STRUCTURE.md` Section 6 | CI enforces structure compliance     |
 | Use `prisma migrate dev`                   | Use `prisma migrate deploy` from `packages/db/`            | Prevents destructive dev migrations  |
 | Create ` 2`/` copy`/` v2` files            | Use `docs/experiments/<topic>/` for prototypes             | Finder artifacts break CI            |
 | Bypass pre-commit hooks with `--no-verify` | Fix the issue, then commit                                 | CI will catch it anyway              |
@@ -134,6 +134,7 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 | `docs/architecture/DESIGN_SYSTEM.md`       | Defining UI components or visual design decisions  |
 | `docs/architecture/CI_CD.md`               | Configuring CI/CD pipelines or deployment          |
 | `docs/skills-catalog/skills-index.md`      | Managing, reviewing, or auditing installed skills  |
+| `.claude/skills/creating-agents/SKILL.md`  | Creating new agents or converting skills to agents |
 
 <!-- Add project-specific docs here as they grow. Examples:                                       -->
 <!--   docs/how-tos/database-migrations.md   → when running or writing migrations                 -->

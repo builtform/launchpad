@@ -8,7 +8,7 @@ A user-facing reference for all installed skills in LaunchPad. Each skill is a r
 
 - **Installation:** Skills are added via `/create-skill` or `/port-skill` and registered in this index, `CLAUDE.md`, `AGENTS.md`, and `skills-usage.json`.
 - **Usage tracking:** `scripts/hooks/track-skill-usage.sh` fires after every skill invocation and records the date in `skills-usage.json`.
-- **Staleness audit:** `scripts/hooks/audit-skills.sh` fires at session end. If 2+ weeks have passed since the last audit, it reports which skills are stale or unused.
+- **Staleness audit:** `scripts/hooks/audit-skills.sh` runs during `/commit` (Step 3, interactive — presents report to user) and `/ship` (autonomous — logs silently, never prompts). If 2+ weeks have passed since the last audit, it reports which skills are stale or unused.
 
 ---
 
@@ -29,9 +29,10 @@ A user-facing reference for all installed skills in LaunchPad. Each skill is a r
 
 ### Meta (Skill Management)
 
-| #   | Skill               | What It Does                                                      | Trigger                                         |
-| --- | ------------------- | ----------------------------------------------------------------- | ----------------------------------------------- |
-| 4   | **creating-skills** | Creates new skills using the 7-phase Meta-Skill Forge methodology | `/create-skill`, `/update-skill`, `/port-skill` |
+| #   | Skill               | What It Does                                                                    | Trigger                                         |
+| --- | ------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------- |
+| 4   | **creating-skills** | Creates new skills using the 7-phase Meta-Skill Forge methodology               | `/create-skill`, `/update-skill`, `/port-skill` |
+| 5   | **creating-agents** | Creates new agents or converts skills into agents with 8-section body structure | `/create-agent`, natural language               |
 
 ---
 
@@ -75,6 +76,14 @@ Creates new Claude Code skills using the 7-phase Meta-Skill Forge methodology. I
 - **Related Commands:** `/create-skill`, `/update-skill`, `/port-skill`
 - **Interconnections:** Uses `codebase-pattern-finder`, `docs-locator`, `codebase-locator`, `codebase-analyzer`, `docs-analyzer`, `web-search-researcher`, and `skill-evaluator` sub-agents.
 
+#### 5. creating-agents
+
+Creates new Claude Code agents or converts existing skills into agents. Produces production-grade agent definitions with 8-section body structure, least-privilege tool assignment via 5-tier system, and registration in CLAUDE.md/AGENTS.md.
+
+- **Key Outputs:** `.claude/agents/[namespace/]<name>.md`, updates to `CLAUDE.md` and `AGENTS.md`
+- **Related Commands:** `/create-agent` (wrapper command that detects mode and delegates)
+- **Interconnections:** Uses `codebase-pattern-finder` sub-agent for researching existing agent patterns. Companion to `creating-skills` — skills orchestrate, agents execute.
+
 ---
 
 ## Skill Relationship Map
@@ -88,6 +97,9 @@ Creates new Claude Code skills using the 7-phase Meta-Skill Forge methodology. I
 /create-skill ──→ creating-skills (7-phase forge → new skill registered)
 /port-skill   ──→ creating-skills (porting workflow → adapted skill)
 /update-skill ──→ creating-skills (iteration workflow → updated skill)
+
+/create-agent ──→ creating-agents (6-phase forge → new agent registered)
+              ──→ creating-agents (skill-to-agent conversion → extracted agent)
 ```
 
 ---

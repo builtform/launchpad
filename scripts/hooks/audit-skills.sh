@@ -2,8 +2,9 @@
 # =============================================================================
 # audit-skills.sh — Skill staleness audit hook
 #
-# Fires at session end (Stop hook). Reads the skill usage
-# tracking file and reports which skills haven't been used recently.
+# Called by /commit and /ship workflows before committing.
+# Reads the skill usage tracking file and reports which skills
+# haven't been used recently.
 #
 # Behavior:
 #   - Reads docs/skills-catalog/skills-usage.json

@@ -79,7 +79,7 @@ echo ""
 # ============================================================================
 echo "📋 Checking for non-whitelisted root files..."
 
-# Define whitelist (must match REPOSITORY_STRUCTURE.md Section 2)
+# Define whitelist (must match REPOSITORY_STRUCTURE.md Section 1)
 ALLOWED_DOCS=(
   "README.md"
   "README.template.md"
@@ -115,6 +115,7 @@ ALLOWED_CONFIGS=(
   "lefthook.yml"
   "vitest.config.ts"
   "tsconfig.json"
+  ".worktreeinclude"
 )
 
 ALLOWED_DIRS=(
@@ -177,8 +178,8 @@ while IFS= read -r item; do
     if [[ " ${ALLOWED_CONFIGS[@]} " =~ " ${item} " ]]; then
       continue
     else
-      # Allow common hidden config files
-      if [[ "$item" =~ ^\.(env\.|editorconfig|gitignore|gitattributes|prettierrc|prettierignore|nvmrc) ]]; then
+      # Allow common hidden config files and OS artifacts
+      if [[ "$item" =~ ^\.(env\.|editorconfig|gitignore|gitattributes|prettierrc|prettierignore|nvmrc|DS_Store) ]]; then
         continue
       fi
       echo "   ❌ Non-whitelisted hidden file at root: $item"
@@ -190,7 +191,7 @@ done <<< "$HIDDEN_ROOT_ITEMS"
 if [ $VIOLATIONS_FOUND -eq 1 ]; then
   echo ""
   echo "   Fix: Move these files to appropriate subdirectories"
-  echo "   See: docs/architecture/REPOSITORY_STRUCTURE.md Section 2"
+  echo "   See: docs/architecture/REPOSITORY_STRUCTURE.md Section 1"
   echo ""
   ERRORS=$((ERRORS + 1))
 else
@@ -366,7 +367,7 @@ else
   echo ""
   echo "Quick fixes:"
   echo "  - Duplicate files: Compare first, then delete inferior version"
-  echo "  - Move root files to proper directories (see Section 2 whitelist)"
+  echo "  - Move root files to proper directories (see Section 1 whitelist)"
   echo "  - Move scripts to scripts/ subdirectories"
   echo ""
   exit 1

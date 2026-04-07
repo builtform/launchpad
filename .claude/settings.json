@@ -10,17 +10,6 @@
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash scripts/hooks/audit-skills.sh"
-          }
-        ]
-      }
     ]
   }
 }
