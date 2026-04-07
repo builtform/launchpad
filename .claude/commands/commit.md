@@ -55,7 +55,21 @@ Branch naming convention:
 
 ---
 
-## Step 3: Quality Gates (Parallel)
+## Step 3: Skill Staleness Audit
+
+Run the skill staleness audit before committing:
+
+```bash
+bash scripts/hooks/audit-skills.sh
+```
+
+- If the audit outputs a staleness report, present it to the user as an informational notice.
+- This is **non-blocking** — proceed to the next step regardless of output.
+- The script self-throttles (runs the full check only once every 14 days).
+
+---
+
+## Step 4: Quality Gates (Parallel)
 
 Run these two groups in **parallel** using two sub-agents:
 
@@ -89,7 +103,7 @@ Report pass/fail with full output on failure.
 
 ---
 
-## Step 4: Generate Commit Message
+## Step 5: Generate Commit Message
 
 Generate a conventional commit message following this format:
 
@@ -117,7 +131,7 @@ feat(web): add user profile settings page
 
 ---
 
-## Step 5: User Approval
+## Step 6: User Approval
 
 Present the commit message to the user. Ask: **"Approve this commit message, or provide edits?"**
 
@@ -126,7 +140,7 @@ Present the commit message to the user. Ask: **"Approve this commit message, or 
 
 ---
 
-## Step 6: Commit
+## Step 7: Commit
 
 Create the commit using a HEREDOC to preserve formatting:
 
@@ -145,7 +159,7 @@ Run `git status` after commit to verify success.
 
 ---
 
-## Step 7: Offer PR Creation
+## Step 8: Offer PR Creation
 
 Ask the user: **"Push and create a PR?"**
 
@@ -184,7 +198,7 @@ EOF
 
 ---
 
-## Step 8: PR Monitoring Loop
+## Step 9: PR Monitoring Loop
 
 After PR creation, enter the three-gate monitoring loop. Run all three gates on each cycle:
 
@@ -195,7 +209,7 @@ gh pr checks
 ```
 
 - If checks are still pending (exit code 8): wait 30 seconds and re-check. Do not attempt to diagnose pending checks.
-- If any check fails: read the CI logs with `gh run view <run-id> --log-failed`, diagnose the failure, fix locally, re-run quality gates (Step 3), push the fix, and restart this loop.
+- If any check fails: read the CI logs with `gh run view <run-id> --log-failed`, diagnose the failure, fix locally, re-run quality gates (Step 4), push the fix, and restart this loop.
 
 ### Gate B1: Human Reviews
 
@@ -203,7 +217,7 @@ gh pr checks
 gh pr view --json latestReviews,comments
 ```
 
-- If there are change requests: address each comment, make the fix, re-run quality gates (Step 3), commit, push, and restart this loop.
+- If there are change requests: address each comment, make the fix, re-run quality gates (Step 4), commit, push, and restart this loop.
 
 ### Gate B2: Codex Automated Review
 
@@ -269,8 +283,8 @@ After the tables, provide a **Verdict** section:
 
 Ask: **"Should I fix the recommended issues, or do you want to adjust the list?"**
 
-- If the user approves the recommended list: fix those issues, re-run quality gates (Step 3), commit, push, and restart this loop.
-- If the user adjusts the list: fix only the user-specified issues, re-run quality gates (Step 3), commit, push, and restart this loop.
+- If the user approves the recommended list: fix those issues, re-run quality gates (Step 4), commit, push, and restart this loop.
+- If the user adjusts the list: fix only the user-specified issues, re-run quality gates (Step 4), commit, push, and restart this loop.
 - If the user declines all fixes: note the user's decision and pass.
 
 ### Gate C: Conflicts

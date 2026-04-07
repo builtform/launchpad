@@ -316,21 +316,12 @@ Bash, Read, Grep, Glob, Write
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash scripts/hooks/audit-skills.sh"
-          }
-        ]
-      }
     ]
   }
 }
 ```
+
+Note: `audit-skills.sh` is no longer a Stop hook — it is called directly by `/commit` (Step 3, interactive — presents report to user) and `/ship` (autonomous — logs silently, never prompts). The Stop hook was removed because it fired on every turn (not session end) and was wasteful in VS Code where sessions don't have clean exit events.
 
 Matchers:
 
@@ -451,7 +442,7 @@ Add entry for BACKLOG.md:
 
 - [ ] Matchers: `startup` and `clear` only
 - [ ] NOT triggered on `resume` or `compact`
-- [ ] Merged with existing PostToolUse and Stop hooks
+- [ ] Merged with existing PostToolUse hook (Stop hook removed — audit now in /commit and /ship)
 - [ ] Output stays within 10,000 character cap
 
 ### Integration

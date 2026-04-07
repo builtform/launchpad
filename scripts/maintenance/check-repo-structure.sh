@@ -116,7 +116,6 @@ ALLOWED_CONFIGS=(
   "vitest.config.ts"
   "tsconfig.json"
   ".worktreeinclude"
-  ".DS_Store"
 )
 
 ALLOWED_DIRS=(
@@ -179,8 +178,8 @@ while IFS= read -r item; do
     if [[ " ${ALLOWED_CONFIGS[@]} " =~ " ${item} " ]]; then
       continue
     else
-      # Allow common hidden config files
-      if [[ "$item" =~ ^\.(env\.|editorconfig|gitignore|gitattributes|prettierrc|prettierignore|nvmrc) ]]; then
+      # Allow common hidden config files and OS artifacts
+      if [[ "$item" =~ ^\.(env\.|editorconfig|gitignore|gitattributes|prettierrc|prettierignore|nvmrc|DS_Store) ]]; then
         continue
       fi
       echo "   ❌ Non-whitelisted hidden file at root: $item"

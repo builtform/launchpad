@@ -581,39 +581,45 @@ Step 2: Stage Changes
   - Does NOT add untracked files (no .env.local, no debug artifacts, no stray files)
   - This is safer than git add -A while remaining autonomous
 
-Step 3: Quality Gates (parallel) + Auto-Fix Cycle
+Step 3: Skill Staleness Audit (silent)
+  - Run: bash scripts/hooks/audit-skills.sh
+  - Log output but NEVER prompt the user (autonomous)
+  - Non-blocking — proceed regardless of output
+  - Script self-throttles (14-day cooldown)
+
+Step 4: Quality Gates (parallel) + Auto-Fix Cycle
   - Agent A: pnpm test && pnpm typecheck && pnpm lint
   - Agent B: lefthook run pre-commit (includes check-repo-structure.sh)
-  - IF all pass → proceed to Step 4
+  - IF all pass → proceed to Step 5
   - IF any fail → AUTO-FIX (max 3 attempts):
     1. Read error output, diagnose root cause
     2. Fix the code
     3. Stage fix (git add -u)
     4. Re-run ALL quality gates from scratch
-    5. IF pass → proceed to Step 4
+    5. IF pass → proceed to Step 5
     6. IF still failing after 3 attempts → HARD STOP. Report what failed.
   - NEVER use --no-verify
   - ~90-95% of builds ship autonomously; ~5-10% need human intervention
 
-Step 4: Generate Commit Message
+Step 5: Generate Commit Message
   - Auto-generate conventional commit: type(scope): description
   - Include Co-Authored-By: Claude <noreply@anthropic.com>
   - No user approval (autonomous)
 
-Step 5: Commit + Push + PR
+Step 6: Commit + Push + PR
   - git commit (HEREDOC format)
   - git push -u origin HEAD
-  - IF PR already exists for current branch: skip PR creation, proceed to Step 6 monitoring.
+  - IF PR already exists for current branch: skip PR creation, proceed to Step 7 monitoring.
     This prevents double PR creation on recovery after /learn failure.
   - gh pr create with structured body:
     ## Summary (from commit)
     ## Review Findings (from .harness/review-summary.md if exists)
     ## Test Plan (gate results)
 
-Step 6: PR Monitoring Loop (max 3 cycles)
+Step 7: PR Monitoring Loop (max 3 cycles)
   Gate A: CI Checks
     - Poll gh pr checks (30s intervals, max 10 waits)
-    - IF failed: read logs, diagnose, fix, re-run Step 3, push, restart loop
+    - IF failed: read logs, diagnose, fix, re-run Step 4, push, restart loop
 
   Gate B: Codex Review (non-blocking on timeout)
     - Poll for Codex comment (max 5 min)
@@ -633,7 +639,7 @@ Step 6: PR Monitoring Loop (max 3 cycles)
 
   Loop Exit: all gates green on same cycle → exit
 
-Step 7: Report (TERMINAL)
+Step 8: Report (TERMINAL)
   - Print PR URL
   - Print gate status
   - "PR is ready for human review and merge."
@@ -1124,7 +1130,7 @@ When downstream projects pull these changes via `/pull-launchpad`:
 - [ ] PreToolUse hook blocks `git push` to protected branches (origin main/master, HEAD:main/master)
 - [ ] PreToolUse hook blocks `gh pr review --approve`
 - [ ] PreToolUse hook does NOT false-match branches containing "main" as substring
-- [ ] `/ship` Step 7 says "NEVER merge"
+- [ ] `/ship` Step 8 says "NEVER merge"
 - [ ] `protected_branches` list in `.launchpad/agents.yml` read by branch-guarding commands
 - [ ] GitHub branch protection documented in HOW_IT_WORKS.md
 

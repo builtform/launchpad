@@ -8,7 +8,7 @@ A user-facing reference for all installed skills in LaunchPad. Each skill is a r
 
 - **Installation:** Skills are added via `/create-skill` or `/port-skill` and registered in this index, `CLAUDE.md`, `AGENTS.md`, and `skills-usage.json`.
 - **Usage tracking:** `scripts/hooks/track-skill-usage.sh` fires after every skill invocation and records the date in `skills-usage.json`.
-- **Staleness audit:** `scripts/hooks/audit-skills.sh` fires at session end. If 2+ weeks have passed since the last audit, it reports which skills are stale or unused.
+- **Staleness audit:** `scripts/hooks/audit-skills.sh` runs during `/commit` (Step 3, interactive — presents report to user) and `/ship` (autonomous — logs silently, never prompts). If 2+ weeks have passed since the last audit, it reports which skills are stale or unused.
 
 ---
 

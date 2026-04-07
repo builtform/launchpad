@@ -542,6 +542,8 @@ if [ ! -f ".worktreeinclude" ]; then
 # Uses .gitignore syntax. Only files that match AND are gitignored get copied.
 .env
 .env.local
+.env.consultant
+.env.migrate
 apps/**/.env*
 packages/**/.env*
 WTEOF

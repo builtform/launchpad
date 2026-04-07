@@ -22,7 +22,7 @@
 | Todo status transitions  | Frontmatter only, no file renaming (per Phase 0)                                                                                        |
 | `/triage` standalone use | Wired into `/commit` AND available standalone for triaging existing todos                                                               |
 | Step 2 staging default   | Keep `git add -A` when user says "all" (interactive — user explicitly confirms). Do NOT change to `git add -u`.                         |
-| PR monitoring cap        | Add max 3 cycles to `/commit` Step 8, matching `/ship`                                                                                  |
+| PR monitoring cap        | Add max 3 cycles to `/commit` Step 9, matching `/ship`                                                                                  |
 
 ---
 
@@ -49,20 +49,21 @@ This also creates `/triage`, an interactive command for sorting review findings 
   │     │     ├── IF any "fix" items: run /resolve_todo_parallel
   │     │     ├── IF resolver created new files: show untracked, ask to stage
   │     │     ├── Re-run secret scan on staged changes
-  │     │     └── Continue to Step 3
-  │     └── IF no: continue to Step 3
+  │     │     └── Continue to Step 3 (audit) → Step 4
+  │     └── IF no: continue to Step 3 (audit) → Step 4 (quality gates)
   │     Step 2.5 expected duration: 3-15 minutes depending on finding count.
   │     Total timeout: 20 minutes. On timeout, findings remain in .harness/todos/
   │     for manual resolution via /resolve_todo_parallel.
-  ├── Step 3:   Quality gates (parallel: test + typecheck + lint + lefthook)
-  ├── Step 4:   Generate commit message (conventional)
-  ├── Step 5:   User approval
-  ├── Step 6:   Commit
-  ├── Step 7:   Offer PR creation
-  └── Step 8:   PR monitoring loop (max 3 cycles, 60min timeout — matching /ship)
+  ├── Step 3:   Skill staleness audit (non-blocking, 14-day cooldown)
+  ├── Step 4:   Quality gates (parallel: test + typecheck + lint + lefthook)
+  ├── Step 5:   Generate commit message (conventional)
+  ├── Step 6:   User approval
+  ├── Step 7:   Commit
+  ├── Step 8:   Offer PR creation
+  └── Step 9:   PR monitoring loop (max 3 cycles, 60min timeout — matching /ship)
 ```
 
-Note: Step numbering matches the existing `commit.md` (8 steps). Step 2.5 is inserted without renumbering subsequent steps.
+Note: Step numbering matches the current `commit.md` (9 steps). Step 3 (skill audit) was added pre-Phase 7. Step 2.5 is inserted without renumbering subsequent steps.
 
 ---
 
@@ -181,15 +182,15 @@ Bash, Read, Grep, Glob, Edit, Write
 ### 2. `/commit` Command (Edit)
 
 **File:** `.claude/commands/commit.md` (EDIT existing)
-**Source:** Existing LaunchPad `commit.md` (300 lines) — add Step 2.5, update Step 8
+**Source:** Existing LaunchPad `commit.md` (300 lines) — add Step 2.5, update Step 9
 
 #### Changes from Current `/commit`
 
-The existing `/commit` has 8 steps (Step 1: Branch Guard through Step 8: PR Monitoring Loop). Phase 7 inserts one new step (Step 2.5) and updates one existing step (Step 8). All other steps (1, 2, 3, 4, 5, 6, 7) are preserved unchanged.
+The existing `/commit` has 9 steps (Step 1: Branch Guard through Step 9: PR Monitoring Loop). Step 3 is the Skill Staleness Audit (added pre-Phase 7). Phase 7 inserts one new step (Step 2.5) and updates one existing step (Step 9). Steps 1, 2 are preserved unchanged; Step 3 (audit) was added pre-Phase 7; Steps 4-8 are renumbered from the original 3-7.
 
 #### New Step 2.5: Optional Code Review
 
-Inserted after Step 2 (Stage and Review) and before Step 3 (Quality Gates):
+Inserted after Step 2 (Stage and Review) and before Step 3 (Skill Audit) / Step 4 (Quality Gates):
 
 ```
 ## Step 2.5: Optional Code Review (Phase 7)
@@ -207,7 +208,7 @@ and report: "Review chain exceeded timeout. Findings written to .harness/todos/
    - Writes findings to .harness/todos/ (clears previous todos first)
    - Reports: "{N} findings ({P1} critical, {P2} important, {P3} nice-to-have)"
 
-2. IF zero findings: "Code review passed with no findings." → continue to Step 3
+2. IF zero findings: "Code review passed with no findings." → continue to Step 3 (audit) → Step 4 (quality gates)
 
 3. IF findings exist: Run /triage
    - User sorts each finding: fix / drop / defer
@@ -233,14 +234,14 @@ and report: "Review chain exceeded timeout. Findings written to .harness/todos/
      IF matches found: HALT and warn user before proceeding.
    - Run `git diff --cached --stat` to show final staging
 
-6. Continue to Step 3 (Quality Gates)
+6. Continue to Step 3 (audit) → Step 4 (Quality Gates)
 
 ### If no:
 
-Continue to Step 3 (Quality Gates) immediately.
+Continue to Step 3 (audit) → Step 4 (Quality Gates) immediately.
 ```
 
-#### Changes to Step 8 (PR Monitoring Loop)
+#### Changes to Step 9 (PR Monitoring Loop)
 
 Add a maximum cycle cap: **max 3 cycles** (matching `/ship`). Add a **60-minute total wall-clock timeout**. Add a **Gate A CI polling cap of 20 retries** (10 minutes) per cycle. After 3 cycles or 60-minute timeout: "PR monitoring reached maximum cycles/timeout. Remaining issues require manual attention."
 
@@ -256,7 +257,7 @@ Note: The existing `commit.md` Allowed Tools line lists `TodoWrite, Task` — th
 
 ### 1. Edit `.claude/commands/commit.md`
 
-Insert Step 2.5 (Optional Code Review) between Step 2 and Step 3. Add max 3 cycle cap to Step 8 (PR Monitoring Loop).
+Insert Step 2.5 (Optional Code Review) between Step 2 and Step 3 (audit). Add max 3 cycle cap to Step 9 (PR Monitoring Loop).
 
 ### 2. Edit `.claude/commands/resolve_todo_parallel.md`
 
@@ -276,7 +277,7 @@ Deferred to Phase Finale (documentation refresh). Incremental doc patches create
 
 ### Files Edited
 
-- [ ] `.claude/commands/commit.md` — Step 2.5 inserted, Step 8 max 3 cycles added
+- [ ] `.claude/commands/commit.md` — Step 2.5 inserted, Step 9 max 3 cycles added
 - [ ] `.claude/commands/resolve_todo_parallel.md` — Step 1 filter updated to accept `status: pending OR status: ready`
 
 ### Wiring
@@ -325,9 +326,9 @@ Deferred to Phase Finale (documentation refresh). Incremental doc patches create
 - [ ] Step 2.5 shows untracked files from resolver, asks user to stage
 - [ ] Step 2.5 re-runs secret scan on resolver-touched files only (not full staged diff)
 - [ ] Step 2.5 has 20-minute total timeout with graceful exit
-- [ ] Step 8 PR monitoring loop capped at max 3 cycles (matching `/ship`)
-- [ ] Step 8 has 60-minute total wall-clock timeout with graceful exit
-- [ ] Step 8 Gate A CI polling capped at 20 retries (10 minutes) per cycle
+- [ ] Step 9 PR monitoring loop capped at max 3 cycles (matching `/ship`)
+- [ ] Step 9 has 60-minute total wall-clock timeout with graceful exit
+- [ ] Step 9 Gate A CI polling capped at 20 retries (10 minutes) per cycle
 - [ ] Steps 1, 2, 3, 4, 5, 6, 7 preserved unchanged
 - [ ] Co-Authored-By trailer preserved in Step 6
 - [ ] NEVER uses `--no-verify`
@@ -355,7 +356,7 @@ Deferred to Phase Finale (documentation refresh). Incremental doc patches create
 | #   | File                                        | Change                                                                                                                                                                     | Priority |
 | --- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | 1   | `.claude/commands/triage.md`                | **Create** (adapted from CE — 3 actions: fix/drop/defer, path validation, frontmatter validation, MAX_FINDINGS=25, P1 drop confirmation, audit trail for all dispositions) | P0       |
-| 2   | `.claude/commands/commit.md`                | **Edit** — insert Step 2.5 (optional review → triage → resolve → re-stage with secret scan), add max 3 cycles to Step 8                                                    | P0       |
+| 2   | `.claude/commands/commit.md`                | **Edit** — insert Step 2.5 (optional review → triage → resolve → re-stage with secret scan), add max 3 cycles to Step 9                                                    | P0       |
 | 3   | `.claude/commands/resolve_todo_parallel.md` | **Edit** — update Step 1 filter to accept `status: pending OR status: ready`                                                                                               | P0       |
 
 **Intentionally omitted:**
