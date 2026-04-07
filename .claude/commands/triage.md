@@ -53,6 +53,8 @@ After all findings processed:
 - Dropped: {Y} findings (moved to observations)
 - Deferred: {Z} findings (moved to observations)
 
+Run `/regenerate-backlog` to update the project backlog with new deferrals.
+
 Offer next steps: (1) Run `/resolve_todo_parallel` to fix approved findings, (2) Done.
 
 ---

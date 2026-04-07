@@ -183,6 +183,8 @@ EOF
 
 Run `git status` after commit to verify success.
 
+After successful commit, run `/regenerate-backlog` to update the project backlog (unstaged — picked up by next workflow).
+
 ---
 
 ## Step 8: Offer PR Creation

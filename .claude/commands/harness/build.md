@@ -101,4 +101,5 @@ Autonomous execution pipeline orchestrator. Resolves target from section registr
 
 - Set registry status → `built` (if section)
 - Print summary: what was built, review findings, PR URL
+- Run `/regenerate-backlog --stage` to update the project backlog
 - "If the PR receives review comments, run /resolve-pr-comments to address them."

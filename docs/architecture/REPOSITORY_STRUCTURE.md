@@ -129,7 +129,7 @@ docs/                                        # See Decision Tree (Section 6.1) f
 ├── architecture/                            # System design, ADRs (decisions/ created when needed), tech stack
 ├── plans/                                   # Implementation plans, phased roadmaps
 ├── reports/                                 # Investigation reports, audits, postmortems
-├── tasks/                                   # Active work: TODO.md, section specs
+├── tasks/                                   # Active work: BACKLOG.md, section specs
 ├── solutions/                               # Categorized learnings from compound loops
 ├── brainstorms/                             # Brainstorming documents
 ├── handoffs/                                # Session handoff documents
@@ -234,7 +234,7 @@ Every subdirectory in `docs/` has a specific purpose. Do not use `docs/` as a ca
 | `docs/reports/`        | Investigation reports, audits, postmortems                                  |
 | `docs/skills-catalog/` | Skill index, usage tracking, catalog                                        |
 | `docs/solutions/`      | Categorized learnings from compound loops                                   |
-| `docs/tasks/`          | Active work: TODO.md, section specs                                         |
+| `docs/tasks/`          | Active work: BACKLOG.md, section specs                                      |
 | `docs/ui/`             | UI/UX design documentation                                                  |
 
 ---
