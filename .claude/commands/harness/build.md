@@ -97,3 +97,4 @@ bash scripts/compound/compound-learning.sh
 
 - Set registry status → `built` (if section)
 - Print summary: what was built, review findings, PR URL
+- "If the PR receives review comments, run /resolve-pr-comments to address them."
