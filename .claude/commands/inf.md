@@ -18,6 +18,26 @@ Otherwise, read `docs/architecture/PRD.md` and look for the section registry. If
 2. If only `shaped` sections exist, suggest to the user: "Section [name] is shaped but not planned yet. Run `/pnf [name]` first."
 3. If no section registry exists, fall through to the standard report analysis logic below.
 
+## Conditional Skill Loading
+
+Before execution, conditionally load methodology skills that guide code quality:
+
+**React / Frontend gate:**
+
+- IF current task touches files in `apps/web/` or `packages/ui/`, OR task title/description mentions React, component, page, layout:
+  - Load skill: `react-best-practices`
+  - 70 rules enforced during code writing — CRITICAL rules block, HIGH rules require justification to skip
+
+**Stripe / Billing gate:**
+
+- IF current task title/description mentions Stripe, payment, billing, checkout, subscription, webhook, or pricing:
+  - Load skill: `stripe-best-practices`
+  - Checkout Sessions enforced, banned APIs rejected, webhook patterns applied, Prisma billing models used
+
+Skills are loaded silently if present. Skip silently if the skill directory does not exist in `.claude/skills/`.
+
+---
+
 ## Execution
 
 Run the build script and relay all output:

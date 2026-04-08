@@ -434,14 +434,38 @@ Present to the user:
 ```
 This is a public-facing page. Good copy is critical for conversion.
 
-Would you like to create the page copy now using the web-copy skill?
-- Yes — I'll run the web-copy workflow to produce a copy brief and full copy document
+Would you like to create the page copy now?
+- Yes — I'll load available copy skills and produce a copy brief + full copy document
 - No — I'll note that copy is needed and you can run it later
-
-(The web-copy skill produces: copy brief, full copy document with rationale, A/B variants, and quality gates)
 ```
 
-If the user says **yes**: Read `.claude/skills/web-copy/SKILL.md` and execute its 7-phase workflow, using the section spec just created as input for Phase 1 (Context Gathering).
+If the user says **yes**:
+
+**Step 8a: Strategic Context Loading (conditional)**
+
+Before producing copy, conditionally load strategic methodology skills that provide business context:
+
+- IF section involves pricing, offer design, or value proposition:
+  - Load offer methodology skill (if available in `.claude/skills/` — e.g., `hormozi-offer`)
+- IF section involves lead generation, signup flows, or lead magnets:
+  - Load lead strategy skill (if available in `.claude/skills/` — e.g., `hormozi-leads`)
+- IF section involves pricing page architecture, billing, or tiers:
+  - Load monetization methodology skill (if available in `.claude/skills/` — e.g., `hormozi-moneymodel`)
+
+Strategic skills produce blueprints that feed into web copy as Phase 1 context. Skip silently if no strategic skills are installed.
+
+**Step 8b: Copy Production**
+
+- Load `web-copy` skill (if available in `.claude/skills/`)
+- Execute the copy workflow using the section spec + any strategic blueprints as input context
+- Skip silently if no `web-copy` skill is installed — add a note to the section spec instead:
+
+```markdown
+## Copy Status
+
+**Status:** Not yet created (no web-copy skill installed)
+**Action:** Install a web-copy skill or write copy manually before implementation
+```
 
 If the user says **no**: Add a note to the section spec under a new `## Copy Status` section:
 

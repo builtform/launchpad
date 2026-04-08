@@ -85,6 +85,28 @@ Tech context:
 
 ---
 
+## Step 2.5: Conditional Skill Loading
+
+After loading section context, conditionally load methodology skills that inform plan quality:
+
+**React / Frontend gate:**
+
+- IF section spec references frontend pages/components/UI, OR task files are in `apps/web/` or `packages/ui/`:
+  - Load skill: `react-best-practices`
+  - Ensures plan steps include Suspense boundaries, parallel fetching, composition patterns, bundle optimization, etc.
+
+**Stripe / Billing gate:**
+
+- IF section spec references payment, billing, checkout, subscription, Stripe, pricing, or webhook:
+  - Load skill: `stripe-best-practices`
+  - Ensures plan steps include Checkout Sessions, webhook idempotency, Prisma billing models, dynamic payment methods, etc.
+
+Skills are loaded silently if present. Skip silently if the skill directory does not exist in `.claude/skills/`.
+
+The loaded skills inform the plan — implementation steps will reference specific rules (e.g., "Use `Promise.all()` for the three independent data fetches per `async-parallel` rule").
+
+---
+
 ## Step 3: Gap Detection
 
 **Before proceeding to research, scan the section spec for completeness.**

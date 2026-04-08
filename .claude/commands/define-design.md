@@ -932,6 +932,37 @@ If issues are found, present them and ask: "Would you like to adjust any of thes
 
 ---
 
+## Step 10c: Enrich harness.local.md
+
+After quality validation, write or update the `## Design Context` section in `.harness/harness.local.md`. This provides compact project-specific design context to design agents (`design-iterator`, `figma-design-sync`, `design-ui-auditor`, `design-responsive-auditor`, `design-alignment-checker`, `/design-review`, `/design-polish`).
+
+Extract values from the Q&A answers in Steps 4-9 (DS-0 through FG-3) and condense into:
+
+```markdown
+## Design Context
+
+<!-- Enriched by /define-design. -->
+
+**Brand:** [primary personality] + [secondary personality]. Voice: [attributes].
+**Philosophy:** [chosen design philosophy] — [one-line description].
+**Density:** [data-dense / minimal / balanced] — [context for why].
+**Colors:** [primary hex] primary, [background approach], [dark mode strategy].
+**Typography:** [heading font] / [body font] at [base size].
+**Components:** [library choice] with [customization approach].
+**Responsive:** [strategy] — [critical breakpoints and why].
+**Accessibility:** [WCAG level target] — [chosen patterns].
+
+### Domain Design Constraints
+
+- [Project-specific constraint extracted from Q&A]
+- [Project-specific constraint extracted from Q&A]
+- [Project-specific constraint extracted from Q&A]
+```
+
+This parallels the existing enrichment hooks: `/define-product` Step 6b writes `## Review Context`, `/define-architecture` Step 4b appends to `## Review Context`. Design agents read `## Design Context`; review agents read `## Review Context`.
+
+---
+
 ## Step 11: Summary and Next Step
 
 After all files are written, present a summary:
