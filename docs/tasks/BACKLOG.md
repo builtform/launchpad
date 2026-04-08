@@ -1,6 +1,6 @@
-# TODO
+# BACKLOG
 
-> Central task list for deferred and active work. Populated by developers and AI agents as the project evolves.
+> Central backlog for deferred and active work. Populated by developers and AI agents as the project evolves.
 
 ---
 
@@ -11,14 +11,14 @@
 Copy the Standard Task Format below into the correct priority section. Required fields:
 `Task ID`, `Priority`, `Status`, `Area`, `Date`, `Location`, `Current Behavior`, `Desired Behavior`.
 
-Task IDs are sequential integers zero-padded to three digits: `TODO-001`, `TODO-002`, etc.
+Task IDs are sequential integers zero-padded to three digits: `BL-001`, `BL-002`, etc.
 
 ### Marking a task complete
 
 Remove the task entry from this file and append a one-line summary to `docs/tasks/PROGRESS.md`:
 
 ```
-COMPLETED TODO-XXX - Short title (YYYY-MM-DD)
+COMPLETED BL-XXX - Short title (YYYY-MM-DD)
 ```
 
 ### Priority levels
@@ -72,12 +72,12 @@ When implementing a task: always revalidate whether the proposed fix still makes
 ## Standard Task Format
 
 ```markdown
-#### TODO-XXX - Short, descriptive title
+#### BL-XXX - Short, descriptive title
 
 - **Priority**: P0 | P1 | P2 | P3
 - **Status**: TODO | NEXT | IN_PROGRESS | BLOCKED
 - **Area**: Frontend | Backend | DB | Auth | Infra | Testing | Docs
-- **Blocked By**: TODO-YYY (only if Status is BLOCKED)
+- **Blocked By**: BL-YYY (only if Status is BLOCKED)
 
 **Encountered**
 
@@ -110,7 +110,7 @@ Extra context, links to PRs, issues, logs, or external docs.
 ### P0 - Critical
 
 <!-- EXAMPLE (delete when adding real tasks):
-#### TODO-001 - Example: Fix authentication middleware crash on expired tokens
+#### BL-001 - Example: Fix authentication middleware crash on expired tokens
 
 - **Priority**: P0
 - **Status**: TODO
@@ -144,7 +144,7 @@ Related issue: #12.
 ### P1 - High
 
 <!-- EXAMPLE (delete when adding real tasks):
-#### TODO-002 - Example: Add database index on users.email for login performance
+#### BL-002 - Example: Add database index on users.email for login performance
 
 - **Priority**: P1
 - **Status**: TODO
@@ -178,7 +178,7 @@ Follow the migration protocol in `docs/operations/PRISMA_MIGRATION_GUIDE.md`.
 ### P2 - Medium
 
 <!-- EXAMPLE (delete when adding real tasks):
-#### TODO-003 - Example: Add pagination to the /api/items list endpoint
+#### BL-003 - Example: Add pagination to the /api/items list endpoint
 
 - **Priority**: P2
 - **Status**: TODO
@@ -212,7 +212,7 @@ Frontend will need a corresponding update to consume the paginated response.
 ### P3 - Low
 
 <!-- EXAMPLE (delete when adding real tasks):
-#### TODO-004 - Example: Standardize error response shape across all API routes
+#### BL-004 - Example: Standardize error response shape across all API routes
 
 - **Priority**: P3
 - **Status**: TODO

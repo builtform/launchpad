@@ -40,6 +40,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --plan)
+      [[ -n "${2:-}" ]] || error "Missing value for --plan"
       EXPLICIT_PLAN="$2"
       shift 2
       ;;
@@ -159,7 +160,11 @@ else
   log "Step 2: Analyzing report to pick #1 actionable priority..."
 
   if [ -n "$ANALYZE_COMMAND" ]; then
-    ANALYSIS_JSON=$(bash -c "$ANALYZE_COMMAND \"$LATEST_REPORT\"" 2>/dev/null)
+    # Validate analyzeCommand is an executable path, not arbitrary shell
+    if [ ! -x "$ANALYZE_COMMAND" ] && ! command -v "$ANALYZE_COMMAND" >/dev/null 2>&1; then
+      error "analyzeCommand '$ANALYZE_COMMAND' is not an executable file or command"
+    fi
+    ANALYSIS_JSON=$("$ANALYZE_COMMAND" "$LATEST_REPORT" 2>/dev/null)
   else
     ANALYSIS_JSON=$("$SCRIPT_DIR/analyze-report.sh" "$LATEST_REPORT" 2>/dev/null)
   fi
@@ -201,8 +206,10 @@ fi
 
 # Step 3: Create feature branch
 log "Step 3: Creating feature branch..."
-git switch main
-git merge --ff-only origin/main
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
+DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+git switch "$DEFAULT_BRANCH"
+git merge --ff-only "origin/$DEFAULT_BRANCH"
 git switch -c -- "$BRANCH_NAME" 2>/dev/null || git switch -- "$BRANCH_NAME"
 
 # Step 4: Create PRD
