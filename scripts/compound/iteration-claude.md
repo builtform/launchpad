@@ -28,7 +28,7 @@ You are an autonomous coding agent working on a software project.
 5.  Check you're on the correct branch from PRD `branchName`. If not, switch to it or create from main.
 6.  Pick the **highest priority** task where `status` is `"pending"` (or `"failed"` if no pending tasks remain)
 7.  Implement that single task
-8.  Run quality checks from config `qualityChecks` array
+8.  Run quality checks: `pnpm typecheck && pnpm test`
 9.  Document learnings in your progress report (see "Document Learnings" section below)
 10. If checks pass, commit ALL changes with message: `feat: [Task ID] - [Task Title]`
 11. Update the PRD: set `status: "done"` and `passes: true` for the completed task

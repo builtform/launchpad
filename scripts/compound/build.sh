@@ -68,6 +68,12 @@ if [ -n "$EXPLICIT_PLAN" ]; then
   # The plan is already a PRD or task definition — pass it to the loop
   PRIORITY_ITEM="Implement $PLAN_NAME"
   BRANCH_NAME=$(git branch --show-current)
+  # Guard against running on protected branches
+  DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
+  DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+  if [ "$BRANCH_NAME" = "$DEFAULT_BRANCH" ] || [ "$BRANCH_NAME" = "master" ]; then
+    error "Cannot run --plan on protected branch '$BRANCH_NAME'. Create a feature branch first."
+  fi
   log "Branch: $BRANCH_NAME"
 
   if [ "$DRY_RUN" = true ]; then
