@@ -537,6 +537,13 @@ if [ ! -f "docs/tasks/sections/.gitkeep" ]; then
   info "Created docs/tasks/sections/.gitkeep"
 fi
 
+# Create .harness/ runtime directories
+mkdir -p .harness/todos .harness/observations .harness/screenshots .harness/design-artifacts
+if [ ! -f ".harness/design-artifacts/.gitkeep" ]; then
+  touch .harness/design-artifacts/.gitkeep
+  info "Created .harness/design-artifacts/.gitkeep (approved design screenshots)"
+fi
+
 # Create .worktreeinclude for Claude Code worktree env file copying
 if [ ! -f ".worktreeinclude" ]; then
   cat > .worktreeinclude <<'WTEOF'

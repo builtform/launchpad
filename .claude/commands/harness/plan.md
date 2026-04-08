@@ -53,24 +53,80 @@ If no matching section or free-text provided, start from Step 2 (design check).
 
 ---
 
-## Step 2: Design Step [Phase 10]
+## Step 2: Design Step
 
-Check if section has UI components by examining the section spec for files matching:
+Design runs before `/pnf` so the plan incorporates concrete design decisions.
 
-- `apps/web/**/*.tsx`
-- `packages/ui/**`
-- Any `.css` or `.html` file
+### UI Detection
 
-### IF section has UI components:
+Parse the section spec for UI indicators:
 
-- Dispatch design workflow (agents defined in Phase 10)
-- Set registry status → `designed`
+**UI keyword list:** component, page, layout, hero, section, card, modal, dialog, form, input, button, nav, sidebar, header, footer, table, list, grid, dashboard, chart, graph, onboarding, wizard, stepper, carousel, accordion, tab, panel, dropdown, tooltip, popover, badge, avatar, banner, toast, notification, empty state, loading, skeleton, spinner
 
-### IF no UI components:
+**File reference check:** any path containing `apps/web/` or `packages/ui/`
 
-- Set registry status → `"design:skipped"` (quoted in YAML to avoid colon ambiguity)
+**Decision:**
 
-**Note:** Design runs before `/pnf` so the plan incorporates design decisions.
+- IF (keyword count >= 2) OR (file reference found): "This section involves UI work. Run design workflow? (yes/skip)"
+- ELSE: "No UI work detected. Planning UI work anyway? (yes/skip)"
+- IF user says "skip": write status `"design:skipped"` → jump to Step 3
+
+### Step 2a: Autonomous First Draft
+
+**Load context:**
+
+1. `docs/architecture/DESIGN_SYSTEM.md` (design tokens, palette, typography)
+2. `docs/architecture/APP_FLOW.md` (navigation, user journeys)
+3. `docs/architecture/FRONTEND_GUIDELINES.md` (component patterns, file structure)
+4. Section spec file (what to build)
+5. `.harness/design-artifacts/` (existing approved designs for visual consistency)
+
+**Load skills:** `frontend-design`, `web-design-guidelines`, `responsive-design`
+
+**Load copy:** Run `/copy` (reads copy brief from section spec if exists)
+
+**Build:**
+
+- Build UI components (write TSX/CSS following design system tokens)
+- Open browser (agent-browser primary, Playwright MCP fallback)
+  - Requires dev server running (detect, don't start)
+- Screenshot → self-evaluate → adjust → screenshot (3-5 auto-cycles via `design-iterator`)
+- Offer `/design-onboard` if section involves onboarding/empty states
+- Present first draft to user with live localhost URL
+
+### Step 2b: Interactive Refinement
+
+Guide the user through iterative design improvement:
+
+- User gives feedback → dispatch `design-iterator` (ONE change per iteration)
+- User requests Figma sync → dispatch `figma-design-sync` (requires Figma URL)
+- User requests systematic polish → run `/design-polish`
+- Skills stay loaded: `frontend-design`, `web-design-guidelines`, `responsive-design`
+
+Session guides user: "Give feedback / Run /design-polish / Provide Figma URL / Say 'looks good'"
+
+### Step 2c: Design Review & Audit
+
+1. Run `/design-review` first (sequential — comprehensive 8 design + 4 tech dimensions, AI slop detection)
+2. Then in parallel:
+   - `design-ui-auditor` (5 quick checks)
+   - `design-responsive-auditor` (6 responsive checks)
+   - `design-alignment-checker` (14-dimension audit)
+   - `design-implementation-reviewer` (Figma comparison — IF Figma URL was provided during session)
+   - `/copy-review` (dispatches `review_copy_agents` if configured)
+3. Present findings
+4. IF issues → back to 2b (iterate/fix → re-audit)
+5. **Re-audit cap:** 3 cycles maximum. After 3 re-audit passes, if findings remain, present to user: "N findings remain after 3 review cycles. Approve with known issues / Continue iterating / Revise approach?"
+6. WHEN clean → save approved screenshots to `.harness/design-artifacts/[section]-approved.png`
+7. Set registry status → `designed` → proceed to Step 2d
+
+### Step 2d: Design Walkthrough Recording (optional)
+
+- `/feature-video` (optional — record design walkthrough)
+- Captures screenshots of approved design → MP4+GIF
+- Uploads via rclone (if configured) or imgup
+- Useful for sharing design decisions with team
+- Proceed to Step 3
 
 ---
 
@@ -101,19 +157,28 @@ Present plan summary to user:
 - Hardening notes
 - Design status (`designed` or `"design:skipped"`)
 
-Ask: **"Approve this plan for build? (yes/no/revise)"**
+Ask: **"Approve and start build? (yes / revise design / revise plan / revise both)"**
 
 ### IF yes:
 
 - Set registry status → `approved`
 - Write `approved_at: <ISO-8601 timestamp>` to section spec frontmatter
 - Write `plan_hash: <short hash of plan file at approval time>` to section spec frontmatter
+- Proceed to `/harness:build`
 
-### IF revise:
+### IF revise design:
 
-- Reset status to `shaped` (re-enters design → plan → harden → approval cycle)
-- Return to Step 2
+- Reset status to `shaped`
+- Clear `.harness/design-artifacts/` (remove approved screenshots)
+- Re-enter Step 2 (full design cycle restarts)
 
-### IF no:
+### IF revise plan:
 
-- Exit with "Plan not approved"
+- Reset status to `designed` or `"design:skipped"` (whichever was set)
+- Re-enter Step 3 (`/pnf`). Design artifacts preserved. Plan regenerated.
+
+### IF revise both:
+
+- Reset status to `shaped`
+- Clear `.harness/design-artifacts/` (remove approved screenshots)
+- Re-enter Step 2. Everything regenerated.

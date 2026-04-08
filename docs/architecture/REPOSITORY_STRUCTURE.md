@@ -1,6 +1,6 @@
 # Repository Structure & File Placement
 
-**Last Updated**: 2026-04-04
+**Last Updated**: 2026-04-07
 **Status**: Active
 **Version**: 2.0
 
@@ -145,8 +145,43 @@ docs/                                        # See Decision Tree (Section 6.1) f
 
 .claude/
 ├── agents/                                  # Sub-agent definitions
+│   ├── design/                              # Phase 10 design agents
+│   │   ├── design-alignment-checker.md      # Verifies design-to-spec fidelity
+│   │   ├── design-implementation-reviewer.md # Reviews design implementation quality
+│   │   ├── design-iterator.md               # Iterates designs based on feedback
+│   │   ├── design-responsive-auditor.md     # Audits responsive behavior across viewports
+│   │   ├── design-ui-auditor.md             # Audits UI against design system tokens
+│   │   └── figma-design-sync.md             # Syncs design artifacts from Figma
+│   ├── research/                            # Read-only research agents
+│   ├── resolve/                             # Fix agents (todos, PR comments)
+│   ├── review/                              # Code review agents
+│   └── skills/                              # Skill evaluation agents
 ├── commands/                                # Slash command definitions
+│   ├── copy.md                              # Reads copy brief and provides copy context
+│   ├── copy-review.md                       # Dispatches copy review agents
+│   ├── design-onboard.md                    # Design onboarding flows and empty states
+│   ├── design-polish.md                     # Pre-ship design refinement pass
+│   ├── design-review.md                     # Comprehensive design quality audit
+│   └── feature-video.md                     # Record feature video walkthrough
 ├── skills/                                  # One directory per skill
+│   ├── frontend-design/                     # Distinctive, production-grade UI creation
+│   │   ├── SKILL.md
+│   │   └── references/
+│   │       ├── color-and-contrast.md
+│   │       ├── interaction-design.md
+│   │       ├── motion-design.md
+│   │       ├── responsive-design.md
+│   │       ├── spatial-design.md
+│   │       ├── typography.md
+│   │       └── ux-writing.md
+│   ├── imgup/                               # Lightweight image hosting for quick sharing
+│   │   └── SKILL.md
+│   ├── rclone/                              # Cloud file management via rclone
+│   │   └── SKILL.md
+│   ├── responsive-design/                   # Responsive-first thinking for specs
+│   │   └── SKILL.md
+│   ├── web-design-guidelines/               # Engineering compliance checklist for web UI
+│   │   └── SKILL.md
 │   └── <skill-name>/
 │       ├── SKILL.md                         # Orchestrator (<500 lines)
 │       ├── references/                      # On-demand reference files (ONE level deep only)
@@ -155,6 +190,12 @@ docs/                                        # See Decision Tree (Section 6.1) f
 ├── profiles/                                # Cognitive profiles
 ├── settings.json                            # Project-level hooks (committed)
 └── settings.local.json                      # Local settings (gitignored)
+
+.harness/
+├── design-artifacts/                        # Git-tracked approved design screenshots
+│   └── .gitkeep
+├── observations/                            # Deferred observations for backlog
+└── todos/                                   # Review findings to triage
 ```
 
 ---

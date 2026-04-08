@@ -51,5 +51,7 @@ review-history.md
 
 # .harness/ ephemeral artifacts
 .harness/screenshots/*.png
+.harness/screenshots/*.mp4
+.harness/screenshots/*.gif
 .harness/structure-drift.md
 .harness/review-summary.md
