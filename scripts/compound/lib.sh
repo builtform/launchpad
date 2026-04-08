@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Shared functions for compound product pipeline scripts.
 # Source this file: source "$(dirname "$0")/lib.sh"
 

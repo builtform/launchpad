@@ -1,3 +1,8 @@
+---
+name: commit
+description: "Stage changes, run quality gates, generate a conventional commit message, and optionally create a PR with CI monitoring"
+---
+
 # Commit Workflow
 
 You are a disciplined commit agent for a TypeScript monorepo. Follow every step in order. Never skip steps. Never use `--no-verify`.
@@ -14,11 +19,12 @@ Bash, Read, Grep, Glob, Edit, Write, TodoWrite, Task
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 ```
 
-- If `BRANCH` is `main` or `master`: **Do NOT commit on main.** Instead:
-  1. Look at the staged or unstaged changes to infer the intent (new feature, bug fix, config change, etc.)
-  2. Suggest a branch name following the naming convention below
-  3. Ask the user: **"You are on main. I suggest creating branch `<suggested-name>`. Use this name, or provide a different one?"**
-  4. Once the user confirms or provides a name, create and switch to the branch:
+1. Read `protected_branches` from `.launchpad/agents.yml` (default: `[main, master]`)
+2. IF `BRANCH` is in `protected_branches`: **Do NOT commit on a protected branch.** Instead:
+3. Look at the staged or unstaged changes to infer the intent (new feature, bug fix, config change, etc.)
+4. Suggest a branch name following the naming convention below
+5. Ask the user: **"You are on main. I suggest creating branch `<suggested-name>`. Use this name, or provide a different one?"**
+6. Once the user confirms or provides a name, create and switch to the branch:
 
 ```bash
 git switch -c <branch-name>
@@ -59,14 +65,14 @@ Branch naming convention:
 
 After staging, ask: **"Run code review before committing? (yes/no)"**
 
-Total timeout for this step: 20 minutes. If exceeded, report: "Review chain exceeded timeout. Findings in .harness/todos/ — resolve with /resolve_todo_parallel."
+Total timeout for this step: 20 minutes. If exceeded, report: "Review chain exceeded timeout. Findings in .harness/todos/ — resolve with /resolve-todo-parallel."
 
 ### If yes:
 
 1. Run `/review --headless` — dispatches review agents, writes findings to `.harness/todos/`
 2. IF zero findings: "Code review passed." → continue to Step 3
 3. IF findings: Run `/triage` — user sorts each finding (fix/drop/defer)
-4. IF any findings marked "fix": Run `/resolve_todo_parallel` (max 5 concurrent agents)
+4. IF any findings marked "fix": Run `/resolve-todo-parallel` (max 5 concurrent agents)
 5. Re-stage: `git add` resolver-reported files. Check for untracked files — ask to stage. Re-run secret scan on resolver-touched files. Show `git diff --cached --stat`.
 6. Continue to Step 3
 

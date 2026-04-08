@@ -33,7 +33,7 @@ Present each finding showing: title, priority, agent_source, problem statement, 
 
 | Action    | YAML Change                                                  | File Location                     | Effect                                           |
 | --------- | ------------------------------------------------------------ | --------------------------------- | ------------------------------------------------ |
-| **fix**   | `status: pending` → `status: ready`                          | Stays in `.harness/todos/`        | `/resolve_todo_parallel` picks it up             |
+| **fix**   | `status: pending` → `status: ready`                          | Stays in `.harness/todos/`        | `/resolve-todo-parallel` picks it up             |
 | **drop**  | `status: pending` → `status: dropped`, adds `dropped_date`   | Moved to `.harness/observations/` | Audit trail preserved, excluded from active work |
 | **defer** | `status: pending` → `status: deferred`, adds `deferred_date` | Moved to `.harness/observations/` | Phase 8 surfaces in backlog                      |
 
@@ -49,13 +49,13 @@ Present each finding showing: title, priority, agent_source, problem statement, 
 
 After all findings processed:
 
-- Fixed: {X} findings (ready for `/resolve_todo_parallel`)
+- Fixed: {X} findings (ready for `/resolve-todo-parallel`)
 - Dropped: {Y} findings (moved to observations)
 - Deferred: {Z} findings (moved to observations)
 
 Run `/regenerate-backlog` to update the project backlog with new deferrals.
 
-Offer next steps: (1) Run `/resolve_todo_parallel` to fix approved findings, (2) Done.
+Offer next steps: (1) Run `/resolve-todo-parallel` to fix approved findings, (2) Done.
 
 ---
 

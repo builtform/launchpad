@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # detect-structure-drift.sh — Detects directories on disk that are not
 # documented in docs/architecture/REPOSITORY_STRUCTURE.md.
 #

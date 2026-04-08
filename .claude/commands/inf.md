@@ -1,3 +1,8 @@
+---
+name: inf
+description: "Build pipeline that reads the latest report or section spec, creates a feature branch, and implements tasks with quality gates"
+---
+
 # Implement Next Feature
 
 Build-only pipeline: reads the latest report or section spec, creates a feature branch, generates a PRD, implements tasks, and runs quality gates. Does NOT push, create PRs, or extract learnings — those are handled by `/ship` and `compound-learning.sh`.

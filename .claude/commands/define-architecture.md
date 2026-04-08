@@ -1,4 +1,5 @@
 ---
+name: define-architecture
 description: "Interactively define backend structure and CI/CD pipeline"
 ---
 

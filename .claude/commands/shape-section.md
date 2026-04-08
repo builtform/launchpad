@@ -1,4 +1,5 @@
 ---
+name: shape-section
 description: "Deep-dive into a specific product section with guided questions"
 ---
 

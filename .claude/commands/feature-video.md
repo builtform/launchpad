@@ -1,4 +1,5 @@
 ---
+name: feature-video
 description: "Record a video walkthrough of a feature — captures screenshots via agent-browser, stitches into MP4+GIF via ffmpeg, uploads via rclone or imgup, and updates PR description."
 ---
 

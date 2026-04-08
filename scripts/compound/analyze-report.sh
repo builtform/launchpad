@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Analyze a report and pick #1 actionable priority
 # Supports multiple LLM providers: Anthropic, OpenRouter, AI Gateway
 #

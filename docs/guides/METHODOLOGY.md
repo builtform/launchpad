@@ -49,7 +49,7 @@ Four **meta-orchestrators** chain the layers into end-to-end workflows:
 | `/harness:kickoff` | 2      | `/brainstorm` (brainstorming skill + document-review)                                     |
 | `/harness:define`  | 2      | `/define-product` -> `/define-design` -> `/define-architecture` -> `/shape-section`       |
 | `/harness:plan`    | 3      | design -> `/pnf` -> `/harden-plan` -> human approval                                      |
-| `/harness:build`   | 4-6    | `/inf` -> `/review` -> `/resolve_todo_parallel` -> `/test-browser` -> `/ship` -> `/learn` |
+| `/harness:build`   | 4-6    | `/inf` -> `/review` -> `/resolve-todo-parallel` -> `/test-browser` -> `/ship` -> `/learn` |
 
 | Layer                                 | What It Does                                                                                  | Key Artifacts                                                     |
 | ------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
@@ -103,7 +103,7 @@ protected_branches: # Read by /ship, /commit (default: [main, master])
 
 **`scripts/maintenance/detect-structure-drift.sh`** -- Detects when the repository structure has drifted from `REPOSITORY_STRUCTURE.md`. Runs as a pre-commit hook via Lefthook.
 
-**`scripts/agent_hydration/hydrate.sh`** -- Session bootstrapping script invoked by `/Hydrate`. Loads minimal context for a new agent session.
+**`scripts/agent_hydration/hydrate.sh`** -- Session bootstrapping script invoked by `/hydrate`. Loads minimal context for a new agent session.
 
 ### Structure Enforcement
 
@@ -417,7 +417,7 @@ flowchart TD
     GUARD["Guard: Status = approved?"]
     INF["Step 1: /inf"]
     REVIEW["Step 2: /review"]
-    RESOLVE["Step 2.5: /resolve_todo_parallel"]
+    RESOLVE["Step 2.5: /resolve-todo-parallel"]
     TEST["Step 3: /test-browser"]
     SHIP["Step 4: /ship"]
     LEARN["Step 5: /learn"]
@@ -510,7 +510,7 @@ flowchart TD
 
 **Headless mode** (`--headless`): Same Steps 0-6 but suppresses interactive output. Used by `/harden-plan` and `/commit`.
 
-### Step 2.5: `/resolve_todo_parallel` -- Finding Resolution
+### Step 2.5: `/resolve-todo-parallel` -- Finding Resolution
 
 Spawns parallel `harness-todo-resolver` agents (max 5 concurrent) to fix findings in `.harness/todos/`. Groups overlapping files sequentially. Post-execution scope validation. Commits "fix: resolve review findings" -- durable commit safe from crashes.
 
@@ -563,7 +563,7 @@ Key files:
 - `.claude/commands/harness/build.md` -- meta-orchestrator
 - `.claude/commands/inf.md` -- build pipeline
 - `.claude/commands/review.md` -- multi-agent review
-- `.claude/commands/resolve_todo_parallel.md` -- parallel finding resolution
+- `.claude/commands/resolve-todo-parallel.md` -- parallel finding resolution
 - `.claude/commands/test-browser.md` -- browser testing
 - `.claude/commands/ship.md` -- shipping pipeline
 - `.claude/commands/learn.md` -- learning capture
@@ -613,7 +613,7 @@ Interactive routing of review findings. Presents each pending finding one-by-one
 
 | Decision  | Effect                                                              |
 | --------- | ------------------------------------------------------------------- |
-| **Fix**   | Status -> `ready`, queued for `/resolve_todo_parallel`              |
+| **Fix**   | Status -> `ready`, queued for `/resolve-todo-parallel`              |
 | **Drop**  | Status -> `dismissed`, removed from queue with audit trail          |
 | **Defer** | Status -> `deferred`, moved to `.harness/observations/` for backlog |
 
@@ -745,7 +745,7 @@ flowchart LR
 ```
 
 1. **Immediate** (`progress.txt`): Learnings from prior iterations available within the same compound cycle
-2. **Short-term** (`docs/solutions/`): Structured solution docs available to future cycles via `docs-locator` and `docs-analyzer` agents during `/pnf` and `/research_codebase`
+2. **Short-term** (`docs/solutions/`): Structured solution docs available to future cycles via `docs-locator` and `docs-analyzer` agents during `/pnf` and `/research-codebase`
 3. **Long-term** (`CLAUDE.md`): Patterns promoted from `docs/solutions/` become permanent project knowledge, automatically loaded in every AI session
 
 ### Feedback Loop
@@ -883,7 +883,7 @@ Key files:
 | `/harness:kickoff` | 2     | `/brainstorm` -> handoff to `/harness:define`                                             |
 | `/harness:define`  | 2     | `/define-product` -> `/define-design` -> `/define-architecture` -> `/shape-section`       |
 | `/harness:plan`    | 3     | design -> `/pnf` -> `/harden-plan` -> human approval                                      |
-| `/harness:build`   | 4-6   | `/inf` -> `/review` -> `/resolve_todo_parallel` -> `/test-browser` -> `/ship` -> `/learn` |
+| `/harness:build`   | 4-6   | `/inf` -> `/review` -> `/resolve-todo-parallel` -> `/test-browser` -> `/ship` -> `/learn` |
 
 ### Definition Commands
 
@@ -914,9 +914,9 @@ Key files:
 | Command                  | Layer | What It Does                                                   |
 | ------------------------ | ----- | -------------------------------------------------------------- |
 | `/inf`                   | 4     | Build pipeline: branch -> PRD -> tasks -> execution loop       |
-| `/implement_plan`        | 4     | Execute plan phase by phase with checkpoints                   |
+| `/implement-plan`        | 4     | Execute plan phase by phase with checkpoints                   |
 | `/review`                | 4-5   | Multi-agent code review with confidence scoring                |
-| `/resolve_todo_parallel` | 4     | Parallel finding resolution (max 5 agents)                     |
+| `/resolve-todo-parallel` | 4     | Parallel finding resolution (max 5 agents)                     |
 | `/test-browser`          | 4     | Browser testing for UI routes affected by changes              |
 | `/triage`                | 5     | Interactive triage: fix / drop / defer                         |
 | `/ship`                  | 4     | Quality gates -> commit -> PR -> CI monitoring. Never merges.  |
@@ -944,8 +944,8 @@ Key files:
 
 | Command              | Layer | What It Does                                          |
 | -------------------- | ----- | ----------------------------------------------------- |
-| `/Hydrate`           | --    | Session bootstrapping with minimal context            |
-| `/research_codebase` | --    | Two-wave research -> docs/reports/ (input for `/inf`) |
+| `/hydrate`           | --    | Session bootstrapping with minimal context            |
+| `/research-codebase` | --    | Two-wave research -> docs/reports/ (input for `/inf`) |
 | `/pull-launchpad`    | --    | Pull upstream Launchpad changes                       |
 
 ---

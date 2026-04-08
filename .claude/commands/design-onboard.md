@@ -1,4 +1,5 @@
 ---
+name: design-onboard
 description: "Design or improve onboarding flows, empty states, first-time user experiences, feature discovery, and guided tours"
 ---
 

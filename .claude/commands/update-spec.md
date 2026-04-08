@@ -1,4 +1,5 @@
 ---
+name: update-spec
 description: "Scan all spec files for gaps, TBDs, and inconsistencies — then fix them"
 ---
 

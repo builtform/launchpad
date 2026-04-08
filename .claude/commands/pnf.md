@@ -345,7 +345,7 @@ Please review and let me know:
 - Any technical details that need adjustment?
 - Missing edge cases or considerations?
 
-When ready to implement, run /implement_plan or /inf.
+When ready to implement, run /implement-plan or /inf.
 ```
 
 Iterate based on feedback until the user is satisfied.

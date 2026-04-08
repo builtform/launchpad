@@ -1,3 +1,8 @@
+---
+name: hydrate
+description: "Read and present the project backlog from BACKLOG.md as a session briefing"
+---
+
 # Hydrate — Session Briefing
 
 Read `docs/tasks/BACKLOG.md` and present its contents to the user.

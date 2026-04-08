@@ -1,4 +1,5 @@
 ---
+name: define-product
 description: "Interactively define product requirements and tech stack"
 ---
 

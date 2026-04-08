@@ -55,3 +55,7 @@ review-history.md
 .harness/screenshots/*.gif
 .harness/structure-drift.md
 .harness/review-summary.md
+.harness/todos/*.md
+!.harness/todos/.gitkeep
+.harness/observations/*.md
+!.harness/observations/.gitkeep

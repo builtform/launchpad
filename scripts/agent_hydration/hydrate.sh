@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -eo pipefail
 # Session Hydration — inject current project state at session start
 # Called by: SessionStart hook (startup, clear) and /Hydrate command
 #

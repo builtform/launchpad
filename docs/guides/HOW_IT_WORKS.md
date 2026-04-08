@@ -99,7 +99,7 @@ Presents plan summary with hardening notes and design status. Four options:
 | ---- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1    | `/inf`                   | Full execution pipeline: report, PRD, tasks, execution loop, quality sweep                                                                                           |
 | 2    | `/review`                | Multi-agent parallel review (interactive mode -- see below)                                                                                                          |
-| 2.5  | `/resolve_todo_parallel` | Spawns up to 5 concurrent resolver agents, groups overlapping files sequentially, commits fixes                                                                      |
+| 2.5  | `/resolve-todo-parallel` | Spawns up to 5 concurrent resolver agents, groups overlapping files sequentially, commits fixes                                                                      |
 | 3    | `/test-browser`          | Maps changed files to UI routes (max 15), tests each (30s per route). Gracefully skips if no browser tool or no UI routes. Findings are informational, not blocking. |
 | 4    | `/ship`                  | Quality gates, commit, push, PR creation, CI monitoring. Never merges.                                                                                               |
 | 5    | `/learn`                 | 5-agent parallel research pipeline, writes structured solution doc to `docs/solutions/`                                                                              |
@@ -131,7 +131,7 @@ Interactive commit workflow with optional code review chain:
 
 1. Branch guard (refuses to commit on main/master, suggests branch name)
 2. Stage and review (user selects files)
-3. Optional code review: `/review --headless` then `/triage` then `/resolve_todo_parallel`
+3. Optional code review: `/review --headless` then `/triage` then `/resolve-todo-parallel`
 4. Skill staleness audit (non-blocking)
 5. Quality gates in parallel (test/typecheck/lint + pre-commit hooks)
 6. Commit message generation and user approval

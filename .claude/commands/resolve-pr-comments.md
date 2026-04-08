@@ -23,7 +23,7 @@ Batch-resolves unresolved PR review comments. Fetches threads, spawns parallel r
 
 ## Step 1: Branch Guard + Detect PR + Fetch Unresolved Threads
 
-1. **Branch guard:** IF current branch is main or master → REFUSE. "Cannot resolve PR comments on a protected branch."
+1. **Branch guard:** Read `protected_branches` from `.launchpad/agents.yml` (default: `[main, master]`). IF current branch is in `protected_branches` → REFUSE. "Cannot resolve PR comments on a protected branch."
 2. IF no PR number provided: detect from current branch via `gh pr view --json number -q .number`
 3. IF no PR found: "No PR found for current branch. Provide a PR number."
 4. Detect owner/repo: `gh repo view --json owner,name`

@@ -1,4 +1,5 @@
 ---
+name: design-polish
 description: "Pre-ship refinement pass — fixes alignment, spacing, copy, design system consistency, interaction states, resilience, and edge cases"
 ---
 

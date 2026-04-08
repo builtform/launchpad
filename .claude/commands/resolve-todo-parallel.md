@@ -1,9 +1,9 @@
 ---
-name: resolve_todo_parallel
+name: resolve-todo-parallel
 description: Resolves review findings in .harness/todos/ by spawning parallel harness-todo-resolver agents (max 5 concurrent).
 ---
 
-# /resolve_todo_parallel
+# /resolve-todo-parallel
 
 Resolves pending review findings from `.harness/todos/` using parallel resolver agents.
 

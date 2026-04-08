@@ -1,4 +1,5 @@
 ---
+name: memory-report
 description: Update session memory and create a detailed report file for the current session's findings
 ---
 

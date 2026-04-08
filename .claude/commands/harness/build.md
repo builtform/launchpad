@@ -1,6 +1,6 @@
 ---
 name: harness:build
-description: Meta-orchestrator for autonomous execution pipeline. Chains /inf → /review → /resolve_todo_parallel → /test-browser → /ship → compound-learning.sh.
+description: Meta-orchestrator for autonomous execution pipeline. Chains /inf → /review → /resolve-todo-parallel → /test-browser → /ship → compound-learning.sh.
 ---
 
 # /harness:build
@@ -61,9 +61,9 @@ Autonomous execution pipeline orchestrator. Resolves target from section registr
 - Write `.harness/review-summary.md`
 - IF zero findings above threshold: skip to Step 3
 
-## Step 2.5: /resolve_todo_parallel
+## Step 2.5: /resolve-todo-parallel
 
-- Run `/resolve_todo_parallel`
+- Run `/resolve-todo-parallel`
 - Groups overlapping files → sequential
 - Max 5 concurrent resolver agents
 - Post-execution scope validation
@@ -76,7 +76,7 @@ Autonomous execution pipeline orchestrator. Resolves target from section registr
 - Self-scoping: detects agent-browser CLI or Playwright MCP
 - Graceful skip: no browser tool, no dev server, no UI routes → skip with note
 - Tests routes (30s per route, 5min total) → writes findings to `.harness/todos/`
-- Browser test findings are NOT resolved by a second `/resolve_todo_parallel` — they proceed to `/ship` and are included in the PR description for human review
+- Browser test findings are NOT resolved by a second `/resolve-todo-parallel` — they proceed to `/ship` and are included in the PR description for human review
 - Set registry status → `reviewed` (code reviewed + browser tested)
 - **NOTE:** If `/test-browser` is skipped or unavailable, `/review` (Step 2) writes `reviewed` status instead.
 - **Proceed to Step 4 regardless of findings** — browser failures are informational, not blocking

@@ -1,4 +1,5 @@
 ---
+name: define-design
 description: "Interactively define your design system, app flow, and frontend guidelines with Jobs/Ive quality bar"
 ---
 

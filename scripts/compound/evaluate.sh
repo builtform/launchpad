@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -eo pipefail
 
 # Source shared functions (provides ai_run, log, config vars)
@@ -6,7 +6,7 @@ source "$(dirname "$0")/lib.sh"
 
 MAX_CYCLES=$(jq -r '.evaluator.maxCycles // 3' "$CONFIG_FILE")
 
-log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [EVALUATOR] $1"; }
+elog() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [EVALUATOR] $1"; }
 
 # Write a skipped report so the pipeline knows no evaluation occurred
 write_skipped_report() {
@@ -14,13 +14,13 @@ write_skipped_report() {
   cat > "$OUTPUT_DIR/evaluator-report.json" <<SKIP_EOF
 {"status":"skipped","reason":"$reason","design":null,"originality":null,"craft":null,"functionality":null}
 SKIP_EOF
-  log "Wrote skipped report: $reason"
+  elog "Wrote skipped report: $reason"
 }
 
 # Check Playwright availability
 if ! command -v npx >/dev/null 2>&1 || ! npx playwright --version >/dev/null 2>&1; then
   write_skipped_report "Playwright not available. Install with: npx playwright install"
-  log "Warning: Playwright not available — evaluator skipped (no evaluation performed)"
+  elog "Warning: Playwright not available — evaluator skipped (no evaluation performed)"
   exit 0
 fi
 
@@ -28,7 +28,7 @@ fi
 for port in 3000 3001; do
   if lsof -i :"$port" >/dev/null 2>&1; then
     write_skipped_report "Port $port already in use"
-    log "Warning: port $port already in use — evaluator skipped (no evaluation performed)"
+    elog "Warning: port $port already in use — evaluator skipped (no evaluation performed)"
     exit 0
   fi
 done
@@ -50,7 +50,7 @@ for i in $(seq 1 30); do
   if [ "$WEB_READY" = "true" ] && [ "$API_READY" = "true" ]; then break; fi
   if [ "$i" -eq 30 ]; then
     write_skipped_report "Servers did not start within 30s (web=$WEB_READY, api=$API_READY)"
-    log "Warning: servers did not start — evaluator skipped (no evaluation performed)"
+    elog "Warning: servers did not start — evaluator skipped (no evaluation performed)"
     exit 0
   fi
   sleep 1
@@ -68,7 +68,7 @@ fi
 
 # Evaluator cycles
 for cycle in $(seq 1 $MAX_CYCLES); do
-  log "Cycle $cycle of $MAX_CYCLES"
+  elog "Cycle $cycle of $MAX_CYCLES"
 
   EVAL_PROMPT="$(cat "$SCRIPT_DIR/evaluate-prompt.md")
 
@@ -84,7 +84,7 @@ $CONTRACT_CONTEXT"
 
   # Check results
   if [ ! -f "$OUTPUT_DIR/evaluator-report.json" ]; then
-    log "Warning: no report produced, skipping"
+    elog "Warning: no report produced, skipping"
     break
   fi
 
@@ -96,20 +96,20 @@ $CONTRACT_CONTEXT"
   done
 
   if [ "$ALL_PASS" = "true" ]; then
-    log "All dimensions passed on cycle $cycle"
+    elog "All dimensions passed on cycle $cycle"
     break
   fi
 
   if [ "$cycle" -eq "$MAX_CYCLES" ]; then
-    log "Max cycles reached. Final report saved."
+    elog "Max cycles reached. Final report saved."
     break
   fi
 
   # Run generator fix cycle
-  log "Dimensions failed. Running generator fix cycle..."
+  elog "Dimensions failed. Running generator fix cycle..."
   echo "Read $OUTPUT_DIR/evaluator-report.json. Fix the failed dimensions. The evaluator found issues by testing the running application -- take the feedback seriously. Commit your fixes." | ai_run 2>&1
 
-  git add -A
+  git add -u
   if ! git diff --cached --quiet; then
     git commit -m "fix: address evaluator feedback (cycle $cycle)"
   fi

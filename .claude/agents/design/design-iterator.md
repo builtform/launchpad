@@ -2,6 +2,7 @@
 name: design-iterator
 description: "Iterative design improvement agent. Takes screenshots, analyzes design quality, implements ONE improvement per cycle, and repeats. Loads frontend-design, web-design-guidelines, and responsive-design skills for creative direction and compliance."
 model: inherit
+tools: Read, Edit, Write, Grep, Glob, Bash
 color: violet
 ---
 

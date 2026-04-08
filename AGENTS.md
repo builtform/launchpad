@@ -148,8 +148,8 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 
 Agents are organized into 6 namespace subdirectories under `.claude/agents/`. See `CLAUDE.md` for the full agent table — the list is identical. Key namespaces:
 
-- **research/** (8 agents) — Read-only research and documentation
-- **skills/** (1 agent) — Skill evaluation
+- **research/** (7 agents) — Read-only research and documentation
+- **skills/** (1 agent) — Skill quality assurance
 - **review/** (13 agents) — Code review with multiple specializations
 - **document-review/** (7 agents) — Plan document review lenses
 - **resolve/** (2 agents) — Automated fixers for todos and PR comments

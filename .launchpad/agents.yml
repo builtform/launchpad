@@ -50,7 +50,7 @@ harden_document_agents:
   - scope-guardian-reviewer
   - product-lens-reviewer
   - security-lens-reviewer
-  # - design-lens-reviewer          # Conditional: only when section has UI
+  - design-lens-reviewer # Conditional: /harden-plan skips when "design:skipped"
 
 # Opt-in agents — not dispatched by default
 # To enable for /review: move to review_agents
@@ -59,7 +59,7 @@ harden_document_agents:
 #   - frontend-races-reviewer      # already in harden conditional
 #   - kieran-foad-python-reviewer
 
-# Protected branches — read by /ship, /commit, /resolve-pr-comments
+# Protected branches — read by /ship, /commit, /resolve-pr-comments (with default [main, master])
 protected_branches:
   - main
   - master

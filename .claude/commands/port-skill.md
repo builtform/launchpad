@@ -1,3 +1,8 @@
+---
+name: port-skill
+description: "Port an external skill into the project format using the 4-phase Skill Porting workflow"
+---
+
 # Port Skill
 
 Port an external skill (from Vercel, Anthropic, community repos, or any local file) into

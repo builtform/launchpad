@@ -548,6 +548,13 @@ for dir in todos observations screenshots design-artifacts; do
 done
 info "Created .harness/ runtime directories (todos, observations, screenshots, design-artifacts)"
 
+# Create docs/solutions/ for /learn compound learning output
+mkdir -p docs/solutions
+if [ ! -f "docs/solutions/.gitkeep" ]; then
+  touch docs/solutions/.gitkeep
+  info "Created docs/solutions/.gitkeep"
+fi
+
 # Create .harness/harness.local.md (project-specific review context)
 if [ ! -f ".harness/harness.local.md" ]; then
   cat > .harness/harness.local.md <<HLEOF

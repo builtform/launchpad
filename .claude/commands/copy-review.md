@@ -1,4 +1,5 @@
 ---
+name: copy-review
 description: "Dispatches copy review agents from review_copy_agents in agents.yml. Shell command — downstream projects populate the agent list."
 ---
 

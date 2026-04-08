@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Build Pipeline — non-interactive execution
 # Reads a report or section spec, creates PRD + tasks, runs execution loop, quality sweep.
 # Does NOT push, create PR, or extract learnings (see /ship and compound-learning.sh).
@@ -191,7 +191,8 @@ fi
 if [ "$DRY_RUN" = true ]; then
   log "DRY RUN - Would proceed with:"
   if [ -n "$SECTION_SPEC" ]; then
-    echo "{\"mode\":\"section-spec\",\"section_spec\":\"$SECTION_SPEC\",\"priority_item\":\"$PRIORITY_ITEM\",\"branch_name\":\"$BRANCH_NAME\"}" | jq .
+    jq -n --arg spec "$SECTION_SPEC" --arg item "$PRIORITY_ITEM" --arg branch "$BRANCH_NAME" \
+      '{mode:"section-spec", section_spec:$spec, priority_item:$item, branch_name:$branch}'
   else
     echo "$ANALYSIS_JSON" | jq .
   fi

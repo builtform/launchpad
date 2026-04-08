@@ -1,4 +1,5 @@
 ---
+name: design-review
 description: "Comprehensive quality audit and design critique — evaluates accessibility, performance, theming, responsive design, anti-patterns, visual hierarchy, and UX effectiveness"
 ---
 

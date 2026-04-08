@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash scripts/hooks/track-skill-usage.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/hooks/track-skill-usage.sh\""
           }
         ]
       }

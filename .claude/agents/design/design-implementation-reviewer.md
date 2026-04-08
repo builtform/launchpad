@@ -2,6 +2,7 @@
 name: design-implementation-reviewer
 description: "Captures live implementation state and compares against Figma design specs. Produces a structured review report with severity ratings. Does NOT modify code."
 model: inherit
+tools: Read, Grep, Glob
 ---
 
 # Design Implementation Reviewer

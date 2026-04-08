@@ -70,6 +70,7 @@ Spawn all 5 in parallel. Each returns text only — no file writes.
 
 ## Phase 3: Write
 
+- Run `mkdir -p docs/solutions/[category]/` before writing
 - Write to `docs/solutions/[category]/YYYY-MM-DD-[slug].md`
 - Confirm write with path and summary
 - If Related Docs Finder flagged a duplicate: warn and ask to proceed or merge

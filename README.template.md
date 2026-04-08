@@ -42,9 +42,9 @@ This project was built from the [Launchpad](https://github.com/thinkinghand/laun
 | `/shape-section`       | Deep-dive into a product section — creates section spec          |
 | `/update-spec`         | Scan spec files for gaps, TBDs, and inconsistencies — fix them   |
 | `/pnf`                 | Plan Next Feature from section spec                              |
-| `/implement_plan`      | Execute an existing implementation plan step by step             |
+| `/implement-plan`      | Execute an existing implementation plan step by step             |
 | `/inf`                 | Implement next feature: PRD → tasks → build → quality sweep → PR |
-| `/research_codebase`   | Deep codebase research and analysis                              |
+| `/research-codebase`   | Deep codebase research and analysis                              |
 | `/review`              | Review code for pattern consistency                              |
 | `/commit`              | Stage changes, run quality gates, and commit                     |
 | `/pull-launchpad`      | Pull upstream Launchpad updates                                  |

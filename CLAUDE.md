@@ -161,7 +161,7 @@ Agents are organized into 6 namespace subdirectories under `.claude/agents/`:
 | `web-researcher`       | External documentation, API references, and best practices                       |
 | `learnings-researcher` | Search docs/solutions/ for relevant past solutions by frontmatter metadata       |
 
-### skills/
+### skills/ — Skill quality assurance
 
 | Agent             | Purpose                                                                                                                   |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
@@ -178,7 +178,7 @@ Agents are organized into 6 namespace subdirectories under `.claude/agents/`:
 | `architecture-strategist`       | Architectural patterns, design integrity, structural compliance |
 | `testing-reviewer`              | Test coverage, test quality, testing patterns                   |
 | `spec-flow-analyzer`            | Spec completeness, user flow gaps, edge case discovery          |
-| `schema-drift-detector`         | Unrelated schema.rb changes vs included migrations              |
+| `schema-drift-detector`         | Detects schema.prisma changes without corresponding migrations  |
 | `data-migration-auditor`        | Data migration safety, rollback procedures                      |
 | `data-integrity-auditor`        | Database constraints, transaction boundaries, data consistency  |
 | `deployment-verification-agent` | Deployment checklists, rollback procedures (opt-in)             |

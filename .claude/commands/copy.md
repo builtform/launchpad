@@ -1,4 +1,5 @@
 ---
+name: copy
 description: "Reads copy brief from section spec and provides copy context for design builds. Shell command — downstream projects extend with copy agents/skills."
 ---
 

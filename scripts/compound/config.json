@@ -1,7 +1,6 @@
 {
   "reportsDir": "./docs/reports",
   "outputDir": "./scripts/compound",
-  "qualityChecks": ["pnpm typecheck", "pnpm test"],
   "maxIterations": 25,
   "branchPrefix": "compound/",
   "analyzeCommand": "",

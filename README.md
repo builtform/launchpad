@@ -282,7 +282,7 @@ These are the files that define how the project behaves. They are the control pl
 | `/harness:kickoff` | Brainstorming pipeline — delegates to `/brainstorm`, then hands off to `/harness:define`                      |
 | `/harness:define`  | Definition pipeline — chains `/define-product` → `/define-design` → `/define-architecture` → `/shape-section` |
 | `/harness:plan`    | Planning pipeline — chains design → `/pnf` → `/harden-plan` → human approval                                  |
-| `/harness:build`   | Execution pipeline — chains `/inf` → `/review` → `/resolve_todo_parallel` → `/test-browser` → `/ship`         |
+| `/harness:build`   | Execution pipeline — chains `/inf` → `/review` → `/resolve-todo-parallel` → `/test-browser` → `/ship`         |
 
 ### Tier 0 — Capabilities
 
@@ -315,11 +315,11 @@ These are the files that define how the project behaves. They are the control pl
 | Command              | What it does                                                            |
 | -------------------- | ----------------------------------------------------------------------- |
 | `/pnf`               | Plan Next Feature — create implementation plan from section spec        |
-| `/implement_plan`    | Execute a plan phase by phase                                           |
+| `/implement-plan`    | Execute a plan phase by phase                                           |
 | `/inf`               | Full pipeline: report, PRD, tasks, execution loop, quality sweep, PR    |
 | `/commit`            | Quality gates, commit, PR creation, 3-gate monitoring                   |
 | `/ship`              | Autonomous shipping pipeline — quality gates, commit, PR, CI monitoring |
-| `/research_codebase` | Deep codebase research and analysis                                     |
+| `/research-codebase` | Deep codebase research and analysis                                     |
 
 ### Tier 4 — Review & Resolution
 
@@ -332,7 +332,7 @@ These are the files that define how the project behaves. They are the control pl
 | `/copy`                  | Read copy brief from section spec and provide copy context for builds     |
 | `/copy-review`           | Dispatch copy review agents from agents.yml                               |
 | `/triage`                | Interactive triage of review findings — fix, drop, or defer each finding  |
-| `/resolve_todo_parallel` | Resolve review findings by spawning parallel resolver agents              |
+| `/resolve-todo-parallel` | Resolve review findings by spawning parallel resolver agents              |
 | `/resolve-pr-comments`   | Batch-resolve unresolved PR review comments in parallel                   |
 | `/test-browser`          | Automated browser testing for UI routes affected by current changes       |
 
@@ -351,7 +351,7 @@ These are the files that define how the project behaves. They are the control pl
 | Command           | What it does                                          |
 | ----------------- | ----------------------------------------------------- |
 | `/pull-launchpad` | Pull upstream Launchpad updates into safe directories |
-| `/Hydrate`        | Load minimal session context                          |
+| `/hydrate`        | Load minimal session context                          |
 
 ### Development
 
