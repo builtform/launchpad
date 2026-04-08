@@ -66,6 +66,7 @@ IF any fail → **AUTO-FIX** (max 3 attempts):
 
 1. `git commit` using HEREDOC format
 2. Sync with main before pushing:
+
    ```bash
    git fetch origin main
    git merge origin/main
@@ -74,6 +75,7 @@ IF any fail → **AUTO-FIX** (max 3 attempts):
    - IF merge brings new changes: re-run quality gates (Step 4). IF they fail, fix before proceeding.
    - IF merge has conflicts: resolve, re-run quality gates, re-stage.
    - IF already up to date: proceed.
+
 3. `git push -u origin HEAD`
 4. IF PR already exists for current branch (`gh pr view` succeeds): skip PR creation, proceed to Step 7
 5. `gh pr create` with structured body:
