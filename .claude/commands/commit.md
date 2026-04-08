@@ -199,7 +199,18 @@ Ask the user: **"Push and create a PR?"**
 
 If yes:
 
-1. Push the branch:
+1. Sync with main before pushing:
+
+```bash
+git fetch origin main
+git merge origin/main
+```
+
+- IF merge brings new changes: re-run quality gates (`pnpm test && pnpm typecheck && pnpm lint`). IF they fail, fix before proceeding.
+- IF merge has conflicts: resolve them, re-run quality gates, re-stage.
+- IF merge is a no-op (already up to date): proceed.
+
+2. Push the branch:
 
 ```bash
 git push -u origin HEAD

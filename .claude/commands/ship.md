@@ -62,12 +62,21 @@ IF any fail → **AUTO-FIX** (max 3 attempts):
 - Include `Co-Authored-By: Claude <noreply@anthropic.com>`
 - No user approval needed (autonomous)
 
-## Step 6: Commit + Push + PR
+## Step 6: Commit + Sync + Push + PR
 
 1. `git commit` using HEREDOC format
-2. `git push -u origin HEAD`
-3. IF PR already exists for current branch (`gh pr view` succeeds): skip PR creation, proceed to Step 7
-4. `gh pr create` with structured body:
+2. Sync with main before pushing:
+   ```bash
+   git fetch origin main
+   git merge origin/main
+   ```
+
+   - IF merge brings new changes: re-run quality gates (Step 4). IF they fail, fix before proceeding.
+   - IF merge has conflicts: resolve, re-run quality gates, re-stage.
+   - IF already up to date: proceed.
+3. `git push -u origin HEAD`
+4. IF PR already exists for current branch (`gh pr view` succeeds): skip PR creation, proceed to Step 7
+5. `gh pr create` with structured body:
 
 ```
 ## Summary
