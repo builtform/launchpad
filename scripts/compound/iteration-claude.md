@@ -159,6 +159,19 @@ If ALL tasks are complete (done or skipped), reply with:
 
 If there are still tasks with `status` other than "done" or "skipped", end your response normally (another iteration will pick up the next task).
 
+## Conditional Skill Loading
+
+Some harness skills are only relevant for specific task types. Load them
+conditionally to keep context focused:
+
+- **Frontend tasks** (UI, components, pages): load `react-best-practices`,
+  `responsive-design`, `web-design-guidelines`, `frontend-design`
+- **Billing/payment tasks**: load `stripe-best-practices`
+- **Image/media tasks**: load `imgup`, `rclone`
+
+Only load skills that apply to the current task — do not load all skills
+for every iteration.
+
 ## Important
 
 - Work on ONE task per iteration

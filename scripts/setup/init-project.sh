@@ -382,6 +382,8 @@ scripts/maintenance/check-repo-structure.sh
 .claude/settings.json
 .worktreeinclude
 .gitignore
+.harness/harness.local.md
+.launchpad/agents.yml
 docs/skills-catalog/skills-usage.json
 docs/skills-catalog/skills-index.md
 docs/architecture/DESIGN_SYSTEM.md
@@ -539,9 +541,89 @@ fi
 
 # Create .harness/ runtime directories
 mkdir -p .harness/todos .harness/observations .harness/screenshots .harness/design-artifacts
-if [ ! -f ".harness/design-artifacts/.gitkeep" ]; then
-  touch .harness/design-artifacts/.gitkeep
-  info "Created .harness/design-artifacts/.gitkeep (approved design screenshots)"
+for dir in todos observations screenshots design-artifacts; do
+  if [ ! -f ".harness/$dir/.gitkeep" ]; then
+    touch ".harness/$dir/.gitkeep"
+  fi
+done
+info "Created .harness/ runtime directories (todos, observations, screenshots, design-artifacts)"
+
+# Create .harness/harness.local.md (project-specific review context)
+if [ ! -f ".harness/harness.local.md" ]; then
+  cat > .harness/harness.local.md <<HLEOF
+# ${PROJECT_NAME:-\{\{PROJECT_NAME\}\}} — Review Context
+
+## Review Context
+
+<!-- Enriched by /define-product and /define-architecture. -->
+<!-- Add project-specific context that review agents should consider. -->
+
+## Design Context
+
+<!-- Enriched by /define-design. -->
+<!-- Add project-specific design context that design agents should consider. -->
+HLEOF
+  info "Created .harness/harness.local.md (project-specific review + design context)"
+fi
+
+# Create .launchpad/agents.yml (agent dispatch configuration)
+if [ ! -f ".launchpad/agents.yml" ]; then
+  cat > .launchpad/agents.yml <<'AYEOF'
+# Code review agents — dispatched by /review
+review_agents:
+  - pattern-finder
+  - security-auditor
+  - kieran-foad-ts-reviewer
+  - performance-auditor
+  - code-simplicity-reviewer
+  - architecture-strategist
+  - testing-reviewer
+
+# DB agents — only when diff touches Prisma files
+review_db_agents:
+  - schema-drift-detector
+  - data-migration-auditor
+  - data-integrity-auditor
+
+# Design review agents — dispatched by /review when design artifacts exist
+review_design_agents:
+  - design-ui-auditor
+  - design-responsive-auditor
+  - design-alignment-checker
+  - design-implementation-reviewer
+
+# Copy review agents — populated by downstream projects
+review_copy_agents: []
+
+# Plan hardening agents — always dispatched by /harden-plan
+harden_plan_agents:
+  - pattern-finder
+  - security-auditor
+  - performance-auditor
+  - spec-flow-analyzer
+
+# Conditional plan hardening agents — dispatched by /harden-plan (full only)
+harden_plan_conditional_agents:
+  - architecture-strategist
+  - code-simplicity-reviewer
+  - frontend-races-reviewer
+  - schema-drift-detector
+
+# Document-review agents — dispatched by /harden-plan Step 3.5
+harden_document_agents:
+  - adversarial-document-reviewer
+  - coherence-reviewer
+  - feasibility-reviewer
+  - scope-guardian-reviewer
+  - product-lens-reviewer
+  - security-lens-reviewer
+
+# Protected branches
+protected_branches:
+  - main
+  - master
+AYEOF
+  info "Created .launchpad/agents.yml (agent dispatch configuration — 7 keys)"
 fi
 
 # Create .worktreeinclude for Claude Code worktree env file copying

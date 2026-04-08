@@ -17,11 +17,11 @@ Built on top of best practices for AI-assisted development: existing patterns (c
 - **[Compound Product](https://github.com/snarktank/compound-product)** by Ryan Carson -- Autonomous pipeline from report to PR
 - **[Ralph](https://github.com/snarktank/ralph)** by Ryan Carson & **[Ralph](https://ghuntley.com/ralph/)** by Geoffrey Huntley -- Fresh-context loop with git-based memory
 - **Spec-Driven Development** -- Define architecture docs before building (SpecKit / AgentOS)
-- **[CE Plugin](https://github.com/EveryInc/compound-engineering-plugin)** by Kieran Klaassen / **[Every](https://every.to/)** -- 29 agents, 22 commands, 19 skills (optional)
+- **[CE Plugin](https://github.com/EveryInc/compound-engineering-plugin)** by Kieran Klaassen / **[Every](https://every.to/)** -- 29 agents, 22 commands, 19 skills (ported natively into Launchpad)
 
 ---
 
-**Contents:** [Quick Start](#quick-start) | [How It Works](#how-it-works) | [What's Inside](#whats-inside) | [Commands](#commands) | [Configuration](#configuration) | [Pipeline Tools](#pipeline-tools) | [CI/CD](#cicd) | [Security](#security-considerations) | [CE Plugin](#optional-compound-engineering-plugin) | [Maintenance](#maintenance) | [Contributing](#contributing)
+**Contents:** [Quick Start](#quick-start) | [How It Works](#how-it-works) | [What's Inside](#whats-inside) | [Commands](#commands) | [Configuration](#configuration) | [Pipeline Tools](#pipeline-tools) | [CI/CD](#cicd) | [Security](#security-considerations) | [CE Plugin Heritage](#compound-engineering-plugin-heritage) | [Maintenance](#maintenance) | [Contributing](#contributing)
 
 ---
 
@@ -209,6 +209,8 @@ launchpad/
 │   └── maintenance/        # Repo validation
 ├── docs/                   # Architecture, reports, learnings
 ├── .claude/                # Commands, skills, agents
+├── .harness/               # Runtime: todos, config, review history, run logs
+├── .launchpad/             # Project config: agents.yml, HOW_IT_WORKS, METHODOLOGY
 ├── CLAUDE.md               # AI instructions
 └── AGENTS.md               # Multi-tool AI instructions
 ```
@@ -273,6 +275,15 @@ These are the files that define how the project behaves. They are the control pl
 
 ## Commands
 
+### Meta-Orchestrators
+
+| Command            | What it does                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `/harness:kickoff` | Brainstorming pipeline — delegates to `/brainstorm`, then hands off to `/harness:define`                      |
+| `/harness:define`  | Definition pipeline — chains `/define-product` → `/define-design` → `/define-architecture` → `/shape-section` |
+| `/harness:plan`    | Planning pipeline — chains design → `/pnf` → `/harden-plan` → human approval                                  |
+| `/harness:build`   | Execution pipeline — chains `/inf` → `/review` → `/resolve_todo_parallel` → `/test-browser` → `/ship`         |
+
 ### Tier 0 — Capabilities
 
 | Command         | What it does                                                                          |
@@ -280,6 +291,7 @@ These are the files that define how the project behaves. They are the control pl
 | `/create-skill` | Create a Claude skill using the 7-phase Meta-Skill Forge                              |
 | `/update-skill` | Iterate on an existing skill after real-world usage reveals gaps                      |
 | `/port-skill`   | Port an external skill into Launchpad format using the 4-phase Skill Porting workflow |
+| `/create-agent` | Create a new agent or convert an existing skill into an agent                         |
 
 ### Tier 1 — Definition
 
@@ -288,6 +300,7 @@ These are the files that define how the project behaves. They are the control pl
 | `/define-product`      | Interactive Q&A to populate PRD + Tech Stack + section registry            |
 | `/define-design`       | Interactive Q&A to populate Design System + App Flow + Frontend Guidelines |
 | `/define-architecture` | Interactive Q&A to populate Backend Structure + CI/CD                      |
+| `/brainstorm`          | Collaborative brainstorming with codebase research and design doc capture  |
 
 ### Tier 2 — Development
 
@@ -295,16 +308,43 @@ These are the files that define how the project behaves. They are the control pl
 | ---------------- | -------------------------------------------------------------- |
 | `/shape-section` | Deep-dive into a product section — creates section spec        |
 | `/update-spec`   | Scan spec files for gaps, TBDs, and inconsistencies — fix them |
+| `/harden-plan`   | Stress-test implementation plans using multiple review agents  |
 
 ### Tier 3 — Implementation
 
-| Command              | What it does                                                         |
-| -------------------- | -------------------------------------------------------------------- |
-| `/pnf`               | Plan Next Feature — create implementation plan from section spec     |
-| `/implement_plan`    | Execute a plan phase by phase                                        |
-| `/inf`               | Full pipeline: report, PRD, tasks, execution loop, quality sweep, PR |
-| `/commit`            | Quality gates, commit, PR creation, 3-gate monitoring                |
-| `/research_codebase` | Deep codebase research and analysis                                  |
+| Command              | What it does                                                            |
+| -------------------- | ----------------------------------------------------------------------- |
+| `/pnf`               | Plan Next Feature — create implementation plan from section spec        |
+| `/implement_plan`    | Execute a plan phase by phase                                           |
+| `/inf`               | Full pipeline: report, PRD, tasks, execution loop, quality sweep, PR    |
+| `/commit`            | Quality gates, commit, PR creation, 3-gate monitoring                   |
+| `/ship`              | Autonomous shipping pipeline — quality gates, commit, PR, CI monitoring |
+| `/research_codebase` | Deep codebase research and analysis                                     |
+
+### Tier 4 — Review & Resolution
+
+| Command                  | What it does                                                              |
+| ------------------------ | ------------------------------------------------------------------------- |
+| `/review`                | Multi-agent code review with confidence scoring and secret scanning       |
+| `/design-review`         | Quality audit — accessibility, performance, theming, responsive, UX       |
+| `/design-polish`         | Pre-ship refinement — alignment, spacing, copy, design system consistency |
+| `/design-onboard`        | Design onboarding flows, empty states, first-time user experiences        |
+| `/copy`                  | Read copy brief from section spec and provide copy context for builds     |
+| `/copy-review`           | Dispatch copy review agents from agents.yml                               |
+| `/triage`                | Interactive triage of review findings — fix, drop, or defer each finding  |
+| `/resolve_todo_parallel` | Resolve review findings by spawning parallel resolver agents              |
+| `/resolve-pr-comments`   | Batch-resolve unresolved PR review comments in parallel                   |
+| `/test-browser`          | Automated browser testing for UI routes affected by current changes       |
+
+### Tier 5 — Learning & Maintenance
+
+| Command               | What it does                                                           |
+| --------------------- | ---------------------------------------------------------------------- |
+| `/learn`              | Capture learnings from resolved problems into structured solution docs |
+| `/defer`              | Manually add a task to the project backlog                             |
+| `/regenerate-backlog` | Regenerate BACKLOG.md from deferred observations and section registry  |
+| `/feature-video`      | Record a video walkthrough of a feature for PR descriptions            |
+| `/memory-report`      | Update session memory and create a detailed session report             |
 
 ### Utilities
 
@@ -425,14 +465,11 @@ bash install-dcg.sh --easy-mode
 
 ---
 
-## Optional but Recommended: Compound Engineering Plugin
+## Compound Engineering Plugin Heritage
 
-```
-/plugin marketplace add https://github.com/EveryInc/compound-engineering-plugin
-/plugin install compound-engineering
-```
+All capabilities from the **[Compound Engineering Plugin](https://github.com/EveryInc/compound-engineering-plugin)** by Kieran Klaassen / [Every](https://every.to/) (29 agents, 22 commands, 19 skills) have been ported natively into Launchpad. The plugin is no longer required as a separate installation -- its workflow commands, agents, and skills are now built-in.
 
-Adds additional workflow commands. See the [plugin repo](https://github.com/EveryInc/compound-engineering-plugin).
+If you still have the CE plugin installed, it will work alongside the native commands but is redundant. You can safely remove it.
 
 ---
 
