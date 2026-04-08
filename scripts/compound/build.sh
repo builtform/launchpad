@@ -53,7 +53,9 @@ done
 
 cd "$PROJECT_ROOT"
 
-git fetch origin main 2>/dev/null || true
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
+DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+git fetch origin "$DEFAULT_BRANCH" 2>/dev/null || true
 
 # If --plan is provided, skip report/spec analysis and use the plan directly
 if [ -n "$EXPLICIT_PLAN" ]; then
@@ -212,8 +214,6 @@ fi
 
 # Step 3: Create feature branch
 log "Step 3: Creating feature branch..."
-DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
-DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
 git switch "$DEFAULT_BRANCH"
 git merge --ff-only "origin/$DEFAULT_BRANCH"
 git switch -c -- "$BRANCH_NAME" 2>/dev/null || git switch -- "$BRANCH_NAME"
