@@ -85,6 +85,28 @@ Tech context:
 
 ---
 
+## Step 2.5: Conditional Skill Loading
+
+After loading section context, conditionally load methodology skills that inform plan quality:
+
+**React / Frontend gate:**
+
+- IF section spec references frontend pages/components/UI, OR task files are in `apps/web/` or `packages/ui/`:
+  - Load skill: `react-best-practices`
+  - Ensures plan steps include Suspense boundaries, parallel fetching, composition patterns, bundle optimization, etc.
+
+**Stripe / Billing gate:**
+
+- IF section spec references payment, billing, checkout, subscription, Stripe, pricing, or webhook:
+  - Load skill: `stripe-best-practices`
+  - Ensures plan steps include Checkout Sessions, webhook idempotency, Prisma billing models, dynamic payment methods, etc.
+
+Skills are loaded silently if present. Skip silently if the skill directory does not exist in `.claude/skills/`.
+
+The loaded skills inform the plan — implementation steps will reference specific rules (e.g., "Use `Promise.all()` for the three independent data fetches per `async-parallel` rule").
+
+---
+
 ## Step 3: Gap Detection
 
 **Before proceeding to research, scan the section spec for completeness.**
@@ -124,8 +146,8 @@ Conduct two-wave sub-agent research to understand the codebase before planning.
 
 Spawn these locator agents in parallel:
 
-- **codebase-locator** — finds all files related to this section's entities, routes, and features (Glob/Grep only)
-- **codebase-pattern-finder** — finds similar features and patterns we can model after (Glob/Grep only)
+- **file-locator** — finds all files related to this section's entities, routes, and features (Glob/Grep only)
+- **pattern-finder** — finds similar features and patterns we can model after (Glob/Grep only)
 - **docs-locator** — finds relevant documents in `docs/solutions/`, `docs/plans/`, `docs/reports/`, `docs/lessons/` (Glob/Grep only). **Conditional**: Only spawn if these directories contain real content beyond stubs.
 
 These agents return file paths and pattern locations. They do NOT read file contents.
@@ -136,9 +158,9 @@ These agents return file paths and pattern locations. They do NOT read file cont
 
 Using the specific paths discovered by Wave 1, spawn targeted analyzer agents:
 
-- **codebase-analyzer** — understands how relevant code works at the paths found by locators. Focus on: existing implementations of similar features, database schema, API patterns, component structure
+- **code-analyzer** — understands how relevant code works at the paths found by locators. Focus on: existing implementations of similar features, database schema, API patterns, component structure
 - **docs-analyzer** — extracts decisions, constraints, rejected approaches, and promoted patterns from documents found by docs-locator (only if docs-locator returned results)
-- **web-search-researcher** — if the section involves unfamiliar libraries, APIs, or patterns, research current documentation and best practices
+- **web-researcher** — if the section involves unfamiliar libraries, APIs, or patterns, research current documentation and best practices
 
 **Wait for ALL Wave 2 agents to complete.**
 
@@ -323,7 +345,7 @@ Please review and let me know:
 - Any technical details that need adjustment?
 - Missing edge cases or considerations?
 
-When ready to implement, run /implement_plan or /inf.
+When ready to implement, run /implement-plan or /inf.
 ```
 
 Iterate based on feedback until the user is satisfied.

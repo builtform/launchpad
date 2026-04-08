@@ -40,9 +40,11 @@
 ├── packages/shared/# Shared TypeScript types and utilities
 ├── packages/ui/    # Shared React components + Tailwind config + cn() helper
 ├── docs/           # Architecture docs, plans, reports, experiments
-│   ├── tasks/sections/ # Section specs from /shape-section
+│   ├── tasks/      # BACKLOG.md + sections/ (section specs from /shape-section)
 │   └── skills-catalog/ # Skill usage tracking and user-facing index
-└── scripts/        # Compound Product pipeline, maintenance scripts
+├── .harness/       # Runtime directory (todos, observations, design-artifacts, screenshots)
+├── .launchpad/     # Harness config (agents.yml, version, secret-patterns.txt)
+└── scripts/        # Build pipeline, maintenance, agent hydration
 ```
 
 > Before creating, moving, or deleting any file: check `docs/architecture/REPOSITORY_STRUCTURE.md`
@@ -124,33 +126,31 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 <!-- The agent reads these only when the task is relevant — never all upfront.                    -->
 <!-- Pointers only. Never copy content here — it will go stale. No inline code snippets.          -->
 
-| Doc                                        | Read When                                          |
-| ------------------------------------------ | -------------------------------------------------- |
-| `docs/architecture/PRD.md`                 | Understanding feature intent or product scope      |
-| `docs/architecture/APP_FLOW.md`            | Working on navigation, auth flow, or user journeys |
-| `docs/architecture/TECH_STACK.md`          | Evaluating or adding dependencies                  |
-| `docs/architecture/BACKEND_STRUCTURE.md`   | Modifying API routes, services, or data models     |
-| `docs/architecture/FRONTEND_GUIDELINES.md` | Building or refactoring UI components              |
-| `docs/architecture/DESIGN_SYSTEM.md`       | Defining UI components or visual design decisions  |
-| `docs/architecture/CI_CD.md`               | Configuring CI/CD pipelines or deployment          |
-| `docs/skills-catalog/skills-index.md`      | Managing, reviewing, or auditing installed skills  |
-
-<!-- Add project-specific docs here as they grow. Examples:                                       -->
-<!--   docs/how-tos/database-migrations.md   → when running or writing migrations                 -->
-<!--   docs/how-tos/deployment.md            → when deploying or configuring CI/CD                -->
+| Doc                                        | Read When                                           |
+| ------------------------------------------ | --------------------------------------------------- |
+| `docs/architecture/PRD.md`                 | Understanding feature intent or product scope       |
+| `docs/architecture/APP_FLOW.md`            | Working on navigation, auth flow, or user journeys  |
+| `docs/architecture/TECH_STACK.md`          | Evaluating or adding dependencies                   |
+| `docs/architecture/BACKEND_STRUCTURE.md`   | Modifying API routes, services, or data models      |
+| `docs/architecture/FRONTEND_GUIDELINES.md` | Building or refactoring UI components               |
+| `docs/architecture/DESIGN_SYSTEM.md`       | Defining UI components or visual design decisions   |
+| `docs/architecture/CI_CD.md`               | Configuring CI/CD pipelines or deployment           |
+| `docs/skills-catalog/skills-index.md`      | Managing, reviewing, or auditing installed skills   |
+| `docs/guides/HOW_IT_WORKS.md`              | Understanding the full pipeline workflow            |
+| `docs/guides/METHODOLOGY.md`               | Understanding the harness architecture layers       |
+| `.launchpad/agents.yml`                    | Configuring review agent lists                      |
+| `.harness/harness.local.md`                | Viewing or updating project-specific review context |
+| `docs/tasks/BACKLOG.md`                    | Checking project backlog and deferred items         |
 
 ---
 
 ## Available Sub-Agents
 
-These agents are spawned as sub-agents by commands and skills. Each is a read-only documentarian — it describes what exists without critiquing or suggesting changes.
+Agents are organized into 6 namespace subdirectories under `.claude/agents/`. See `CLAUDE.md` for the full agent table — the list is identical. Key namespaces:
 
-| Agent                     | Purpose                                                                                                                   |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `codebase-locator`        | Find WHERE files and components live (super Grep/Glob/LS)                                                                 |
-| `codebase-analyzer`       | Understand HOW specific code works with file:line precision                                                               |
-| `codebase-pattern-finder` | Find existing patterns and code examples to model after                                                                   |
-| `docs-locator`            | Find relevant docs by frontmatter, date-prefixed filenames, directory structure                                           |
-| `docs-analyzer`           | Extract decisions, rejected approaches, constraints, promoted patterns from docs                                          |
-| `web-search-researcher`   | External documentation, API references, and best practices                                                                |
-| `skill-evaluator`         | Evaluate generated skills against 16 quality criteria (3-pass: first-principles, baseline detection, Anthropic checklist) |
+- **research/** (7 agents) — Read-only research and documentation
+- **skills/** (1 agent) — Skill quality assurance
+- **review/** (13 agents) — Code review with multiple specializations
+- **document-review/** (7 agents) — Plan document review lenses
+- **resolve/** (2 agents) — Automated fixers for todos and PR comments
+- **design/** (6 agents) — Design workflow (Figma sync, iteration, auditing)

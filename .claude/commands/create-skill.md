@@ -1,3 +1,8 @@
+---
+name: create-skill
+description: "Create a new Claude Code skill using the 7-phase Meta-Skill Forge methodology"
+---
+
 # Create Skill
 
 Create a new Claude Code skill using the 7-phase Meta-Skill Forge methodology. This command is a thin interactive wrapper that parses user input and invokes the `creating-skills` skill.

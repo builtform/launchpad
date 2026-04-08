@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Repository Structure Compliance Checker
 #
 # This script enforces the repository structure rules defined in
@@ -126,6 +126,7 @@ ALLOWED_DIRS=(
   ".github"
   ".vscode"
   ".claude"
+  ".harness"
   ".launchpad"
   "node_modules"
   ".git"
@@ -352,6 +353,40 @@ fi
 
 echo ""
 
+
+# ============================================================================
+# Check 6: agents.yml → agent file resolution
+# ============================================================================
+echo "📋 Validating agents.yml references..."
+
+AGENTS_YML="$REPO_ROOT/.launchpad/agents.yml"
+if [ -f "$AGENTS_YML" ]; then
+  MISSING_AGENTS=""
+  # Extract agent names from agent list keys only (exclude protected_branches)
+  # Filter: lines with "  - " under *_agents keys, not comments, not protected_branches
+  while IFS= read -r agent_name; do
+    [ -z "$agent_name" ] && continue
+    # Search all subdirectories under .claude/agents/ for a matching .md file
+    FOUND=$(find "$REPO_ROOT/.claude/agents" -name "${agent_name}.md" -type f 2>/dev/null | head -1)
+    if [ -z "$FOUND" ]; then
+      MISSING_AGENTS="$MISSING_AGENTS      $agent_name\n"
+    fi
+  done <<< "$(awk '/^[a-z_]*_agents:/{in_agents=1; next} /^[a-z_]/{in_agents=0} in_agents && /^[[:space:]]+-[[:space:]]/ && !/^[[:space:]]*#/' "$AGENTS_YML" | sed 's/^[[:space:]]*-[[:space:]]*//' | sed 's/[[:space:]]*#.*//' | tr -d ' ')"
+
+  if [ -n "$MISSING_AGENTS" ]; then
+    echo "   ❌ agents.yml references agents with no matching .md file:"
+    echo -e "$MISSING_AGENTS"
+    echo "   Fix: Create the agent file or remove the entry from agents.yml"
+    echo ""
+    ERRORS=$((ERRORS + 1))
+  else
+    echo "   ✅ All agents.yml entries resolve to agent files"
+  fi
+else
+  echo "   ⚠️  No .launchpad/agents.yml found (skipping)"
+fi
+
+echo ""
 
 # ============================================================================
 # Summary

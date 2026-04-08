@@ -1,3 +1,8 @@
+---
+name: commit
+description: "Stage changes, run quality gates, generate a conventional commit message, and optionally create a PR with CI monitoring"
+---
+
 # Commit Workflow
 
 You are a disciplined commit agent for a TypeScript monorepo. Follow every step in order. Never skip steps. Never use `--no-verify`.
@@ -14,11 +19,12 @@ Bash, Read, Grep, Glob, Edit, Write, TodoWrite, Task
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 ```
 
-- If `BRANCH` is `main` or `master`: **Do NOT commit on main.** Instead:
-  1. Look at the staged or unstaged changes to infer the intent (new feature, bug fix, config change, etc.)
-  2. Suggest a branch name following the naming convention below
-  3. Ask the user: **"You are on main. I suggest creating branch `<suggested-name>`. Use this name, or provide a different one?"**
-  4. Once the user confirms or provides a name, create and switch to the branch:
+1. Read `protected_branches` from `.launchpad/agents.yml` (default: `[main, master]`)
+2. IF `BRANCH` is in `protected_branches`: **Do NOT commit on a protected branch.** Instead:
+3. Look at the staged or unstaged changes to infer the intent (new feature, bug fix, config change, etc.)
+4. Suggest a branch name following the naming convention below
+5. Ask the user: **"You are on main. I suggest creating branch `<suggested-name>`. Use this name, or provide a different one?"**
+6. Once the user confirms or provides a name, create and switch to the branch:
 
 ```bash
 git switch -c <branch-name>
@@ -55,6 +61,27 @@ Branch naming convention:
 
 ---
 
+## Step 2.5: Optional Code Review
+
+After staging, ask: **"Run code review before committing? (yes/no)"**
+
+Total timeout for this step: 20 minutes. If exceeded, report: "Review chain exceeded timeout. Findings in .harness/todos/ — resolve with /resolve-todo-parallel."
+
+### If yes:
+
+1. Run `/review --headless` — dispatches review agents, writes findings to `.harness/todos/`
+2. IF zero findings: "Code review passed." → continue to Step 3
+3. IF findings: Run `/triage` — user sorts each finding (fix/drop/defer)
+4. IF any findings marked "fix": Run `/resolve-todo-parallel` (max 5 concurrent agents)
+5. Re-stage: `git add` resolver-reported files. Check for untracked files — ask to stage. Re-run secret scan on resolver-touched files. Show `git diff --cached --stat`.
+6. Continue to Step 3
+
+### If no:
+
+Continue to Step 3 immediately.
+
+---
+
 ## Step 3: Skill Staleness Audit
 
 Run the skill staleness audit before committing:
@@ -66,6 +93,11 @@ bash scripts/hooks/audit-skills.sh
 - If the audit outputs a staleness report, present it to the user as an informational notice.
 - This is **non-blocking** — proceed to the next step regardless of output.
 - The script self-throttles (runs the full check only once every 14 days).
+- The script may update `docs/skills-catalog/skills-usage.json` (`last_audit_date`). Re-stage if modified:
+
+```bash
+git diff --quiet docs/skills-catalog/skills-usage.json || git add docs/skills-catalog/skills-usage.json
+```
 
 ---
 
@@ -157,6 +189,8 @@ EOF
 
 Run `git status` after commit to verify success.
 
+After successful commit, run `/regenerate-backlog` to update the project backlog (unstaged — picked up by next workflow).
+
 ---
 
 ## Step 8: Offer PR Creation
@@ -165,7 +199,18 @@ Ask the user: **"Push and create a PR?"**
 
 If yes:
 
-1. Push the branch:
+1. Sync with main before pushing:
+
+```bash
+git fetch origin main
+git merge origin/main
+```
+
+- IF merge brings new changes: re-run quality gates (`pnpm test && pnpm typecheck && pnpm lint`). IF they fail, fix before proceeding.
+- IF merge has conflicts: resolve them, re-run quality gates, re-stage.
+- IF merge is a no-op (already up to date): proceed.
+
+2. Push the branch:
 
 ```bash
 git push -u origin HEAD
@@ -198,9 +243,9 @@ EOF
 
 ---
 
-## Step 9: PR Monitoring Loop
+## Step 9: PR Monitoring Loop (max 3 cycles, 60min timeout)
 
-After PR creation, enter the three-gate monitoring loop. Run all three gates on each cycle:
+After PR creation, enter the three-gate monitoring loop. Run all three gates on each cycle. Maximum 3 cycles. Maximum 60-minute total wall-clock timeout. Gate A CI polling capped at 20 retries (10 minutes) per cycle. After max cycles or timeout: "PR monitoring reached maximum cycles/timeout. Remaining issues require manual attention."
 
 ### Gate A: CI Checks
 

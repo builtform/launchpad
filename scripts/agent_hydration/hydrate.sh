@@ -1,41 +1,32 @@
-#!/bin/bash
-# AI Hydration Script (minimal — preserves context tokens)
-# Usage: Run `./scripts/agent_hydration/hydrate.sh` from the repo root
-#        or from any directory — it resolves the repo root automatically.
+#!/usr/bin/env bash
+set -eo pipefail
+# Session Hydration — inject current project state at session start
+# Called by: SessionStart hook (startup, clear) and /hydrate command
 #
-# Design: Only loads what every session needs. PRD, tech stack, and app
-# READMEs are referenced in CLAUDE.md's Progressive Disclosure table —
-# Claude reads them on-demand when the task requires it.
+# Loads:
+# 1. Runs structure drift detection (writes report if drift found)
+# 2. Project backlog (docs/tasks/BACKLOG.md)
+# 3. Structure drift report (.harness/structure-drift.md) — if exists
 
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 
-echo "=============================================="
-echo "  {{PROJECT_NAME}} - AI HYDRATION"
-echo "=============================================="
-echo ""
-echo "You are working on the {{PROJECT_NAME}} monorepo."
-echo "Loading minimal session context (repo structure + active tasks)."
-echo ""
+# Step 1: Run drift detection (creates/updates .harness/structure-drift.md)
+DRIFT_SCRIPT="$REPO_ROOT/scripts/maintenance/detect-structure-drift.sh"
+if [ -x "$DRIFT_SCRIPT" ]; then
+  bash "$DRIFT_SCRIPT" 2>/dev/null || true
+fi
 
-echo "=============================================="
-echo "  1/2: Repository Structure"
-echo "=============================================="
-cat "$REPO_ROOT/docs/architecture/REPOSITORY_STRUCTURE.md"
-echo ""
+# Step 2: Output backlog
+BACKLOG="$REPO_ROOT/docs/tasks/BACKLOG.md"
+if [ -f "$BACKLOG" ]; then
+  cat "$BACKLOG"
+else
+  echo "No backlog found. Run a workflow to generate docs/tasks/BACKLOG.md."
+fi
 
-echo "=============================================="
-echo "  2/2: docs/tasks/TODO.md (Pending Tasks)"
-echo "=============================================="
-cat "$REPO_ROOT/docs/tasks/TODO.md"
-echo ""
-
-echo "=============================================="
-echo "  HYDRATION COMPLETE"
-echo "=============================================="
-echo ""
-echo "Context loaded: repo structure + active tasks."
-echo "PRD, tech stack, and app READMEs are available on-demand"
-echo "via CLAUDE.md Progressive Disclosure — no need to preload."
-echo ""
-echo "Confirm you are hydrated and ask for the next task."
-echo "Say it in a funny way - your humor, your choice."
+# Step 3: Output drift report (just written by Step 1)
+DRIFT="$REPO_ROOT/.harness/structure-drift.md"
+if [ -f "$DRIFT" ]; then
+  echo ""
+  cat "$DRIFT"
+fi

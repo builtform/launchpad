@@ -14,7 +14,7 @@ This reference defines the least-privilege tool assignment system. Every agent r
 
 **Use when:** The agent finds WHERE things are but never reads file contents.
 
-**Examples:** `codebase-locator`, `docs-locator`, `file-locator`
+**Examples:** `file-locator`, `docs-locator`, `file-locator`
 
 **Why no Read:** Locators are fast and cheap. Adding Read makes them slower, more expensive, and tempted to analyze instead of locate.
 
@@ -26,7 +26,7 @@ This reference defines the least-privilege tool assignment system. Every agent r
 
 **Use when:** The agent must read and understand file contents to produce its output.
 
-**Examples:** `codebase-analyzer`, `docs-analyzer`, `skill-evaluator`, `codebase-pattern-finder`, `security-reviewer`, `migration-auditor`
+**Examples:** `code-analyzer`, `docs-analyzer`, `skill-evaluator`, `pattern-finder`, `security-reviewer`, `migration-auditor`
 
 **Why no Write/Edit:** These agents observe and report. They never modify files. Adding mutation tools invites scope creep.
 
@@ -38,7 +38,7 @@ This reference defines the least-privilege tool assignment system. Every agent r
 
 **Use when:** The agent needs external information from the web to complete its task.
 
-**Examples:** `web-search-researcher`, `web-researcher`
+**Examples:** `web-researcher`, `web-researcher`
 
 **Why TodoWrite:** Researchers track multiple search threads and need to persist progress across long research sessions.
 

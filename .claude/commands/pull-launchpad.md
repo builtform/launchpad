@@ -1,3 +1,8 @@
+---
+name: pull-launchpad
+description: "Pull upstream LaunchPad changes using delta patching with conflict resolution"
+---
+
 # Pull Launchpad Updates
 
 Pull upstream LaunchPad changes using delta patching.

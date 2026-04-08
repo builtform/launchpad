@@ -1,3 +1,12 @@
-# task
+---
+name: hydrate
+description: "Read and present the project backlog from BACKLOG.md as a session briefing"
+---
 
-Run scripts/agent_hydration/hydrate.sh to load minimal session context (repo structure + active tasks). PRD, tech stack, and app READMEs are loaded on-demand via CLAUDE.md Progressive Disclosure — not preloaded.
+# Hydrate — Session Briefing
+
+Read `docs/tasks/BACKLOG.md` and present its contents to the user.
+
+If BACKLOG.md does not exist, inform the user: "No backlog found. Run a workflow (/harness:build, /commit, or /triage) to generate it."
+
+This command is also triggered automatically at session start via the SessionStart hook. Use it manually to re-read the backlog mid-session.

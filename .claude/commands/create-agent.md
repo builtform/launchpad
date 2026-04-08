@@ -1,3 +1,8 @@
+---
+name: create-agent
+description: "Create a new Claude Code agent or convert an existing skill into an agent"
+---
+
 # Create Agent
 
 Create a new Claude Code agent or convert an existing skill into an agent. This command is a thin interactive wrapper that parses user input and invokes the `creating-agents` skill.

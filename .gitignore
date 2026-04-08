@@ -42,3 +42,20 @@ settings.local.json
 
 # Claude Code worktrees (isolated parallel development sessions)
 .claude/worktrees/
+
+# Deprecated files (kept for reference during migration)
+*.deprecated
+
+# Review artifacts (ephemeral, regenerated each run)
+review-history.md
+
+# .harness/ ephemeral artifacts
+.harness/screenshots/*.png
+.harness/screenshots/*.mp4
+.harness/screenshots/*.gif
+.harness/structure-drift.md
+.harness/review-summary.md
+.harness/todos/*.md
+!.harness/todos/.gitkeep
+.harness/observations/*.md
+!.harness/observations/.gitkeep

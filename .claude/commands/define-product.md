@@ -1,4 +1,5 @@
 ---
+name: define-product
 description: "Interactively define product requirements and tech stack"
 ---
 
@@ -534,6 +535,22 @@ pnpm lint      # Lint all workspaces
 - Omit sections that are entirely TBD (e.g., if all tech stack answers are TBD, omit the Tech Stack table).
 - Preserve the existing License section from the current README.md verbatim.
 - Do not add badges, shields, or links to the upstream template. This is the project's README now, not a template.
+
+---
+
+## Step 6b: Update Harness Context
+
+After writing product docs, update `.harness/harness.local.md` with product context extracted from the Q&A:
+
+1. Read `.harness/harness.local.md`
+2. Update the `## Review Context` section with:
+   - Product name (from V-1)
+   - Target users (from V-2)
+   - External services and integrations mentioned
+   - Data sensitivity notes (from D-1/D-2 if applicable)
+3. Write the updated file
+
+This enriches the review context that `/review` agents use for more relevant findings.
 
 ---
 

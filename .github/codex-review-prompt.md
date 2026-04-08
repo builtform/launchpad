@@ -120,6 +120,8 @@ Check thoroughly for:
 - All database operations should handle connection errors
 - Hono API routes must validate input
 - Shared packages (`packages/shared`, `packages/ui`, `packages/db`) must not import from `apps/`
+- `.harness/` directory is runtime-only (todos, config, review history) — do not flag its structure as non-standard
+- Deferred tasks belong in `docs/tasks/BACKLOG.md`, not TODO.md
 
 **DO NOT flag:**
 

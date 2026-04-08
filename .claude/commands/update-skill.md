@@ -1,3 +1,8 @@
+---
+name: update-skill
+description: "Iterate on an existing Claude Code skill after real-world usage reveals gaps or new requirements"
+---
+
 # Update Skill
 
 Iterate on an existing Claude Code skill after real-world usage reveals gaps or new requirements. Reuses the Meta-Skill Forge evaluation and improvement phases, skipping Phase 1 by reading the existing skill files as context.

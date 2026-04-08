@@ -300,7 +300,7 @@ After reading the PRD, check the "Open Questions" section.
 3. Add a note to the prd.json `description` field: `"[UNRESOLVED QUESTIONS: N]"`
 4. Proceed with conversion (do NOT block)
 
-**If autonomous mode** (piped from auto-compound.sh): Log the warning but proceed.
+**If autonomous mode** (piped from build.sh): Log the warning but proceed.
 **If interactive mode**: Present the warning and ask if the user wants to resolve questions first.
 
 ### Step 2: Extract High-Level Tasks

@@ -1,4 +1,5 @@
 ---
+name: define-architecture
 description: "Interactively define backend structure and CI/CD pipeline"
 ---
 
@@ -231,6 +232,22 @@ Also ask:
 Write `docs/architecture/BACKEND_STRUCTURE.md` with: header block, then sections for Data Models (formatted for SQL tables or document schemas as appropriate, with Entity Relationship Summary subsection), API Endpoints (grouped logically, each group as a table: Method, Endpoint, Description, Auth), Authentication Strategy (numbered flow), External Services (table: Service, Purpose, Integration Point), Data Volume & Scaling (expectations, caching strategy, background jobs).
 
 In update mode, only modify sections the user chose to change.
+
+---
+
+## Step 4b: Update Harness Context
+
+After writing BACKEND_STRUCTURE.md, update `.harness/harness.local.md` with architecture context:
+
+1. Read `.harness/harness.local.md`
+2. Append to the `## Review Context` section:
+   - Auth strategy (from A-1)
+   - Database patterns (from the data model questions)
+   - External integrations mentioned
+   - API patterns (REST, GraphQL, etc.)
+3. Write the updated file
+
+This enriches the review context that `/review` agents use for architecture-aware findings.
 
 ---
 
