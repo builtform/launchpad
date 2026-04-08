@@ -624,6 +624,7 @@ harden_document_agents:
   - scope-guardian-reviewer
   - product-lens-reviewer
   - security-lens-reviewer
+  - design-lens-reviewer            # Conditional: /harden-plan skips when "design:skipped"
 
 # Protected branches
 protected_branches:
