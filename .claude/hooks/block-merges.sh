@@ -25,8 +25,10 @@ if echo "$FLAT" | grep -qiE "(^|&&|;|\|\|)[[:space:]]*(gh pr merge)"; then
   exit 2
 fi
 
-if echo "$FLAT" | grep -qiE "(^|&&|;|\|\|)[[:space:]]*(git merge (main|master))"; then
-  echo "BLOCKED: git merge to main/master is prohibited." >&2
+# Block "git merge main" but allow "git merge origin/main" (safe sync for /commit and /ship)
+if echo "$FLAT" | grep -qiE "(^|&&|;|\|\|)[[:space:]]*(git merge[[:space:]]+(main|master))" && \
+   ! echo "$FLAT" | grep -qiE "git merge[[:space:]]+origin/(main|master)"; then
+  echo "BLOCKED: git merge main/master is prohibited. Use 'git merge origin/main' for safe sync." >&2
   exit 2
 fi
 
