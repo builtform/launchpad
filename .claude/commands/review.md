@@ -80,8 +80,8 @@ The drift report lets downstream agents focus only on legitimate changes, ignori
 
 - Check if `.harness/design-artifacts/` contains any `*-approved.png` files
 - IF approved design artifacts exist AND `review_design_agents` is not empty:
-  - Dispatch `design-ui-auditor`, `design-responsive-auditor`, `design-alignment-checker` in parallel
-  - IF Figma artifacts also exist (`.harness/design-artifacts/*-figma.*`): additionally dispatch `design-implementation-reviewer`
+  - Dispatch all agents from `review_design_agents` in parallel
+  - IF Figma artifacts also exist (`.harness/design-artifacts/*-figma.*`): additionally dispatch `design-implementation-reviewer` (marked `# conditional` in agents.yml)
 - IF no design artifacts exist: skip design agents entirely
 - IF no design artifacts but diff contains UI-relevant files (`.tsx`, `.css`, `.html` in `apps/web/` or `packages/ui/`): emit P2 warning finding
 
