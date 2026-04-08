@@ -115,7 +115,7 @@ When completing a task, include detailed learnings in your progress report (step
 
 ## Quality Requirements
 
-- ALL commits must pass your project's quality checks (from config)
+- ALL commits must pass quality checks: `pnpm typecheck && pnpm test`
 - Do NOT commit broken code
 - Keep changes focused and minimal
 - Follow existing code patterns
