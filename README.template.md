@@ -9,7 +9,7 @@
 
 ## Status
 
-This project was built from the [Launchpad](https://github.com/thinkinghand/launchpad) harness and is ready to be defined.
+This project was built from the [Launchpad](https://github.com/foadshafighi/LaunchPad) harness and is ready to be defined.
 
 **Next steps (four-tier workflow):**
 

@@ -1000,7 +1000,7 @@ if git remote get-url origin 2>/dev/null | grep -qi "launchpad"; then
   git remote rename origin launchpad 2>/dev/null || true
   info "Renamed 'origin' remote to 'launchpad' (upstream harness)"
 else
-  git remote add launchpad https://github.com/thinkinghand/launchpad.git 2>/dev/null || true
+  git remote add launchpad https://github.com/foadshafighi/LaunchPad.git 2>/dev/null || true
   info "Added 'launchpad' remote for upstream updates"
 fi
 

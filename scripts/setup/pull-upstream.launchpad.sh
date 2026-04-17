@@ -64,7 +64,7 @@ OLD_SHA="$(cat "$ANCHOR_FILE" | tr -d '[:space:]')"
 
 if ! git remote get-url launchpad >/dev/null 2>&1; then
   error "No 'launchpad' remote found."
-  error "Add it with: git remote add launchpad https://github.com/thinkinghand/launchpad.git"
+  error "Add it with: git remote add launchpad https://github.com/foadshafighi/LaunchPad.git"
   exit 1
 fi
 
