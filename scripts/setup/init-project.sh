@@ -1004,6 +1004,15 @@ else
   info "Added 'launchpad' remote for upstream updates"
 fi
 
+# Disable push to upstream launchpad remote — downstream projects pull from
+# it but must never push to it. Prevents accidents like `git push launchpad main`.
+if git remote get-url launchpad >/dev/null 2>&1; then
+  git remote set-url --push launchpad DISABLE
+  info "Disabled push to 'launchpad' remote (fetch-only upstream)"
+else
+  warn "Could not disable push to 'launchpad' remote (remote not found)"
+fi
+
 heading "Done!"
 
 echo ""

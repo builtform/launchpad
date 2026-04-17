@@ -16,6 +16,7 @@ Run the pull script and relay all output to the user:
 If the `launchpad` remote is not configured:
 
     git remote add launchpad https://github.com/thinkinghand/launchpad.git
+    git remote set-url --push launchpad DISABLE
 
 Then re-run.
 

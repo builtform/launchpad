@@ -68,6 +68,13 @@ if ! git remote get-url launchpad >/dev/null 2>&1; then
   exit 1
 fi
 
+# Self-heal: ensure push to 'launchpad' is disabled. Downstream projects must
+# never push to the upstream template. Idempotent — silent if already DISABLE.
+if [ "$(git remote get-url --push launchpad 2>/dev/null)" != "DISABLE" ]; then
+  git remote set-url --push launchpad DISABLE
+  echo "Disabled push to 'launchpad' remote (fetch-only upstream)."
+fi
+
 echo "Fetching updates from LaunchPad..."
 git fetch launchpad
 
