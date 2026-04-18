@@ -41,14 +41,26 @@ Built on top of best practices for AI-assisted development: existing patterns (c
 
 ### Installation
 
-**1. Clone the repository**
+**0. Pick where your project will live**
+
+Open a terminal and `cd` into the parent directory where your projects live (e.g., `~/dev/`). Do **not** create the project folder yourself -- `git clone` in step 1 creates it for you.
 
 ```bash
-git clone https://github.com/thinkinghand/launchpad.git my-project
+cd ~/dev
+```
+
+**1. Clone Launchpad as your new project**
+
+Replace `my-project` with your project name. The last argument tells `git` to clone into a folder with that name:
+
+```bash
+git clone https://github.com/foadshafighi/LaunchPad.git my-project
 cd my-project
 ```
 
-> **Alternative:** Click the green **"Use this template"** button on GitHub to create a detached copy. This skips the init wizard's git setup but you can still add the upstream remote manually later.
+This creates `~/dev/my-project/` with the Launchpad scaffold inside. Nothing exists on GitHub yet -- the GitHub repo is created in step 4.
+
+> **Alternative:** Click the green **"Use this template"** button on GitHub to create a detached copy. This skips the init wizard's automatic `launchpad` remote setup, so you will need to add it manually later if you want to pull upstream updates.
 
 **2. Initialize your project**
 
@@ -58,41 +70,49 @@ cd my-project
 
 The wizard prompts for your project name, description, copyright holder, contact email, and license (MIT, Apache-2.0, GPL-3.0, or Other). It validates all inputs, swaps template files into place, replaces all placeholders, updates `package.json`, and preserves the original Launchpad documentation at `.launchpad/HOW_IT_WORKS.md` and `.launchpad/METHODOLOGY.md`.
 
-**3. Set up git history**
+The wizard also renames the `origin` remote to `launchpad` and disables push to it. This frees `origin` for your own GitHub repo (step 4) and prevents accidental pushes back to the Launchpad upstream.
 
-After the init wizard completes, choose how to handle git history:
+**3. Choose how to handle git history**
 
 **Option A -- Stay connected (recommended)**
 
-Keep the upstream connection so you can pull future Launchpad updates into safe directories (commands, skills, scripts, workflows):
+Keep the upstream connection so you can pull future Launchpad updates into safe directories (commands, skills, scripts, workflows). No commands to run in this step -- continue to step 4.
+
+**Option B -- Fresh start**
+
+Remove all upstream history and start clean. You lose the ability to pull Launchpad updates.
 
 ```bash
-git remote rename origin launchpad
+rm -rf .git && git init -b main && git add -A && git commit -m "Initial commit"
+```
+
+**4. Create your GitHub repo (empty) and push**
+
+> **Create the repo empty.** Do not check any "Initialize this repository with..." options (no README, no `.gitignore`, no license). Any of those creates an initial commit on GitHub that will conflict with Launchpad's history when you push.
+
+In your browser: create a new repo, leave every "Initialize" option unchecked. Or via CLI (omit `--source` and `--push` so it creates the remote repo only, without touching your local history):
+
+```bash
+gh repo create my-project --private
+```
+
+Then point `origin` at your new repo and push:
+
+```bash
 git remote add origin <your-repo-url>
 git push -u origin main
 ```
 
-To pull updates later, use `/pull-launchpad` in Claude Code or run `bash scripts/setup/pull-upstream.launchpad.sh`.
+To pull Launchpad updates later (Option A only), use `/pull-launchpad` in Claude Code or run `bash scripts/setup/pull-upstream.launchpad.sh`.
 
-**Option B -- Fresh start**
-
-Remove all upstream history and start clean:
-
-```bash
-rm -rf .git && git init -b main && git add -A && git commit -m "Initial commit"
-gh repo create my-project --private --source=. --push   # Optional
-```
-
-> **Note:** The init wizard automatically adds a `launchpad` remote. Option A preserves this; Option B removes it.
-
-**4. Install dependencies**
+**5. Install dependencies**
 
 ```bash
 corepack enable          # Enables pnpm via Corepack
 pnpm install             # Installs all workspace deps + git hooks
 ```
 
-**5. Configure environment**
+**6. Configure environment**
 
 ```bash
 cp .env.example .env.local
@@ -100,7 +120,7 @@ cp .env.example .env.local
 
 Open `.env.local` and set `DATABASE_URL` to your PostgreSQL connection string. AI provider keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are only needed for compound automation scripts.
 
-**6. Start development**
+**7. Start development**
 
 ```bash
 pnpm dev
@@ -108,7 +128,7 @@ pnpm dev
 
 The web app runs on `http://localhost:3000` and the API on `http://localhost:3001`.
 
-**7. Define your product (AI workflow)**
+**8. Define your product (AI workflow)**
 
 ```
 /define-product              # Answer questions about your product vision and goals
@@ -477,7 +497,7 @@ If you still have the CE plugin installed, it will work alongside the native com
 
 **If you stayed connected (Option A during install):** Use `/pull-launchpad` in Claude Code or run `bash scripts/setup/pull-upstream.launchpad.sh` to pull upstream Launchpad updates. Only safe directories are updated (commands, skills, scripts, workflows) -- your application code is never touched.
 
-**If you chose a fresh start (Option B during install):** You disconnected from upstream and cannot pull updates. To get new Launchpad features, compare against the [latest release](https://github.com/thinkinghand/launchpad/releases) manually or re-clone and diff.
+**If you chose a fresh start (Option B during install):** You disconnected from upstream and cannot pull updates. To get new Launchpad features, compare against the [latest release](https://github.com/foadshafighi/LaunchPad/releases) manually or re-clone and diff.
 
 ---
 
