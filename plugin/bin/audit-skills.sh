@@ -23,12 +23,22 @@ PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null 
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# Resolve repo root
+# Resolve paths
+#   - USAGE_FILE always lives in the user's project (it's their audit log).
+#   - SKILLS_DIR depends on install mode:
+#       plugin mode → skills ship under $PLUGIN_ROOT/skills
+#       source mode → skills live under $PROJECT_ROOT/.claude/skills
+#     PLUGIN_ROOT and PROJECT_ROOT are set by the shim preamble in plugin mode.
+#     In source mode, fall back to git-root-derived paths.
 # ---------------------------------------------------------------------------
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || cd "$(dirname "$0")/../.." && pwd)}"
 USAGE_FILE="$REPO_ROOT/docs/skills-catalog/skills-usage.json"
-SKILLS_DIR="$REPO_ROOT/.claude/skills"
+
+if [ -n "${PLUGIN_ROOT:-}" ] && [ -d "$PLUGIN_ROOT/skills" ]; then
+  SKILLS_DIR="$PLUGIN_ROOT/skills"
+else
+  SKILLS_DIR="$REPO_ROOT/.claude/skills"
+fi
 
 # ---------------------------------------------------------------------------
 # Exit silently if usage file doesn't exist yet

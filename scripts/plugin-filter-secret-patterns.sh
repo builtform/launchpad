@@ -24,18 +24,27 @@ AKIA[0-9A-Z]{16}
 # Google
 AIza[0-9A-Za-z_-]{35}
 
-# Stripe
+# Stripe (secret, publishable, restricted, webhook secrets)
 sk_live_[0-9a-zA-Z]{24,}
 sk_test_[0-9a-zA-Z]{24,}
 pk_live_[0-9a-zA-Z]{24,}
+rk_live_[0-9a-zA-Z]{24,}
+rk_test_[0-9a-zA-Z]{24,}
+whsec_[0-9a-zA-Z]{32,}
 
 # GitHub
 ghp_[A-Za-z0-9]{36}
 gho_[A-Za-z0-9]{36}
 ghs_[A-Za-z0-9]{36}
+ghu_[A-Za-z0-9]{36}
+ghr_[A-Za-z0-9]{36}
 
 # Slack
 xox[baprs]-[0-9a-zA-Z]{10,}
+
+# OpenAI / Anthropic project API keys (high-entropy, 40+ chars)
+sk-ant-[A-Za-z0-9_-]{40,}
+sk-proj-[A-Za-z0-9_-]{40,}
 
 # Private keys (opening header — OPENSSH/RSA/EC/DSA/PGP variants all caught)
 -----BEGIN .* PRIVATE KEY-----

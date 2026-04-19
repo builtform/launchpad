@@ -38,7 +38,7 @@ ece703cdc60fceca41069ebaed5f2f807076805263938693bfb75010bdf40c05  ./agents/lp-sk
 a5e9f630d129e7181880b6cb9c5452682f5ff047280fa5a0043f777a6c218fbc  ./agents/lp-spec-flow-analyzer.md
 ad0ea2a98fa120b11020df0a9a2f2db5a9ffc32b571f087c421161180e1123a7  ./agents/lp-testing-reviewer.md
 97f6c92ad9610bb61c29a8098871e96b41dc6d2bae1384e55cb78d004f020833  ./agents/lp-web-researcher.md
-f99ba1c4befeede409c90c1c8d5883affa0fa7cceefa6ecb6637626e3423d5d0  ./bin/audit-skills.sh
+b28e4113227e2ec09dcc082103afea3ae781e096cef4bc44748b8796cf539696  ./bin/audit-skills.sh
 536cb9d4156a5451c8654119b4c8ad80b954174243de70d22ba1bdbd907601d0  ./bin/block-merges.sh
 0cd6b59cf8255354f2871bd121493101f3ea39d225928a68334b9c24feb7b4d1  ./bin/compound/analyze-report.sh
 4bfe667a1ac0a18029b718c1427d3304728c14f2368991e72800e06a6f94f31c  ./bin/compound/board.sh
@@ -93,7 +93,7 @@ f3e298f8614636eabee40ef27a645cc6d8436eba22a76f23837e2eec9f300a48  ./commands/lp-
 8ab3eb65eec9a34ecdbc5ceab3de9c399499862c963a2f19aba9778c50c2841a  ./commands/lp-update-spec.md
 4a5e07f4e314809d518cc2fd62475958354bc526123a166671061741dbab755a  ./commands/lp-version.md
 776c0e50ee744b7148a32839dabcba5fc22d724d6b61b13a269fc2937083de0e  ./data/agents.yml
-5dd801929eec8c156c72634f244b5b9eb4e948020520b6b0b80fff4eef1413a9  ./data/secret-patterns.txt
+77dc493dedfe6e771491d4593d67e81da3035ae98ff3b35cdb14eef595441eb5  ./data/secret-patterns.txt
 1e950e6de802ccefffa0faf236d0c1982c553fbe70782457d0f0a96c5fd3a4f0  ./hooks/hooks.json
 17398fa13c070952165da0a19d90a8c74c09b106be851676a5eaa5ffe8ab2dc7  ./skills/lp-brainstorming/SKILL.md
 695b9d227141b9959349a0974d0dabdd3ee749f446c58d1e2c8f8c18094a6985  ./skills/lp-commit/SKILL.md
