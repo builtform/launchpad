@@ -116,6 +116,7 @@ ALLOWED_CONFIGS=(
   "vitest.config.ts"
   "tsconfig.json"
   ".worktreeinclude"
+  "VERSION"
 )
 
 ALLOWED_DIRS=(
@@ -128,6 +129,7 @@ ALLOWED_DIRS=(
   ".claude"
   ".harness"
   ".launchpad"
+  "plugin"
   "node_modules"
   ".git"
   ".next"

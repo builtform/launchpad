@@ -1,0 +1,6 @@
+# The plugin/ directory is a build artifact generated from .claude/ by
+# scripts/build-plugin.sh. Marking it linguist-generated=true hides it from
+# GitHub language stats and default diff views, reducing PR review noise.
+plugin/** linguist-generated=true
+plugin/**/*.md linguist-detectable=false
+plugin/SHA256SUMS linguist-detectable=false

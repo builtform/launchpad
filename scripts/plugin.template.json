@@ -1,0 +1,13 @@
+{
+  "name": "launchpad",
+  "version": "0.0.0",
+  "description": "LaunchPad harness — 36 agents, 15 skills, and 38 commands for structured product development with compound learning. Commands prefixed /lp-* (e.g., /lp-commit, /lp-review, /lp-ship). Opinionated methodology: design-before-planning, compound learning loop, merge-prevention hook, 4 meta-orchestrators.",
+  "author": {
+    "name": "Foad Shafighi",
+    "url": "https://github.com/foadshafighi/LaunchPad"
+  },
+  "homepage": "https://github.com/foadshafighi/LaunchPad",
+  "repository": "https://github.com/foadshafighi/LaunchPad",
+  "license": "MIT",
+  "keywords": ["harness", "agents", "skills", "review", "compound-engineering"]
+}

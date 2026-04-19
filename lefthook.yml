@@ -25,6 +25,15 @@ pre-commit:
       run: bash scripts/maintenance/check-repo-structure.sh
       priority: 10
 
+    # ---- Plugin build enforcement ----
+    # When source (.claude/, scripts/, .launchpad/, VERSION) changes, auto-run
+    # build-plugin.sh and re-stage the plugin/ output. Rejects direct edits to
+    # plugin/ that are NOT accompanied by a source change.
+    plugin-build:
+      run: bash scripts/plugin-precommit.sh {staged_files}
+      priority: 5
+      stage_fixed: true
+
     large-file-guard:
       glob: "*.{js,jsx,ts,tsx,json,css,md,yml,yaml,html,sh,mjs,cjs}"
       run: |
