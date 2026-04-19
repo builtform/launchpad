@@ -12,7 +12,9 @@
 # TypeScript
 # macOS
 *.log
+*.pyc
 *.tsbuildinfo
+__pycache__/
 .DS_Store
 .cache/
 .env
