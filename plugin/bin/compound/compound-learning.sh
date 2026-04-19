@@ -44,7 +44,9 @@ ITERATION_COUNT=0
 
 if [ -f "$PRD_FILE" ]; then
   TASKS_TOTAL=$(jq '.tasks | length' "$PRD_FILE" 2>/dev/null || echo 0)
-  TASKS_COMPLETED=$(jq '[.tasks[] | select(.passes == true)] | length' "$PRD_FILE" 2>/dev/null || echo 0)
+  # Count completed tasks. Newer flow uses .status == "done"; older schemas
+  # use .passes == true. Accept both for backward compatibility.
+  TASKS_COMPLETED=$(jq '[.tasks[] | select(.status == "done" or .passes == true)] | length' "$PRD_FILE" 2>/dev/null || echo 0)
 fi
 ITERATION_COUNT=$(grep -c "^## " "$PROGRESS_FILE" 2>/dev/null || echo 0)
 

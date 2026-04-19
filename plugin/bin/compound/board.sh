@@ -14,7 +14,9 @@ PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Preserve plugin-shim-injected PROJECT_ROOT when present; fall back to
+# repo-relative computation in source mode.
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 
 # ── Parse mode flag ──────────────────────────────────────────────
 MODE="ascii"

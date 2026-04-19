@@ -65,7 +65,9 @@ REPORT_CONTENT=$(cat "$REPORT_PATH")
 
 # Find recent PRDs (last 7 days) to avoid re-picking same issues
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Preserve plugin-shim-injected PROJECT_ROOT when present; fall back to
+# repo-relative computation in source mode.
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 TASKS_DIR="$PROJECT_ROOT/docs/tasks"
 RECENT_FIXES=""
 

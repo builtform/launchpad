@@ -40,10 +40,10 @@ ad0ea2a98fa120b11020df0a9a2f2db5a9ffc32b571f087c421161180e1123a7  ./agents/lp-te
 97f6c92ad9610bb61c29a8098871e96b41dc6d2bae1384e55cb78d004f020833  ./agents/lp-web-researcher.md
 f99ba1c4befeede409c90c1c8d5883affa0fa7cceefa6ecb6637626e3423d5d0  ./bin/audit-skills.sh
 536cb9d4156a5451c8654119b4c8ad80b954174243de70d22ba1bdbd907601d0  ./bin/block-merges.sh
-b588b28698f5129dd5f412bd4431d22f0b826d6f445ea0bb35dee09ce5940769  ./bin/compound/analyze-report.sh
-72b4a381aa3bbc5d9321f00c6d1b2edaf5601a59df88febdd433207eef276191  ./bin/compound/board.sh
+0cd6b59cf8255354f2871bd121493101f3ea39d225928a68334b9c24feb7b4d1  ./bin/compound/analyze-report.sh
+4bfe667a1ac0a18029b718c1427d3304728c14f2368991e72800e06a6f94f31c  ./bin/compound/board.sh
 baddfbd4b9f673102c4a4bcc98f692d4e1eb7a4c97bdeb7a278712f02e3f51ee  ./bin/compound/build.sh
-b373a177ca88d44608ff27f27b72563e1306379128030d8728639728697868b8  ./bin/compound/compound-learning.sh
+3999c1b6fa81e655e72d755e8d15b5dc740f32e55e18b85d8c0f36ee2c4bd583  ./bin/compound/compound-learning.sh
 6a2d7d55c34b553c4f1b231bcdbdceb6091e8b0ab42c3ddbff43ec65273447be  ./bin/compound/config.json
 cdf44a21d850047d369258f3d969d795fc0601446bc26bc61e50ec02567c5f6f  ./bin/compound/contract-prompt.md
 b6c1288464defc6a13b5f3ddcecd4fbcfdc11dab75bb0a72045b90fa94a2b38a  ./bin/compound/evaluate-prompt.md

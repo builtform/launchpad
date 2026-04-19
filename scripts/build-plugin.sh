@@ -225,14 +225,27 @@ ok "seeded plugin/data (agents.yml + secret-patterns.txt)"
 # 10. Secret self-scan — refuse to ship if any shipped file matches a pattern
 # ----------------------------------------------------------------------------
 heading "Secret self-scan"
-# Scan agents.yml only (patterns file itself trivially matches its own patterns).
+# Scan every shipped text file for secret patterns. Exclude:
+#   - data/secret-patterns.txt — trivially matches its own patterns
+#   - SHA256SUMS — generated later; doesn't exist yet, but be explicit
 # Strip blank lines and comments from pattern file before feeding to grep -E.
 PATTERN_TMP=$(mktemp)
 grep -Ev '^[[:space:]]*(#|$)' "$DST_NEW/data/secret-patterns.txt" > "$PATTERN_TMP" || true
 if [ -s "$PATTERN_TMP" ]; then
-  if grep -E -f "$PATTERN_TMP" "$DST_NEW/data/agents.yml" >/dev/null 2>&1; then
-    err "potential secret in plugin/data/agents.yml — refusing to ship"
-    grep -E -f "$PATTERN_TMP" "$DST_NEW/data/agents.yml" >&2 || true
+  # Collect scan targets using null-safe find to handle any filename.
+  SCAN_HITS=$(
+    find "$DST_NEW" -type f \
+      ! -path "$DST_NEW/data/secret-patterns.txt" \
+      ! -name SHA256SUMS \
+      -print0 \
+      | xargs -0 grep -E -l -f "$PATTERN_TMP" 2>/dev/null || true
+  )
+  if [ -n "$SCAN_HITS" ]; then
+    err "potential secret(s) detected in shipped plugin files — refusing to ship"
+    echo "$SCAN_HITS" | while IFS= read -r hit; do
+      echo "  match in: ${hit#$DST_NEW/}" >&2
+      grep -E -n -f "$PATTERN_TMP" "$hit" >&2 || true
+    done
     rm -f "$PATTERN_TMP"
     exit 1
   fi
