@@ -35,11 +35,15 @@ if [ -z "$COMMAND" ]; then
   exit 2
 fi
 
-# Split on command separators (; && ||) into segments, matching each separately
-# in pure Bash. Do NOT split on `|` — pipes aren't command separators.
-# Newlines treated as implicit ;.
-# awk split produces one segment per output line.
-SEGMENTS=$(printf '%s' "$COMMAND" | tr '\n' ';' | awk 'BEGIN{RS="(;|&&|\\|\\|)"} NF {print}')
+# Split on command separators (; && || &) into segments, matching each
+# separately in pure Bash. Single `&` (background operator) IS a separator:
+# `echo ok & git push origin main` must have the dangerous tail segmented
+# out, or the anchored checks (^git push, ^gh pr merge, etc.) will miss it.
+# Do NOT split on `|` — pipes aren't command separators.
+# Order matters: longer operators (&& ||) listed first so POSIX leftmost-
+# longest match picks them before single-char &.
+# Newlines treated as implicit ;. awk produces one segment per output line.
+SEGMENTS=$(printf '%s' "$COMMAND" | tr '\n' ';' | awk 'BEGIN{RS="(&&|\\|\\||;|&)"} NF {print}')
 
 # Lowercase once, then iterate. tr is a single fork for the whole command.
 LC_SEGMENTS=$(printf '%s' "$SEGMENTS" | tr '[:upper:]' '[:lower:]')

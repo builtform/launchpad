@@ -39,7 +39,7 @@ a5e9f630d129e7181880b6cb9c5452682f5ff047280fa5a0043f777a6c218fbc  ./agents/lp-sp
 ad0ea2a98fa120b11020df0a9a2f2db5a9ffc32b571f087c421161180e1123a7  ./agents/lp-testing-reviewer.md
 97f6c92ad9610bb61c29a8098871e96b41dc6d2bae1384e55cb78d004f020833  ./agents/lp-web-researcher.md
 b28e4113227e2ec09dcc082103afea3ae781e096cef4bc44748b8796cf539696  ./bin/audit-skills.sh
-d580d43b470e4d686c9c030be94fec9c7ccc76979a2c9e0f0f0d853ec7cf98b8  ./bin/block-merges.sh
+6fa6d4c60ccc95bf70fc9b3e8b49bb953edef60cb36e2b807bc55d0f88292465  ./bin/block-merges.sh
 e185728e61e5a9cd577573f493a31be7088de9fe3818f25aab805b729156862b  ./bin/compound/analyze-report.sh
 4bfe667a1ac0a18029b718c1427d3304728c14f2368991e72800e06a6f94f31c  ./bin/compound/board.sh
 baddfbd4b9f673102c4a4bcc98f692d4e1eb7a4c97bdeb7a278712f02e3f51ee  ./bin/compound/build.sh
