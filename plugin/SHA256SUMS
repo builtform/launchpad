@@ -88,6 +88,7 @@ f3e298f8614636eabee40ef27a645cc6d8436eba22a76f23837e2eec9f300a48  ./commands/lp-
 7f367c93591a59e7b177ca06b750590b8f734112cf6ddb0b0b7f941aab216f9a  ./commands/lp-triage.md
 726c5e9af36380a34ab96e0c95f011b6b85bed91243374932a5d748d042a9bb2  ./commands/lp-update-skill.md
 8ab3eb65eec9a34ecdbc5ceab3de9c399499862c963a2f19aba9778c50c2841a  ./commands/lp-update-spec.md
+4a5e07f4e314809d518cc2fd62475958354bc526123a166671061741dbab755a  ./commands/lp-version.md
 5df07d053caed0b2b32730f0c0e917e301ef28db03fed7280cf7404b4024fe52  ./data/agents.yml
 5dd801929eec8c156c72634f244b5b9eb4e948020520b6b0b80fff4eef1413a9  ./data/secret-patterns.txt
 1e950e6de802ccefffa0faf236d0c1982c553fbe70782457d0f0a96c5fd3a4f0  ./hooks/hooks.json
@@ -123,6 +124,7 @@ b89bb4a55eefec74d9a22eb4273dae6c6f34be33f06dab11cbc756adfc323992  ./skills/lp-fr
 0c1ad67ff00322d7292e711c0087196e8bf96ebf6b4ed7e489494da95d679ac3  ./skills/lp-frontend-design/references/typography.md
 f493ee02c9bbd2d7a9b40fa3c0093f9c2295448af75bfd8053f04f902af959f2  ./skills/lp-frontend-design/references/ux-writing.md
 9d15a36723bb5ecb3dd33ea28ca01c1012d4e44ae7dd2548d81d48c1d5ad4837  ./skills/lp-imgup/SKILL.md
+db407a14d201fd891a6dcf748fe654eac6429bd48a332e1026c2172813ef5849  ./skills/lp-instructions/SKILL.md
 74bdec3228768d1e0b3f8491b66c17f03972494849cf0594511c7b37e673685b  ./skills/lp-prd/SKILL.md
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./skills/lp-prd/evals/.gitkeep
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./skills/lp-prd/references/.gitkeep

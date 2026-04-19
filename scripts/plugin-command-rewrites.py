@@ -52,13 +52,18 @@ def build_rules(cmds: list[str], agents: list[str], prefix: str) -> list[tuple[r
         pat = re.compile(rf"{SLASH_BOUNDARY_PRE}/harness:{re.escape(name)}{SLASH_BOUNDARY_POST}")
         rules.append((pat, f"/{prefix}harness-{name}"))
 
-    # Top-level commands
+    # Top-level commands — skip names already prefixed (plugin-exclusive source)
     for name in cmds:
+        if name.startswith(prefix):
+            continue
         pat = re.compile(rf"{SLASH_BOUNDARY_PRE}/{re.escape(name)}{SLASH_BOUNDARY_POST}")
         rules.append((pat, f"/{prefix}{name}"))
 
     # Agent names (bare, not slash-prefixed — used in Task tool subagent_type, agents.yml, etc.)
+    # Skip already-prefixed names to avoid lp-lp-* doubling.
     for name in agents:
+        if name.startswith(prefix):
+            continue
         pat = re.compile(rf"{AGENT_BOUNDARY_PRE}{re.escape(name)}{AGENT_BOUNDARY_POST}")
         rules.append((pat, f"{prefix}{name}"))
 
@@ -170,7 +175,12 @@ def main() -> int:
         if md.stem in args.drop:
             print(f"  dropped: {md.name}", file=sys.stderr)
             continue
-        new_name = f"{args.prefix}{md.stem}"
+        # Source already prefixed (plugin-exclusive command authored in source
+        # under its final name, e.g. lp-version.md) — keep the name as-is.
+        if md.stem.startswith(args.prefix):
+            new_name = md.stem
+        else:
+            new_name = f"{args.prefix}{md.stem}"
         target = dst / f"{new_name}.md"
         rewrite_file(md, target, rules, new_name)
         count += 1

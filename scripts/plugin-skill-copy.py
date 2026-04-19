@@ -44,7 +44,12 @@ def main() -> int:
 
     count = 0
     for skill_dir in sorted(p for p in src.iterdir() if p.is_dir()):
-        new_name = f"{args.prefix}{skill_dir.name}"
+        # Source already prefixed (plugin-exclusive skill authored in source
+        # under its final name, e.g. lp-instructions/) — keep name as-is.
+        if skill_dir.name.startswith(args.prefix):
+            new_name = skill_dir.name
+        else:
+            new_name = f"{args.prefix}{skill_dir.name}"
         target = dst / new_name
         if target.exists():
             shutil.rmtree(target)
