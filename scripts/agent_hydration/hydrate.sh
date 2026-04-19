@@ -1,32 +1,49 @@
 #!/usr/bin/env bash
-set -eo pipefail
-# Session Hydration — inject current project state at session start
-# Called by: SessionStart hook (startup, clear) and /hydrate command
+set -euo pipefail
+# Session Hydration — inject current project state at session start.
+# Called by: SessionStart hook (startup, clear) and /hydrate / /lp-hydrate command.
 #
-# Loads:
-# 1. Runs structure drift detection (writes report if drift found)
-# 2. Project backlog (docs/tasks/BACKLOG.md)
-# 3. Structure drift report (.harness/structure-drift.md) — if exists
+# Plugin-mode behavior:
+#   1. Emit a compact "LaunchPad active" session card with core conventions
+#   2. Emit backlog summary if docs/tasks/BACKLOG.md exists (capped at 200 lines)
+#   3. Emit drift report only if running in the LaunchPad template itself
+#
+# Drift detection is template-only — in brownfield projects we do NOT call
+# detect-structure-drift.sh (structure-check scripts aren't shipped in the
+# plugin; brownfield shouldn't be policed against LaunchPad's layout).
 
-REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
-# Step 1: Run drift detection (creates/updates .harness/structure-drift.md)
-DRIFT_SCRIPT="$REPO_ROOT/scripts/maintenance/detect-structure-drift.sh"
-if [ -x "$DRIFT_SCRIPT" ]; then
-  bash "$DRIFT_SCRIPT" 2>/dev/null || true
-fi
+# Step 1 — Session card
+cat <<'EOF'
+## LaunchPad active
 
-# Step 2: Output backlog
-BACKLOG="$REPO_ROOT/docs/tasks/BACKLOG.md"
+Daily loop: /lp-commit → /lp-review → /lp-ship
+Conventions: /lp-instructions (core principles), /lp-version (plugin version)
+
+Core principles: fix root causes, no secrets in commits, production-first.
+EOF
+
+# Step 2 — Backlog (if present)
+BACKLOG="$PROJECT_ROOT/docs/tasks/BACKLOG.md"
 if [ -f "$BACKLOG" ]; then
-  cat "$BACKLOG"
-else
-  echo "No backlog found. Run a workflow to generate docs/tasks/BACKLOG.md."
+  echo ""
+  echo "## Backlog"
+  echo ""
+  head -n 200 "$BACKLOG"
 fi
 
-# Step 3: Output drift report (just written by Step 1)
-DRIFT="$REPO_ROOT/.harness/structure-drift.md"
-if [ -f "$DRIFT" ]; then
-  echo ""
-  cat "$DRIFT"
+# Step 3 — Drift report (template-only; skipped in plugin mode)
+# We only run drift detection when the maintenance script is present AND the
+# REPOSITORY_STRUCTURE.md treaty doc exists. In brownfield (neither present),
+# this whole block is skipped silently.
+DRIFT_SCRIPT="$PROJECT_ROOT/scripts/maintenance/detect-structure-drift.sh"
+DRIFT_TREATY="$PROJECT_ROOT/docs/architecture/REPOSITORY_STRUCTURE.md"
+DRIFT_REPORT="$PROJECT_ROOT/.harness/structure-drift.md"
+if [ -x "$DRIFT_SCRIPT" ] && [ -f "$DRIFT_TREATY" ]; then
+  bash "$DRIFT_SCRIPT" 2>/dev/null || true
+  if [ -f "$DRIFT_REPORT" ]; then
+    echo ""
+    cat "$DRIFT_REPORT"
+  fi
 fi

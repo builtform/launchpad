@@ -36,7 +36,7 @@ a5e9f630d129e7181880b6cb9c5452682f5ff047280fa5a0043f777a6c218fbc  ./agents/lp-sp
 ad0ea2a98fa120b11020df0a9a2f2db5a9ffc32b571f087c421161180e1123a7  ./agents/lp-testing-reviewer.md
 97f6c92ad9610bb61c29a8098871e96b41dc6d2bae1384e55cb78d004f020833  ./agents/lp-web-researcher.md
 f99ba1c4befeede409c90c1c8d5883affa0fa7cceefa6ecb6637626e3423d5d0  ./bin/audit-skills.sh
-a520529da3ebc7f13ac92a536efd161846c9fc791957713e8bfa2b35f9c9cf95  ./bin/block-merges.sh
+536cb9d4156a5451c8654119b4c8ad80b954174243de70d22ba1bdbd907601d0  ./bin/block-merges.sh
 b588b28698f5129dd5f412bd4431d22f0b826d6f445ea0bb35dee09ce5940769  ./bin/compound/analyze-report.sh
 72b4a381aa3bbc5d9321f00c6d1b2edaf5601a59df88febdd433207eef276191  ./bin/compound/board.sh
 baddfbd4b9f673102c4a4bcc98f692d4e1eb7a4c97bdeb7a278712f02e3f51ee  ./bin/compound/build.sh
@@ -49,8 +49,8 @@ da52122cb4c77de4d027b4d8e378fc636666c1e97776401bbba311e54d76efc1  ./bin/compound
 d45ee725907bc3b10839a546cf688db23adbd99869ed9552f3d1530cfc140804  ./bin/compound/iteration-claude.md
 91de7ac9035f7930efe0e5c37758432d649986bb83f07b0fac14c064be183374  ./bin/compound/lib.sh
 a6af4239a7206bb19329228875a72353da180117718a01012b40520b55e59cfb  ./bin/compound/loop.sh
-7fa6cee218dbe9d93495edee708f46b14ee8aea839571ff069ca04919369f121  ./bin/hydrate.sh
-dd3bbda6615c416cb511b57bc56c5d6ff12690f74db621de2456d331e9b7d1b3  ./bin/track-skill-usage.sh
+a1312d9dbadb15db47570c4b72100e6d91a8d262d385bd174ba45a8b5cf7d026  ./bin/hydrate.sh
+ab2cf7067acf573f7c57052a0e57afe7dc46ab0bc78fbc5db4e7d14494a115a5  ./bin/track-skill-usage.sh
 e1649e6e78630c467f97d3f39f435e3e308af4d9900104e0ce716968032bfc20  ./commands/lp-brainstorm.md
 04d052358bee4613ac30707bc193c753b24532771c5d4fb23c6ed1e4cb894d55  ./commands/lp-commit.md
 b753dce8825602cdeb93e85d3bb1ebfd4527c4c96fa08edc1800c6bf4bef31f4  ./commands/lp-copy-review.md
