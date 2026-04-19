@@ -50,9 +50,31 @@ AMBITION_MODE=$(jq -r '.ambitionMode // false' "$CONFIG_FILE")
 EVALUATOR_ENABLED=$(jq -r '.evaluator.enabled // false' "$CONFIG_FILE")
 SPRINT_CONTRACT=$(jq -r '.evaluator.sprintContract // false' "$CONFIG_FILE")
 
-# ai_run: pipes a prompt into the configured AI tool (non-interactive, full permissions)
+# ai_run: pipes a prompt into the configured AI tool.
+#
+# AUTONOMOUS EXECUTION — the flags passed (--dangerously-skip-permissions,
+# --dangerously-bypass-approvals-and-sandbox, --approval-mode=yolo) disable
+# interactive approvals so the compound pipeline can run unattended. This is
+# the REQUIRED mode for compound learning loops, but it's unsafe to trigger
+# accidentally (agent can read/write/execute without confirming each step).
+#
+# Required opt-in: LP_COMPOUND_AUTONOMOUS=1 in the environment. Meta-
+# orchestrators (/lp-harness-build, /lp-inf, /lp-learn) set this before
+# invoking the pipeline. Ad-hoc callers must set it explicitly.
+#
 # Usage: echo "prompt" | ai_run 2>&1 | tee logfile
 ai_run() {
+  if [ "${LP_COMPOUND_AUTONOMOUS:-}" != "1" ]; then
+    error "compound pipeline uses autonomous execution flags (--dangerously-skip-permissions, --dangerously-bypass-approvals-and-sandbox, --approval-mode=yolo).
+
+  Set LP_COMPOUND_AUTONOMOUS=1 to acknowledge autonomous AI execution and proceed:
+    LP_COMPOUND_AUTONOMOUS=1 $0 ...
+
+  Meta-orchestrators (/lp-harness-build, /lp-inf, /lp-learn) set this automatically.
+  Reading docs/guides/METHODOLOGY.md before enabling is recommended."
+  fi
+  # Log at invocation so operators see autonomous mode is active.
+  log "AUTONOMOUS AI EXECUTION via $TOOL (approval/sandbox flags bypassed)"
   case "$TOOL" in
     codex)
       codex exec --dangerously-bypass-approvals-and-sandbox "$(cat -)"

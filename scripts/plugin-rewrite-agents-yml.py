@@ -3,7 +3,9 @@
 Rewrite agent names in agents.yml to be lp-prefixed for plugin seeding.
 
 Input:  path to .launchpad/agents.yml (source — unprefixed names)
-Output: stdout (prefixed, schema_version stamped)
+Output: stdout (prefixed; first line is a schema-version COMMENT marker,
+        `# schema_version: 1`, not a YAML field — future tooling that
+        wants a real field should read/write it separately).
 
 Only list items under known agent-list keys are rewritten.
 protected_branches is preserved verbatim (branch names, not agents).
@@ -36,6 +38,8 @@ def main() -> int:
         return 2
 
     src = Path(sys.argv[1])
+    # Schema marker is a COMMENT, not a YAML key — keeps the file shape
+    # backward-compatible with existing parsers that only expect agent lists.
     print("# schema_version: 1")
 
     in_agent_list = False

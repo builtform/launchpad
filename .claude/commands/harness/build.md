@@ -95,7 +95,7 @@ Autonomous execution pipeline orchestrator. Resolves target from section registr
 - Loads compound-docs skill, spawns 5 inline research sub-agents in parallel
 - Writes structured solution doc to `docs/solutions/[category]/`
 - Non-critical — failure here doesn't block shipping
-- Fallback: if `/learn` fails, run `bash scripts/compound/compound-learning.sh` (basic extraction)
+- Fallback: if `/learn` fails, run `LP_COMPOUND_AUTONOMOUS=1 bash scripts/compound/compound-learning.sh` (basic extraction — autonomous-mode opt-in required)
 
 ## Step 6: Report
 

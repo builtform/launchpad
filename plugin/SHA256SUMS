@@ -39,7 +39,7 @@ a5e9f630d129e7181880b6cb9c5452682f5ff047280fa5a0043f777a6c218fbc  ./agents/lp-sp
 ad0ea2a98fa120b11020df0a9a2f2db5a9ffc32b571f087c421161180e1123a7  ./agents/lp-testing-reviewer.md
 97f6c92ad9610bb61c29a8098871e96b41dc6d2bae1384e55cb78d004f020833  ./agents/lp-web-researcher.md
 0da2e45b32897de97924acadf2d40ca50342f8604c64a7e9d089e2ba52049c03  ./bin/audit-skills.sh
-f0c42a702ba1065d27446728333647df5bc7152bb0a80214d817e376819e1056  ./bin/block-merges.sh
+d93a245a3fdbcd5239cf01a0eb2859d8657a9983d912a48882841d8811db4bd4  ./bin/block-merges.sh
 4a948617308fe1ee1f2c31880852123116db739792a3857951b9ade85210e866  ./bin/compound/analyze-report.sh
 a48fec7ac90eb76b92467326723f7f4c3cae9a5a17c96de18cfd74e133448fd7  ./bin/compound/board.sh
 f241325fe2cc1815b1f03bb46301fcbe3d6f1dd2c1945709003b5b2b484df156  ./bin/compound/build.sh
@@ -50,7 +50,7 @@ b6c1288464defc6a13b5f3ddcecd4fbcfdc11dab75bb0a72045b90fa94a2b38a  ./bin/compound
 2df2bb09ff51129f7de13d70ea40f8c572a7f80292aaa25fc43f07fc3f9b44b2  ./bin/compound/evaluate.sh
 0bd3f6440762e8a1c0d6e787d89f2dec6aa76d055bf6b1d9969c1a5d540972a5  ./bin/compound/grading-criteria.md
 d45ee725907bc3b10839a546cf688db23adbd99869ed9552f3d1530cfc140804  ./bin/compound/iteration-claude.md
-ad597c47d4c3f25e43ab4d72f600369eb55742bc855ea9d84cc9b02cb7867bf5  ./bin/compound/lib.sh
+1ec048dec8fe9cf7c993b4ee7f30f44b59d91d365e80591e96b74c8146e32766  ./bin/compound/lib.sh
 460f753596a56e1ef65e4bf01581d304b94169e589cbfc44cd50f5edaf76f3bd  ./bin/compound/loop.sh
 305123189dce669bc347f753407eae45d08d02446fd6d3a81af0b05d135de995  ./bin/hydrate.sh
 c2426fecaf7b661dab2ce40d292b15f1d244f159118d9dcfd9b8580abed1f8e4  ./bin/track-skill-usage.sh
@@ -69,14 +69,14 @@ fe597fad745e87dd2246388f67042f22debb3d6a9b82cf68a30b811f365b8467  ./commands/lp-
 51c5f7f23319b3ac24afcfcfa34a52bdae6c00426925232612cb8e2a1a4c7ab5  ./commands/lp-design-review.md
 06f31466895ebd7f8866be5f8896de9b369c685da33d8bddfb83613c88003252  ./commands/lp-feature-video.md
 9312a96584598449d60d5cea04dcfd82fdb146179cd569f46d3fbdf2478ad4ef  ./commands/lp-harden-plan.md
-044bb79455f686716133a292396a715561a21074f1959b1029f12134ebcae165  ./commands/lp-harness-build.md
+bbfb86d0b9517740acfcd38575771b64581007c6dd6f648464d55b8840b4e748  ./commands/lp-harness-build.md
 16407a2bb208b3f4d865c54c0f47c0e416d1a531716b6a4783e7b80630ca7621  ./commands/lp-harness-define.md
 ff407a7e33b3a6c5fca2fdee16db03871d67ce275d3f2a52aaa838cab0ef4b52  ./commands/lp-harness-kickoff.md
 c2c47926f799bbc8d29b2be053e86d3acbb968b3abd1ec8f090b9f002e3767da  ./commands/lp-harness-plan.md
 d93cfce5f522979dc94babfa34740d25832e5051f104fb6d500eec97cde19eba  ./commands/lp-hydrate.md
 b18fac3ebd6210f44a40d3b11161b838582ad2ed6cd1e8813dcdec331a9a1b48  ./commands/lp-implement-plan.md
-6fd7f33a1433af802fe056e775ca56e9ae0b1405aea5843541933325d3bd37eb  ./commands/lp-inf.md
-2b5d1b7f23c7267c412bbb622f619483305d9de8fa5926d8ca85df2edbe52a8c  ./commands/lp-learn.md
+10a23c480447f67bbcbda5ebabf4a7087d5c359e7196bb44ac13baf83a2ce81a  ./commands/lp-inf.md
+03d2217ec6350fa509bd2ca1e28e5deaa58aec485e0b3d29dfcf9ab1a37197c0  ./commands/lp-learn.md
 b92b69d39a747380e2e71c9a7d8eafca5461e348b2685bfd2b9ad66eb6d6e3be  ./commands/lp-memory-report.md
 abf0413342393eb68cfb13151e98b13c92745967b99d9c35a322e48a93050a43  ./commands/lp-pnf.md
 30c35fcf6c8f7c7057a0b748e48470465d0ce5bfa25c84aac2027e3adfbcb029  ./commands/lp-port-skill.md

@@ -80,4 +80,4 @@ Spawn all 5 in parallel. Each returns text only — no file writes.
 
 - Reads `${CLAUDE_PLUGIN_ROOT}/bin/compound/progress.txt` + code diff as problem context
 - Runs autonomously (no interactive prompts)
-- Falls back to `bash ${CLAUDE_PLUGIN_ROOT}/bin/compound/compound-learning.sh` if /lp-learn fails
+- Falls back to `LP_COMPOUND_AUTONOMOUS=1 bash ${CLAUDE_PLUGIN_ROOT}/bin/compound/compound-learning.sh` if /lp-learn fails (autonomous-mode opt-in is required)
