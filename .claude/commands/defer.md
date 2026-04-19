@@ -21,6 +21,10 @@ Manually add a task to the project backlog.
 
 ## Flow
 
+### Step 0: Ensure runtime state
+
+- `mkdir -p .harness/observations` — ensures the write target exists in brownfield
+
 ### Step 1: Parse Arguments
 
 - `description`: required (quoted string). IF missing: ask user for one.

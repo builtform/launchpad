@@ -17,12 +17,19 @@ Multi-agent parallel code review with confidence-based false-positive suppressio
 
 ---
 
-## Step 0: Read Configuration
+## Step 0: Ensure runtime state + Read Configuration
 
-1. Read `.launchpad/agents.yml` → extract `review_agents`, `review_db_agents`, `review_design_agents`, `review_copy_agents`
-2. Validate each agent name: must match `[a-z0-9-]+`, must resolve to a file in `.claude/agents/` (scan all subdirectories). Skip with warning if file not found — this handles `[Phase N]` agents gracefully.
-3. Read `.harness/harness.local.md` → extract review context
-4. If `agents.yml` missing: fall back to `lp-pattern-finder` only, warn user
+**Self-heal missing state (brownfield-safe):**
+
+1. `mkdir -p .harness/todos` — findings output directory
+2. If `.launchpad/agents.yml` does NOT exist AND `${CLAUDE_PLUGIN_ROOT}/data/agents.yml` exists: copy plugin default to `.launchpad/agents.yml`, inform user: "Seeded .launchpad/agents.yml — edit to customize review fleet"
+3. If `.launchpad/secret-patterns.txt` does NOT exist AND `${CLAUDE_PLUGIN_ROOT}/data/secret-patterns.txt` exists: copy plugin default to `.launchpad/secret-patterns.txt`
+
+**Read configuration:**
+
+1. Read `.launchpad/agents.yml` → extract `review_agents`, `review_db_agents`, `review_design_agents`, `review_copy_agents`. If file still missing after Step 0: fall back to `lp-pattern-finder` only, warn user.
+2. Validate each agent name: must match `[a-z0-9-]+`, must resolve to a file (scan `.claude/agents/` in source mode or `${CLAUDE_PLUGIN_ROOT}/agents/` in plugin mode). Skip with warning if file not found.
+3. Read `.harness/harness.local.md` → extract review context. If file missing: skip with note "no project-specific review context — proceeding with generic review."
 
 ## Step 1: Determine Diff Scope
 

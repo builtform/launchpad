@@ -13,6 +13,18 @@ Bash, Read, Grep, Glob, Edit, Write, TodoWrite, Task
 
 ---
 
+## Step 0: Ensure runtime state (brownfield self-heal)
+
+Consult the `lp-instructions` skill briefly for core conventions (root-cause fixes, no-secrets, Definition of Done).
+
+Before proceeding, verify required directories and config files exist. If missing in a brownfield install, self-heal silently:
+
+1. `mkdir -p .harness/todos` — runtime state for any review sub-step
+2. If `.launchpad/agents.yml` does NOT exist AND `${CLAUDE_PLUGIN_ROOT}/data/agents.yml` exists (plugin mode): copy plugin default to `.launchpad/agents.yml`, inform the user: "Seeded .launchpad/agents.yml from plugin defaults — edit to customize review fleet"
+3. If neither exists (unlikely — this is LaunchPad itself): proceed with default `protected_branches: [main, master]`
+
+---
+
 ## Step 1: Branch Guard
 
 ```bash

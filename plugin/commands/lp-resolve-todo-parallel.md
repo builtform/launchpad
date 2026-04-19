@@ -8,11 +8,17 @@ Resolves pending review findings from `.harness/todos/` using parallel resolver 
 
 ---
 
+## Step 0: Ensure runtime state (brownfield self-heal)
+
+- `mkdir -p .harness/todos` — ensures the directory exists so downstream scans don't crash
+
+---
+
 ## Step 1: Read Pending Todos
 
 - Scan `.harness/todos/` for `.md` files
 - Parse YAML frontmatter: filter for `status: pending` OR `status: ready`
-- IF none found: report "0 findings to resolve" → exit
+- IF none found: report "0 findings to resolve. Run /lp-review first to generate findings." → exit
 
 ## Step 2: Group by File Overlap
 

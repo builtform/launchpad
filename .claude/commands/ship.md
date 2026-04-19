@@ -7,11 +7,20 @@ description: Autonomous shipping pipeline — quality gates, commit, PR creation
 
 Autonomous shipping command. Stages changes, runs quality gates, commits, pushes, creates PR, and monitors CI. **NEVER merges.**
 
+Consult the `lp-instructions` skill briefly for core conventions (Definition of Done, git-push discipline).
+
+---
+
+## Step 0: Ensure runtime state (brownfield self-heal)
+
+1. If `.launchpad/agents.yml` does NOT exist AND `${CLAUDE_PLUGIN_ROOT}/data/agents.yml` exists: copy plugin default to `.launchpad/agents.yml`, inform user
+2. If `.harness/` doesn't exist: `mkdir -p .harness` (may be read later for review-summary.md)
+
 ---
 
 ## Step 1: Branch Guard
 
-1. Read `protected_branches` from `.launchpad/agents.yml` (default: `[main, master]`)
+1. Read `protected_branches` from `.launchpad/agents.yml` (default: `[main, master]` if file missing)
 2. Get current branch: `git branch --show-current`
 3. IF current branch is in `protected_branches`: **REFUSE.** "Cannot ship to protected branch."
 

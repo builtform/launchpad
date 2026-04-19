@@ -16,6 +16,7 @@ Interactive finding triage. Reads pending todos, presents each one-by-one, and r
 
 ## Flow
 
+0. **Ensure runtime state (brownfield self-heal):** `mkdir -p .harness/todos .harness/observations`. If `.harness/todos/` is empty or missing after mkdir: **HALT** with message "No findings to triage. Run /lp-review first to generate findings."
 1. Load pending todos from `.harness/todos/` (filter `status: pending` from YAML frontmatter)
 2. Validate each file:
    - Confirm resolved path is within `.harness/todos/` (no symlink following)
