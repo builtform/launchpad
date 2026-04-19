@@ -28,6 +28,7 @@ generated_images/
 docs/**/*.pdf
 docs/reports/launchpad_reports/
 docs/handoffs/launchpad_handoffs/
+docs/plans/launchpad_plans/
 docs/articles/
 docs/tasks/board.md
 node_modules/
