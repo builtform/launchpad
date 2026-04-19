@@ -1,4 +1,7 @@
-80597691b617649820a1950bba408b90682b5f45fa08ee1fd0053716acc1bc68  ./.claude-plugin/plugin.json
+420ba34cbca32735786bae4e1d0e06b93306636e0686645c0c93479e7a7a1dd8  ./.claude-plugin/plugin.json
+00634c44728d64d46049d5f17aa6d8df6a048366b402d998a3a91615e1c44888  ./CHANGELOG.md
+5cb4cf34c17016957f994c0a1749780c07b8faf95f894b146765ce02692e1b78  ./README.md
+fca2ef63ad5676e025b5349bbb69e50bcdbfb30ed879a65c7697f32b9654bdf3  ./SECURITY.md
 9c06dc535ebc0224b3525c924e48961b1313b133033cd54d79a795eca27959b1  ./agents/lp-adversarial-document-reviewer.md
 e3deb41705a2fb37d429f54fef29095b9ddfee5eb7d0ed0e06077fa882a82622  ./agents/lp-architecture-strategist.md
 8c973e080ca5ab741e8be3a6162eb9ee1f561c5f9be17a95e2cac1ad19755269  ./agents/lp-code-analyzer.md

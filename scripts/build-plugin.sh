@@ -271,6 +271,18 @@ fi
 ok "no unquoted \$CLAUDE_PLUGIN_ROOT uses"
 
 # ----------------------------------------------------------------------------
+# 14.5. Plugin-level docs (README / SECURITY / CHANGELOG)
+# ----------------------------------------------------------------------------
+heading "Copy plugin docs"
+for doc in README.md SECURITY.md CHANGELOG.md; do
+  src="$REPO/scripts/plugin-templates/$doc"
+  if [ -f "$src" ]; then
+    cp "$src" "$DST_NEW/$doc"
+  fi
+done
+ok "plugin docs copied"
+
+# ----------------------------------------------------------------------------
 # 15. SHA256SUMS
 # ----------------------------------------------------------------------------
 heading "Generate SHA256SUMS"
