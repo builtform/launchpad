@@ -191,11 +191,12 @@ docs/                                        # See Decision Tree (Section 6.1) f
 ├── settings.json                            # Project-level hooks (committed)
 └── settings.local.json                      # Local settings (gitignored)
 
-.harness/
-├── design-artifacts/                        # Git-tracked approved design screenshots
-│   └── .gitkeep
-├── observations/                            # Deferred observations for backlog
-└── todos/                                   # Review findings to triage
+.harness/                                    # Runtime workspace — everything ephemeral except harness.local.md
+├── harness.local.md                         # ONLY tracked file — project review/design context for agents
+├── design-artifacts/                        # Approved design screenshots (ephemeral, created on demand)
+├── observations/                            # Deferred observations for backlog (ephemeral)
+├── screenshots/                             # Browser test / feature-video screenshots (ephemeral)
+└── todos/                                   # Review findings to triage (ephemeral)
 ```
 
 ---
