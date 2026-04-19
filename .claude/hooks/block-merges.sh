@@ -1,18 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # PreToolUse hook: blocks merge, force-push, and approve commands.
+# Registered in hooks.json / settings.json ONLY for Bash (matcher: "Bash"),
+# so every invocation here is a Bash PreToolUse event.
+#
 # Claude Code passes tool input as JSON on stdin.
 # Exit 0 = allow, Exit 2 = block.
+#
+# Fail-closed policy: an empty/unparseable payload for a Bash event is a
+# malformed hook invocation (Claude Code bug or tampering), not a legitimate
+# "no command proposed" signal. Block rather than silently allow.
 #
 # Performance: single jq invocation + native Bash [[ =~ ]] matching per segment.
 # No grep/sed forks per pattern. Compatible with Bash 3.2 (macOS default).
 
 INPUT=$(cat) || true
 
-# Empty stdin means no tool_input to inspect — allow. Relaxed from earlier
-# "fail closed on empty stdin" behavior per hook-hardening review.
 if [ -z "$INPUT" ]; then
-  exit 0
+  echo "BLOCKED: block-merges hook received empty stdin for a Bash event." >&2
+  echo "  This indicates a malformed hook payload. Failing closed to preserve policy." >&2
+  exit 2
 fi
 
 # jq is required — document as hard dependency; fail loudly if missing.
@@ -22,7 +29,11 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || true)
-[ -z "$COMMAND" ] && exit 0
+if [ -z "$COMMAND" ]; then
+  echo "BLOCKED: Bash tool_input.command is missing or JSON parsing failed." >&2
+  echo "  Failing closed to preserve policy — retry once input is well-formed." >&2
+  exit 2
+fi
 
 # Split on command separators (; && ||) into segments, matching each separately
 # in pure Bash. Do NOT split on `|` — pipes aren't command separators.
@@ -61,14 +72,21 @@ while IFS= read -r lc; do
     exit 2
   fi
 
-  # git push origin main/master (any flag form)
-  if [[ "$lc" =~ ^git[[:space:]]+push[[:space:]]+.*origin[[:space:]]+(main|master|head:(main|master)) ]]; then
-    echo "BLOCKED: push to main/master is prohibited." >&2
+  # git push to protected branch (any remote, any arg order, any refspec form).
+  # Matches `main` or `master` as a whole token, allowing the preceding
+  # delimiter to be space, colon (HEAD:main), or slash (refs/heads/main),
+  # and the trailing delimiter to be space, colon, or end-of-string.
+  if [[ "$lc" =~ ^git[[:space:]]+push([[:space:]]|$) ]] \
+     && [[ "$lc" =~ (^|[[:space:]]|:|/)(main|master)([[:space:]]|:|$) ]]; then
+    echo "BLOCKED: push references protected branch (main/master)." >&2
+    echo "  Use a feature branch. Forks/upstream pushes to main/master are also blocked." >&2
     exit 2
   fi
 
-  # gh pr review --approve
-  if [[ "$lc" =~ ^gh[[:space:]]+pr[[:space:]]+review[[:space:]]+--approve ]]; then
+  # gh pr review with --approve anywhere in the args (not just positional).
+  # Matches `gh pr review` prefix AND `--approve` as a standalone token.
+  if [[ "$lc" =~ ^gh[[:space:]]+pr[[:space:]]+review([[:space:]]|$) ]] \
+     && [[ "$lc" =~ (^|[[:space:]])--approve([[:space:]]|=|$) ]]; then
     echo "BLOCKED: PR auto-approve is prohibited." >&2
     exit 2
   fi
