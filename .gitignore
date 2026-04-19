@@ -50,13 +50,6 @@ settings.local.json
 # Review artifacts (ephemeral, regenerated each run)
 review-history.md
 
-# .harness/ ephemeral artifacts
-.harness/screenshots/*.png
-.harness/screenshots/*.mp4
-.harness/screenshots/*.gif
-.harness/structure-drift.md
-.harness/review-summary.md
-.harness/todos/*.md
-!.harness/todos/.gitkeep
-.harness/observations/*.md
-!.harness/observations/.gitkeep
+# .harness/ — runtime workspace; everything ephemeral except project context
+.harness/*
+!.harness/harness.local.md
