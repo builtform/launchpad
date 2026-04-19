@@ -9,7 +9,10 @@ PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null 
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# In plugin mode, the build-injected preamble sets PROJECT_ROOT via
+# CLAUDE_PROJECT_DIR (the user's repo). In source mode (no preamble),
+# PROJECT_ROOT is unset here and falls back to the repo-relative computation.
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 CONFIG_FILE="$SCRIPT_DIR/config.json"
 
 log() {

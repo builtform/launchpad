@@ -78,6 +78,6 @@ Spawn all 5 in parallel. Each returns text only — no file writes.
 
 ## When Called by /lp-harness-build Step 5
 
-- Reads `scripts/compound/progress.txt` + code diff as problem context
+- Reads `${CLAUDE_PLUGIN_ROOT}/bin/compound/progress.txt` + code diff as problem context
 - Runs autonomously (no interactive prompts)
-- Falls back to `bash scripts/compound/compound-learning.sh` if /lp-learn fails
+- Falls back to `bash ${CLAUDE_PLUGIN_ROOT}/bin/compound/compound-learning.sh` if /lp-learn fails

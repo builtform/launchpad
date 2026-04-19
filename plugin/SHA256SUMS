@@ -50,7 +50,7 @@ b6c1288464defc6a13b5f3ddcecd4fbcfdc11dab75bb0a72045b90fa94a2b38a  ./bin/compound
 da52122cb4c77de4d027b4d8e378fc636666c1e97776401bbba311e54d76efc1  ./bin/compound/evaluate.sh
 0bd3f6440762e8a1c0d6e787d89f2dec6aa76d055bf6b1d9969c1a5d540972a5  ./bin/compound/grading-criteria.md
 d45ee725907bc3b10839a546cf688db23adbd99869ed9552f3d1530cfc140804  ./bin/compound/iteration-claude.md
-91de7ac9035f7930efe0e5c37758432d649986bb83f07b0fac14c064be183374  ./bin/compound/lib.sh
+8e3cb44992802cc733c363b7d3ea247e48bb503ec8699abbafb99d57315ab939  ./bin/compound/lib.sh
 a6af4239a7206bb19329228875a72353da180117718a01012b40520b55e59cfb  ./bin/compound/loop.sh
 a1312d9dbadb15db47570c4b72100e6d91a8d262d385bd174ba45a8b5cf7d026  ./bin/hydrate.sh
 e196c97a17bee3de71d49bba57d1fa40d08cb63c99cab966f68fd0c4a230e05d  ./bin/track-skill-usage.sh
@@ -69,14 +69,14 @@ fe597fad745e87dd2246388f67042f22debb3d6a9b82cf68a30b811f365b8467  ./commands/lp-
 51c5f7f23319b3ac24afcfcfa34a52bdae6c00426925232612cb8e2a1a4c7ab5  ./commands/lp-design-review.md
 06f31466895ebd7f8866be5f8896de9b369c685da33d8bddfb83613c88003252  ./commands/lp-feature-video.md
 9312a96584598449d60d5cea04dcfd82fdb146179cd569f46d3fbdf2478ad4ef  ./commands/lp-harden-plan.md
-23e4aa4572c50ac48a282c09aa0534adaed92b7164833d03cf8edcc997f3fcad  ./commands/lp-harness-build.md
+044bb79455f686716133a292396a715561a21074f1959b1029f12134ebcae165  ./commands/lp-harness-build.md
 16407a2bb208b3f4d865c54c0f47c0e416d1a531716b6a4783e7b80630ca7621  ./commands/lp-harness-define.md
 ff407a7e33b3a6c5fca2fdee16db03871d67ce275d3f2a52aaa838cab0ef4b52  ./commands/lp-harness-kickoff.md
 c2c47926f799bbc8d29b2be053e86d3acbb968b3abd1ec8f090b9f002e3767da  ./commands/lp-harness-plan.md
 d93cfce5f522979dc94babfa34740d25832e5051f104fb6d500eec97cde19eba  ./commands/lp-hydrate.md
 0f0a9ae165bd136105e5893d2d6b69318195d3a1656971cd047658ec4e30ae21  ./commands/lp-implement-plan.md
-47fd86c8ae1bef6946d7d6ca89f069f81f65cafe2aa718c4714363b6de7f1760  ./commands/lp-inf.md
-67bdee828fa12f5b1a0589a068c3087bebaecb8987ebf47156af34d66d706aad  ./commands/lp-learn.md
+6fd7f33a1433af802fe056e775ca56e9ae0b1405aea5843541933325d3bd37eb  ./commands/lp-inf.md
+2b5d1b7f23c7267c412bbb622f619483305d9de8fa5926d8ca85df2edbe52a8c  ./commands/lp-learn.md
 b92b69d39a747380e2e71c9a7d8eafca5461e348b2685bfd2b9ad66eb6d6e3be  ./commands/lp-memory-report.md
 7985755ad7b274245d841c90cb3c18e0a6703705b9a47c3f1c71083fc4ee9079  ./commands/lp-pnf.md
 778205c862640f86707614730827437ccceb5c9080d9b1579fa99821a8c8c8fd  ./commands/lp-port-skill.md

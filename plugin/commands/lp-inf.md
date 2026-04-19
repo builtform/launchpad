@@ -47,7 +47,7 @@ Skills are loaded silently if present. Skip silently if the skill directory does
 Run the build script and relay all output:
 
 ```bash
-./scripts/compound/build.sh $ARGUMENTS [SECTION_SPEC_PATH]
+${CLAUDE_PLUGIN_ROOT}/bin/compound/build.sh $ARGUMENTS [SECTION_SPEC_PATH]
 ```
 
 Where `$ARGUMENTS` is whatever the user passed (e.g., `--dry-run`, `--plan path/to/plan.md`, `--ambition`, `--evaluator`, `--contract`).
@@ -55,7 +55,7 @@ Where `$ARGUMENTS` is whatever the user passed (e.g., `--dry-run`, `--plan path/
 **If you auto-selected a section from the registry above**, append the section spec path to the command:
 
 ```bash
-./scripts/compound/build.sh $ARGUMENTS docs/tasks/sections/<section-name>.md
+${CLAUDE_PLUGIN_ROOT}/bin/compound/build.sh $ARGUMENTS docs/tasks/sections/<section-name>.md
 ```
 
 This tells the pipeline to use the section spec as primary context, bypassing report analysis.

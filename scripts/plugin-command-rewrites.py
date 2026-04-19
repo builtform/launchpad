@@ -34,6 +34,17 @@ AGENT_BOUNDARY_POST = r"(?![\w\-:])"
 
 HARNESS_COMMANDS = {"build", "plan", "define", "kickoff"}
 
+# Path rewrites for plugin mode: source command prose references repo-relative
+# script paths (e.g., `./scripts/compound/build.sh`), but in plugin installs
+# those scripts ship under `${CLAUDE_PLUGIN_ROOT}/bin/compound/`. Rewrite here
+# so `/lp-inf`, `/lp-learn`, etc. resolve correctly in brownfield.
+# Order matters: longest/most-specific patterns first so partial overlaps
+# don't double-rewrite.
+PATH_REWRITES: list[tuple[str, str]] = [
+    (r"\./scripts/compound/", r"${CLAUDE_PLUGIN_ROOT}/bin/compound/"),
+    (r"(?<![\w/.])scripts/compound/", r"${CLAUDE_PLUGIN_ROOT}/bin/compound/"),
+]
+
 
 def collect_command_names(src: Path) -> list[str]:
     top_level = [p.stem for p in src.glob("*.md")]
@@ -95,6 +106,13 @@ def apply_rules(text: str, rules: list[tuple[re.Pattern, str]]) -> str:
     return text
 
 
+def apply_path_rewrites(text: str) -> str:
+    """Rewrite repo-relative script paths to plugin-root-relative paths."""
+    for pattern, replacement in PATH_REWRITES:
+        text = re.sub(pattern, replacement, text)
+    return text
+
+
 def rewrite_content(content: str, rules: list[tuple[re.Pattern, str]]) -> str:
     parts = split_by_fences(content)
     out: list[str] = []
@@ -137,6 +155,7 @@ def rewrite_file(src_file: Path, dst_file: Path, rules: list[tuple[re.Pattern, s
     content = src_file.read_text(encoding="utf-8")
     content = rewrite_frontmatter_name(content, new_name)
     content = rewrite_content(content, rules)
+    content = apply_path_rewrites(content)
     dst_file.parent.mkdir(parents=True, exist_ok=True)
     dst_file.write_text(content, encoding="utf-8")
 
