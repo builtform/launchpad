@@ -53,7 +53,7 @@ d45ee725907bc3b10839a546cf688db23adbd99869ed9552f3d1530cfc140804  ./bin/compound
 91de7ac9035f7930efe0e5c37758432d649986bb83f07b0fac14c064be183374  ./bin/compound/lib.sh
 a6af4239a7206bb19329228875a72353da180117718a01012b40520b55e59cfb  ./bin/compound/loop.sh
 a1312d9dbadb15db47570c4b72100e6d91a8d262d385bd174ba45a8b5cf7d026  ./bin/hydrate.sh
-ab2cf7067acf573f7c57052a0e57afe7dc46ab0bc78fbc5db4e7d14494a115a5  ./bin/track-skill-usage.sh
+e196c97a17bee3de71d49bba57d1fa40d08cb63c99cab966f68fd0c4a230e05d  ./bin/track-skill-usage.sh
 e1649e6e78630c467f97d3f39f435e3e308af4d9900104e0ce716968032bfc20  ./commands/lp-brainstorm.md
 8d3e0682f8d3937d340c0d447c8c7ba391964809f3cc925cb41b4f739c2a4a54  ./commands/lp-commit.md
 b753dce8825602cdeb93e85d3bb1ebfd4527c4c96fa08edc1800c6bf4bef31f4  ./commands/lp-copy-review.md
@@ -92,7 +92,7 @@ f3e298f8614636eabee40ef27a645cc6d8436eba22a76f23837e2eec9f300a48  ./commands/lp-
 726c5e9af36380a34ab96e0c95f011b6b85bed91243374932a5d748d042a9bb2  ./commands/lp-update-skill.md
 8ab3eb65eec9a34ecdbc5ceab3de9c399499862c963a2f19aba9778c50c2841a  ./commands/lp-update-spec.md
 4a5e07f4e314809d518cc2fd62475958354bc526123a166671061741dbab755a  ./commands/lp-version.md
-5df07d053caed0b2b32730f0c0e917e301ef28db03fed7280cf7404b4024fe52  ./data/agents.yml
+776c0e50ee744b7148a32839dabcba5fc22d724d6b61b13a269fc2937083de0e  ./data/agents.yml
 5dd801929eec8c156c72634f244b5b9eb4e948020520b6b0b80fff4eef1413a9  ./data/secret-patterns.txt
 1e950e6de802ccefffa0faf236d0c1982c553fbe70782457d0f0a96c5fd3a4f0  ./hooks/hooks.json
 17398fa13c070952165da0a19d90a8c74c09b106be851676a5eaa5ffe8ab2dc7  ./skills/lp-brainstorming/SKILL.md

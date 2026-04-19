@@ -55,7 +55,7 @@ TODAY=$(date +%Y-%m-%d)
 # Update via jq. Write to temp + rename for atomic replacement.
 TMP=$(mktemp)
 if jq --arg name "$SKILL_NAME" --arg today "$TODAY" \
-     '.skills[$name] = $today' "$USAGE_FILE" > "$TMP" 2>/dev/null; then
+     '(.skills //= {}) | .skills[$name] = $today' "$USAGE_FILE" > "$TMP" 2>/dev/null; then
   mv "$TMP" "$USAGE_FILE"
 else
   # If jq fails (e.g., corrupted JSON), don't crash the session

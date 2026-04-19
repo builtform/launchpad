@@ -213,8 +213,12 @@ bash "$REPO/scripts/plugin-filter-secret-patterns.sh" \
   "$REPO/.launchpad/secret-patterns.txt" \
   > "$DST_NEW/data/secret-patterns.txt"
 
-# Stamp schema_version at the top of the shipped agents.yml
-( echo "# schema_version: 1"; cat "$REPO/.launchpad/agents.yml" ) > "$DST_NEW/data/agents.yml"
+# Rewrite agent names with lp- prefix and stamp schema_version.
+# Build-side rewriting (vs. plugin-side prefix-aware resolution) keeps resolver
+# logic simple: agent names in agents.yml match agent filenames 1:1 in both
+# source and plugin modes.
+python3 "$REPO/scripts/plugin-rewrite-agents-yml.py" \
+  "$REPO/.launchpad/agents.yml" > "$DST_NEW/data/agents.yml"
 ok "seeded plugin/data (agents.yml + secret-patterns.txt)"
 
 # ----------------------------------------------------------------------------
@@ -288,7 +292,11 @@ ok "plugin docs copied"
 heading "Generate SHA256SUMS"
 (
   cd "$DST_NEW"
-  find . -type f -not -name SHA256SUMS | LC_ALL=C sort | xargs shasum -a 256 > SHA256SUMS
+  # Null-safe: -exec ... + passes filenames without text splitting, so paths
+  # with spaces/newlines never break the pipeline. Sort output lines by the
+  # filename column for deterministic ordering.
+  find . -type f -not -name SHA256SUMS -exec shasum -a 256 {} + \
+    | LC_ALL=C sort -k 2 > SHA256SUMS
 )
 ok "SHA256SUMS generated ($(wc -l < "$DST_NEW/SHA256SUMS" | tr -d ' ') entries)"
 
