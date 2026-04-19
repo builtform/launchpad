@@ -228,6 +228,171 @@ Every change passes through:
 
 ---
 
+## Working With Launchpad
+
+Day-to-day reference for commands, configuration, security, and maintenance.
+
+### Commands
+
+#### Meta-Orchestrators
+
+| Command            | What it does                                                                                                      |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `/harness:kickoff` | Brainstorming pipeline -- delegates to `/brainstorm`, then hands off to `/harness:define`                         |
+| `/harness:define`  | Definition pipeline -- chains `/define-product` -> `/define-design` -> `/define-architecture` -> `/shape-section` |
+| `/harness:plan`    | Planning pipeline -- chains design -> `/pnf` -> `/harden-plan` -> human approval                                  |
+| `/harness:build`   | Execution pipeline -- chains `/inf` -> `/review` -> `/resolve-todo-parallel` -> `/test-browser` -> `/ship`        |
+
+#### Tier 0 -- Capabilities
+
+| Command         | What it does                                                                          |
+| --------------- | ------------------------------------------------------------------------------------- |
+| `/create-skill` | Create a Claude skill using the 7-phase Meta-Skill Forge                              |
+| `/update-skill` | Iterate on an existing skill after real-world usage reveals gaps                      |
+| `/port-skill`   | Port an external skill into Launchpad format using the 4-phase Skill Porting workflow |
+| `/create-agent` | Create a new agent or convert an existing skill into an agent                         |
+
+#### Tier 1 -- Definition
+
+| Command                | What it does                                                               |
+| ---------------------- | -------------------------------------------------------------------------- |
+| `/define-product`      | Interactive Q&A to populate PRD + Tech Stack + section registry            |
+| `/define-design`       | Interactive Q&A to populate Design System + App Flow + Frontend Guidelines |
+| `/define-architecture` | Interactive Q&A to populate Backend Structure + CI/CD                      |
+| `/brainstorm`          | Collaborative brainstorming with codebase research and design doc capture  |
+
+#### Tier 2 -- Development
+
+| Command          | What it does                                                    |
+| ---------------- | --------------------------------------------------------------- |
+| `/shape-section` | Deep-dive into a product section -- creates section spec        |
+| `/update-spec`   | Scan spec files for gaps, TBDs, and inconsistencies -- fix them |
+| `/harden-plan`   | Stress-test implementation plans using multiple review agents   |
+
+#### Tier 3 -- Implementation
+
+| Command              | What it does                                                             |
+| -------------------- | ------------------------------------------------------------------------ |
+| `/pnf`               | Plan Next Feature -- create implementation plan from section spec        |
+| `/implement-plan`    | Execute a plan phase by phase                                            |
+| `/inf`               | Full pipeline: report, PRD, tasks, execution loop, quality sweep, PR     |
+| `/commit`            | Quality gates, commit, PR creation, 3-gate monitoring                    |
+| `/ship`              | Autonomous shipping pipeline -- quality gates, commit, PR, CI monitoring |
+| `/research-codebase` | Deep codebase research and analysis                                      |
+
+#### Tier 4 -- Review & Resolution
+
+| Command                  | What it does                                                               |
+| ------------------------ | -------------------------------------------------------------------------- |
+| `/review`                | Multi-agent code review with confidence scoring and secret scanning        |
+| `/design-review`         | Quality audit -- accessibility, performance, theming, responsive, UX       |
+| `/design-polish`         | Pre-ship refinement -- alignment, spacing, copy, design system consistency |
+| `/design-onboard`        | Design onboarding flows, empty states, first-time user experiences         |
+| `/copy`                  | Read copy brief from section spec and provide copy context for builds      |
+| `/copy-review`           | Dispatch copy review agents from agents.yml                                |
+| `/triage`                | Interactive triage of review findings -- fix, drop, or defer each finding  |
+| `/resolve-todo-parallel` | Resolve review findings by spawning parallel resolver agents               |
+| `/resolve-pr-comments`   | Batch-resolve unresolved PR review comments in parallel                    |
+| `/test-browser`          | Automated browser testing for UI routes affected by current changes        |
+
+#### Tier 5 -- Learning & Maintenance
+
+| Command               | What it does                                                           |
+| --------------------- | ---------------------------------------------------------------------- |
+| `/learn`              | Capture learnings from resolved problems into structured solution docs |
+| `/defer`              | Manually add a task to the project backlog                             |
+| `/regenerate-backlog` | Regenerate BACKLOG.md from deferred observations and section registry  |
+| `/feature-video`      | Record a video walkthrough of a feature for PR descriptions            |
+| `/memory-report`      | Update session memory and create a detailed session report             |
+
+#### Utilities
+
+| Command           | What it does                                          |
+| ----------------- | ----------------------------------------------------- |
+| `/pull-launchpad` | Pull upstream Launchpad updates into safe directories |
+| `/hydrate`        | Load minimal session context                          |
+
+#### Development
+
+| Command          | Description                              |
+| ---------------- | ---------------------------------------- |
+| `pnpm dev`       | Start dev servers (web :3000, API :3001) |
+| `pnpm build`     | Build all apps and packages              |
+| `pnpm test`      | Run Vitest tests                         |
+| `pnpm typecheck` | TypeScript type checking                 |
+| `pnpm lint`      | ESLint across all workspaces             |
+
+### Configuration
+
+Copy `.env.example` to `.env.local` and set:
+
+| Variable            | Required | Description                           |
+| ------------------- | -------- | ------------------------------------- |
+| `DATABASE_URL`      | Yes      | PostgreSQL connection string          |
+| `ANTHROPIC_API_KEY` | No       | For compound automation scripts       |
+| `OPENAI_API_KEY`    | No       | Alternative LLM + GitHub Codex review |
+
+Full config reference for Turborepo pipelines, Lefthook hooks, and compound pipeline settings is available in their respective config files: `turbo.json`, `lefthook.yml`, and `scripts/compound/config.json`.
+
+### Security Considerations
+
+**Launchpad harnesses AI-assisted workflows that run agents with elevated permissions.** Understand the risks before using.
+
+**What the agents can do**
+
+- Read and modify any file in your repository
+- Execute shell commands (build, test, lint, git operations)
+- Make network requests (API calls, package installs, git push)
+- Create branches, commits, and pull requests autonomously
+- Run multi-iteration loops that analyze, implement, and ship code without human intervention
+
+**Safeguards in place**
+
+1. **PRs, not direct merges** -- All autonomous changes go through pull requests for human review
+2. **Lefthook pre-commit hooks** -- Linting, formatting, and structure validation run before every commit, blocking malformed or non-compliant code
+3. **Codex AI review** -- An independent AI reviewer flags P0/P1 issues on every PR before merge
+4. **Quality gates** -- Configurable checks (tests, type-checking, build) run at each iteration boundary
+5. **Max iterations** -- The compound loop stops after N iterations to prevent runaway execution
+6. **Structure validation** -- `check-repo-structure.sh` enforces file placement rules, preventing accidental creation of files in wrong locations
+7. **Secrets via `.env.local`** -- All API keys and credentials load from `.env.local`, which is gitignored by default. No secrets are ever inlined in commands or committed to the repository
+8. **Dry run mode** -- Test the analysis phase without making changes
+
+**Recommendations**
+
+- Review PRs carefully before merging -- even with AI review, human judgment is the final gate
+- Run autonomous loops in a separate environment (VM, container) if concerned about file access
+- Use API keys with minimal scope (read-only where possible, repo-scoped tokens for GitHub)
+- Never target production branches -- always work on feature branches
+- Monitor the first few autonomous runs to understand agent behavior and iteration patterns
+- After running `init-project.sh`, verify that `.env.local` exists in `.gitignore` before committing anything
+
+**Autonomous permission flags**
+
+The compound scripts bypass interactive approval prompts to enable unattended operation. Each AI tool uses a different flag:
+
+| Tool        | Flag                                         |
+| ----------- | -------------------------------------------- |
+| Claude Code | `--dangerously-skip-permissions`             |
+| Codex CLI   | `--dangerously-bypass-approvals-and-sandbox` |
+| Gemini CLI  | `--approval-mode=yolo`                       |
+
+This is intentional for automation -- the safeguards above exist to catch mistakes before they reach your main branch. To add a pattern-based safety net alongside these flags, consider installing **[Destructive Command Guard (dcg)](https://github.com/Dicklesworthstone/destructive_command_guard)** -- a Rust-based `PreToolUse` hook that intercepts shell commands before your AI agent executes them, blocking recognized destructive operations (`rm -rf`, `git reset --hard`, `DROP TABLE`, etc.) in under 5ms. It replaces the interactive approval gate with automated pattern matching, so you get autonomous speed without risking catastrophic commands:
+
+```bash
+# Download and inspect before running
+curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/install.sh" -o install-dcg.sh
+less install-dcg.sh
+bash install-dcg.sh --easy-mode
+```
+
+### Maintenance
+
+**If you stayed connected (Option A during install):** Use `/pull-launchpad` in Claude Code or run `bash scripts/setup/pull-upstream.launchpad.sh` to pull upstream Launchpad updates. Only safe directories are updated (commands, skills, scripts, workflows) -- your application code is never touched.
+
+**If you chose a fresh start (Option B during install):** You disconnected from upstream and cannot pull updates. To get new Launchpad features, compare against the [latest release](https://github.com/foadshafighi/LaunchPad/releases) manually or re-clone and diff.
+
+---
+
 ## Related
 
 - [README](../../README.md)

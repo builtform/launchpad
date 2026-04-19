@@ -68,7 +68,6 @@ IF any fail → **AUTO-FIX** (max 3 attempts):
 ## Step 5: Generate Commit Message
 
 - Auto-generate conventional commit: `type(scope): description`
-- Include `Co-Authored-By: Claude <noreply@anthropic.com>`
 - No user approval needed (autonomous)
 
 ## Step 6: Commit + Sync + Push + PR

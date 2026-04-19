@@ -193,8 +193,6 @@ git commit -m "$(cat <<'EOF'
 type(scope): description
 
 - bullet points if applicable
-
-Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -368,7 +366,6 @@ gh pr view --json mergeable
 4. Never skip quality gates.
 5. Fix root causes, never work around failures.
 6. Always use HEREDOC for commit messages.
-7. Always include the `Co-Authored-By` trailer.
-8. Keep the subject line under 72 characters.
-9. Use imperative mood in commit descriptions.
-10. If any step fails, stop and fix before continuing.
+7. Keep the subject line under 72 characters.
+8. Use imperative mood in commit descriptions.
+9. If any step fails, stop and fix before continuing.

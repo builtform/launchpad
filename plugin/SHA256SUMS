@@ -55,7 +55,7 @@ a6af4239a7206bb19329228875a72353da180117718a01012b40520b55e59cfb  ./bin/compound
 a1312d9dbadb15db47570c4b72100e6d91a8d262d385bd174ba45a8b5cf7d026  ./bin/hydrate.sh
 ab2cf7067acf573f7c57052a0e57afe7dc46ab0bc78fbc5db4e7d14494a115a5  ./bin/track-skill-usage.sh
 e1649e6e78630c467f97d3f39f435e3e308af4d9900104e0ce716968032bfc20  ./commands/lp-brainstorm.md
-3e4fe9098f526c8b7a4e83de758ec6c1e337a08decebf8653b7cab614f9c29c6  ./commands/lp-commit.md
+8d3e0682f8d3937d340c0d447c8c7ba391964809f3cc925cb41b4f739c2a4a54  ./commands/lp-commit.md
 b753dce8825602cdeb93e85d3bb1ebfd4527c4c96fa08edc1800c6bf4bef31f4  ./commands/lp-copy-review.md
 236a7d637186554151ff643be9562eae6e8c47f0d525f0d8e15c9b4ae1fb81d3  ./commands/lp-copy.md
 d11662de685ec39dd23e1cffb639f5048e4f7f770deca216599bc67a23b05b85  ./commands/lp-create-agent.md
@@ -86,7 +86,7 @@ ba0b40e618a44003b33ebbc1e2911173bbef4f1e3d179f9d6153805df14679af  ./commands/lp-
 f1a0636cad767a47527cc60d73865dd5eece4874b9480395b231ec5bf476be22  ./commands/lp-resolve-todo-parallel.md
 a219367a593d161e03a2f99d9ecc27ab08be02185efe126ea6d34fcfb92d426f  ./commands/lp-review.md
 36c23abb32a1e5b5c1c4acc7ea64823c46864663ebdb1892b1ac64b798fd4197  ./commands/lp-shape-section.md
-db1a9a9a7fdf452966d1682fe570e9087f4741a5a50140084d12847db27d880f  ./commands/lp-ship.md
+f42da2c091fca5b200cb0f8206db50d0e59bde0d8afddf2afcd21e628a5bc321  ./commands/lp-ship.md
 f3e298f8614636eabee40ef27a645cc6d8436eba22a76f23837e2eec9f300a48  ./commands/lp-test-browser.md
 7f367c93591a59e7b177ca06b750590b8f734112cf6ddb0b0b7f941aab216f9a  ./commands/lp-triage.md
 726c5e9af36380a34ab96e0c95f011b6b85bed91243374932a5d748d042a9bb2  ./commands/lp-update-skill.md
