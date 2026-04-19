@@ -320,16 +320,23 @@ echo "📋 Checking for production code importing from experiments/..."
 
 EXPERIMENT_IMPORTS=""
 
-# Check files in apps/ only (no services/ in this repo)
-if [ -d "$REPO_ROOT/apps" ]; then
+# Scan both apps/ and packages/ — the sandbox rule applies to all production
+# code, not just apps/. Pattern catches JS/TS module imports, Python package
+# imports, and literal `docs/experiments/` path references (relative paths
+# like `../../docs/experiments/...` won't match `from experiments`).
+SCAN_ROOTS=()
+[ -d "$REPO_ROOT/apps" ] && SCAN_ROOTS+=("$REPO_ROOT/apps")
+[ -d "$REPO_ROOT/packages" ] && SCAN_ROOTS+=("$REPO_ROOT/packages")
+
+if [ ${#SCAN_ROOTS[@]} -gt 0 ]; then
   EXPERIMENT_IMPORTS=$(grep -rn \
     --include="*.py" \
     --include="*.ts" \
     --include="*.tsx" \
     --include="*.js" \
     --include="*.jsx" \
-    -E "(from experiments|import experiments)" \
-    "$REPO_ROOT/apps" 2>/dev/null || true)
+    -E "(from experiments|import experiments|docs/experiments)" \
+    "${SCAN_ROOTS[@]}" 2>/dev/null || true)
 fi
 
 if [ -n "$EXPERIMENT_IMPORTS" ]; then

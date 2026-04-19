@@ -78,12 +78,13 @@ while IFS= read -r lc; do
 
   # git push to protected branch (any remote, any arg order, any refspec form).
   # Matches `main` or `master` as a whole token, allowing the preceding
-  # delimiter to be space, colon (HEAD:main), or slash (refs/heads/main),
-  # and the trailing delimiter to be space, colon, or end-of-string.
+  # delimiter to be space, colon (HEAD:main), slash (refs/heads/main), or
+  # plus (+main force-push refspec), and the trailing delimiter to be
+  # space, colon, or end-of-string.
   if [[ "$lc" =~ ^git[[:space:]]+push([[:space:]]|$) ]] \
-     && [[ "$lc" =~ (^|[[:space:]]|:|/)(main|master)([[:space:]]|:|$) ]]; then
+     && [[ "$lc" =~ (^|[[:space:]:/+])(main|master)([[:space:]]|:|$) ]]; then
     echo "BLOCKED: push references protected branch (main/master)." >&2
-    echo "  Use a feature branch. Forks/upstream pushes to main/master are also blocked." >&2
+    echo "  Use a feature branch. Force-push refspecs (+main) and non-origin pushes are also blocked." >&2
     exit 2
   fi
 

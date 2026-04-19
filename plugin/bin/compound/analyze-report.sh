@@ -76,18 +76,20 @@ TASKS_DIR="$PROJECT_ROOT/docs/tasks"
 RECENT_FIXES=""
 
 if [ -d "$TASKS_DIR" ]; then
-  RECENT_PRDS=$(find "$TASKS_DIR" -name "prd-*.md" -mtime -7 2>/dev/null || true)
-  if [ -n "$RECENT_PRDS" ]; then
-    RECENT_FIXES="
+  # Null-terminated iteration so paths containing spaces/newlines survive.
+  HEADER_EMITTED=0
+  while IFS= read -r -d '' prd; do
+    if [ "$HEADER_EMITTED" -eq 0 ]; then
+      RECENT_FIXES="
 ## Recently Fixed (Last 7 Days) - DO NOT PICK THESE AGAIN
 "
-    for prd in $RECENT_PRDS; do
-      TITLE=$(grep -m1 "^# " "$prd" 2>/dev/null | sed 's/^# //' || basename "$prd" .md)
-      DATE=$(stat -f "%Sm" -t "%Y-%m-%d" "$prd" 2>/dev/null || stat -c "%y" "$prd" 2>/dev/null | cut -d' ' -f1)
-      RECENT_FIXES="$RECENT_FIXES- $DATE: $TITLE
+      HEADER_EMITTED=1
+    fi
+    TITLE=$(grep -m1 "^# " "$prd" 2>/dev/null | sed 's/^# //' || basename "$prd" .md)
+    DATE=$(stat -f "%Sm" -t "%Y-%m-%d" "$prd" 2>/dev/null || stat -c "%y" "$prd" 2>/dev/null | cut -d' ' -f1)
+    RECENT_FIXES="$RECENT_FIXES- $DATE: $TITLE
 "
-    done
-  fi
+  done < <(find "$TASKS_DIR" -name "prd-*.md" -mtime -7 -print0 2>/dev/null)
 fi
 
 PROMPT="You are analyzing a daily report for a software product.
