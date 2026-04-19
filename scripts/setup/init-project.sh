@@ -539,13 +539,10 @@ if [ ! -f "docs/tasks/sections/.gitkeep" ]; then
   info "Created docs/tasks/sections/.gitkeep"
 fi
 
-# Create .harness/ runtime directories
+# Create .harness/ runtime directories (no .gitkeep files — blanket gitignore
+# covers everything except harness.local.md; producer commands use mkdir -p
+# on demand, so subdirs don't need to pre-exist in git)
 mkdir -p .harness/todos .harness/observations .harness/screenshots .harness/design-artifacts
-for dir in todos observations screenshots design-artifacts; do
-  if [ ! -f ".harness/$dir/.gitkeep" ]; then
-    touch ".harness/$dir/.gitkeep"
-  fi
-done
 info "Created .harness/ runtime directories (todos, observations, screenshots, design-artifacts)"
 
 # Create docs/solutions/ for /learn compound learning output
@@ -558,6 +555,8 @@ fi
 # Create .harness/harness.local.md (project-specific review context)
 if [ ! -f ".harness/harness.local.md" ]; then
   cat > .harness/harness.local.md <<HLEOF
+<!-- WARNING: This file IS committed to git. Never paste secrets, API keys, tokens, customer data, or production URLs with credentials here. Keep content to non-sensitive project context only. -->
+
 # ${PROJECT_NAME:-\{\{PROJECT_NAME\}\}} — Review Context
 
 ## Review Context
