@@ -10,7 +10,7 @@ Runs the full commit pipeline: branch validation, staging, parallel quality gate
 
 ## Trigger
 
-Invoke with `/commit` or when the user says any of:
+Invoke with `/lp-commit` or when the user says any of:
 
 - "commit changes"
 - "commit this"
@@ -21,7 +21,7 @@ Invoke with `/commit` or when the user says any of:
 
 ## Behavior
 
-Execute the commit command at `.claude/commands/commit.md`. Follow every step in order. Never skip quality gates. Never use `--no-verify`.
+Execute the commit command at `${CLAUDE_PLUGIN_ROOT}/commands/lp-commit.md`. Follow every step in order. Never skip quality gates. Never use `--no-verify`.
 
 ## Key Points
 

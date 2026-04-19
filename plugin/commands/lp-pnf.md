@@ -43,7 +43,7 @@ If no sections are `shaped`, suggest running `/lp-shape-section` first:
 
 ```
 No sections have been shaped yet. Before planning implementation, I recommend
-shaping at least one section with /shape-section [name] so we have detailed
+shaping at least one section with /lp-shape-section [name] so we have detailed
 requirements to plan from.
 
 Alternatively, you can describe a feature directly and I'll plan from your description.
@@ -131,7 +131,7 @@ I found some gaps in the section spec that could affect planning:
 These gaps may lead to an incomplete plan. Would you like to:
 A) Fill them in now (I'll ask the relevant questions)
 B) Proceed anyway (I'll make reasonable assumptions and note them)
-C) Run /shape-section [name] to do a full re-shape
+C) Run /lp-shape-section [name] to do a full re-shape
 ```
 
 If the user chooses A, ask the relevant guided questions from `/lp-shape-section` for just the missing items. If B, proceed but document assumptions clearly in the plan. If C, stop and suggest the command.
@@ -345,7 +345,7 @@ Please review and let me know:
 - Any technical details that need adjustment?
 - Missing edge cases or considerations?
 
-When ready to implement, run /implement-plan or /inf.
+When ready to implement, run /lp-implement-plan or /lp-inf.
 ```
 
 Iterate based on feedback until the user is satisfied.

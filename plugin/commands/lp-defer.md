@@ -50,7 +50,7 @@ deferred_date: YYYY-MM-DD
 ---
 # {description}
 
-Manually deferred via /defer on {date}.
+Manually deferred via /lp-defer on {date}.
 ```
 
 ### Step 4: Confirm

@@ -77,19 +77,19 @@ PRDs that conflict with established conventions or repeat already-documented mis
 
 Spawn FOUR parallel sub-agents (2 codebase + 2 docs):
 
-1. **file-locator** — Find all files related to the feature topic
+1. **lp-file-locator** — Find all files related to the feature topic
    - Prompt: "Find all files related to [feature topic]. Include implementation files,
      tests, configs, and documentation."
 
-2. **pattern-finder** — Find similar implementations to model after
+2. **lp-pattern-finder** — Find similar implementations to model after
    - Prompt: "Find existing patterns for [similar feature type]. Show code examples
      with file:line references."
 
-3. **docs-locator** — Find all documentation related to the feature topic
+3. **lp-docs-locator** — Find all documentation related to the feature topic
    - Prompt: "Find all documents related to [feature topic]. Include plans, reports,
      learnings, architecture docs, and lessons."
 
-4. **docs-analyzer** — Extract decisions, constraints, and rejected approaches
+4. **lp-docs-analyzer** — Extract decisions, constraints, and rejected approaches
    - Prompt: "Analyze documentation related to [feature topic]. Extract key decisions,
      constraints, rejected approaches, promoted patterns, and warnings."
 

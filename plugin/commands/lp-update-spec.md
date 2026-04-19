@@ -116,8 +116,8 @@ Present a summary report to the user:
 
 ### Missing Files:
 
-- DESIGN_SYSTEM.md — run /define-design to create it
-- docs/tasks/sections/dashboard.md — run /shape-section dashboard to create it
+- DESIGN_SYSTEM.md — run /lp-define-design to create it
+- docs/tasks/sections/dashboard.md — run /lp-shape-section dashboard to create it
 
 Which items would you like to fix? You can:
 - Pick by number (e.g., "1, 3, 7")
@@ -178,8 +178,8 @@ After the user decides, update ALL files that reference the old name to use the 
 Suggest the appropriate command:
 
 ```
-DESIGN_SYSTEM.md doesn't exist yet. Run /define-design to create it.
-Section spec for "dashboard" doesn't exist. Run /shape-section dashboard to create it.
+DESIGN_SYSTEM.md doesn't exist yet. Run /lp-define-design to create it.
+Section spec for "dashboard" doesn't exist. Run /lp-shape-section dashboard to create it.
 ```
 
 ---
@@ -219,7 +219,7 @@ Done. Updated spec files:
 Remaining gaps: [count] across [files]
 Remaining inconsistencies: [count]
 
-Run /update-spec again anytime to check for new gaps.
+Run /lp-update-spec again anytime to check for new gaps.
 ```
 
 ---

@@ -50,8 +50,8 @@ The design docs benefit from knowing your product context (sections, users, feat
 
 docs/architecture/PRD.md - [stub / has content]
 
-I recommend running /define-product first, but I can proceed without it if you prefer.
-Would you like to continue or run /define-product first?
+I recommend running /lp-define-product first, but I can proceed without it if you prefer.
+Would you like to continue or run /lp-define-product first?
 ```
 
 If the user wants to continue, proceed without PRD context.
@@ -941,7 +941,7 @@ Extract values from the Q&A answers in Steps 4-9 (DS-0 through FG-3) and condens
 ```markdown
 ## Design Context
 
-<!-- Enriched by /define-design. -->
+<!-- Enriched by /lp-define-design. -->
 
 **Brand:** [primary personality] + [secondary personality]. Voice: [attributes].
 **Philosophy:** [chosen design philosophy] — [one-line description].
@@ -992,10 +992,10 @@ Done. Here is what was written:
 - State: [management approach]
 - Responsive: [strategy]
 
-Recommended next step: Run `/define-architecture` to define your backend structure
+Recommended next step: Run `/lp-define-architecture` to define your backend structure
 and CI/CD pipeline.
 
-After that, use `/shape-section [name]` to deep-dive into each product section.
+After that, use `/lp-shape-section [name]` to deep-dive into each product section.
 ```
 
 ---

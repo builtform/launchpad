@@ -1,6 +1,6 @@
 ---
 name: lp-imgup
-description: "Lightweight image hosting for quick sharing. Upload screenshots and small files to public hosting services (pixhost, catbox, imagebin, beeimg) without cloud provider setup. Returns public URLs for embedding in markdown. Process skill loaded by /feature-video as alternative to rclone."
+description: "Lightweight image hosting for quick sharing. Upload screenshots and small files to public hosting services (pixhost, catbox, imagebin, beeimg) without cloud provider setup. Returns public URLs for embedding in markdown. Process skill loaded by /lp-feature-video as alternative to rclone."
 ---
 # imgup — Quick Image Hosting
 

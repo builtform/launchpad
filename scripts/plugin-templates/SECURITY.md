@@ -26,7 +26,21 @@ These execute with the same privileges as your Claude session. Review the hook s
 
 ## Secret-scan posture
 
-Plugin ships with a **curated generic baseline** at `plugin/data/secret-patterns.txt` (AWS, GitHub, Stripe, Slack, JWT, private-key headers). LaunchPad-internal vendor patterns are NOT shipped. The build pipeline grep-scans `plugin/data/*.yml` against the baseline and refuses to ship on any match.
+Plugin ships with a **curated generic baseline** at `plugin/data/secret-patterns.txt` covering:
+
+- AWS access keys (`AKIA...`)
+- Google API keys (`AIza...`)
+- Stripe keys (`sk_live_`, `sk_test_`, `pk_live_`, `rk_live_`, `rk_test_`, `whsec_`)
+- GitHub tokens (`ghp_`, `gho_`, `ghs_`, `ghu_`, `ghr_`)
+- Slack tokens (`xox[baprs]-`)
+- Anthropic + OpenAI project keys (`sk-ant-`, `sk-proj-` with 40+ char entropy)
+- Private key PEM headers (`-----BEGIN ... PRIVATE KEY-----`)
+
+LaunchPad-internal vendor patterns are NOT shipped. The build pipeline scans
+**every shipped plugin file** (excluding the baseline itself and `SHA256SUMS`)
+against the patterns and refuses to ship on any match. If a match is found,
+file path and line number are logged — **line content is always redacted**
+so the secret is never echoed into CI logs.
 
 Projects that need stronger or project-specific scanning should keep their own `.launchpad/secret-patterns.txt` — the plugin's baseline is a floor, not a ceiling.
 

@@ -1,6 +1,6 @@
 ---
 name: lp-compound-docs
-description: "Process skill for structured problem documentation. Defines 14-category taxonomy, YAML schema, and resolution templates for docs/solutions/. Loaded by /learn."
+description: "Process skill for structured problem documentation. Defines 14-category taxonomy, YAML schema, and resolution templates for docs/solutions/. Loaded by /lp-learn."
 ---
 # Compound Docs Skill
 

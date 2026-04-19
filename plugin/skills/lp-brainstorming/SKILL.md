@@ -1,6 +1,6 @@
 ---
 name: lp-brainstorming
-description: "Process skill for structured brainstorming sessions. Guides collaborative idea exploration through progressive questioning, approach comparison, and design document capture. Loaded by /brainstorm and /harness:kickoff."
+description: "Process skill for structured brainstorming sessions. Guides collaborative idea exploration through progressive questioning, approach comparison, and design document capture. Loaded by /lp-brainstorm and /lp-harness-kickoff."
 ---
 # Brainstorming Skill
 
@@ -69,6 +69,6 @@ Sections:
 
 - Brainstorm = WHAT (problem space)
 - Plan = HOW (solution space)
-- When brainstorm output exists, `/define-product` uses it as context
-- Research agents (`code-analyzer`, `pattern-finder`) replace CE's `repo-research-analyst`
-- Canonical handoff: `/harness:define`
+- When brainstorm output exists, `/lp-define-product` uses it as context
+- Research agents (`lp-code-analyzer`, `lp-pattern-finder`) replace CE's `repo-research-analyst`
+- Canonical handoff: `/lp-harness-define`

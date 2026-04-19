@@ -19,8 +19,8 @@ Activates when:
 
 Example invocations:
 
-- `/create-skill frontend development`
-- `/create-skill "API testing" based on docs/articles/api-guide.md`
+- `/lp-create-skill frontend development`
+- `/lp-create-skill "API testing" based on docs/articles/api-guide.md`
 - `"build a skill for database migrations"`
 - `"teach Claude how to do code reviews"`
 
@@ -31,9 +31,9 @@ Example invocations:
 | Request                         | Use Instead                                     |
 | ------------------------------- | ----------------------------------------------- |
 | Quick one-off prompts           | Direct prompting -- no skill needed             |
-| Modifying an existing skill     | `/update-skill`                                 |
+| Modifying an existing skill     | `/lp-update-skill`                                 |
 | Creating cognitive profiles     | `.claude/profiles/PROFILE-TEMPLATE.md` directly |
-| Evaluating a skill in isolation | `skill-evaluator` sub-agent directly            |
+| Evaluating a skill in isolation | `lp-skill-evaluator` sub-agent directly            |
 
 ---
 
@@ -62,17 +62,17 @@ Read [references/METHODOLOGY.md](mdc:references/METHODOLOGY.md) for the full two
 
 Spawn three sub-agents simultaneously:
 
-1. **pattern-finder** -- Find existing skills, commands, and agent patterns in the codebase. Report file paths, structural conventions, and naming patterns.
-2. **docs-locator** -- Find all documentation related to the skill topic. Include architecture docs, guides, learnings, and prior decisions.
-3. **file-locator** -- Find all implementation files related to the skill topic. Include configs, scripts, and test files.
+1. **lp-pattern-finder** -- Find existing skills, commands, and agent patterns in the codebase. Report file paths, structural conventions, and naming patterns.
+2. **lp-docs-locator** -- Find all documentation related to the skill topic. Include architecture docs, guides, learnings, and prior decisions.
+3. **lp-file-locator** -- Find all implementation files related to the skill topic. Include configs, scripts, and test files.
 
 ### Wave 2: Analysis (parallel, inherit)
 
 After Wave 1 completes, spawn three more:
 
-1. **code-analyzer** -- Analyze Wave 1 findings for patterns, anti-patterns, and conventions to follow.
-2. **docs-analyzer** -- Extract decisions, constraints, rejected approaches, and promoted patterns from documentation.
-3. **web-researcher** -- Search the web for best practices, common pitfalls, and expert approaches to the skill topic.
+1. **lp-code-analyzer** -- Analyze Wave 1 findings for patterns, anti-patterns, and conventions to follow.
+2. **lp-docs-analyzer** -- Extract decisions, constraints, rejected approaches, and promoted patterns from documentation.
+3. **lp-web-researcher** -- Search the web for best practices, common pitfalls, and expert approaches to the skill topic.
 
 ### Source Material Handling
 
@@ -226,7 +226,7 @@ Read [references/QUALITY-GATES.md](mdc:references/QUALITY-GATES.md) before proce
 
 ### Recursive Evaluation Loop
 
-Spawn a `skill-evaluator` sub-agent (Sonnet, read-only access to skill files).
+Spawn a `lp-skill-evaluator` sub-agent (Sonnet, read-only access to skill files).
 
 The loop:
 
@@ -308,7 +308,7 @@ Deliver a structured summary:
 - Added to Available Sub-Agents: [entry]
 
 ### Usage
-Invoke with: /create-skill <topic>
+Invoke with: /lp-create-skill <topic>
 Or say: "create a skill for <topic>"
 ```
 

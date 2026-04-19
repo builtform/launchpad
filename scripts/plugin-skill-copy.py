@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Copy .claude/skills/<name>/ → plugin/skills/<prefix><name>/ with frontmatter rewrite.
+"""Copy .claude/skills/<name>/ → plugin/skills/<prefix><name>/ with rewrites.
 
 Treats each top-level directory under .claude/skills/ as a skill bundle.
-Rewrites SKILL.md frontmatter `name:` field to match the new directory.
-Preserves all support files inside the skill directory verbatim.
+Applies the same command + agent + path rewrites that plugin-command-rewrites.py
+applies to command files, so SKILL.md prose pointing at /commit, agent names,
+or .claude/ source paths gets transformed to the plugin equivalents.
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import re
 import shutil
 import sys
@@ -18,7 +20,24 @@ FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 NAME_RE = re.compile(r"^(name:\s*)([\w\-./]+)\s*$", re.MULTILINE)
 
 
-def rewrite_skill_name(skill_md: Path, new_name: str) -> None:
+def load_rewrite_lib(script_dir: Path):
+    """Load plugin-command-rewrites.py as a module (hyphenated filename).
+
+    We use importlib rather than a plain import so the rewrite helpers can
+    live in a hyphenated entry-point script consistent with other plugin-*
+    shell scripts. The alternative — extracting to an underscore-named lib
+    module — is a larger refactor we can defer.
+    """
+    rewrites_path = script_dir / "plugin-command-rewrites.py"
+    spec = importlib.util.spec_from_file_location("plugin_command_rewrites", rewrites_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Could not load {rewrites_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def rewrite_skill_frontmatter_name(skill_md: Path, new_name: str) -> str:
     content = skill_md.read_text(encoding="utf-8")
     m = FRONTMATTER_RE.match(content)
     if not m:
@@ -28,7 +47,7 @@ def rewrite_skill_name(skill_md: Path, new_name: str) -> None:
         new_fm = NAME_RE.sub(rf"\g<1>{new_name}", fm, count=1)
     else:
         new_fm = f"name: {new_name}\n{fm}"
-    skill_md.write_text(f"---\n{new_fm}\n---\n{content[m.end():]}", encoding="utf-8")
+    return f"---\n{new_fm}\n---\n{content[m.end():]}"
 
 
 def main() -> int:
@@ -36,11 +55,22 @@ def main() -> int:
     ap.add_argument("--src", required=True, help=".claude/skills source root")
     ap.add_argument("--dst", required=True, help="plugin/skills destination")
     ap.add_argument("--prefix", default="lp-", help="Skill dir prefix")
+    ap.add_argument("--commands-src", required=True,
+                    help=".claude/commands source root (for rewrite-rule generation)")
+    ap.add_argument("--agents-src", required=True,
+                    help=".claude/agents source root (for rewrite-rule generation)")
     args = ap.parse_args()
 
     src = Path(args.src)
     dst = Path(args.dst)
     dst.mkdir(parents=True, exist_ok=True)
+
+    # Load shared rewrite helpers + build rules once (cmds/agents don't change
+    # during a single build).
+    lib = load_rewrite_lib(Path(__file__).resolve().parent)
+    cmds = lib.collect_command_names(Path(args.commands_src))
+    agents = lib.collect_agent_names(Path(args.agents_src))
+    rules = lib.build_rules(cmds, agents, args.prefix)
 
     count = 0
     for skill_dir in sorted(p for p in src.iterdir() if p.is_dir()):
@@ -58,7 +88,12 @@ def main() -> int:
         if not skill_md.exists():
             print(f"ERROR: {skill_dir} has no SKILL.md", file=sys.stderr)
             return 1
-        rewrite_skill_name(skill_md, new_name)
+        # Frontmatter first (authoritative name), then body rewrites:
+        # slash-command rules + agent name rules + path rewrites.
+        content = rewrite_skill_frontmatter_name(skill_md, new_name)
+        content = lib.rewrite_content(content, rules)
+        content = lib.apply_path_rewrites(content)
+        skill_md.write_text(content, encoding="utf-8")
         count += 1
 
     print(f"  skills: {count} bundles copied to {dst}", file=sys.stderr)

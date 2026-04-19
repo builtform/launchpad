@@ -53,8 +53,8 @@ Warn:
 No copy brief found in section spec. Components will use placeholder text.
 
 To create copy:
-- Add a "## Copy" section to the section spec during /shape-section
-- Or run a copy skill during /harness:define (downstream projects configure copy skills)
+- Add a "## Copy" section to the section spec during /lp-shape-section
+- Or run a copy skill during /lp-harness-define (downstream projects configure copy skills)
 ```
 
 ---

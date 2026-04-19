@@ -1,6 +1,6 @@
 ---
 name: lp-responsive-design
-description: "Injects responsive-first thinking into section specs and design definitions. Loaded by spec-layer commands (/shape-section, /define-design, /pnf) to ensure every spec includes explicit mobile-first layout decisions, breakpoint behavior per component, container query strategy, touch target requirements, and fluid typography. Triggers on: loaded alongside /shape-section, /define-design, /pnf."
+description: "Injects responsive-first thinking into section specs and design definitions. Loaded by spec-layer commands (/lp-shape-section, /lp-define-design, /lp-pnf) to ensure every spec includes explicit mobile-first layout decisions, breakpoint behavior per component, container query strategy, touch target requirements, and fluid typography. Triggers on: loaded alongside /lp-shape-section, /lp-define-design, /lp-pnf."
 ---
 # Responsive Design — Spec Layer Skill
 
@@ -12,14 +12,14 @@ description: "Injects responsive-first thinking into section specs and design de
 
 This skill activates when loaded alongside spec-layer commands:
 
-- `/shape-section` — adds a "Responsive Behavior" section to every section spec
-- `/define-design` — ensures DESIGN_SYSTEM.md includes responsive tokens and FRONTEND_GUIDELINES.md includes responsive strategy
-- `/pnf` — ensures implementation plans include responsive requirements per component
+- `/lp-shape-section` — adds a "Responsive Behavior" section to every section spec
+- `/lp-define-design` — ensures DESIGN_SYSTEM.md includes responsive tokens and FRONTEND_GUIDELINES.md includes responsive strategy
+- `/lp-pnf` — ensures implementation plans include responsive requirements per component
 
 This skill does NOT activate for:
 
-- Post-implementation audits (use `design-responsive-auditor` agent)
-- Visual design decisions (use `design-alignment-checker` agent)
+- Post-implementation audits (use `lp-design-responsive-auditor` agent)
+- Visual design decisions (use `lp-design-alignment-checker` agent)
 - General accessibility (only responsive-specific WCAG criteria: 1.4.4, 1.4.10, 2.5.8)
 - Performance optimization (CLS is mentioned as responsive-adjacent, not owned)
 
@@ -29,8 +29,8 @@ This skill does NOT activate for:
 
 | Request                                                | Use Instead                         |
 | ------------------------------------------------------ | ----------------------------------- |
-| Audit existing responsive implementation               | `design-responsive-auditor` agent   |
-| Visual design, hierarchy, color, typography aesthetics | `design-alignment-checker` agent    |
+| Audit existing responsive implementation               | `lp-design-responsive-auditor` agent   |
+| Visual design, hierarchy, color, typography aesthetics | `lp-design-alignment-checker` agent    |
 | General WCAG accessibility compliance                  | Accessibility skill or manual audit |
 | Performance optimization (LCP, INP)                    | Performance audit tooling           |
 | CSS/Tailwind code generation                           | Build agent during implementation   |
@@ -52,19 +52,19 @@ This skill does NOT activate for:
 
 Identify which command loaded this skill. The injection behavior differs:
 
-**Mode A — `/define-design`:**
+**Mode A — `/lp-define-design`:**
 
 - Inject responsive tokens into DESIGN_SYSTEM.md output (breakpoints, container breakpoints, fluid type scale)
 - Inject responsive strategy into FRONTEND_GUIDELINES.md output
 - Follow the define-design question flow; enhance answers DS-4 (Spacing & Layout) and FG-3 (Responsive Strategy) with responsive-specific depth
 
-**Mode B — `/shape-section`:**
+**Mode B — `/lp-shape-section`:**
 
 - After the user answers S-5 (UI Patterns), inject a responsive behavior definition for EVERY UI pattern chosen
 - Add a "Responsive Behavior" section to the section spec output
 - This is the primary mode — most responsive decisions happen here
 
-**Mode C — `/pnf`:**
+**Mode C — `/lp-pnf`:**
 
 - For each component in the implementation plan, include responsive requirements
 - Reference the section spec's Responsive Behavior section
@@ -95,7 +95,7 @@ Check for these responsive tokens:
 
 ## Step 2: Inject Responsive Definitions
 
-### Mode A: `/define-design` Injection
+### Mode A: `/lp-define-design` Injection
 
 When the define-design command reaches **DS-4 (Spacing & Layout)**, enhance the question with:
 
@@ -120,7 +120,7 @@ When the define-design command reaches **FG-3 (Responsive Strategy)**, enhance t
 
 Write these tokens into the DESIGN_SYSTEM.md and FRONTEND_GUIDELINES.md outputs.
 
-### Mode B: `/shape-section` Injection
+### Mode B: `/lp-shape-section` Injection
 
 After the user answers **S-5 (UI Patterns)**, for EACH chosen UI pattern, generate a responsive behavior definition.
 
@@ -153,7 +153,7 @@ Only include breakpoint rows where the layout actually changes. Do not list ever
 - Navigation structure = viewport queries
 - Reusable design system components = container queries
 
-### Mode C: `/pnf` Injection
+### Mode C: `/lp-pnf` Injection
 
 For each component in the implementation plan:
 

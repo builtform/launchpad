@@ -577,11 +577,11 @@ Done. Here is what was written:
 **CLAUDE.md** updated with project purpose and tech stack summary.
 **README.md** updated with product description, features, and tech stack.
 
-Recommended next step: Run `/define-design` to define your design system, app flow,
-and frontend guidelines, then `/define-architecture` to define your backend structure
+Recommended next step: Run `/lp-define-design` to define your design system, app flow,
+and frontend guidelines, then `/lp-define-architecture` to define your backend structure
 and CI/CD pipeline.
 
-After that, use `/shape-section [name]` to deep-dive into each product section.
+After that, use `/lp-shape-section [name]` to deep-dive into each product section.
 ```
 
 ---

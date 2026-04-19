@@ -28,13 +28,13 @@ Invocation patterns:
 I'll help you port an external skill into the project.
 
 Please provide the source:
-- A local file path: /port-skill based on path/to/SKILL.md
-- A file in the skills inbox: /port-skill based on .claude/skills-inbox/skill-name/SKILL.md
+- A local file path: /lp-port-skill based on path/to/SKILL.md
+- A file in the skills inbox: /lp-port-skill based on .claude/skills-inbox/skill-name/SKILL.md
 
 The ported skill will be adapted to the project's format, validated against the 16
 quality criteria, and registered in CLAUDE.md, AGENTS.md, and the skills catalog
 (docs/skills-catalog/skills-index.md + skills-usage.json).
-After porting, use /update-skill to iterate on it like any other project skill.
+After porting, use /lp-update-skill to iterate on it like any other project skill.
 ```
 
 Wait for user input, then proceed.

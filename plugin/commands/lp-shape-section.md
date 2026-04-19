@@ -24,8 +24,8 @@ Read these files to load project context:
 **If PRD.md is still a stub or has no Product Sections table**, tell the user:
 
 ```
-Section shaping requires a section registry in PRD.md. Please run /define-product first
-to define your product sections, then come back to /shape-section.
+Section shaping requires a section registry in PRD.md. Please run /lp-define-product first
+to define your product sections, then come back to /lp-shape-section.
 ```
 
 Then STOP.
@@ -498,9 +498,9 @@ Done. Section "[section-name]" has been shaped.
 Remaining unshaped sections: [list any with status "defined"]
 
 Next steps:
-- Shape another section: /shape-section [next-section]
-- Fill in any TBDs: /update-spec
-- When all MVP sections are shaped, plan implementation: /pnf [section-name]
+- Shape another section: /lp-shape-section [next-section]
+- Fill in any TBDs: /lp-update-spec
+- When all MVP sections are shaped, plan implementation: /lp-pnf [section-name]
 ```
 
 ---

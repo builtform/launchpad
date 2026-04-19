@@ -182,6 +182,6 @@ Every design decision has a performance cost:
 
 ## Related Commands
 
-- `/design-review` — Comprehensive quality audit + honest design critique
-- `/design-polish` — Pre-ship refinement: alignment, copy, consistency, resilience, edge cases
-- `/design-onboard` — Design onboarding flows, empty states, and first-time experiences
+- `/lp-design-review` — Comprehensive quality audit + honest design critique
+- `/lp-design-polish` — Pre-ship refinement: alignment, copy, consistency, resilience, edge cases
+- `/lp-design-onboard` — Design onboarding flows, empty states, and first-time experiences

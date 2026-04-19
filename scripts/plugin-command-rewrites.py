@@ -43,6 +43,18 @@ HARNESS_COMMANDS = {"build", "plan", "define", "kickoff"}
 PATH_REWRITES: list[tuple[str, str]] = [
     (r"\./scripts/compound/", r"${CLAUDE_PLUGIN_ROOT}/bin/compound/"),
     (r"(?<![\w/.])scripts/compound/", r"${CLAUDE_PLUGIN_ROOT}/bin/compound/"),
+    # .claude/commands/<already-prefixed>.md — preserve, just swap the root.
+    # Must come BEFORE the unprefixed rule to avoid double-prefix.
+    (r"\.claude/commands/(lp-[a-z0-9][a-z0-9-]*)\.md",
+     r"${CLAUDE_PLUGIN_ROOT}/commands/\1.md"),
+    # .claude/commands/<unprefixed>.md → plugin commands path with lp- prefix.
+    (r"\.claude/commands/(?!lp-)([a-z0-9][a-z0-9-]*)\.md",
+     r"${CLAUDE_PLUGIN_ROOT}/commands/lp-\1.md"),
+    # Same two-step for agents: already-prefixed first, then unprefixed.
+    (r"\.claude/agents/(?:[a-z0-9-]+/)?(lp-[a-z0-9][a-z0-9-]*)\.md",
+     r"${CLAUDE_PLUGIN_ROOT}/agents/\1.md"),
+    (r"\.claude/agents/(?:[a-z0-9-]+/)?(?!lp-)([a-z0-9][a-z0-9-]*)\.md",
+     r"${CLAUDE_PLUGIN_ROOT}/agents/lp-\1.md"),
 ]
 
 
@@ -114,24 +126,13 @@ def apply_path_rewrites(text: str) -> str:
 
 
 def rewrite_content(content: str, rules: list[tuple[re.Pattern, str]]) -> str:
-    parts = split_by_fences(content)
-    out: list[str] = []
-    for span, in_fence in parts:
-        if not in_fence:
-            # Prose: apply all rules freely
-            out.append(apply_rules(span, rules))
-        else:
-            # In code fence: rewrite only lines that look like slash-command invocations
-            # (line begins with optional whitespace then `/`, or contains `/lp-`-prone refs)
-            rewritten_lines: list[str] = []
-            for line in span.splitlines(keepends=True):
-                stripped = line.lstrip()
-                if stripped.startswith("/"):
-                    rewritten_lines.append(apply_rules(line, rules))
-                else:
-                    rewritten_lines.append(line)
-            out.append("".join(rewritten_lines))
-    return "".join(out)
+    # Apply rules both inside and outside code fences. The rules' boundary
+    # regexes (SLASH_BOUNDARY_PRE/POST, AGENT_BOUNDARY_PRE/POST) already
+    # guard against URLs and paths (e.g. `http://host/path` and `./scripts/foo`
+    # won't match), so blanket application is safe in practice.
+    # Prior versions restricted fence rewrites to lines starting with `/`,
+    # which caused mid-prose references inside fences to survive unprefixed.
+    return apply_rules(content, rules)
 
 
 def rewrite_frontmatter_name(content: str, new_name: str) -> str:

@@ -25,7 +25,7 @@ These architecture docs depend on your product requirements and tech stack being
 docs/architecture/PRD.md - [stub / has content]
 docs/architecture/TECH_STACK.md - [stub / has content]
 
-Please run /define-product first, then come back to /define-architecture.
+Please run /lp-define-product first, then come back to /lp-define-architecture.
 ```
 
 Then STOP. Do not proceed further.
@@ -38,7 +38,7 @@ Then STOP. Do not proceed further.
 ```
 I notice your App Flow hasn't been defined yet. I recommend running
 /lp-define-design first so your backend auth strategy can reference your UX auth flow.
-Would you like to continue without it, or run /define-design first?
+Would you like to continue without it, or run /lp-define-design first?
 ```
 
 If the user wants to continue, proceed without APP_FLOW context.
@@ -379,9 +379,9 @@ Your backend architecture and CI/CD docs are now defined.
 README.md updated with architecture overview.
 
 Next steps:
-- Shape each product section: /shape-section [section-name]
-- Fill in any TBDs: /update-spec
-- When sections are shaped, plan implementation: /pnf [section-name]
+- Shape each product section: /lp-shape-section [section-name]
+- Fill in any TBDs: /lp-update-spec
+- When sections are shaped, plan implementation: /lp-pnf [section-name]
 ```
 
 ---

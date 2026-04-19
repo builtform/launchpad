@@ -42,9 +42,9 @@ Please provide:
 2. What needs to change -- what gaps did you discover?
 
 Examples:
-- `/update-skill commit add Greptile review support`
-- `/update-skill prd improve the edge case detection`
-- `/update-skill creating-skills` (I'll ask what needs to change)
+- `/lp-update-skill commit add Greptile review support`
+- `/lp-update-skill prd improve the edge case detection`
+- `/lp-update-skill creating-skills` (I'll ask what needs to change)
 ```
 
 ## Step 3: Delta Analysis

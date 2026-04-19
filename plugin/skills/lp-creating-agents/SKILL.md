@@ -19,7 +19,7 @@ This skill activates when:
 
 **Examples:**
 
-- `/create-agent security-reviewer for reviewing code security`
+- `/lp-create-agent security-reviewer for reviewing code security`
 - `"create an agent that finds unused dependencies"`
 - `"convert the prd skill into a lightweight agent"`
 - `"build a new agent for database migration review"`
@@ -28,10 +28,10 @@ This skill activates when:
 
 | Request                                 | Use Instead                                    |
 | --------------------------------------- | ---------------------------------------------- |
-| Creating skills (multi-phase workflows) | `/create-skill` + `creating-skills` skill      |
+| Creating skills (multi-phase workflows) | `/lp-create-skill` + `creating-skills` skill      |
 | Configuring Agent Teams                 | Manual setup — experimental feature            |
 | Setting up MCP servers for agents       | `claude mcp add` directly                      |
-| Modifying existing agent files          | Direct editing or `/update-skill` on the skill |
+| Modifying existing agent files          | Direct editing or `/lp-update-skill` on the skill |
 | Creating commands that wire agents      | Manual command creation                        |
 
 ---
@@ -89,7 +89,7 @@ Present the spec to the user for confirmation before proceeding.
 
 Spawn one sub-agent (Sonnet):
 
-- **pattern-finder** — Read all files in `.claude/agents/` (and subdirectories if they exist). Report the exact frontmatter schema, body section structure, tool assignments, description style, and naming patterns used by existing agents.
+- **lp-pattern-finder** — Read all files in `.claude/agents/` (and subdirectories if they exist). Report the exact frontmatter schema, body section structure, tool assignments, description style, and naming patterns used by existing agents.
 
 After the sub-agent returns, check for overlap:
 

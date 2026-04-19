@@ -68,7 +68,7 @@ Before implementing each phase, spawn a **lp-pattern-finder** sub-agent to find 
 **How to spawn it:**
 
 ```
-Task(subagent_type="pattern-finder", prompt="Find existing patterns for [what you're about to implement] in [relevant directory]")
+Task(subagent_type="lp-pattern-finder", prompt="Find existing patterns for [what you're about to implement] in [relevant directory]")
 ```
 
 Use the returned code examples as your template — match the style, naming, structure, and error handling patterns exactly.
@@ -86,7 +86,7 @@ Before each phase, also consider spawning a **lp-docs-analyzer** sub-agent to ch
 **How to spawn it:**
 
 ```
-Task(subagent_type="docs-analyzer", prompt="Check docs/solutions/ and docs/lessons/ for any documented decisions, constraints, or promoted patterns related to [current phase's domain]")
+Task(subagent_type="lp-docs-analyzer", prompt="Check docs/solutions/ and docs/lessons/ for any documented decisions, constraints, or promoted patterns related to [current phase's domain]")
 ```
 
 Use the returned insights to avoid repeating mistakes and to follow previously promoted patterns. If the lp-docs-analyzer finds relevant constraints or rejected approaches, factor them into your implementation.

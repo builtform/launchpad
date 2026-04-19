@@ -53,10 +53,10 @@ Write `docs/tasks/BACKLOG.md` with this template:
 
 ## Next Actions
 
-1. Address P1 items: /triage
-2. Plan a new section: /harness:plan
-3. Continue building (approved plan): /harness:build
-4. Add a task: /defer "description" --priority P2
+1. Address P1 items: /lp-triage
+2. Plan a new section: /lp-harness-plan
+3. Continue building (approved plan): /lp-harness-build
+4. Add a task: /lp-defer "description" --priority P2
 ```
 
 After generation: check character count. IF >1,200 chars: reduce table rows until within budget.

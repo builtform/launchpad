@@ -105,6 +105,8 @@ heading "Copy skills"
 python3 "$REPO/scripts/plugin-skill-copy.py" \
   --src "$SRC/skills" \
   --dst "$DST_NEW/skills" \
+  --commands-src "$SRC/commands" \
+  --agents-src "$SRC/agents" \
   --prefix lp-
 
 # ----------------------------------------------------------------------------
@@ -242,9 +244,15 @@ if [ -s "$PATTERN_TMP" ]; then
   )
   if [ -n "$SCAN_HITS" ]; then
     err "potential secret(s) detected in shipped plugin files — refusing to ship"
+    err "(line content redacted to avoid leaking the secret into CI logs)"
     echo "$SCAN_HITS" | while IFS= read -r hit; do
-      echo "  match in: ${hit#$DST_NEW/}" >&2
-      grep -E -n -f "$PATTERN_TMP" "$hit" >&2 || true
+      # Print file:linenum only. Never echo the matching line content —
+      # that would log the secret itself into build/CI history forever.
+      grep -E -n -f "$PATTERN_TMP" "$hit" 2>/dev/null \
+        | cut -d: -f1 \
+        | while IFS= read -r ln; do
+          echo "  ${hit#$DST_NEW/}:$ln (secret pattern matched — content redacted)" >&2
+        done
     done
     rm -f "$PATTERN_TMP"
     exit 1
