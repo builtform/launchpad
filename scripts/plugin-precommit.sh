@@ -50,8 +50,13 @@ if [ "$source_changed" -eq 1 ]; then
     exit 1
   fi
   # Re-stage the plugin/ delta. `git add -A` is scoped to plugin/ to avoid
-  # accidentally staging unrelated changes.
-  git add -A plugin/ || true
+  # accidentally staging unrelated changes. Fail the hook on staging error
+  # (index lock, permissions, etc.) — a silent `|| true` here would let the
+  # commit proceed with stale plugin/ files.
+  if ! git add -A plugin/; then
+    echo "✗ failed to stage rebuilt plugin/ — aborting commit" >&2
+    exit 1
+  fi
   echo "✓ plugin/ rebuilt and staged"
 fi
 

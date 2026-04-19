@@ -9,7 +9,13 @@ set -euo pipefail
 BIN_DIR="${1:?usage: $0 <plugin/bin dir>}"
 
 SHIM=$'# --- launchpad plugin self-locating preamble (injected by build-plugin.sh) ---\n'
-SHIM+=$'PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"\n'
+# PLUGIN_ROOT is computed from the script path. The parameter-expansion
+# pattern `${__lp_script_dir%/bin*}` strips everything from `/bin` onward,
+# so scripts at any depth under plugin/bin (including plugin/bin/compound/)
+# resolve to the plugin root correctly.
+SHIM+=$'__lp_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n'
+SHIM+=$'PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-${__lp_script_dir%/bin*}}"\n'
+SHIM+=$'unset __lp_script_dir\n'
 SHIM+=$'PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"\n'
 SHIM+=$'# --- end launchpad preamble ---\n'
 

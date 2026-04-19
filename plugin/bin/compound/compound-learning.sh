@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # --- launchpad plugin self-locating preamble (injected by build-plugin.sh) ---
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+__lp_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-${__lp_script_dir%/bin*}}"
+unset __lp_script_dir
 PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 # --- end launchpad preamble ---
 # Compound Learning — Extract learnings from progress.txt
