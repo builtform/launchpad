@@ -107,6 +107,42 @@ Extra context, links to PRs, issues, logs, or external docs.
 
 ## Backlog
 
+### P1 - High
+
+#### BL-001 - LaunchPad Plugin v0.2 hardening pass
+
+- **Priority**: P1
+- **Status**: TODO
+- **Area**: Infra
+
+**Encountered**
+
+- **Date**: 2026-04-19
+- **Location**: `docs/tasks/v0.2-hardening-checklist.md` (full details)
+- **Scenario**: Plugin v0.1 shipped on `feat/plugin-extraction` after 11 rounds of Codex review. Eight items were explicitly deferred to v0.2 — either diminishing-returns review findings or v0.1 scope cuts.
+
+**Current Behavior**
+
+Plugin v0.1 is functionally correct and brownfield-safe for 7 Priority A commands. 29 remaining commands ship unmodified. Build-time secret scan uses filtered baseline only. Harness command rewriter uses a hardcoded set. No deterministic shell-lint in CI.
+
+**Desired Behavior**
+
+- Rule-based CI scanners (shellcheck + gitleaks) replace iterative Codex review for mechanical shell bugs
+- Build-time secret scan runs against `filtered baseline ∪ high-signal internal patterns`
+- Harness command list collected dynamically from `.claude/commands/harness/*.md`
+- Graceful degradation extended to 29 remaining L2 / create-\* / harness commands
+- Marketplace submission (enables `claude plugin install launchpad` and `plugin update`)
+
+**Proposed Fix** (revalidate before implementing)
+
+Follow the sequencing and acceptance criteria in [v0.2-hardening-checklist.md](v0.2-hardening-checklist.md). Start with rule-based scanners (#7 + #8 in the checklist) — they have the highest leverage and reduce noise for subsequent PRs.
+
+**Notes**
+
+This BL is an umbrella entry — break it into sub-tasks as each checklist item is picked up. Source context: 11-round Codex review on PR #22 (feat/plugin-extraction).
+
+---
+
 ### P0 - Critical
 
 <!-- EXAMPLE (delete when adding real tasks):
