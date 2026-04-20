@@ -88,12 +88,25 @@ def main() -> int:
         if not skill_md.exists():
             print(f"ERROR: {skill_dir} has no SKILL.md", file=sys.stderr)
             return 1
-        # Frontmatter first (authoritative name), then body rewrites:
-        # slash-command rules + agent name rules + path rewrites.
+
+        # SKILL.md: frontmatter (authoritative name) + body rewrites.
         content = rewrite_skill_frontmatter_name(skill_md, new_name)
         content = lib.rewrite_content(content, rules)
         content = lib.apply_path_rewrites(content)
         skill_md.write_text(content, encoding="utf-8")
+
+        # Reference files (references/, scripts/, etc. within the skill
+        # bundle) also contain /command refs that need rewriting — e.g.
+        # `/port-skill`, `/create-skill`. Walk all .md files under the
+        # skill directory except SKILL.md itself.
+        for ref in sorted(target.rglob("*.md")):
+            if ref.resolve() == skill_md.resolve():
+                continue
+            ref_content = ref.read_text(encoding="utf-8")
+            ref_content = lib.rewrite_content(ref_content, rules)
+            ref_content = lib.apply_path_rewrites(ref_content)
+            ref.write_text(ref_content, encoding="utf-8")
+
         count += 1
 
     print(f"  skills: {count} bundles copied to {dst}", file=sys.stderr)

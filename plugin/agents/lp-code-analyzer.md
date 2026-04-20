@@ -1,6 +1,6 @@
 ---
 name: lp-code-analyzer
-description: Analyzes codebase implementation details. Call the code-analyzer agent when you need to find detailed information about specific components. As always, the more detailed your request prompt, the better! :)
+description: Analyzes codebase implementation details. Call the lp-code-analyzer agent when you need to find detailed information about specific components. As always, the more detailed your request prompt, the better! :)
 tools: Read, Grep, Glob, LS
 model: inherit
 ---

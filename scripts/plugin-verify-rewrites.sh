@@ -67,13 +67,16 @@ if [ -d "$REPO/.claude/commands" ]; then
   )
   if [ -n "$CMD_NAMES" ]; then
     # Join with | to form regex alternation. Pattern matches /<name> with
-    # word boundaries that exclude letters/digits/hyphen/colon/slash around it.
+    # word boundaries that exclude letters/digits/hyphen/colon/slash around
+    # the token. The boundary guards mean `/lp-commit` does NOT match a rule
+    # looking for `/commit` — the `-` before `commit` is excluded by the
+    # pre-boundary class. So no additional `grep -v` filter is needed, and
+    # adding one would risk false negatives (e.g. a line containing both an
+    # unresolved `/commit` and a valid `/lp-review` would be silently dropped).
     ALTERNATION=$(echo "$CMD_NAMES" | tr '\n' '|' | sed 's/|$//')
-    # Using awk for Perl-like look-around via explicit boundary chars.
     UNRESOLVED=$(
       grep -rEn "(^|[^[:alnum:]/:-])/(${ALTERNATION})([^[:alnum:]/:-]|$)" \
-        "$DST/commands" "$DST/skills" "$DST/agents" 2>/dev/null \
-        | grep -Ev "/${PREFIX}" || true
+        "$DST/commands" "$DST/skills" "$DST/agents" 2>/dev/null || true
     )
     if [ -n "$UNRESOLVED" ]; then
       echo "ERROR: unresolved bare slash-command reference(s) in plugin content:" >&2

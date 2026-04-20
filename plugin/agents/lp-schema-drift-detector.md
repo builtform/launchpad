@@ -12,8 +12,8 @@ Read: `prisma/schema.prisma` + `prisma/migrations/` + git diff of Prisma files +
 
 ## Context-Aware Behavior
 
-- **When dispatched by `/review`:** You run FIRST. Your drift report is passed to `data-migration-auditor` and `data-integrity-auditor`. Use the structured format below so downstream agents can parse legitimate vs drifted changes.
-- **When dispatched by `/harden-plan`:** No downstream agents consume your report. Produce findings directly as P1/P2/P3 for the plan synthesizer.
+- **When dispatched by `/lp-review`:** You run FIRST. Your drift report is passed to `lp-data-migration-auditor` and `lp-data-integrity-auditor`. Use the structured format below so downstream agents can parse legitimate vs drifted changes.
+- **When dispatched by `/lp-harden-plan`:** No downstream agents consume your report. Produce findings directly as P1/P2/P3 for the plan synthesizer.
 
 ## Prisma Drift Patterns (4 Types)
 

@@ -6,7 +6,7 @@ tools: Read, Grep, Glob
 ---
 # Design UI Auditor
 
-Quick UI audit agent with 5 focused checks. Dispatched by `/review` via `review_design_agents` and by `/harness:plan` Step 2c during design review.
+Quick UI audit agent with 5 focused checks. Dispatched by `/lp-review` via `review_design_agents` and by `/lp-harness-plan` Step 2c during design review.
 
 ## Prerequisites
 

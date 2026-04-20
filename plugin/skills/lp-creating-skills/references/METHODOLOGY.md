@@ -30,9 +30,9 @@ Build a complete understanding of the skill's domain before asking the user any 
 
 | Agent            | Task                                                                | Tools      |
 | ---------------- | ------------------------------------------------------------------- | ---------- |
-| `pattern-finder` | Find existing skills, commands, and workflow patterns in `.claude/` | Glob, Grep |
-| `docs-locator`   | Find relevant docs across `docs/`, `CLAUDE.md`, `AGENTS.md`         | Glob, Grep |
-| `file-locator`   | Find implementation files related to the skill's target domain      | Glob, Grep |
+| `lp-pattern-finder` | Find existing skills, commands, and workflow patterns in `.claude/` | Glob, Grep |
+| `lp-docs-locator`   | Find relevant docs across `docs/`, `CLAUDE.md`, `AGENTS.md`         | Glob, Grep |
+| `lp-file-locator`   | Find implementation files related to the skill's target domain      | Glob, Grep |
 
 **Wait for ALL Wave 1 agents before spawning Wave 2.**
 
@@ -40,9 +40,9 @@ Build a complete understanding of the skill's domain before asking the user any 
 
 | Agent            | Task                                                          | Tools               |
 | ---------------- | ------------------------------------------------------------- | ------------------- |
-| `code-analyzer`  | Read and understand patterns at paths from Wave 1             | Read, Glob, Grep    |
-| `docs-analyzer`  | Extract decisions, constraints, conventions from located docs | Read, Glob, Grep    |
-| `web-researcher` | Gather current docs for unfamiliar libraries or techniques    | WebSearch, WebFetch |
+| `lp-code-analyzer`  | Read and understand patterns at paths from Wave 1             | Read, Glob, Grep    |
+| `lp-docs-analyzer`  | Extract decisions, constraints, conventions from located docs | Read, Glob, Grep    |
+| `lp-web-researcher` | Gather current docs for unfamiliar libraries or techniques    | WebSearch, WebFetch |
 
 **Wait for ALL Wave 2 agents before proceeding.**
 
@@ -159,7 +159,7 @@ All DRIFTED and UNSOURCED claims must be resolved before proceeding.
 Evaluate the skill against Launchpad's quality standards.
 
 1. Load `QUALITY-GATES.md` from creating-skills references
-2. Spawn `skill-evaluator` (Sonnet, read-only) to evaluate against all quality gates
+2. Spawn `lp-skill-evaluator` (Sonnet, read-only) to evaluate against all quality gates
 3. Execute the recursive improvement loop (max 3 cycles):
 
 ```
@@ -221,15 +221,15 @@ Phase 4 retroactively determines depth of Phases 5-7 but never skips them. A Sim
 
 | Agent                        | Phase | Model   | Mode      | Spawned When                |
 | ---------------------------- | ----- | ------- | --------- | --------------------------- |
-| `pattern-finder`             | 1     | inherit | Read-only | Always (Wave 1)             |
-| `docs-locator`               | 1     | Sonnet  | Read-only | Always (Wave 1)             |
-| `file-locator`               | 1     | inherit | Read-only | Always (Wave 1)             |
-| `code-analyzer`              | 1     | inherit | Read-only | Always (Wave 2)             |
-| `docs-analyzer`              | 1     | Sonnet  | Read-only | Always (Wave 2)             |
-| `web-researcher`             | 1     | inherit | Read-only | Unfamiliar tech involved    |
+| `lp-pattern-finder`             | 1     | inherit | Read-only | Always (Wave 1)             |
+| `lp-docs-locator`               | 1     | Sonnet  | Read-only | Always (Wave 1)             |
+| `lp-file-locator`               | 1     | inherit | Read-only | Always (Wave 1)             |
+| `lp-code-analyzer`              | 1     | inherit | Read-only | Always (Wave 2)             |
+| `lp-docs-analyzer`              | 1     | Sonnet  | Read-only | Always (Wave 2)             |
+| `lp-web-researcher`             | 1     | inherit | Read-only | Unfamiliar tech involved    |
 | `source-material-researcher` | 1     | Opus    | Read-only | Source document > 10 pages  |
 | `fidelity-check`             | 5     | Sonnet  | Read-only | Skill built from source doc |
-| `skill-evaluator`            | 6     | Sonnet  | Read-only | Always                      |
+| `lp-skill-evaluator`            | 6     | Sonnet  | Read-only | Always                      |
 
 **Wave 1 agents:** Never use the Read tool. Glob and Grep only. Fast and cheap.
 **Wave 2 agents:** Use Read on targeted paths from Wave 1. Expensive -- precision matters.

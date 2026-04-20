@@ -1,6 +1,6 @@
 ---
 name: lp-file-locator
-description: Locates files, directories, and components relevant to a feature or task. Call `file-locator` with human language prompt describing what you're looking for. Basically a "Super Grep/Glob/LS tool" — Use it if you find yourself desiring to use one of these tools more than once.
+description: Locates files, directories, and components relevant to a feature or task. Call `lp-file-locator` with human language prompt describing what you're looking for. Basically a "Super Grep/Glob/LS tool" — Use it if you find yourself desiring to use one of these tools more than once.
 tools: Grep, Glob, LS
 model: inherit
 ---

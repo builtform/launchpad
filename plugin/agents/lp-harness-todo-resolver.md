@@ -1,6 +1,6 @@
 ---
 name: lp-harness-todo-resolver
-description: Reads a single review todo from .harness/todos/, finds the relevant code, implements the fix, and returns a list of files changed. Spawned by /resolve-todo-parallel.
+description: Reads a single review todo from .harness/todos/, finds the relevant code, implements the fix, and returns a list of files changed. Spawned by /lp-resolve-todo-parallel.
 tools: Read, Edit, Write, Grep, Glob, Bash
 model: inherit
 ---

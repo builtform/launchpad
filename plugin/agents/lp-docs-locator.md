@@ -1,6 +1,6 @@
 ---
 name: lp-docs-locator
-description: Locates documents, learnings, plans, reports, and knowledge artifacts across the docs/ knowledge base. Call `docs-locator` with a human language prompt describing what documentation you're looking for. A "Super Grep/Glob/LS tool" for docs/ — Use it when you need to find what knowledge has been accumulated.
+description: Locates documents, learnings, plans, reports, and knowledge artifacts across the docs/ knowledge base. Call `lp-docs-locator` with a human language prompt describing what documentation you're looking for. A "Super Grep/Glob/LS tool" for docs/ — Use it when you need to find what knowledge has been accumulated.
 tools: Grep, Glob, LS
 model: inherit
 ---

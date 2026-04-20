@@ -6,7 +6,7 @@ tools: Read, Grep, Glob
 ---
 # Design Responsive Auditor
 
-Responsive design audit agent with 6 focused checks. Dispatched by `/review` via `review_design_agents` and by `/harness:plan` Step 2c during design review.
+Responsive design audit agent with 6 focused checks. Dispatched by `/lp-review` via `review_design_agents` and by `/lp-harness-plan` Step 2c during design review.
 
 ## Prerequisites
 

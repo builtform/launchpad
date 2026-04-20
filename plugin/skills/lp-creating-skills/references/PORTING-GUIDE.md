@@ -1,9 +1,9 @@
 # Porting Guide
 
-> **Loaded when:** `/port-skill` is invoked. Governs all 4 phases of the skill porting workflow.
+> **Loaded when:** `/lp-port-skill` is invoked. Governs all 4 phases of the skill porting workflow.
 
 **A ported skill must be indistinguishable from a native project skill. No shortcuts,
-no verbatim imports. Every file must pass the same 16-criteria quality gates as /create-skill.**
+no verbatim imports. Every file must pass the same 16-criteria quality gates as /lp-create-skill.**
 
 ---
 
@@ -12,7 +12,7 @@ no verbatim imports. Every file must pass the same 16-criteria quality gates as 
 ```
 Phase 1: Ingest     → Parse source skill, produce inventory
 Phase 2: Adapt      → Resolve dependencies + reformat to project conventions
-Phase 3: Validate   → skill-evaluator sub-agent, 3-pass quality gates, max 3 cycles
+Phase 3: Validate   → lp-skill-evaluator sub-agent, 3-pass quality gates, max 3 cycles
 Phase 4: Register   → Eval scenarios, CLAUDE.md, AGENTS.md, user summary
 ```
 
@@ -124,7 +124,7 @@ This skill requires the following tools to be installed:
 - `[tool-name]` — [what it's used for] | Install: [install command or URL]
 ```
 
-In Phase 3 (Validate), the skill-evaluator checks that prerequisites are documented. Availability on the current machine is NOT checked — this is the user's responsibility.
+In Phase 3 (Validate), the lp-skill-evaluator checks that prerequisites are documented. Availability on the current machine is NOT checked — this is the user's responsibility.
 
 ---
 
@@ -277,7 +277,7 @@ Apply to SKILL.md (and all reference files where applicable):
 
 ## Phase 3: Validate
 
-Spawn a `skill-evaluator` sub-agent (Sonnet) with read-only access to the adapted skill files.
+Spawn a `lp-skill-evaluator` sub-agent (Sonnet) with read-only access to the adapted skill files.
 
 Run the standard 3-pass evaluation:
 
@@ -348,7 +348,7 @@ Port date: [date]
 Updated with trigger phrases: [list triggers]
 
 ### Next Steps
-- Use /update-skill <name> to iterate on this skill
+- Use /lp-update-skill <name> to iterate on this skill
 - Run eval scenarios to verify real-world behavior
 ```
 

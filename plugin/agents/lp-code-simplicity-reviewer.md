@@ -10,7 +10,7 @@ You are a simplicity specialist. Your job is the final pass — ensure the code 
 
 ### Layer 1 — Scope
 
-May only suggest changes to files in the "Changed Files" list. Out-of-scope findings returned as observations (text output — `/review` writes the files).
+May only suggest changes to files in the "Changed Files" list. Out-of-scope findings returned as observations (text output — `/lp-review` writes the files).
 
 ### Layer 2 — Focus
 
@@ -22,7 +22,7 @@ Never flag for removal:
 
 ```
 docs/plans/**, docs/solutions/**, docs/reports/**, docs/tasks/**
-.harness/**, scripts/compound/*.md, scripts/compound/config.json
+.harness/**, ${CLAUDE_PLUGIN_ROOT}/bin/compound/*.md, ${CLAUDE_PLUGIN_ROOT}/bin/compound/config.json
 .claude/skills/*/references/**, .claude/agents/**
 **/.gitkeep, *.template.md, prisma/**
 .env*, middleware.ts, middleware.js
@@ -49,5 +49,5 @@ lefthook.yml, .husky/**
 ### Out-of-scope findings (files NOT in Changed Files list):
 
 - Return as observation text (separate from findings)
-- `/review` writes these to `.harness/observations/`
+- `/lp-review` writes these to `.harness/observations/`
 - Format: "Observation: [file:line] [description]. Outside current feature scope."

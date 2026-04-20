@@ -37,7 +37,7 @@ initialPrompt: "Start by..." # Auto-submitted first turn (only for --agent main 
 
 ### Frontmatter Rules
 
-- `name`: kebab-case, max 64 characters, matches the filename without `.md`. Use `[domain]-[role]` pattern: `security-reviewer`, `migration-auditor`, `file-locator`.
+- `name`: kebab-case, max 64 characters, matches the filename without `.md`. Use `[domain]-[role]` pattern: `security-reviewer`, `migration-auditor`, `lp-file-locator`.
 - `description`: Written as a routing signal, not a job title. Include WHEN to delegate: "Call `agent-name` when you need to [specific trigger]. Use after [specific context]." The description is what Claude reads to decide whether to delegate work to this agent.
 - `tools`: Comma-separated allowlist. Assign based on TOOL-TIERS.md. Never include the `Agent` tool — subagents cannot spawn subagents.
 - `model`: Default to `inherit`. The agent runs on whatever model the calling context uses.

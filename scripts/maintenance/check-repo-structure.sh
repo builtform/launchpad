@@ -329,19 +329,21 @@ SCAN_ROOTS=()
 [ -d "$REPO_ROOT/packages" ] && SCAN_ROOTS+=("$REPO_ROOT/packages")
 
 if [ ${#SCAN_ROOTS[@]} -gt 0 ]; then
-  # Require import/from context on the same line. This avoids false-positives
-  # on comments and prose that happen to mention `docs/experiments`, while
-  # still catching:
+  # Require import/from/require context on the same line. This avoids
+  # false-positives on comments and prose that happen to mention
+  # `docs/experiments`, while still catching:
   #   - Python: `from experiments...`, `import experiments`, `from docs.experiments...`
-  #   - JS/TS:  `import X from '../../docs/experiments/...'`, `import '../../docs/experiments/...'`
-  #   - Python: `from "docs/experiments/..."` (uncommon but possible string form)
+  #   - JS/TS:  `import X from '../../docs/experiments/...'`
+  #             `import '../../docs/experiments/...'`
+  #             `import('../../docs/experiments/...')` (dynamic import)
+  #             `require('../../docs/experiments/...')` (CommonJS)
   EXPERIMENT_IMPORTS=$(grep -rn \
     --include="*.py" \
     --include="*.ts" \
     --include="*.tsx" \
     --include="*.js" \
     --include="*.jsx" \
-    -E "((from|import)[[:space:]]+experiments|(from|import)[[:space:]]+docs\.experiments|(from|import)[^\"']*[\"'][^\"']*docs/experiments)" \
+    -E "((from|import)[[:space:]]+experiments|(from|import)[[:space:]]+docs\.experiments|(from|import|require)[^\"']*[\"'][^\"']*docs/experiments)" \
     "${SCAN_ROOTS[@]}" 2>/dev/null || true)
 fi
 

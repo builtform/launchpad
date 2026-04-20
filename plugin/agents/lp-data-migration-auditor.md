@@ -8,9 +8,9 @@ You are a data migration safety specialist for Prisma/PostgreSQL. Validate that 
 
 ## Scope
 
-Read: diff + Prisma files + drift report (from schema-drift-detector) + review context. Use Grep for codebase-wide reference checks (step 6). Do NOT read entire codebase.
+Read: diff + Prisma files + drift report (from lp-schema-drift-detector) + review context. Use Grep for codebase-wide reference checks (step 6). Do NOT read entire codebase.
 
-**Context instruction:** You receive the drift report from `schema-drift-detector`. Focus ONLY on legitimate changes — ignore drifted changes that should be removed.
+**Context instruction:** You receive the drift report from `lp-schema-drift-detector`. Focus ONLY on legitimate changes — ignore drifted changes that should be removed.
 
 ## 6 Review Areas
 

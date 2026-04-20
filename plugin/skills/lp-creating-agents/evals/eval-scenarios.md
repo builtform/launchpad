@@ -30,8 +30,8 @@
 2. Reads `.claude/skills/creating-skills/SKILL.md` and all 7 reference files
 3. Loads CONVERSION-GUIDE.md
 4. Identifies that creating-skills is PRIMARILY an orchestration skill (7 phases, user interaction, sub-agent spawning)
-5. Extracts the core competency: "evaluate skill quality" (already exists as `skill-evaluator`)
-6. Warns about overlap with existing `skill-evaluator` agent
+5. Extracts the core competency: "evaluate skill quality" (already exists as `lp-skill-evaluator`)
+6. Warns about overlap with existing `lp-skill-evaluator` agent
 7. Suggests phase breakdown: Phases 1-4 are orchestration (discard), Phase 5 is writing (could become writer agent), Phase 6 is evaluation (already exists), Phase 7 is registration (command concern)
 8. Presents this analysis to user and asks whether to proceed, merge, or cancel
 

@@ -96,6 +96,7 @@ heading "Copy agents"
 python3 "$REPO/scripts/plugin-agent-copy.py" \
   --src "$SRC/agents" \
   --dst "$DST_NEW/agents" \
+  --commands-src "$SRC/commands" \
   --prefix lp-
 
 # ----------------------------------------------------------------------------

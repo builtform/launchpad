@@ -6,7 +6,7 @@ tools: Read, Grep, Glob
 ---
 # Design Alignment Checker
 
-Comprehensive 14-dimension design alignment audit. Dispatched by `/review` via `review_design_agents` and by `/harness:plan` Step 2c during design review.
+Comprehensive 14-dimension design alignment audit. Dispatched by `/lp-review` via `review_design_agents` and by `/lp-harness-plan` Step 2c during design review.
 
 ## Prerequisites
 

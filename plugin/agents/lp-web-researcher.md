@@ -1,6 +1,6 @@
 ---
 name: lp-web-researcher
-description: Do you find yourself desiring information that you don't quite feel well-trained (confident) on? Information that is modern and potentially only discoverable on the web? Use the web-researcher agent today to find any and all answers to your questions! It will research deeply to figure out and attempt to answer your questions!
+description: Do you find yourself desiring information that you don't quite feel well-trained (confident) on? Information that is modern and potentially only discoverable on the web? Use the lp-web-researcher agent today to find any and all answers to your questions! It will research deeply to figure out and attempt to answer your questions!
 tools: WebSearch, WebFetch, TodoWrite, Read, Grep, Glob, LS
 color: yellow
 model: inherit

@@ -1,6 +1,6 @@
 ---
 name: lp-pattern-finder
-description: pattern-finder is a useful agent for finding similar implementations, usage examples, or existing patterns that can be modeled after. It will give you concrete code examples based on what you're looking for! It's like file-locator, but it will not only tell you the location of files, it will also give you code details!
+description: lp-pattern-finder is a useful agent for finding similar implementations, usage examples, or existing patterns that can be modeled after. It will give you concrete code examples based on what you're looking for! It's like lp-file-locator, but it will not only tell you the location of files, it will also give you code details!
 tools: Grep, Glob, Read, LS
 model: inherit
 ---

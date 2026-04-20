@@ -42,7 +42,7 @@ The core competency is the ONE thing the skill does that is valuable without the
 
 **Examples:**
 
-- `creating-skills` → core competency is "evaluate a skill against quality criteria" → becomes `skill-evaluator`
+- `creating-skills` → core competency is "evaluate a skill against quality criteria" → becomes `lp-skill-evaluator`
 - A hypothetical `code-review` skill → core competency is "identify issues in code changes" → becomes `code-reviewer`
 - A hypothetical `prd` skill → core competency is "analyze requirements for completeness" → becomes `requirements-analyzer`
 

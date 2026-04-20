@@ -57,6 +57,18 @@ LC_SEGMENTS=$(printf '%s' "$SEGMENTS" | tr '[:upper:]' '[:lower:]')
 
 # Use a here-doc to feed lines; avoid subshell piping that would skip the
 # `exit 2` return.
+#
+# All anchored checks use `(^|[[:space:]]|/)` as the pre-command boundary
+# instead of plain `^`. This catches common bypass patterns where a user
+# prefixes the dangerous command with:
+#   - Env assignments:  `GIT_SSH_COMMAND=... git push origin main`
+#   - Builtin wrapper:  `command git push origin main`
+#   - Absolute path:    `/usr/bin/git push origin main`
+# In each case, the command token (`git` or `gh`) appears preceded by a
+# space (from the assignment / wrapper) or a slash (from the path). This
+# is more robust than attempting to normalize the segment by stripping
+# prefixes, because quoted values in env assignments (e.g.
+# `GIT_SSH_COMMAND="ssh -i key"`) are hard to parse portably in Bash 3.2.
 while IFS= read -r lc; do
   # Trim leading whitespace (Bash-native, no fork)
   lc="${lc#"${lc%%[![:space:]]*}"}"
@@ -64,21 +76,21 @@ while IFS= read -r lc; do
   [ -z "$lc" ] && continue
 
   # gh pr merge
-  if [[ "$lc" =~ ^gh[[:space:]]+pr[[:space:]]+merge ]]; then
+  if [[ "$lc" =~ (^|[[:space:]]|/)gh[[:space:]]+pr[[:space:]]+merge ]]; then
     echo "BLOCKED: gh pr merge is prohibited. The pipeline stops at PR creation." >&2
     exit 2
   fi
 
   # git merge main / git merge master (NOT git merge origin/...)
-  if [[ "$lc" =~ ^git[[:space:]]+merge[[:space:]]+(main|master)([[:space:]]|$) ]] \
-     && ! [[ "$lc" =~ ^git[[:space:]]+merge[[:space:]]+origin/ ]]; then
+  if [[ "$lc" =~ (^|[[:space:]]|/)git[[:space:]]+merge[[:space:]]+(main|master)([[:space:]]|$) ]] \
+     && ! [[ "$lc" =~ (^|[[:space:]]|/)git[[:space:]]+merge[[:space:]]+origin/ ]]; then
     echo "BLOCKED: git merge main/master is prohibited. Use 'git merge origin/main' for safe sync." >&2
     exit 2
   fi
 
   # git push --force / -f
-  if [[ "$lc" =~ ^git[[:space:]]+push[[:space:]].*--force ]] \
-     || [[ "$lc" =~ ^git[[:space:]]+push[[:space:]]+-f([[:space:]]|$) ]]; then
+  if [[ "$lc" =~ (^|[[:space:]]|/)git[[:space:]]+push[[:space:]].*--force ]] \
+     || [[ "$lc" =~ (^|[[:space:]]|/)git[[:space:]]+push[[:space:]]+-f([[:space:]]|$) ]]; then
     echo "BLOCKED: force push is prohibited." >&2
     exit 2
   fi
@@ -88,7 +100,7 @@ while IFS= read -r lc; do
   # delimiter to be space, colon (HEAD:main), slash (refs/heads/main), or
   # plus (+main force-push refspec), and the trailing delimiter to be
   # space, colon, or end-of-string.
-  if [[ "$lc" =~ ^git[[:space:]]+push([[:space:]]|$) ]] \
+  if [[ "$lc" =~ (^|[[:space:]]|/)git[[:space:]]+push([[:space:]]|$) ]] \
      && [[ "$lc" =~ (^|[[:space:]:/+])(main|master)([[:space:]]|:|$) ]]; then
     echo "BLOCKED: push references protected branch (main/master)." >&2
     echo "  Use a feature branch. Force-push refspecs (+main) and non-origin pushes are also blocked." >&2
@@ -97,7 +109,7 @@ while IFS= read -r lc; do
 
   # gh pr review with --approve anywhere in the args (not just positional).
   # Matches `gh pr review` prefix AND `--approve` as a standalone token.
-  if [[ "$lc" =~ ^gh[[:space:]]+pr[[:space:]]+review([[:space:]]|$) ]] \
+  if [[ "$lc" =~ (^|[[:space:]]|/)gh[[:space:]]+pr[[:space:]]+review([[:space:]]|$) ]] \
      && [[ "$lc" =~ (^|[[:space:]])--approve([[:space:]]|=|$) ]]; then
     echo "BLOCKED: PR auto-approve is prohibited." >&2
     exit 2
