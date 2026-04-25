@@ -9,45 +9,45 @@
 
 ## Status
 
-This project was built from the [Launchpad](https://github.com/foadshafighi/LaunchPad) harness and is ready to be defined.
+This project was built from the [LaunchPad](https://github.com/builtform/launchpad) harness and is ready to be defined.
 
 **Next steps (four-tier workflow):**
 
 1. **Tier 0 — Capabilities** (ongoing):
-   - `/create-skill [topic]` or `/port-skill [source]` — create or port domain skills to enhance all subsequent commands
+   - `/lp-create-skill [topic]` or `/lp-port-skill [source]` — create or port domain skills to enhance all subsequent commands
 2. **Tier 1 — Definition** (run once):
-   - `/define-product` — define product requirements, tech stack, and section registry
-   - `/define-design` — define your design system, app flow, and frontend guidelines
-   - `/define-architecture` — define backend structure and CI/CD
+   - `/lp-define-product` — define product requirements, tech stack, and section registry
+   - `/lp-define-design` — define your design system, app flow, and frontend guidelines
+   - `/lp-define-architecture` — define backend structure and CI/CD
 3. **Tier 2 — Development** (per section):
-   - `/shape-section [name]` — deep-dive into each product section
-   - `/update-spec` — scan and fix spec gaps
+   - `/lp-shape-section [name]` — deep-dive into each product section
+   - `/lp-update-spec` — scan and fix spec gaps
 4. **Tier 3 — Implementation** (per section):
-   - `/pnf [section]` — plan next feature from section spec
-   - `/inf` — implement next feature autonomously
+   - `/lp-pnf [section]` — plan next feature from section spec
+   - `/lp-inf` — implement next feature autonomously
 5. Review [How It Works](.launchpad/HOW_IT_WORKS.md) for the step-by-step workflow guide and troubleshooting
 6. Review [Repository Structure](docs/architecture/REPOSITORY_STRUCTURE.md) to understand the codebase layout
 7. Read [Methodology](.launchpad/METHODOLOGY.md) for the full architecture, diagrams, and credits
 
 ## Commands
 
-| Command                | Purpose                                                          |
-| ---------------------- | ---------------------------------------------------------------- |
-| `/create-skill`        | Create a new Claude Code skill                                   |
-| `/port-skill`          | Port an external skill into Launchpad format                     |
-| `/update-skill`        | Iterate on an existing skill                                     |
-| `/define-product`      | Define product requirements, tech stack, and section registry    |
-| `/define-design`       | Define design system, app flow, and frontend guidelines          |
-| `/define-architecture` | Define backend structure and CI/CD                               |
-| `/shape-section`       | Deep-dive into a product section — creates section spec          |
-| `/update-spec`         | Scan spec files for gaps, TBDs, and inconsistencies — fix them   |
-| `/pnf`                 | Plan Next Feature from section spec                              |
-| `/implement-plan`      | Execute an existing implementation plan step by step             |
-| `/inf`                 | Implement next feature: PRD → tasks → build → quality sweep → PR |
-| `/research-codebase`   | Deep codebase research and analysis                              |
-| `/review`              | Review code for pattern consistency                              |
-| `/commit`              | Stage changes, run quality gates, and commit                     |
-| `/pull-launchpad`      | Pull upstream Launchpad updates                                  |
+| Command                   | Purpose                                                          |
+| ------------------------- | ---------------------------------------------------------------- |
+| `/lp-create-skill`        | Create a new Claude Code skill                                   |
+| `/lp-port-skill`          | Port an external skill into Launchpad format                     |
+| `/lp-update-skill`        | Iterate on an existing skill                                     |
+| `/lp-define-product`      | Define product requirements, tech stack, and section registry    |
+| `/lp-define-design`       | Define design system, app flow, and frontend guidelines          |
+| `/lp-define-architecture` | Define backend structure and CI/CD                               |
+| `/lp-shape-section`       | Deep-dive into a product section — creates section spec          |
+| `/lp-update-spec`         | Scan spec files for gaps, TBDs, and inconsistencies — fix them   |
+| `/lp-pnf`                 | Plan Next Feature from section spec                              |
+| `/lp-implement-plan`      | Execute an existing implementation plan step by step             |
+| `/lp-inf`                 | Implement next feature: PRD → tasks → build → quality sweep → PR |
+| `/lp-research-codebase`   | Deep codebase research and analysis                              |
+| `/lp-review`              | Review code for pattern consistency                              |
+| `/lp-commit`              | Stage changes, run quality gates, and commit                     |
+| `/lp-pull-launchpad`      | Pull upstream Launchpad updates                                  |
 
 ## Project Structure
 

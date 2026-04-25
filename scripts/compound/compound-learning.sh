@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Compound Learning — Extract learnings from progress.txt
 # Basic version: reads progress.txt, extracts learnings, writes to docs/solutions/.
-# Phase 6 upgrades this to the full 5-agent, 14-category system.
+# A future upgrade replaces this with the full 5-agent, 14-category system.
 #
 # Usage: ./compound-learning.sh
 

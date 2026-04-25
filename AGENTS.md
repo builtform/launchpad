@@ -2,7 +2,7 @@
 
 > **Harness scope:** Full-stack monorepo with a **TypeScript/Next.js frontend** and a **Hono API backend**, managed with Turborepo and pnpm workspaces. Adapt section headers and placeholder values if your topology differs.
 
-> **File purpose:** `AGENTS.md` is the agent instruction file for AI coding tools that are **not** Claude Code (e.g. OpenAI Codex, Gemini Code Assist, OpenCode, Zed AI, Cursor). Claude Code uses `CLAUDE.md` instead. Keep both files in sync when updating project-wide conventions.
+> **File purpose:** `AGENTS.md` is the cross-tool agent instruction file — for AI coding CLIs that are **not** Claude Code (OpenAI Codex, Gemini, Cursor, Zed AI, Windsurf, Aider, Jules, Junie, etc.). Claude Code uses `CLAUDE.md` instead. This file doubles as a **bridge to LaunchPad workflows** for tools without a Claude Code plugin — see "Invoking LaunchPad Workflows" below. Keep both files in sync when updating project-wide conventions.
 
 ---
 
@@ -34,17 +34,18 @@
 
 ```
 /
-├── apps/web/       # Next.js 15 frontend (App Router, Tailwind v4)
-├── apps/api/       # Hono API server (CORS, /health endpoint)
-├── packages/db/    # Prisma schema, client singleton, migrations
-├── packages/shared/# Shared TypeScript types and utilities
-├── packages/ui/    # Shared React components + Tailwind config + cn() helper
-├── docs/           # Architecture docs, plans, reports, experiments
-│   ├── tasks/      # BACKLOG.md + sections/ (section specs from /shape-section)
-│   └── skills-catalog/ # Skill usage tracking and user-facing index
-├── .harness/       # Runtime directory (todos, observations, design-artifacts, screenshots)
-├── .launchpad/     # Harness config (agents.yml, version, secret-patterns.txt)
-└── scripts/        # Build pipeline, maintenance, agent hydration
+├── apps/web/              # Next.js 15 frontend (App Router, Tailwind v4)
+├── apps/api/              # Hono API server (CORS, /health endpoint)
+├── packages/db/           # Prisma schema, client singleton, migrations
+├── packages/shared/       # Shared TypeScript types and utilities
+├── packages/ui/           # Shared React components + Tailwind config + cn() helper
+├── docs/                  # Architecture docs, plans, reports, experiments
+│   ├── tasks/             # BACKLOG.md + sections/ (section specs from /lp-shape-section)
+│   └── skills-catalog/    # Skill usage tracking and user-facing index
+├── .harness/              # Runtime directory (todos, observations, design-artifacts, screenshots)
+├── .launchpad/            # Harness config (agents.yml, version, secret-patterns.txt)
+├── plugins/launchpad/     # LaunchPad plugin source (commands, agents, skills, scripts)
+└── scripts/               # Build pipeline, maintenance, agent hydration
 ```
 
 > Before creating, moving, or deleting any file: check `docs/architecture/REPOSITORY_STRUCTURE.md`
@@ -84,6 +85,57 @@ The agent must confirm all three before closing a task:
 - [ ] Tests pass: `pnpm test`
 - [ ] Typecheck passes: `pnpm typecheck`
 - [ ] No new lint errors: `pnpm lint`
+
+---
+
+## Invoking LaunchPad Workflows (Cross-Tool Bridge)
+
+This project is LaunchPad-scaffolded. Most structured workflows live in `plugins/launchpad/commands/` as markdown files.
+
+**Claude Code users** invoke these directly as slash commands (`/lp-kickoff`, `/lp-define`, `/lp-plan`, `/lp-build`, etc.) via the installed plugin.
+
+**Codex, Gemini, and other CLIs** do not auto-discover the plugin's slash commands — there's no cross-tool plugin format. To run a LaunchPad workflow in a non-Claude CLI, instruct your AI: _"Read `plugins/launchpad/commands/lp-<name>.md` and follow the workflow."_
+
+### Workflow pointer table
+
+| Task                                    | Instruction for a non-Claude CLI                              |
+| --------------------------------------- | ------------------------------------------------------------- |
+| Brainstorm a new feature                | Read `plugins/launchpad/commands/lp-kickoff.md` and follow it |
+| Define the product and architecture     | Read `plugins/launchpad/commands/lp-define.md` and follow it  |
+| Plan a feature (design + plan + harden) | Read `plugins/launchpad/commands/lp-plan.md` and follow it    |
+| Run the autonomous build pipeline       | Read `plugins/launchpad/commands/lp-build.md` and follow it   |
+| Multi-agent code review                 | Read `plugins/launchpad/commands/lp-review.md` and follow it  |
+| Interactive commit with quality gates   | Read `plugins/launchpad/commands/lp-commit.md` and follow it  |
+| Capture a learning                      | Read `plugins/launchpad/commands/lp-learn.md` and follow it   |
+| Triage review findings                  | Read `plugins/launchpad/commands/lp-triage.md` and follow it  |
+
+See `plugins/launchpad/commands/` for the full inventory (38 workflows).
+
+### Known degradation: parallel sub-agent dispatch
+
+Several LaunchPad commands (notably `/lp-review`, `/lp-build`, `/lp-plan`, `/lp-harden-plan`) dispatch specialized sub-agents in parallel — 7+ specialized code reviewers, document reviewers, research wave pairs. This relies on Claude Code's `Task` tool.
+
+In Codex and Gemini, those parallel specialist passes collapse into a single generalist review inside the main context. **Output still lands, but the per-specialist perspectives (security, performance, TypeScript, architecture, testing, etc.) are folded together.** Treat reviews run in non-Claude-Code CLIs as a strong first pass, not as the final quality bar that the plugin delivers in Claude Code.
+
+A v1.1 roadmap item is a **Codex overlay generator** (`.codex-plugin/` generated from plugin source) that restores parallel specialist dispatch in Codex via Codex's native subagent format. A Gemini overlay is deferred to a future release — Gemini users continue on the bridge pattern indefinitely until demand justifies the work.
+
+### Configuring your tool to read this file
+
+**Codex CLI:** `AGENTS.md` is loaded automatically. If you also want Claude Code's `CLAUDE.md` merged in, add it to `project_doc_fallback_filenames` in `~/.codex/config.toml`:
+
+```toml
+project_doc_fallback_filenames = ["AGENTS.md", "CLAUDE.md"]
+```
+
+**Gemini CLI users:** Gemini CLI reads `GEMINI.md` by default — it does NOT auto-load `AGENTS.md`. To use this file as the project context, add to `.gemini/settings.json`:
+
+```json
+{ "context": { "fileName": ["AGENTS.md"] } }
+```
+
+LaunchPad's v1.1 roadmap focuses on Codex support. Gemini support is deferred — available today via this manual config, but the cross-tool overlay generator planned for v1.1 will target Codex only.
+
+**Other tools** (Cursor, Windsurf, Aider, Jules, etc.) — `AGENTS.md` is the Linux Foundation's Agentic AI Foundation standard and is auto-discovered by most modern coding CLIs.
 
 ---
 
@@ -146,7 +198,7 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 
 ## Available Sub-Agents
 
-Agents are organized into 6 namespace subdirectories under `.claude/agents/`. See `CLAUDE.md` for the full agent table — the list is identical. Key namespaces:
+Agents are organized into 6 namespace subdirectories under `plugins/launchpad/agents/`. See `CLAUDE.md` for the full agent table — the list is identical. Key namespaces:
 
 - **research/** (7 agents) — Read-only research and documentation
 - **skills/** (1 agent) — Skill quality assurance
@@ -154,3 +206,7 @@ Agents are organized into 6 namespace subdirectories under `.claude/agents/`. Se
 - **document-review/** (7 agents) — Plan document review lenses
 - **resolve/** (2 agents) — Automated fixers for todos and PR comments
 - **design/** (6 agents) — Design workflow (Figma sync, iteration, auditing)
+
+**In Claude Code** these agents are dispatched via the plugin's `Task` tool from within commands.
+
+**In other CLIs** the agent markdown files are just plain prompt templates — your CLI won't auto-dispatch them. When a LaunchPad command instructs "dispatch N agents in parallel," your CLI runs the reviews sequentially instead. See the "Known degradation" note in the bridge section above.

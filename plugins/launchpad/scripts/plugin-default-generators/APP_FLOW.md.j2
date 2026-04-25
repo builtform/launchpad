@@ -1,0 +1,38 @@
+{% if app_flow -%}
+# App Flow
+
+## Entry routes
+{% for route in app_flow.entry_routes %}
+- `{{ route }}`
+{%- endfor %}
+
+## Primary user journeys
+{% for j in app_flow.primary_journeys %}
+- **{{ j }}** — _describe the happy path, the main decision points, and the
+  common exit points._
+{% endfor %}
+
+## Authentication flow
+{% if app_flow.auth_flow %}
+- **Pattern:** {{ app_flow.auth_flow }}
+{% else %}
+_Auth flow not detected. Document sign-in, sign-out, and session management
+here once established._
+{% endif %}
+
+## Navigation structure
+
+_Describe how users move between the entry routes and the primary journeys.
+A small ASCII diagram or Mermaid graph usually helps more than prose._
+
+## Error & empty states
+
+_What users see when things go wrong. Inventory errors + empty states across
+routes so no state is left unhandled._
+{% else %}
+# App Flow
+
+_This project's detected stack is backend-only, so there's no UI navigation
+to document. Leave this file in place as a placeholder — if a frontend is
+added later, re-run `/lp-define` and the generator will populate this file._
+{% endif %}

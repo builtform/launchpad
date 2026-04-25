@@ -365,14 +365,15 @@ LICENSE
 CODE_OF_CONDUCT.md
 CHANGELOG.md
 CONTRIBUTING.md
+ROADMAP.md
 CLAUDE.md
 AGENTS.md
 package.json
 # --- App source (project metadata injected) ---
 apps/web/src/app/layout.tsx
 # --- Commands/skills (project name injected) ---
-.claude/commands/define-product.md
-.claude/skills/tasks/SKILL.md
+plugins/launchpad/commands/lp-define-product.md
+plugins/launchpad/skills/lp-tasks/SKILL.md
 scripts/agent_hydration/hydrate.sh
 docs/architecture/CI_CD.md
 # --- Structure files (template refs removed by init) ---
@@ -392,6 +393,7 @@ docs/tasks/sections/.gitkeep
 scripts/setup/init-project.sh
 docs/guides/METHODOLOGY.md
 docs/guides/HOW_IT_WORKS.md
+docs/guides/MEMPALACE_INTEGRATION.md
 MANIFEST
 
 # Conditional entries based on init choices
@@ -431,6 +433,7 @@ fi
 swap_template "CODE_OF_CONDUCT.template.md" "CODE_OF_CONDUCT.md"
 swap_template "CHANGELOG.template.md"       "CHANGELOG.md"
 swap_template "CONTRIBUTING.template.md"    "CONTRIBUTING.md"
+swap_template "ROADMAP.template.md"         "ROADMAP.md"
 
 # Move Launchpad-specific docs to .launchpad/ for reference
 if [ -f "docs/guides/METHODOLOGY.md" ]; then
@@ -441,6 +444,11 @@ fi
 if [ -f "docs/guides/HOW_IT_WORKS.md" ]; then
   mv "docs/guides/HOW_IT_WORKS.md" ".launchpad/HOW_IT_WORKS.md"
   info "Moved docs/guides/HOW_IT_WORKS.md -> .launchpad/HOW_IT_WORKS.md"
+fi
+
+if [ -f "docs/guides/MEMPALACE_INTEGRATION.md" ]; then
+  mv "docs/guides/MEMPALACE_INTEGRATION.md" ".launchpad/MEMPALACE_INTEGRATION.md"
+  info "Moved docs/guides/MEMPALACE_INTEGRATION.md -> .launchpad/MEMPALACE_INTEGRATION.md"
 fi
 
 # Update REPOSITORY_STRUCTURE.md to reflect moved files (Issue #10)
@@ -468,7 +476,7 @@ if [ -f "docs/architecture/REPOSITORY_STRUCTURE.md" ]; then
   sed '/each doc may have a `\.template` pair/d' "$_rs_file" > "$_tmp" && mv "$_tmp" "$_rs_file"
 
   # Remove lines referencing individual template files
-  for tpl in "CONTRIBUTING.template.md" "CODE_OF_CONDUCT.template.md" "CHANGELOG.template.md" "LICENSE.template" "SECURITY.template.md"; do
+  for tpl in "CONTRIBUTING.template.md" "CODE_OF_CONDUCT.template.md" "CHANGELOG.template.md" "LICENSE.template" "SECURITY.template.md" "ROADMAP.template.md"; do
     _tmp="$(mktemp)"
     sed "/$(printf '%s' "$tpl" | sed 's/\./\\./g')/d" "$_rs_file" > "$_tmp" && mv "$_tmp" "$_rs_file"
   done
@@ -480,7 +488,7 @@ fi
 if [ -f "scripts/maintenance/check-repo-structure.sh" ]; then
   _cs_file="scripts/maintenance/check-repo-structure.sh"
 
-  for tpl in "README.template.md" "CONTRIBUTING.template.md" "CODE_OF_CONDUCT.template.md" "CHANGELOG.template.md" "LICENSE.template" "SECURITY.template.md"; do
+  for tpl in "README.template.md" "CONTRIBUTING.template.md" "CODE_OF_CONDUCT.template.md" "CHANGELOG.template.md" "LICENSE.template" "SECURITY.template.md" "ROADMAP.template.md"; do
     _tmp="$(mktemp)"
     sed "/\"$(printf '%s' "$tpl" | sed 's/\./\\./g')\"/d" "$_cs_file" > "$_tmp" && mv "$_tmp" "$_cs_file"
   done
@@ -518,21 +526,21 @@ if [ ! -f "docs/architecture/DESIGN_SYSTEM.md" ]; then
   cat > docs/architecture/DESIGN_SYSTEM.md <<'DSSTUB'
 # Design System
 
-<!-- This document is populated by running /define-design in Claude Code.
+<!-- This document is populated by running /lp-define-design in Claude Code.
      It captures your visual design decisions: color palette, typography, spacing,
      component conventions, responsive breakpoints, and animation guidelines.
 
      Until populated, this file serves as a placeholder. Do not delete it —
-     /define-design expects it to exist and will fill it with your answers.
+     /lp-define-design expects it to exist and will fill it with your answers.
 
-     To populate: run /define-design in Claude Code (requires PRD.md to exist first). -->
+     To populate: run /lp-define-design in Claude Code (requires PRD.md to exist first). -->
 
-> **Status:** Stub — run `/define-design` to populate.
+> **Status:** Stub — run `/lp-define-design` to populate.
 DSSTUB
   info "Created docs/architecture/DESIGN_SYSTEM.md stub"
 fi
 
-# Create docs/tasks/sections/ directory for /shape-section specs
+# Create docs/tasks/sections/ directory for /lp-shape-section specs
 mkdir -p docs/tasks/sections
 if [ ! -f "docs/tasks/sections/.gitkeep" ]; then
   touch docs/tasks/sections/.gitkeep
@@ -545,7 +553,7 @@ fi
 mkdir -p .harness/todos .harness/observations .harness/screenshots .harness/design-artifacts
 info "Created .harness/ runtime directories (todos, observations, screenshots, design-artifacts)"
 
-# Create docs/solutions/ for /learn compound learning output
+# Create docs/solutions/ for /lp-learn compound learning output
 mkdir -p docs/solutions
 if [ ! -f "docs/solutions/.gitkeep" ]; then
   touch docs/solutions/.gitkeep
@@ -561,12 +569,12 @@ if [ ! -f ".harness/harness.local.md" ]; then
 
 ## Review Context
 
-<!-- Enriched by /define-product and /define-architecture. -->
+<!-- Enriched by /lp-define-product and /lp-define-architecture. -->
 <!-- Add project-specific context that review agents should consider. -->
 
 ## Design Context
 
-<!-- Enriched by /define-design. -->
+<!-- Enriched by /lp-define-design. -->
 <!-- Add project-specific design context that design agents should consider. -->
 HLEOF
   info "Created .harness/harness.local.md (project-specific review + design context)"
@@ -575,55 +583,62 @@ fi
 # Create .launchpad/agents.yml (agent dispatch configuration)
 if [ ! -f ".launchpad/agents.yml" ]; then
   cat > .launchpad/agents.yml <<'AYEOF'
-# Code review agents — dispatched by /review
+# Agent names use the lp- prefix to match plugin file naming. The /lp-review
+# and /lp-harden-plan resolvers look up `{name}.md` directly in
+# ${CLAUDE_PLUGIN_ROOT}/agents/** and .claude/agents/**, so values here MUST
+# match the on-disk filenames (e.g. lp-pattern-finder.md, lp-security-auditor.md).
+# Re-running /lp-define against this file regenerates from
+# plugin-default-generators/agents.yml.j2; keep the two in sync.
+
+# Code review agents — dispatched by /lp-review
 review_agents:
-  - pattern-finder
-  - security-auditor
-  - kieran-foad-ts-reviewer
-  - performance-auditor
-  - code-simplicity-reviewer
-  - architecture-strategist
-  - testing-reviewer
+  - lp-pattern-finder
+  - lp-security-auditor
+  - lp-kieran-foad-ts-reviewer
+  - lp-performance-auditor
+  - lp-code-simplicity-reviewer
+  - lp-architecture-strategist
+  - lp-testing-reviewer
 
 # DB agents — only when diff touches Prisma files
 review_db_agents:
-  - schema-drift-detector
-  - data-migration-auditor
-  - data-integrity-auditor
+  - lp-schema-drift-detector
+  - lp-data-migration-auditor
+  - lp-data-integrity-auditor
 
-# Design review agents — dispatched by /review when design artifacts exist
+# Design review agents — dispatched by /lp-review when design artifacts exist
 review_design_agents:
-  - design-ui-auditor
-  - design-responsive-auditor
-  - design-alignment-checker
-  - design-implementation-reviewer
+  - lp-design-ui-auditor
+  - lp-design-responsive-auditor
+  - lp-design-alignment-checker
+  - lp-design-implementation-reviewer
 
 # Copy review agents — populated by downstream projects
 review_copy_agents: []
 
-# Plan hardening agents — always dispatched by /harden-plan
+# Plan hardening agents — always dispatched by /lp-harden-plan
 harden_plan_agents:
-  - pattern-finder
-  - security-auditor
-  - performance-auditor
-  - spec-flow-analyzer
+  - lp-pattern-finder
+  - lp-security-auditor
+  - lp-performance-auditor
+  - lp-spec-flow-analyzer
 
-# Conditional plan hardening agents — dispatched by /harden-plan (full only)
+# Conditional plan hardening agents — dispatched by /lp-harden-plan (full only)
 harden_plan_conditional_agents:
-  - architecture-strategist
-  - code-simplicity-reviewer
-  - frontend-races-reviewer
-  - schema-drift-detector
+  - lp-architecture-strategist
+  - lp-code-simplicity-reviewer
+  - lp-frontend-races-reviewer
+  - lp-schema-drift-detector
 
-# Document-review agents — dispatched by /harden-plan Step 3.5
+# Document-review agents — dispatched by /lp-harden-plan Step 3.5
 harden_document_agents:
-  - adversarial-document-reviewer
-  - coherence-reviewer
-  - feasibility-reviewer
-  - scope-guardian-reviewer
-  - product-lens-reviewer
-  - security-lens-reviewer
-  - design-lens-reviewer            # Conditional: /harden-plan skips when "design:skipped"
+  - lp-adversarial-document-reviewer
+  - lp-coherence-reviewer
+  - lp-feasibility-reviewer
+  - lp-scope-guardian-reviewer
+  - lp-product-lens-reviewer
+  - lp-security-lens-reviewer
+  - lp-design-lens-reviewer            # Conditional: /lp-harden-plan skips when "design:skipped"
 
 # Protected branches
 protected_branches:
@@ -654,6 +669,13 @@ if ! grep -q '\.claude/worktrees/' .gitignore 2>/dev/null; then
   info "Added .claude/worktrees/ to .gitignore"
 fi
 
+# Ensure .mempalace/ is gitignored (optional MemPalace companion tool;
+# see docs/guides/MEMPALACE_INTEGRATION.md for the pairing pattern)
+if ! grep -q '\.mempalace/' .gitignore 2>/dev/null; then
+  printf '\n# MemPalace per-project storage (optional companion — docs/guides/MEMPALACE_INTEGRATION.md)\n.mempalace/\n' >> .gitignore
+  info "Added .mempalace/ to .gitignore"
+fi
+
 # Create docs/skills-catalog/ directory and initial skill tracking files
 mkdir -p docs/skills-catalog
 if [ ! -f "docs/skills-catalog/skills-usage.json" ]; then
@@ -675,15 +697,15 @@ A user-facing reference for all installed skills in this project. Each skill is 
 
 ## How Skill Tracking Works
 
-- **Installation:** Skills are added via `/create-skill` or `/port-skill` and registered in this index, `CLAUDE.md`, `AGENTS.md`, and `skills-usage.json`.
+- **Installation:** Skills are added via `/lp-create-skill` or `/lp-port-skill` and registered in this index, `CLAUDE.md`, `AGENTS.md`, and `skills-usage.json`.
 - **Usage tracking:** `scripts/hooks/track-skill-usage.sh` fires after every skill invocation and records the date in `skills-usage.json`.
-- **Staleness audit:** `scripts/hooks/audit-skills.sh` runs during `/commit` and `/ship`. If 2+ weeks have passed since the last audit, it reports which skills are stale or unused.
+- **Staleness audit:** `scripts/hooks/audit-skills.sh` runs during `/lp-commit` and `/lp-ship`. If 2+ weeks have passed since the last audit, it reports which skills are stale or unused.
 
 ---
 
 ## Quick Reference
 
-No skills installed yet. Use `/create-skill` or `/port-skill` to add skills.
+No skills installed yet. Use `/lp-create-skill` or `/lp-port-skill` to add skills.
 
 ---
 
@@ -743,6 +765,7 @@ TEMPLATE_TARGETS=(
   "CODE_OF_CONDUCT.md"
   "CHANGELOG.md"
   "CONTRIBUTING.md"
+  "ROADMAP.md"
 )
 if [ "$REPO_VISIBILITY" = "public" ]; then
   TEMPLATE_TARGETS+=("SECURITY.md")
@@ -760,8 +783,8 @@ OTHER_FILES=(
   "scripts/agent_hydration/hydrate.sh"
   "docs/architecture/REPOSITORY_STRUCTURE.md"
   "docs/architecture/CI_CD.md"
-  ".claude/skills/tasks/SKILL.md"
-  ".claude/commands/define-product.md"
+  "plugins/launchpad/skills/lp-tasks/SKILL.md"
+  "plugins/launchpad/commands/lp-define-product.md"
 )
 
 # Combine all files that need {{PROJECT_NAME}} replacement
@@ -783,7 +806,7 @@ if [ -f "package.json" ] && command -v node >/dev/null 2>&1; then
 fi
 
 # Replace [Project Name] in AI instruction files and define-product command
-for file in "${AI_FILES[@]}" ".claude/commands/define-product.md"; do
+for file in "${AI_FILES[@]}" "plugins/launchpad/commands/lp-define-product.md"; do
   replace_in_file "$file" '\[Project Name\]' "$PROJECT_NAME"
 done
 info "Replaced [Project Name] in AI instruction files"
@@ -888,7 +911,7 @@ clean_template_notices() {
     sed '/./,$!d' "$file" > "$tmp" && mv "$tmp" "$file"
   fi
 }
-NOTICE_FILES=("README.md" "CODE_OF_CONDUCT.md" "CONTRIBUTING.md")
+NOTICE_FILES=("README.md" "CODE_OF_CONDUCT.md" "CONTRIBUTING.md" "ROADMAP.md")
 if [ "$REPO_VISIBILITY" = "public" ]; then
   NOTICE_FILES+=("SECURITY.md")
 fi
@@ -999,7 +1022,7 @@ if git remote get-url origin 2>/dev/null | grep -qi "launchpad"; then
   git remote rename origin launchpad 2>/dev/null || true
   info "Renamed 'origin' remote to 'launchpad' (upstream harness)"
 else
-  git remote add launchpad https://github.com/foadshafighi/LaunchPad.git 2>/dev/null || true
+  git remote add launchpad https://github.com/builtform/launchpad.git 2>/dev/null || true
   info "Added 'launchpad' remote for upstream updates"
 fi
 
@@ -1018,10 +1041,50 @@ echo ""
 printf "${GREEN}Project '${BOLD}%s${RESET}${GREEN}' files initialized successfully!${RESET}\n" "$PROJECT_NAME"
 echo ""
 echo "The original Launchpad documentation has been saved to:"
-echo "   .launchpad/METHODOLOGY.md    (Launchpad architecture, diagrams, credits)"
-echo "   .launchpad/HOW_IT_WORKS.md   (step-by-step workflow guide + troubleshooting)"
-echo "   .launchpad/version           (harness version: 1.0.0)"
+echo "   .launchpad/METHODOLOGY.md            (Launchpad architecture, diagrams, credits)"
+echo "   .launchpad/HOW_IT_WORKS.md           (step-by-step workflow guide + troubleshooting)"
+echo "   .launchpad/MEMPALACE_INTEGRATION.md  (optional pairing guide for MemPalace memory tool)"
+echo "   .launchpad/version                   (harness version: 1.0.0)"
 echo ""
+
+# ---------------------------------------------------------------------------
+# Auto-install LaunchPad plugin
+#
+# After the template is transformed into the user's project, the
+# .claude-plugin/ manifest and commands/agents/skills/ dirs are still present
+# — they're the plugin's own source. Register the project as a local
+# marketplace and install the plugin so /lp-* commands become available in
+# Claude Code. Scope: project (writes to .claude/settings.json, travels with
+# the repo for teammates).
+# ---------------------------------------------------------------------------
+printf "${YELLOW}${BOLD}Installing LaunchPad plugin${RESET}\n"
+echo ""
+if command -v claude >/dev/null 2>&1; then
+  # Capture absolute path; marketplace add needs a resolvable source.
+  PLUGIN_SOURCE="$(pwd)"
+  if claude plugin marketplace add "$PLUGIN_SOURCE" --scope project >/dev/null 2>&1; then
+    if claude plugin install launchpad@builtform --scope project >/dev/null 2>&1; then
+      info "LaunchPad plugin installed (scope: project)."
+      echo "   Restart Claude Code to activate /lp-* commands."
+    else
+      warn "Marketplace registered, but 'claude plugin install' failed."
+      echo "   Run manually:"
+      echo "     claude plugin install launchpad@builtform --scope project"
+    fi
+  else
+    warn "Could not auto-register plugin marketplace."
+    echo "   Install manually:"
+    echo "     claude plugin marketplace add \"$PLUGIN_SOURCE\" --scope project"
+    echo "     claude plugin install launchpad@builtform --scope project"
+  fi
+else
+  echo "  (Claude Code CLI not on PATH — skipping auto-install.)"
+  echo "   Install manually once Claude Code is available:"
+  echo "     claude plugin marketplace add \"$(pwd)\" --scope project"
+  echo "     claude plugin install launchpad@builtform --scope project"
+fi
+echo ""
+
 printf "${YELLOW}${BOLD}Next: set up your git history${RESET}\n"
 echo ""
 echo "Your project files have been customized. Run 'git diff' to verify,"
@@ -1035,7 +1098,7 @@ echo "    git remote add origin <your-repo-url>"
 echo "    git push -u origin main"
 echo ""
 echo "  To pull updates later:"
-echo "    - In Claude Code: /pull-launchpad"
+echo "    - In Claude Code: /lp-pull-launchpad"
 echo "    - Or manually:    bash scripts/setup/pull-upstream.launchpad.sh"
 echo ""
 printf "${BOLD}  (Optional) Create a GitHub repository and push:${RESET}\n"
@@ -1044,13 +1107,13 @@ echo ""
 echo "Next steps (four-tier workflow):"
 echo "  1. Install dependencies:    pnpm install && pnpm dev"
 echo "  2. Start Claude Code:       claude"
-echo "  3. Tier 0 — Capabilities:  /create-skill or /port-skill"
+echo "  3. Tier 0 — Capabilities:  /lp-create-skill or /lp-port-skill"
 echo "  4. Tier 1 — Definition:"
-echo "     a. /define-product         (PRD + Tech Stack)"
-echo "     b. /define-design          (Design System, App Flow, Frontend Guidelines)"
-echo "     c. /define-architecture    (Backend Structure, CI/CD)"
-echo "  5. Tier 2 — Development:    /shape-section [name]"
-echo "  6. Tier 3 — Implementation: /pnf [section] then /inf"
+echo "     a. /lp-define-product         (PRD + Tech Stack)"
+echo "     b. /lp-define-design          (Design System, App Flow, Frontend Guidelines)"
+echo "     c. /lp-define-architecture    (Backend Structure, CI/CD)"
+echo "  5. Tier 2 — Development:    /lp-shape-section [name]"
+echo "  6. Tier 3 — Implementation: /lp-pnf [section] then /lp-inf"
 echo "  7. See the full workflow:   .launchpad/HOW_IT_WORKS.md"
 echo ""
 

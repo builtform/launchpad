@@ -1,0 +1,45 @@
+# Product Requirements: {{ product_name }}
+
+> {{ stack_summary }}
+
+---
+
+## Overview
+
+_Describe the product's purpose, target users, and core value proposition. This
+section is the one the LLM and human readers return to most often — keep it
+specific enough to anchor scope decisions._
+
+{% if deployment_target -%}
+**Deployment target:** {{ deployment_target }}
+{% endif %}
+
+## Users
+
+_Who uses this? One paragraph per distinct user type; include their primary
+goal and the constraint they care most about._
+
+## Success criteria
+
+_What "shipped and working" looks like. Measurable where possible; qualitative
+where necessary._
+
+## Non-goals
+
+_What this product explicitly does NOT do. Guards against scope creep._
+
+## Constraints
+
+_Compliance, performance, accessibility, budget, deadlines. The things that
+bound the solution space._
+
+---
+
+## Section registry
+
+The section-by-section implementation registry lives in
+[`../tasks/SECTION_REGISTRY.md`](../tasks/SECTION_REGISTRY.md). Run
+`/lp-shape-section <name>` to add a new section spec there.
+
+PRD and section registry are kept in separate files — this prevents
+hybrid pointer+registry files whose shape is internally contradictory.

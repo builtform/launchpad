@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Build Pipeline — non-interactive execution
 # Reads a report or section spec, creates PRD + tasks, runs execution loop, quality sweep.
-# Does NOT push, create PR, or extract learnings (see /ship and compound-learning.sh).
+# Does NOT push, create PR, or extract learnings (see /lp-ship and compound-learning.sh).
 #
-# Usage: ./build.sh [--dry-run] [--ambition] [--evaluator] [--contract] [docs/tasks/sections/<section>.md]
-#        ./build.sh --plan path/to/plan.md
+# Usage: scripts/compound/build.sh [--dry-run] [--ambition] [--evaluator] [--contract] [docs/tasks/sections/<section>.md]
+#        scripts/compound/build.sh --plan path/to/plan.md
 #
 # CLI flags replace the interactive menu. No flags = defaults from config.json.
 # NEVER prompts via `read`.
@@ -149,7 +149,7 @@ if [ -n "$SECTION_SPEC" ]; then
   SECTION_NAME=$(basename "$SPEC_PATH" .md)
   PRIORITY_ITEM="Implement $SECTION_NAME section"
   DESCRIPTION="Implementation of the $SECTION_NAME section as defined in the section spec."
-  RATIONALE="Section spec completed via /shape-section — ready for implementation."
+  RATIONALE="Section spec completed via /lp-shape-section — ready for implementation."
   BRANCH_NAME="${BRANCH_PREFIX}${SECTION_NAME}"
   REPORT_NAME="(section-spec: $SECTION_NAME)"
   LATEST_REPORT=""
@@ -402,4 +402,4 @@ if [ -n "$BOARD_SUMMARY" ]; then
   log "Final: $BOARD_SUMMARY"
 fi
 
-log "Build complete. Run /ship to push and create PR."
+log "Build complete. Run /lp-ship to push and create PR."

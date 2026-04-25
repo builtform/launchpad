@@ -1,0 +1,62 @@
+# .launchpad/config.yml — seeded by /lp-define from detected stack
+#
+# Three sections: pipeline (stage toggles), commands (shell invocations),
+# paths (canonical locations). Edit freely; /lp-define won't overwrite this
+# file without your explicit consent (interactive per-file prompt).
+
+pipeline:
+  brainstorm: enabled
+  define:
+    product: enabled
+    design: {% if pipeline_design_enabled %}enabled{% else %}skipped{% endif %}
+    architecture: enabled
+    sections: enabled
+  plan:
+    design_review: {% if pipeline_design_enabled %}enabled{% else %}skipped{% endif %}
+    pnf: enabled
+    harden: enabled
+  build:
+    inf: enabled
+    review: enabled
+    resolve: enabled
+    test_browser: {% if pipeline_test_browser_enabled %}enabled{% else %}skipped{% endif %}
+    ship: enabled
+    learn: enabled
+
+commands:
+  # Always arrays. [] means skip. Commands run serially left-to-right.
+{% for cmd_name, cmd_list in commands.items() %}  {{ cmd_name }}:
+{%- if cmd_list %}
+{%- for c in cmd_list %}
+    - {{ c | tojson }}
+{%- endfor %}
+{%- else %}
+    []
+{%- endif %}
+{% endfor %}
+
+paths:
+  architecture_dir: "docs/architecture"
+  tasks_dir: "docs/tasks"
+  sections_dir: "docs/tasks/sections"
+  # Plan file location (per-section). Placeholders: {section_name}
+  # Default places each plan alongside its spec in sections_dir.
+  # Commands that read this: /lp-pnf, /lp-harden-plan, /lp-plan, /lp-build.
+  plans_file_pattern: "docs/tasks/sections/{section_name}-plan.md"
+  reports_dir: "docs/reports"
+  solutions_dir: "docs/solutions"
+  brainstorms_dir: "docs/brainstorms"
+  harness_dir: ".harness"
+  launchpad_dir: ".launchpad"
+
+# Overwrite behavior for /lp-define when rescaffolding
+# skip    — never overwrite
+# prompt  — interactive per-file menu (default)
+# force   — overwrite without asking
+overwrite: prompt
+
+# Audit log for autonomous-mode invocations
+# committed: false  — gitignored (per-user debug log, recommended)
+# committed: true   — tracked in git (team PR visibility; causes merge conflicts)
+audit:
+  committed: false

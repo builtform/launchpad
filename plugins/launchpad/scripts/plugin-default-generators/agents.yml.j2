@@ -1,0 +1,74 @@
+# Agents configuration — seeded by /lp-define
+# Stack: {{ product_context.stack_summary }}
+#
+# /lp-define is the authoritative seeder. Commands that read this file
+# (/lp-review, /lp-harden-plan, /lp-ship, /lp-commit, /lp-harness-todo-resolver,
+# /lp-create-agent, /lp-create-skill, /lp-resolve-todo-parallel) NEVER
+# overwrite it — edit freely. Re-running /lp-define will NOT silently
+# clobber your edits (the overwrite menu treats this as a protected file).
+
+# Code review agents — dispatched by /lp-review
+review_agents:
+  - lp-pattern-finder
+  - lp-security-auditor
+  - lp-code-simplicity-reviewer
+  - lp-testing-reviewer
+  - lp-performance-auditor
+  - lp-architecture-strategist
+{%- if 'ts_monorepo' in stacks %}
+  - lp-kieran-foad-ts-reviewer
+{%- endif %}
+{%- if 'python_django' in stacks %}
+  - lp-kieran-foad-python-reviewer
+{%- endif %}
+
+# Database agents — dispatched by /lp-review when schema/migration files change
+review_db_agents:
+  - lp-schema-drift-detector
+  - lp-data-migration-auditor
+  - lp-data-integrity-auditor
+
+# Design review agents — dispatched by /lp-review when design artifacts exist
+# (artifact-based: .harness/design-artifacts/<section>-approved.png triggers these)
+review_design_agents:
+  - lp-design-ui-auditor
+  - lp-design-responsive-auditor
+  - lp-design-alignment-checker
+  - lp-design-implementation-reviewer
+
+# Copy review agents — dispatched by /lp-copy-review
+# Downstream projects extend this list (e.g., BuiltForm adds copy-auditor).
+review_copy_agents: []
+
+# Plan-hardening agents — always dispatched by /lp-harden-plan (both --lightweight and --full)
+harden_plan_agents:
+  - lp-pattern-finder
+  - lp-security-auditor
+  - lp-performance-auditor
+  - lp-spec-flow-analyzer
+
+# Conditional plan-hardening agents — dispatched by /lp-harden-plan --full only
+harden_plan_conditional_agents:
+  - lp-architecture-strategist
+  - lp-code-simplicity-reviewer
+  - lp-schema-drift-detector
+{%- if 'ts_monorepo' in stacks %}
+  - lp-frontend-races-reviewer
+{%- endif %}
+
+# Document-review agents — dispatched by /lp-harden-plan Step 3.5
+# design-lens-reviewer is auto-skipped when the section spec says "design:skipped"
+harden_document_agents:
+  - lp-adversarial-document-reviewer
+  - lp-coherence-reviewer
+  - lp-feasibility-reviewer
+  - lp-scope-guardian-reviewer
+  - lp-product-lens-reviewer
+  - lp-security-lens-reviewer
+  - lp-design-lens-reviewer
+
+# Protected branches — read by /lp-ship, /lp-commit, /lp-resolve-pr-comments
+# (defaults to [main, master] if this key is absent)
+protected_branches:
+  - main
+  - master

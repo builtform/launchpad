@@ -1,0 +1,65 @@
+name: Feature Request
+description: Suggest a new capability, command, agent, skill, or workflow for LaunchPad.
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a feature. Concrete use-cases land faster than abstract requests.
+
+        For open-ended shape questions ("is this how I should think about X?"), please open a **Discussion** instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to accomplish that LaunchPad doesn't currently support?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed solution
+      description: How might LaunchPad solve this? A new command, a flag on an existing command, a new agent, a doc-generator change, etc.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What workarounds have you tried? What other tools solve adjacent versions of this problem?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Roughly, what's the scope?
+      options:
+        - Trivial — a few lines of doc or config
+        - Small — a single command or skill update
+        - Medium — a new command, agent, or generator template
+        - Large — a new workflow phase or significant architectural change
+        - Not sure
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: roadmap-check
+    attributes:
+      label: Roadmap check
+      description: Have you reviewed [ROADMAP.md](../../ROADMAP.md)?
+      options:
+        - label: I've checked ROADMAP.md and this isn't already planned for v1.1
+          required: true
+
+  - type: textarea
+    id: extra-context
+    attributes:
+      label: Additional context
+      description: Use-cases, mockups, references to similar features in other projects, etc.
+    validations:
+      required: false

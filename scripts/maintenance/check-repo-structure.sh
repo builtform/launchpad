@@ -93,6 +93,8 @@ ALLOWED_DOCS=(
   "SECURITY.template.md"
   "CHANGELOG.md"
   "CHANGELOG.template.md"
+  "ROADMAP.md"
+  "ROADMAP.template.md"
   "LICENSE"
   "LICENSE.template"
 )
@@ -123,6 +125,8 @@ ALLOWED_DIRS=(
   "packages"
   "scripts"
   "docs"
+  "plugins"
+  ".claude-plugin"
   ".github"
   ".vscode"
   ".claude"
@@ -318,16 +322,30 @@ echo "📋 Checking for production code importing from experiments/..."
 
 EXPERIMENT_IMPORTS=""
 
-# Check files in apps/ only (no services/ in this repo)
-if [ -d "$REPO_ROOT/apps" ]; then
+# Check both apps/ and packages/. Shared packages cannot bypass the sandbox
+# rule by importing from experiments/ either; the rule applies to ALL
+# production code, regardless of which workspace it lives in.
+SCAN_PATHS=()
+[ -d "$REPO_ROOT/apps" ] && SCAN_PATHS+=("$REPO_ROOT/apps")
+[ -d "$REPO_ROOT/packages" ] && SCAN_PATHS+=("$REPO_ROOT/packages")
+if [ ${#SCAN_PATHS[@]} -gt 0 ]; then
+  # Catch every shape production code might use to reach into the sandbox:
+  #   Python:     from experiments...   import experiments...
+  #   TS/JS ESM:  import x from "../docs/experiments/..."
+  #               import x from "docs/experiments/..."
+  #               import("../docs/experiments/...")
+  #   Aliased:    from "@/docs/experiments/..." (tsconfig path alias)
+  # The previous pattern only matched the bare-namespace 'from experiments'
+  # / 'import experiments' forms used in Python, so a TS file reaching into
+  # docs/experiments/ via a relative path slipped through.
   EXPERIMENT_IMPORTS=$(grep -rn \
     --include="*.py" \
     --include="*.ts" \
     --include="*.tsx" \
     --include="*.js" \
     --include="*.jsx" \
-    -E "(from experiments|import experiments)" \
-    "$REPO_ROOT/apps" 2>/dev/null || true)
+    -E "(from[[:space:]]+experiments|import[[:space:]]+experiments|docs/experiments|/experiments/|@/experiments)" \
+    "${SCAN_PATHS[@]}" 2>/dev/null || true)
 fi
 
 if [ -n "$EXPERIMENT_IMPORTS" ]; then
@@ -366,8 +384,16 @@ if [ -f "$AGENTS_YML" ]; then
   # Filter: lines with "  - " under *_agents keys, not comments, not protected_branches
   while IFS= read -r agent_name; do
     [ -z "$agent_name" ] && continue
-    # Search all subdirectories under .claude/agents/ for a matching .md file
-    FOUND=$(find "$REPO_ROOT/.claude/agents" -name "${agent_name}.md" -type f 2>/dev/null | head -1)
+    # Mirror the runtime resolver: scan plugins/launchpad/agents/** for
+    # built-ins first, then .claude/agents/** for project-local extensions.
+    # A downstream project legitimately holding a custom agent under
+    # .claude/agents/ should not fail the structure check just because the
+    # name does not exist in the shipped plugin tree.
+    FOUND=""
+    [ -d "$REPO_ROOT/plugins/launchpad/agents" ] && FOUND=$(find "$REPO_ROOT/plugins/launchpad/agents" -name "${agent_name}.md" -type f 2>/dev/null | head -1)
+    if [ -z "$FOUND" ] && [ -d "$REPO_ROOT/.claude/agents" ]; then
+      FOUND=$(find "$REPO_ROOT/.claude/agents" -name "${agent_name}.md" -type f 2>/dev/null | head -1)
+    fi
     if [ -z "$FOUND" ]; then
       MISSING_AGENTS="$MISSING_AGENTS      $agent_name\n"
     fi

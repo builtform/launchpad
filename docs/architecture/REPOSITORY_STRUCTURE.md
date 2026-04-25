@@ -25,6 +25,7 @@ The repo root is clean and predictable. Only whitelisted files and directories b
 | `CODE_OF_CONDUCT.md` / `.template.md` | Code of conduct                                                          |
 | `SECURITY.md` / `.template.md`        | Security policy                                                          |
 | `CHANGELOG.md` / `.template.md`       | Changelog                                                                |
+| `ROADMAP.md` / `.template.md`         | Roadmap of upcoming work                                                 |
 | `LICENSE` / `.template`               | MIT license (Thinking Hand Studio LLC)                                   |
 | `package.json`                        | Root workspace config, shared devDependencies                            |
 | `pnpm-workspace.yaml`                 | Workspace globs: `apps/*`, `packages/*`                                  |
@@ -48,19 +49,21 @@ Note: Files marked with `.template` or `.template.md` are used by `init-project.
 
 ### Allowed Directories at Root
 
-| Directory                                               | Purpose                                                                      |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `apps/`                                                 | User-facing applications (web, api)                                          |
-| `packages/`                                             | Shared internal libraries (db, shared, ui, eslint-config, typescript-config) |
-| `scripts/`                                              | Repo-wide maintenance and automation                                         |
-| `docs/`                                                 | Centralized documentation hub                                                |
-| `.github/`                                              | GitHub Actions, issue/PR templates                                           |
-| `.vscode/`                                              | Shared editor settings                                                       |
-| `.claude/`                                              | Claude Code agents, commands, skills, hooks                                  |
-| `.launchpad/`                                           | Harness metadata — agent lists, secret patterns (upstream-synced)            |
-| `.harness/`                                             | Runtime artifacts — todos, observations, design artifacts                    |
-| `node_modules/`, `.turbo/`, `.next/`, `dist/`, `build/` | Build/cache artifacts (gitignored)                                           |
-| `.git/`                                                 | Git internals                                                                |
+| Directory                                               | Purpose                                                                        |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `apps/`                                                 | User-facing applications (web, api)                                            |
+| `packages/`                                             | Shared internal libraries (db, shared, ui, eslint-config, typescript-config)   |
+| `scripts/`                                              | Repo-wide maintenance and automation                                           |
+| `docs/`                                                 | Centralized documentation hub                                                  |
+| `plugins/launchpad/`                                    | The LaunchPad plugin (commands/, agents/, skills/, .claude-plugin/plugin.json) |
+| `.claude-plugin/`                                       | Marketplace manifest (marketplace.json) — points at plugins/launchpad/         |
+| `.github/`                                              | GitHub Actions, issue/PR templates                                             |
+| `.vscode/`                                              | Shared editor settings                                                         |
+| `.claude/`                                              | Project-local Claude config (hooks/, settings.json, Prompts/, profiles/)       |
+| `.launchpad/`                                           | Harness metadata — agent lists, secret patterns (upstream-synced)              |
+| `.harness/`                                             | Runtime artifacts — todos, observations, design artifacts                      |
+| `node_modules/`, `.turbo/`, `.next/`, `dist/`, `build/` | Build/cache artifacts (gitignored)                                             |
+| `.git/`                                                 | Git internals                                                                  |
 
 Anything not on these lists is root clutter and must be moved.
 
@@ -128,6 +131,7 @@ scripts/
 docs/                                        # See Decision Tree (Section 6.1) for routing
 ├── architecture/                            # System design, ADRs (decisions/ created when needed), tech stack
 ├── plans/                                   # Implementation plans, phased roadmaps
+├── releases/                                # Hand-authored release notes per tag (vX.Y.Z.md)
 ├── reports/                                 # Investigation reports, audits, postmortems
 ├── tasks/                                   # Active work: BACKLOG.md, section specs
 ├── solutions/                               # Categorized learnings from compound loops
@@ -145,7 +149,7 @@ docs/                                        # See Decision Tree (Section 6.1) f
 
 .claude/
 ├── agents/                                  # Sub-agent definitions
-│   ├── design/                              # Phase 10 design agents
+│   ├── design/                              # Design review agents
 │   │   ├── design-alignment-checker.md      # Verifies design-to-spec fidelity
 │   │   ├── design-implementation-reviewer.md # Reviews design implementation quality
 │   │   ├── design-iterator.md               # Iterates designs based on feedback
@@ -273,6 +277,7 @@ Every subdirectory in `docs/` has a specific purpose. Do not use `docs/` as a ca
 | `docs/handoffs/`       | Session handoff documents                                                   |
 | `docs/lessons/`        | Running log of lessons learned (LESSONS.md — append-only)                   |
 | `docs/plans/`          | Implementation plans, phased roadmaps                                       |
+| `docs/releases/`       | Hand-authored release notes per tagged version (`vX.Y.Z.md`)                |
 | `docs/reports/`        | Investigation reports, audits, postmortems                                  |
 | `docs/skills-catalog/` | Skill index, usage tracking, catalog                                        |
 | `docs/solutions/`      | Categorized learnings from compound loops                                   |
@@ -290,13 +295,14 @@ Walk through in order. Stop at the first match.
 - Architecture doc, ADR, tech overview → `docs/architecture/`
 - ADR → `docs/architecture/decisions/ADR-<number>-<title>.md` (never delete; if superseded, update Status)
 - Implementation plan or roadmap → `docs/plans/`
-- Section spec (from `/shape-section`) → `docs/tasks/sections/`
+- Section spec (from `/lp-shape-section`) → `docs/tasks/sections/`
 - Backlog or task tracking → `docs/tasks/`
 - Lessons learned → append to `docs/lessons/LESSONS.md` (append-only, never rewrite)
 - Categorized solution from compound loop → `docs/solutions/`
 - Brainstorming document → `docs/brainstorms/`
 - Session handoff document → `docs/handoffs/`
 - Investigation report, audit, postmortem → `docs/reports/YYYY-MM-DD-<topic>.md`
+- Hand-authored release notes for a tag → `docs/releases/v<MAJOR>.<MINOR>.<PATCH>.md`
 - UI/UX design notes → `docs/ui/ux/`
 - Exploratory notes → `docs/experiments/` (move to `docs/archive/` when done)
 - Article or research → `docs/articles/`
@@ -392,13 +398,13 @@ Create `packages/<name>/` with `package.json` (`@repo/<name>`), `tsconfig.json`,
 
 ### 6.13 Claude Code agent, command, or skill
 
-- Agent → `.claude/agents/`
-- Command → `.claude/commands/`
-- Prompt template → `.claude/Prompts/`
-- Skill → `.claude/skills/<skill-name>/SKILL.md`
-- Skill references → `.claude/skills/<skill-name>/references/` (one level deep only)
-- Skill evals → `.claude/skills/<skill-name>/evals/`
-- Profile → `.claude/profiles/`
+- Agent → `plugins/launchpad/agents/<namespace>/<name>.md`
+- Command → `plugins/launchpad/commands/<name>.md`
+- Skill → `plugins/launchpad/skills/<skill-name>/SKILL.md`
+- Skill references → `plugins/launchpad/skills/<skill-name>/references/` (one level deep only)
+- Skill evals → `plugins/launchpad/skills/<skill-name>/evals/`
+- Prompt template → `.claude/Prompts/` (project-local, not plugin content)
+- Profile → `.claude/profiles/` (project-local, not plugin content)
 
 ### If none match:
 

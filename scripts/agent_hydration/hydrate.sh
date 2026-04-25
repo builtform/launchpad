@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eo pipefail
 # Session Hydration — inject current project state at session start
-# Called by: SessionStart hook (startup, clear) and /hydrate command
+# Called by: SessionStart hook (startup, clear) and /lp-hydrate command
 #
 # Loads:
 # 1. Runs structure drift detection (writes report if drift found)

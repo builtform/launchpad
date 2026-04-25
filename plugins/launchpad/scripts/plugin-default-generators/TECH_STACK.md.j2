@@ -1,0 +1,52 @@
+# Tech Stack
+
+> {{ tech_stack.language }} — {{ tech_stack.runtime }}
+
+## Language & runtime
+
+- **Language:** {{ tech_stack.language }}
+- **Runtime:** {{ tech_stack.runtime }}
+{%- if tech_stack.package_manager %}
+- **Package manager:** {{ tech_stack.package_manager }}
+{%- endif %}
+
+## Frameworks
+{% if tech_stack.frameworks %}
+{% for fw in tech_stack.frameworks %}- {{ fw }}
+{% endfor %}
+{% else %}
+_No frameworks detected. Add yours here._
+{% endif %}
+
+## Data layer
+{% if tech_stack.database %}
+- **Database:** {{ tech_stack.database }}
+{% else %}
+_No database detected. Add yours here if applicable._
+{% endif %}
+
+## CI / deployment
+{% if tech_stack.ci %}
+- **CI:** {{ tech_stack.ci }}
+{% else %}
+_CI pipeline not detected. Add yours here if you have one._
+{% endif %}
+
+---
+
+## Detected manifests
+
+This document was seeded from the following manifests detected at the repo root:
+
+{% for m in manifests %}- `{{ m }}`
+{% endfor %}
+
+**Manifest paths only:** this section lists the manifest files detected
+during seeding. The generator does not embed parsed manifest *content*
+into this document, so secret-bearing fields like `scripts.*` values,
+private-registry tokens, or `repositories[].url` credentials never reach
+this output — there is no field-level redaction step because there is
+nothing to redact in the rendered text. Every rendered doc is
+additionally passed through `secret-patterns.txt` before write as a
+defense-in-depth check; a match there refuses the write entirely
+rather than redacting in place.

@@ -12,7 +12,10 @@
 # TypeScript
 # macOS
 *.log
+*.pyc
 *.tsbuildinfo
+.launchpad/audit.log
+__pycache__/
 .DS_Store
 .cache/
 .env
@@ -53,3 +56,6 @@ review-history.md
 # .harness/ — runtime workspace; everything ephemeral except project context
 .harness/*
 !.harness/harness.local.md
+
+# MemPalace per-project storage (optional companion tool — see docs/guides/MEMPALACE_INTEGRATION.md)
+.mempalace/

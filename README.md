@@ -1,530 +1,165 @@
-# Launchpad
+# LaunchPad
 
-> The harness your AI agent didn't know it needed. With best practices pre-wired for AI coding.
+> The agentic coding harness that gives AI full context about your codebase, runs it in structured loops, and enforces quality before anything reaches `main`. Works for both greenfield and brownfield projects.
 
-![Node.js](https://img.shields.io/badge/Node.js-22.x-339933?logo=node.js&logoColor=white)
-![pnpm](https://img.shields.io/badge/pnpm-9.x-F69220?logo=pnpm&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue)
+![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-1f6feb)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-22.x-339933?logo=node.js&logoColor=white)
 
-![Launchpad Architectural Outline](.github/assets/hero-image.png)
+![LaunchPad Architectural Outline](.github/assets/hero-image.png)
 
-AI coding assistants generate code without memory, conventions, or quality gates. Launchpad fixes this -- an AI coding harness that gives AI full context about your codebase, runs it in structured loops, and enforces quality before anything reaches `main`.
+AI coding assistants generate code without memory, conventions, or quality gates. LaunchPad fixes that.
 
-Built on top of best practices for AI-assisted development: existing patterns (compound loops, spec-driven dev, structure enforcement) pre-wired into a single harness that works out of the box.
+It drops 38 slash commands, 36 sub-agents, and 16 skills into any repository, giving Claude Code full project context, structured execution loops, and multi-agent review before anything reaches `main`. Works on brownfield projects (add the plugin and go) and greenfield (clone the template, get a monorepo scaffold with LaunchPad pre-installed).
 
-- **Context Engineering System** by **[HumanLayer](https://github.com/humanlayer/humanlayer)** -- Research → Plan → Implement workflow, The locator/analyzer agent pair pattern, and two-wave orchestration.
-- **[Compound Product](https://github.com/snarktank/compound-product)** by Ryan Carson -- Autonomous pipeline from report to PR
-- **[Ralph](https://github.com/snarktank/ralph)** by Ryan Carson & **[Ralph](https://ghuntley.com/ralph/)** by Geoffrey Huntley -- Fresh-context loop with git-based memory
-- **Spec-Driven Development** -- Define architecture docs before building (SpecKit / AgentOS)
-- **[CE Plugin](https://github.com/EveryInc/compound-engineering-plugin)** by Kieran Klaassen / **[Every](https://every.to/)** -- 29 agents, 22 commands, 19 skills (ported natively into Launchpad)
-
----
-
-**Contents:** [Quick Start](#quick-start) | [How It Works](#how-it-works) | [What's Inside](#whats-inside) | [Commands](#commands) | [Configuration](#configuration) | [Pipeline Tools](#pipeline-tools) | [CI/CD](#cicd) | [Security](#security-considerations) | [CE Plugin Heritage](#compound-engineering-plugin-heritage) | [Maintenance](#maintenance) | [Contributing](#contributing)
+LaunchPad ships under the **BuiltForm** marketplace at [github.com/builtform](https://github.com/builtform) — the umbrella brand for plugins and tools by Foad Shafighi.
 
 ---
 
-## Quick Start
+**Contents:** [Install](#install) · [First 15 Minutes](#first-15-minutes) · [What's Inside](#whats-inside) · [Security](#security) · [Methodology](#methodology) · [Companions](#companions) · [Links](#links)
 
-### Prerequisites
+---
 
-| Prerequisite                                                  | Version | Required | Purpose                                        |
-| ------------------------------------------------------------- | ------- | -------- | ---------------------------------------------- |
-| [Node.js](https://nodejs.org/)                                | 22.x+   | Yes      | JavaScript runtime                             |
-| [pnpm](https://pnpm.io/)                                      | 9.x+    | Yes      | Package manager (enable via `corepack enable`) |
-| [PostgreSQL](https://www.postgresql.org/)                     | 14+     | Yes      | Database                                       |
-| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Latest  | Yes      | AI development workflows                       |
-| [Codex](https://openai.com/codex/)                            | Latest  | Optional | AI development workflows alternative           |
-| [GitHub CLI](https://cli.github.com/)                         | Latest  | Optional | PR creation from `/commit` and `/inf`          |
-|                                                               |         |          |                                                |
+## Install
 
-### Installation
+### Path 1 — Add to any repo (Best for Brownfield)
 
-**0. Pick where your project will live**
+Inside Claude Code, in the project where you want the commands:
 
-Open a terminal and `cd` into the parent directory where your projects live (e.g., `~/dev/`). Do **not** create the project folder yourself -- `git clone` in step 1 creates it for you.
-
-```bash
-cd ~/dev
+```
+/plugin install launchpad@builtform
 ```
 
-**1. Clone Launchpad as your new project**
+Restart Claude Code. All `/lp-*` commands are now available. Run `/lp-kickoff` to start.
 
-Replace `my-project` with your project name. The last argument tells `git` to clone into a folder with that name:
+BuiltForm is a public marketplace in the Anthropic plugin registry — no additional marketplace setup required.
+
+### Path 2 — Fresh monorepo with LaunchPad pre-installed (Best for Greenfield)
+
+If you want a new TypeScript + Next.js + Hono monorepo with LaunchPad and the whole scaffold (apps/, packages/, pre-commit hooks, CI, etc.):
 
 ```bash
-git clone https://github.com/foadshafighi/LaunchPad.git my-project
+git clone https://github.com/builtform/launchpad my-project
 cd my-project
-```
-
-This creates `~/dev/my-project/` with the Launchpad scaffold inside. Nothing exists on GitHub yet -- the GitHub repo is created in step 4.
-
-> **Alternative:** Click the green **"Use this template"** button on GitHub to create a detached copy. This skips the init wizard's automatic `launchpad` remote setup, so you will need to add it manually later if you want to pull upstream updates.
-
-**2. Initialize your project**
-
-```bash
 ./scripts/setup/init-project.sh
 ```
 
-The wizard prompts for your project name, description, copyright holder, contact email, and license (MIT, Apache-2.0, GPL-3.0, or Other). It validates all inputs, swaps template files into place, replaces all placeholders, updates `package.json`, and preserves the original Launchpad documentation at `.launchpad/HOW_IT_WORKS.md` and `.launchpad/METHODOLOGY.md`.
-
-The wizard also renames the `origin` remote to `launchpad` and disables push to it. This frees `origin` for your own GitHub repo (step 4) and prevents accidental pushes back to the Launchpad upstream.
-
-**3. Choose how to handle git history**
-
-**Option A -- Stay connected (recommended)**
-
-Keep the upstream connection so you can pull future Launchpad updates into safe directories (commands, skills, scripts, workflows). No commands to run in this step -- continue to step 4.
-
-**Option B -- Fresh start**
-
-Remove all upstream history and start clean. You lose the ability to pull Launchpad updates.
-
-```bash
-rm -rf .git && git init -b main && git add -A && git commit -m "Initial commit"
-```
-
-**4. Create your GitHub repo (empty) and push**
-
-> **Create the repo empty.** Do not check any "Initialize this repository with..." options (no README, no `.gitignore`, no license). Any of those creates an initial commit on GitHub that will conflict with Launchpad's history when you push.
-
-In your browser: create a new repo, leave every "Initialize" option unchecked. Or via CLI (omit `--source` and `--push` so it creates the remote repo only, without touching your local history):
-
-```bash
-gh repo create my-project --private
-```
-
-Then point `origin` at your new repo and push:
-
-```bash
-git remote add origin <your-repo-url>
-git push -u origin main
-```
-
-To pull Launchpad updates later (Option A only), use `/pull-launchpad` in Claude Code or run `bash scripts/setup/pull-upstream.launchpad.sh`.
-
-**5. Install dependencies**
-
-```bash
-corepack enable          # Enables pnpm via Corepack
-pnpm install             # Installs all workspace deps + git hooks
-```
-
-**6. Configure environment**
-
-```bash
-cp .env.example .env.local
-```
-
-Open `.env.local` and set `DATABASE_URL` to your PostgreSQL connection string. AI provider keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are only needed for compound automation scripts.
-
-**7. Start development**
-
-```bash
-pnpm dev
-```
-
-The web app runs on `http://localhost:3000` and the API on `http://localhost:3001`.
-
-**8. Define your product (AI workflow)**
-
-```
-/define-product              # Answer questions about your product vision and goals
-/define-design               # Answer questions about your design system, app flow, and frontend
-/define-architecture         # Answer questions about your backend structure and CI/CD
-```
-
-This populates seven architecture docs that give the AI complete context about what you are building.
-
-### Trimming What You Don't Need
-
-Launchpad is comprehensive by design. Delete what your project does not require:
-
-| If you don't need... | Delete              | Also remove from                                    |
-| -------------------- | ------------------- | --------------------------------------------------- |
-| Backend API          | `apps/api/`         | `turbo.json` tasks, `pnpm-workspace.yaml` if needed |
-| Database / Prisma    | `packages/db/`      | `@repo/db` references in `apps/api/package.json`    |
-| Compound automation  | `scripts/compound/` | --                                                  |
-| Shared UI library    | `packages/ui/`      | `@repo/ui` references in `apps/web/package.json`    |
+The wizard prompts for project name, description, copyright holder, and license; replaces placeholders; sets up git remotes; and auto-installs the plugin at project scope. Full template walkthrough: [HOW_IT_WORKS.md → The template path](docs/guides/HOW_IT_WORKS.md#the-template-path-greenfield-only).
 
 ---
 
-## How It Works
+## First 15 Minutes
 
-Launchpad organizes AI development into **7 layers**, each targeting a specific failure mode:
+LaunchPad is organized around four **meta-orchestrators** that chain an idea all the way to a shipped PR:
 
-| Layer                | Purpose                                | Key Tool                                                          |
-| -------------------- | -------------------------------------- | ----------------------------------------------------------------- |
-| 1. Scaffold          | Consistent file placement              | `check-repo-structure.sh`                                         |
-| 2. Definition        | Spec before code                       | `/define-product`, `/define-design`, `/define-architecture`       |
-| 3. Execution         | AI in fresh-context loops              | `/inf`, `build.sh`                                                |
-| 4. Quality           | Catch problems pre-commit              | Lefthook, TypeScript, ESLint                                      |
-| 5. Commit-to-Merge   | Nothing unreviewed on main             | `/commit`, Codex review                                           |
-| 6. Compound Learning | Learnings improve every future session | `docs/solutions/`, `CLAUDE.md`                                    |
-| 7. Skill Creation    | Encode expertise as reusable AI skills | `/create-skill`, `/port-skill`, `/update-skill`, Meta-Skill Forge |
-
-How these layers connect -- each feeds into the next, with learnings cycling back to improve every future session:
-
-```mermaid
-flowchart TD
-    L1["Layer 1 - Opinionated Scaffold"]
-    L2["Layer 2 - Spec-Driven Definition"]
-    L3["Layer 3 - Compound Execution"]
-    L4["Layer 4 - Quality Gates"]
-    L5["Layer 5 - Commit-to-Merge"]
-    L6["Layer 6 - Compound Learning"]
-    L7["Layer 7 - Skill Creation"]
-
-    L1 -->|"structure rules"| L2
-    L2 -->|"architecture docs"| L3
-    L3 -->|"code changes"| L4
-    L4 -->|"validated commits"| L5
-    L5 -->|"merged PRs"| L6
-    L6 -->|"learnings"| L7
-    L7 -.->|"improve execution"| L3
-    L7 -.->|"improve checks"| L4
-    L7 -.->|"improve workflow"| L5
-    L6 -.->|"improve rules"| L1
-    L6 -.->|"improve specs"| L2
+```
+/lp-kickoff  →  /lp-define  →  /lp-plan  →  /lp-build
+ brainstorm     spec the       design +     build, review,
+                product        plan         resolve, ship, learn
 ```
 
-Each loop iteration runs in a **fresh AI context** -- memory persists via git commits and state files (`prd.json`, `progress.txt`), not conversation history. This prevents context drift across long sessions. Layer 6 (Compound Learning) captures learnings from each cycle, and Layer 7 (Skill Creation) encodes those learnings as reusable AI skills -- so expertise compounds not just as documentation but as executable reasoning patterns.
+Each orchestrator checks a section's status before proceeding — you can run them in sequence for a whole feature, or invoke any one independently when resuming work.
 
-> See [How It Works](docs/guides/HOW_IT_WORKS.md) for the step-by-step workflow guide. | [Methodology](docs/guides/METHODOLOGY.md) for the full architecture, diagrams, and philosophy. | Architecture in [System Overview](docs/architecture/SYSTEM_OVERVIEW.md)
+- **`/lp-kickoff`** — collaborative brainstorming with codebase research, writes a design doc to `docs/brainstorms/`, hands off to `/lp-define`.
+- **`/lp-define`** — seeds your architecture docs (PRD, tech stack, design system, app flow, backend, CI/CD) and section specs. Stack-aware: detects TypeScript / Python / polyglot projects and seeds `.launchpad/agents.yml` and `.launchpad/config.yml` accordingly.
+- **`/lp-plan`** — design workflow (when UI is involved) → `/lp-pnf` (Plan Next Feature) → `/lp-harden-plan` (multi-agent plan stress-test) → human approval gate.
+- **`/lp-build`** — fully autonomous: `/lp-inf` (execute the plan) → `/lp-review` (multi-agent review with confidence scoring and FP suppression) → `/lp-resolve-todo-parallel` (fix findings) → `/lp-test-browser` → `/lp-ship` (opens PR, never merges) → `/lp-learn` (captures learnings).
+
+Full workflow guide: [HOW_IT_WORKS.md](docs/guides/HOW_IT_WORKS.md).
 
 ---
 
 ## What's Inside
 
-| Component | Technology                                                                                              |
-| --------- | ------------------------------------------------------------------------------------------------------- |
-| Frontend  | [Next.js 15](https://nextjs.org/) App Router, [Tailwind CSS v4](https://tailwindcss.com/)               |
-| Backend   | [Hono](https://hono.dev/)                                                                               |
-| Language  | TypeScript 5 (strict)                                                                                   |
-| Database  | [Prisma](https://www.prisma.io/) + PostgreSQL                                                           |
-| Build     | [Turborepo](https://turbo.build/) + [pnpm](https://pnpm.io/) workspaces                                 |
-| Quality   | ESLint 9, Prettier, [Vitest](https://vitest.dev/), [Lefthook](https://github.com/evilmartians/lefthook) |
-| CI        | GitHub Actions + Codex AI review                                                                        |
-| AI        | [Claude Code](https://docs.anthropic.com/en/docs/claude-code), `CLAUDE.md`, `AGENTS.md`                 |
+| Component       | What the plugin ships                                                                                                                           |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Slash commands  | 38 `/lp-*` commands for brainstorm, define, plan, build, review, resolve, learn, test, ship                                                     |
+| Sub-agents      | 36 across 6 namespaces: research, review, resolve, design, skills, document-review                                                              |
+| Skills          | 16 reusable instruction sets for design, planning, review, compound docs                                                                        |
+| Runtime scripts | Stack detector, polyglot adapter, Jinja2 doc generator, content-hash audit log, autonomous-build integrity guard                                |
+| Test suite      | 12 plugin-test suites covering adapters, config loader, stack detector, Jinja2 autoescape, pipeline integration, install-paths regression guard |
 
 <details>
-<summary>Project structure</summary>
+<summary>Plugin structure (click to expand)</summary>
 
 ```
-launchpad/
-├── apps/
-│   ├── web/                # Next.js 15 frontend
-│   └── api/                # Hono backend
-├── packages/
-│   ├── db/                 # Prisma schema + migrations
-│   ├── shared/             # Shared types & utilities
-│   ├── ui/                 # React component library
-│   ├── eslint-config/      # Shared ESLint config
-│   └── typescript-config/  # Shared TS presets
-├── scripts/
-│   ├── compound/           # Pipeline scripts
-│   ├── agent_hydration/    # AI session bootstrapping
-│   └── maintenance/        # Repo validation
-├── docs/                   # Architecture, reports, learnings
-├── .claude/                # Commands, skills, agents
-├── .harness/               # Runtime: todos, config, review history, run logs
-├── .launchpad/             # Project config: agents.yml, HOW_IT_WORKS, METHODOLOGY
-├── CLAUDE.md               # AI instructions
-└── AGENTS.md               # Multi-tool AI instructions
+LaunchPad/
+├── .claude-plugin/
+│   └── marketplace.json        # name=builtform, source="./plugins/launchpad"
+├── plugins/launchpad/          # the plugin itself
+│   ├── .claude-plugin/
+│   │   └── plugin.json         # name=launchpad, version=1.0.0
+│   ├── commands/               # /lp-* slash commands
+│   ├── agents/                 # 36 sub-agents across 6 namespaces
+│   ├── skills/                 # reusable instruction sets (lp-*/SKILL.md)
+│   └── scripts/                # runtime: plugin-*.py/.sh + stack adapters + _vendor/
+├── .launchpad/                 # project-local harness config (agents.yml, audit.log)
+├── docs/                       # architecture, reports, handoffs, releases
+└── scripts/setup/              # init-project.sh (template path only)
 ```
-
-Full annotated structure with file placement decision tree in [`REPOSITORY_STRUCTURE.md`](docs/architecture/REPOSITORY_STRUCTURE.md)
 
 </details>
 
-<details>
-<summary>Canonical files</summary>
-
-These are the files that define how the project behaves. They are the control plane -- everything else is implementation.
-
-**AI Instructions** -- What AI agents read before every session
-
-| File                                   | Purpose                                                                                   | Layer        |
-| -------------------------------------- | ----------------------------------------------------------------------------------------- | ------------ |
-| `CLAUDE.md`                            | Primary instructions for Claude Code -- tech stack, commands, guardrails, workflow phases | All          |
-| `AGENTS.md`                            | Same instructions adapted for non-Claude tools (Codex, Cursor, Gemini)                    | All          |
-| `scripts/compound/iteration-claude.md` | Per-iteration prompt piped to AI during `/inf` execution loops                            | 3. Execution |
-
-**Project Rules** -- What humans and AI follow
-
-| File                                          | Purpose                                                                       | Layer       |
-| --------------------------------------------- | ----------------------------------------------------------------------------- | ----------- |
-| `docs/architecture/REPOSITORY_STRUCTURE.md`   | Single source of truth for file placement -- includes a 12-part decision tree | 1. Scaffold |
-| `scripts/maintenance/check-repo-structure.sh` | Automated validator that enforces REPOSITORY_STRUCTURE.md on every commit     | 1. Scaffold |
-
-**Architecture Specs** -- Populated by `/define-product` and `/define-architecture`
-
-| File                                       | Created By             | Layer         |
-| ------------------------------------------ | ---------------------- | ------------- |
-| `docs/architecture/PRD.md`                 | `/define-product`      | 2. Definition |
-| `docs/architecture/TECH_STACK.md`          | `/define-product`      | 2. Definition |
-| `docs/architecture/DESIGN_SYSTEM.md`       | `/define-design`       | 2. Definition |
-| `docs/architecture/APP_FLOW.md`            | `/define-design`       | 2. Definition |
-| `docs/architecture/BACKEND_STRUCTURE.md`   | `/define-architecture` | 2. Definition |
-| `docs/architecture/FRONTEND_GUIDELINES.md` | `/define-design`       | 2. Definition |
-| `docs/architecture/CI_CD.md`               | `/define-architecture` | 2. Definition |
-
-**Pipeline & Build Config** -- What controls automation and quality
-
-| File                             | Purpose                                                                          | Layer              |
-| -------------------------------- | -------------------------------------------------------------------------------- | ------------------ |
-| `scripts/compound/config.json`   | Pipeline settings: max iterations, branch prefix, quality checks, AI tool        | 3. Execution       |
-| `turbo.json`                     | Turborepo task pipeline: build, dev, lint, test, typecheck                       | 4. Quality         |
-| `lefthook.yml`                   | Pre-commit hooks: prettier, eslint, typecheck, structure check, large file guard | 4. Quality         |
-| `.github/codex-review-prompt.md` | Codex AI review instructions with P0-P3 severity format                          | 5. Commit-to-Merge |
-| `.env.example`                   | Template for environment variables (copy to `.env.local`)                        | Setup              |
-
-**Learnings** -- How knowledge compounds across sessions
-
-| File                                                            | Purpose                                                  | Layer                |
-| --------------------------------------------------------------- | -------------------------------------------------------- | -------------------- |
-| `docs/solutions/compound-product/README.md`                     | Learnings catalog schema and 4-step knowledge flow       | 6. Compound Learning |
-| `docs/solutions/compound-product/_template.md`                  | YAML frontmatter template for structured learnings files | 6. Compound Learning |
-| `docs/solutions/compound-product/patterns/promoted-patterns.md` | Staging area for patterns graduating into `CLAUDE.md`    | 6. Compound Learning |
-
-</details>
+The plugin is stack-agnostic: at `/lp-define` time it detects your project's stack (TypeScript monorepo, Python Django, polyglot, etc.) and adapts which review agents run, which quality commands (`pnpm test` vs `pytest`) are invoked, and which templates are rendered.
 
 ---
 
-## Commands
+## Security
 
-### Meta-Orchestrators
+LaunchPad runs agents with elevated permissions. `/lp-build` creates branches, runs tests, commits, pushes, and opens PRs without asking.
 
-| Command            | What it does                                                                                                  |
-| ------------------ | ------------------------------------------------------------------------------------------------------------- |
-| `/harness:kickoff` | Brainstorming pipeline — delegates to `/brainstorm`, then hands off to `/harness:define`                      |
-| `/harness:define`  | Definition pipeline — chains `/define-product` → `/define-design` → `/define-architecture` → `/shape-section` |
-| `/harness:plan`    | Planning pipeline — chains design → `/pnf` → `/harden-plan` → human approval                                  |
-| `/harness:build`   | Execution pipeline — chains `/inf` → `/review` → `/resolve-todo-parallel` → `/test-browser` → `/ship`         |
+Safeguards are layered:
 
-### Tier 0 — Capabilities
+- **PRs, not direct merges.** `/lp-ship` hard-refuses to run `gh pr merge` or `git merge main/master`.
+- **Multi-agent review with confidence scoring.** `/lp-review` dispatches code + design + DB + copy agents in parallel; findings below a 0.60 confidence threshold are suppressed with an audit trail. P1 floor prevents silent suppression of critical issues.
+- **Autonomous-build acknowledgment file.** `.launchpad/autonomous-ack.md` must exist before `/lp-build` will run, making autonomous authorization visible in git blame and PR diffs.
+- **Content-hash audit log.** `.launchpad/audit.log` records every command invocation with ISO timestamp, git user, commit SHA, and a hash of the canonical commands section — so auditors can see what the harness ran and at what plugin state.
+- **Integrity guard.** `/lp-build` refuses to run if the section spec and `autonomous-ack.md` were introduced in the same commit (the pattern a hostile PR would use to bypass review).
 
-| Command         | What it does                                                                          |
-| --------------- | ------------------------------------------------------------------------------------- |
-| `/create-skill` | Create a Claude skill using the 7-phase Meta-Skill Forge                              |
-| `/update-skill` | Iterate on an existing skill after real-world usage reveals gaps                      |
-| `/port-skill`   | Port an external skill into Launchpad format using the 4-phase Skill Porting workflow |
-| `/create-agent` | Create a new agent or convert an existing skill into an agent                         |
+LaunchPad's autonomous loops pass `--dangerously-skip-permissions` to Claude Code so the loop can run unattended. To close the gap that flag opens — destructive shell commands like `rm -rf` or `git reset --hard` that the built-in merge-block hook does not cover — pair LaunchPad with [Destructive Command Guard (dcg)](https://github.com/Dicklesworthstone/destructive_command_guard), a third-party Rust `PreToolUse` hook. Strongly recommended for any unattended `/lp-build` run. Full threat model and the recommended companions: [SECURITY.md](SECURITY.md).
 
-### Tier 1 — Definition
-
-| Command                | What it does                                                               |
-| ---------------------- | -------------------------------------------------------------------------- |
-| `/define-product`      | Interactive Q&A to populate PRD + Tech Stack + section registry            |
-| `/define-design`       | Interactive Q&A to populate Design System + App Flow + Frontend Guidelines |
-| `/define-architecture` | Interactive Q&A to populate Backend Structure + CI/CD                      |
-| `/brainstorm`          | Collaborative brainstorming with codebase research and design doc capture  |
-
-### Tier 2 — Development
-
-| Command          | What it does                                                   |
-| ---------------- | -------------------------------------------------------------- |
-| `/shape-section` | Deep-dive into a product section — creates section spec        |
-| `/update-spec`   | Scan spec files for gaps, TBDs, and inconsistencies — fix them |
-| `/harden-plan`   | Stress-test implementation plans using multiple review agents  |
-
-### Tier 3 — Implementation
-
-| Command              | What it does                                                            |
-| -------------------- | ----------------------------------------------------------------------- |
-| `/pnf`               | Plan Next Feature — create implementation plan from section spec        |
-| `/implement-plan`    | Execute a plan phase by phase                                           |
-| `/inf`               | Full pipeline: report, PRD, tasks, execution loop, quality sweep, PR    |
-| `/commit`            | Quality gates, commit, PR creation, 3-gate monitoring                   |
-| `/ship`              | Autonomous shipping pipeline — quality gates, commit, PR, CI monitoring |
-| `/research-codebase` | Deep codebase research and analysis                                     |
-
-### Tier 4 — Review & Resolution
-
-| Command                  | What it does                                                              |
-| ------------------------ | ------------------------------------------------------------------------- |
-| `/review`                | Multi-agent code review with confidence scoring and secret scanning       |
-| `/design-review`         | Quality audit — accessibility, performance, theming, responsive, UX       |
-| `/design-polish`         | Pre-ship refinement — alignment, spacing, copy, design system consistency |
-| `/design-onboard`        | Design onboarding flows, empty states, first-time user experiences        |
-| `/copy`                  | Read copy brief from section spec and provide copy context for builds     |
-| `/copy-review`           | Dispatch copy review agents from agents.yml                               |
-| `/triage`                | Interactive triage of review findings — fix, drop, or defer each finding  |
-| `/resolve-todo-parallel` | Resolve review findings by spawning parallel resolver agents              |
-| `/resolve-pr-comments`   | Batch-resolve unresolved PR review comments in parallel                   |
-| `/test-browser`          | Automated browser testing for UI routes affected by current changes       |
-
-### Tier 5 — Learning & Maintenance
-
-| Command               | What it does                                                           |
-| --------------------- | ---------------------------------------------------------------------- |
-| `/learn`              | Capture learnings from resolved problems into structured solution docs |
-| `/defer`              | Manually add a task to the project backlog                             |
-| `/regenerate-backlog` | Regenerate BACKLOG.md from deferred observations and section registry  |
-| `/feature-video`      | Record a video walkthrough of a feature for PR descriptions            |
-| `/memory-report`      | Update session memory and create a detailed session report             |
-
-### Utilities
-
-| Command           | What it does                                          |
-| ----------------- | ----------------------------------------------------- |
-| `/pull-launchpad` | Pull upstream Launchpad updates into safe directories |
-| `/hydrate`        | Load minimal session context                          |
-
-### Development
-
-| Command          | Description                              |
-| ---------------- | ---------------------------------------- |
-| `pnpm dev`       | Start dev servers (web :3000, API :3001) |
-| `pnpm build`     | Build all apps and packages              |
-| `pnpm test`      | Run Vitest tests                         |
-| `pnpm typecheck` | TypeScript type checking                 |
-| `pnpm lint`      | ESLint across all workspaces             |
+Detailed threat model and safeguard list: [HOW_IT_WORKS.md → Security](docs/guides/HOW_IT_WORKS.md#security-considerations).
 
 ---
 
-## Configuration
+## Methodology
 
-Copy `.env.example` to `.env.local` and set:
+LaunchPad organizes AI-assisted development into six layers — Scaffold, Definition, Planning, Execution, Quality, Learning — with design principles (status contract, fresh-context loops, confidence scoring, compound learning) designed to keep agents honest.
 
-| Variable            | Required | Description                           |
-| ------------------- | -------- | ------------------------------------- |
-| `DATABASE_URL`      | Yes      | PostgreSQL connection string          |
-| `ANTHROPIC_API_KEY` | No       | For compound automation scripts       |
-| `OPENAI_API_KEY`    | No       | Alternative LLM + GitHub Codex review |
+Full architecture, design principles, and credits: [METHODOLOGY.md](docs/guides/METHODOLOGY.md).
 
-> Full config reference for Turborepo pipelines, Lefthook hooks, and compound pipeline settings is available in their respective config files: `turbo.json`, `lefthook.yml`, and `scripts/compound/config.json`.
+LaunchPad stands on the shoulders of:
 
----
-
-## Pipeline Tools
-
-### Learnings Catalog
-
-Each `/inf` run captures learnings into structured files at `docs/solutions/compound-product/`:
-
-1. **During iteration** -- agent documents learnings in `progress.txt`
-2. **After completion** -- Step 8 extracts learnings to `docs/solutions/compound-product/[feature]/`
-3. **Human review** -- promote patterns to `promoted-patterns.md`
-4. **Graduation** -- move promoted patterns into `CLAUDE.md` for all future sessions
-
-### Kanban Board
-
-`scripts/compound/board.sh` renders task progress from `prd.json`:
-
-| Mode     | Flag        | Use Case                      |
-| -------- | ----------- | ----------------------------- |
-| ASCII    | (default)   | Terminal output during `/inf` |
-| Markdown | `--md`      | VS Code preview, PR body      |
-| Summary  | `--summary` | Log lines, CI output          |
-
-The board renders automatically after each loop iteration.
+- **[Compound Engineering Plugin](https://github.com/EveryInc/compound-engineering-plugin)** by Kieran Klaassen / [Every](https://every.to/) — 29 agents, 22 commands, 19 skills, ported natively.
+- **[Compound Product](https://github.com/snarktank/compound-product)** by Ryan Carson — autonomous pipeline from report to PR.
+- **[Ralph](https://ghuntley.com/ralph/)** by Geoffrey Huntley — fresh-context execution loop.
+- **[HumanLayer](https://github.com/humanlayer/humanlayer)** — context-engineering patterns (Research → Plan → Implement, locator/analyzer pairs).
+- **Spec-Driven Development** — SpecKit / AgentOS philosophy (specify before building).
 
 ---
 
-## CI/CD
+## Companions
 
-Every PR to `main` runs: dependency install, structure check, lint, typecheck, and tests. **Codex** posts an AI review with P0--P3 severity ratings. Both `/inf` and `/commit` monitor for P0/P1 issues automatically.
+LaunchPad is intentionally narrow in scope. Two third-party tools pair well with it for users who want extra capabilities:
 
-**Prerequisite:** Add `OPENAI_API_KEY` to GitHub Secrets for Codex review.
+- **[Destructive Command Guard (dcg)](https://github.com/Dicklesworthstone/destructive_command_guard)** by [@Dicklesworthstone](https://github.com/Dicklesworthstone) — pattern-based shell-command guard that closes the `--dangerously-skip-permissions` gap by intercepting `rm -rf`, `git reset --hard`, `DROP TABLE`, and similar destructive operations before they execute. Strongly recommended for any unattended `/lp-build` run. See [SECURITY.md](SECURITY.md#recommended-companion-destructive-command-guard-dcg) for context.
+- **[MemPalace](https://github.com/MemPalace/mempalace)** — local vector store + MCP server giving Claude Code verbatim recall of past sessions. Adds a fourth tier (raw transcript retrieval) on top of LaunchPad's three-tier knowledge system. Setup cookbook: [docs/guides/MEMPALACE_INTEGRATION.md](docs/guides/MEMPALACE_INTEGRATION.md).
 
----
-
-## Security Considerations
-
-**Launchpad harnesses AI-assisted workflows that run agents with elevated permissions.** Understand the risks before using.
-
-**What the agents can do**
-
-- Read and modify any file in your repository
-- Execute shell commands (build, test, lint, git operations)
-- Make network requests (API calls, package installs, git push)
-- Create branches, commits, and pull requests autonomously
-- Run multi-iteration loops that analyze, implement, and ship code without human intervention
-
-**Safeguards in place**
-
-1. **PRs, not direct merges** -- All autonomous changes go through pull requests for human review
-2. **Lefthook pre-commit hooks** -- Linting, formatting, and structure validation run before every commit, blocking malformed or non-compliant code
-3. **Codex AI review** -- An independent AI reviewer flags P0/P1 issues on every PR before merge
-4. **Quality gates** -- Configurable checks (tests, type-checking, build) run at each iteration boundary
-5. **Max iterations** -- The compound loop stops after N iterations to prevent runaway execution
-6. **Structure validation** -- `check-repo-structure.sh` enforces file placement rules, preventing accidental creation of files in wrong locations
-7. **Secrets via `.env.local`** -- All API keys and credentials load from `.env.local`, which is gitignored by default. No secrets are ever inlined in commands or committed to the repository
-8. **Dry run mode** -- Test the analysis phase without making changes
-
-**Recommendations**
-
-- Review PRs carefully before merging -- even with AI review, human judgment is the final gate
-- Run autonomous loops in a separate environment (VM, container) if concerned about file access
-- Use API keys with minimal scope (read-only where possible, repo-scoped tokens for GitHub)
-- Never target production branches -- always work on feature branches
-- Monitor the first few autonomous runs to understand agent behavior and iteration patterns
-- After running `init-project.sh`, verify that `.env.local` exists in `.gitignore` before committing anything
-
-**Autonomous permission flags**
-
-The compound scripts bypass interactive approval prompts to enable unattended operation. Each AI tool uses a different flag:
-
-| Tool        | Flag                                         |
-| ----------- | -------------------------------------------- |
-| Claude Code | `--dangerously-skip-permissions`             |
-| Codex CLI   | `--dangerously-bypass-approvals-and-sandbox` |
-| Gemini CLI  | `--approval-mode=yolo`                       |
-
-This is intentional for automation -- the safeguards above exist to catch mistakes before they reach your main branch. To add a pattern-based safety net alongside these flags, consider installing **[Destructive Command Guard (dcg)](https://github.com/Dicklesworthstone/destructive_command_guard)** -- a Rust-based `PreToolUse` hook that intercepts shell commands before your AI agent executes them, blocking recognized destructive operations (`rm -rf`, `git reset --hard`, `DROP TABLE`, etc.) in under 5ms. It replaces the interactive approval gate with automated pattern matching, so you get autonomous speed without risking catastrophic commands:
-
-```bash
-# Download and inspect before running
-curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/install.sh" -o install-dcg.sh
-less install-dcg.sh
-bash install-dcg.sh --easy-mode
-```
+LaunchPad does not bundle either tool, does not auto-install them, and does not depend on them at runtime. They're recommended pairings, not requirements.
 
 ---
 
-## Compound Engineering Plugin Heritage
+## Links
 
-All capabilities from the **[Compound Engineering Plugin](https://github.com/EveryInc/compound-engineering-plugin)** by Kieran Klaassen / [Every](https://every.to/) (29 agents, 22 commands, 19 skills) have been ported natively into Launchpad. The plugin is no longer required as a separate installation -- its workflow commands, agents, and skills are now built-in.
-
-If you still have the CE plugin installed, it will work alongside the native commands but is redundant. You can safely remove it.
-
----
-
-## Maintenance
-
-**If you stayed connected (Option A during install):** Use `/pull-launchpad` in Claude Code or run `bash scripts/setup/pull-upstream.launchpad.sh` to pull upstream Launchpad updates. Only safe directories are updated (commands, skills, scripts, workflows) -- your application code is never touched.
-
-**If you chose a fresh start (Option B during install):** You disconnected from upstream and cannot pull updates. To get new Launchpad features, compare against the [latest release](https://github.com/foadshafighi/LaunchPad/releases) manually or re-clone and diff.
-
----
-
-## Contributing
-
-PRs are welcomed to improve Launchpad for everyone starting fresh. Keep changes focused on tooling, scripts, documentation, or best practices that benefit all new projects. For significant changes, open an issue first to discuss your approach.
+- [How It Works](docs/guides/HOW_IT_WORKS.md) — day-to-day operator's manual
+- [Methodology](docs/guides/METHODOLOGY.md) — architecture, design principles, credits
+- [Release notes](docs/releases/v1.0.0.md)
+- [Repository structure](docs/architecture/REPOSITORY_STRUCTURE.md) — file-placement decision tree (applies to the template path)
+- [Contributing](CONTRIBUTING.md)
 
 ---
 
 ## License
 
-MIT -- see [LICENSE](LICENSE).
-
----
-
-<details>
-<summary>Documentation index</summary>
-
-| Topic                | Location                                                                                      |
-| -------------------- | --------------------------------------------------------------------------------------------- |
-| Repository Structure | [`docs/architecture/REPOSITORY_STRUCTURE.md`](docs/architecture/REPOSITORY_STRUCTURE.md)      |
-| System Architecture  | [`docs/architecture/SYSTEM_OVERVIEW.md`](docs/architecture/SYSTEM_OVERVIEW.md)                |
-| Compound Pipeline    | [`scripts/compound/README.md`](scripts/compound/)                                             |
-| Prisma Migrations    | [`docs/operations/PRISMA_MIGRATION_GUIDE.md`](docs/operations/PRISMA_MIGRATION_GUIDE.md)      |
-| Learnings Catalog    | [`docs/solutions/compound-product/README.md`](docs/solutions/compound-product/README.md)      |
-| Methodology          | [`docs/guides/METHODOLOGY.md`](docs/guides/METHODOLOGY.md) -- architecture, diagrams, credits |
-| How It Works         | [`docs/guides/HOW_IT_WORKS.md`](docs/guides/HOW_IT_WORKS.md) -- step-by-step workflow guide   |
-| Troubleshooting      | [`docs/guides/HOW_IT_WORKS.md#troubleshooting`](docs/guides/HOW_IT_WORKS.md#troubleshooting)  |
-
-</details>
+MIT — see [LICENSE](LICENSE).

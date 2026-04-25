@@ -1,0 +1,116 @@
+name: Plugin Install Issue
+description: Report a problem installing or loading the LaunchPad plugin in Claude Code.
+title: "[Install]: "
+labels: ["install", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Plugin install is the most common surface for first-time issues. The fields below are the diagnostic information that resolves most reports without back-and-forth.
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Install method
+      description: Which install path did you use?
+      options:
+        - Marketplace + plugin install (`/plugin install launchpad@builtform`)
+        - Local-path marketplace (`/plugin marketplace add /absolute/path`)
+        - Template clone (`./scripts/setup/init-project.sh`)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-scope
+    attributes:
+      label: Install scope
+      description: Project, user, or system scope?
+      options:
+        - "project (default — config in this repo's .claude/)"
+        - "user (~/.claude/)"
+        - "system"
+        - "unsure"
+    validations:
+      required: true
+
+  - type: input
+    id: cc-version
+    attributes:
+      label: Claude Code version
+      description: Output of `claude --version`.
+      placeholder: "x.y.z"
+    validations:
+      required: true
+
+  - type: input
+    id: cc-cli-on-path
+    attributes:
+      label: Is `claude` on PATH?
+      description: Run `which claude` (or `where claude` on Windows). Some install failures stem from the CLI not being on PATH where it's expected.
+      placeholder: "/usr/local/bin/claude"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "macOS 14.5 / Ubuntu 22.04 / Windows 11 + WSL2"
+    validations:
+      required: true
+
+  - type: textarea
+    id: command-output
+    attributes:
+      label: What command did you run, and what was its full output?
+      description: Paste the exact command and the complete output. Include any error message verbatim.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: marketplace-list
+    attributes:
+      label: Output of `/plugin marketplace list`
+      description: Run `/plugin marketplace list` inside Claude Code and paste the output. This shows whether the BuiltForm marketplace was actually registered.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: plugin-info
+    attributes:
+      label: Output of `/plugin info launchpad@builtform` (if any)
+      description: If install partially succeeded, this shows what version landed.
+      render: shell
+    validations:
+      required: false
+
+  - type: dropdown
+    id: path-with-spaces
+    attributes:
+      label: Does your repo or marketplace path contain spaces?
+      description: Spaces in paths are a known sharp edge for the command-line form of `/plugin marketplace add`. Use the no-args interactive dialog if so.
+      options:
+        - "No"
+        - "Yes — repo path"
+        - "Yes — marketplace path"
+        - "Yes — both"
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you already tried?
+      description: Restart Claude Code, uninstall + reinstall, switch from project to user scope, etc.
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra-context
+    attributes:
+      label: Additional context
+    validations:
+      required: false
