@@ -67,15 +67,15 @@ Present the classification with rationale. Get user confirmation before proceedi
 
 ## Step 4: Execute Relevant Phases
 
-Load `.claude/skills/lp-creating-skills/SKILL.md` and execute ONLY the phases from Step 3b. Follow the same protocols, sub-agents, and quality gates.
+Load `${CLAUDE_PLUGIN_ROOT}/skills/lp-creating-skills/SKILL.md` and execute ONLY the phases from Step 3b. Follow the same protocols, sub-agents, and quality gates.
 
 **Adaptations for updates (vs new skill creation):**
 
 - **Phase 2 (Extraction):** Pre-populate rounds with existing answers. Only ask questions where gaps indicate the answer changed.
 - **Phase 3 (Contrarian):** Compare updated scope against the existing contrarian frame. Only re-derive invalidated patterns.
 - **Phase 4 (Architecture):** Present current tier alongside recommended new tier. Explain file additions/removals if tier changes.
-- **Phase 5 (Write):** Read reference templates from `.claude/skills/lp-creating-skills/references/` before writing. Apply surgical edits -- do not rewrite unchanged sections. Preserve existing voice and structure unless the change targets them.
-- **Phase 6 (Validate):** Read `.claude/skills/lp-creating-skills/references/QUALITY-GATES.md`. Spawn `skill-evaluator` sub-agent (Sonnet) with access to BOTH old and new versions. Any gate that previously passed must still pass (regression check).
+- **Phase 5 (Write):** Read reference templates from `${CLAUDE_PLUGIN_ROOT}/skills/lp-creating-skills/references/` before writing. Apply surgical edits -- do not rewrite unchanged sections. Preserve existing voice and structure unless the change targets them.
+- **Phase 6 (Validate):** Read `${CLAUDE_PLUGIN_ROOT}/skills/lp-creating-skills/references/QUALITY-GATES.md`. Spawn `skill-evaluator` sub-agent (Sonnet) with access to BOTH old and new versions. Any gate that previously passed must still pass (regression check).
 - **Phase 7 (Ship):** Update CLAUDE.md/AGENTS.md if triggers, scope, or agents changed. Update eval scenarios to cover new behavior.
 
 ## Step 5: Present Changes

@@ -29,7 +29,8 @@ def get_name(path: Path) -> str | None:
 
 def main() -> int:
     errors: list[str] = []
-    root = Path(__file__).resolve().parent.parent.parent.parent
+    # File lives at <repo>/plugins/launchpad/scripts/tests/<file> — 5 .parent's to repo root
+    root = Path(__file__).resolve().parents[4]
 
     # Commands: filename stem == frontmatter name
     cmd_count = 0

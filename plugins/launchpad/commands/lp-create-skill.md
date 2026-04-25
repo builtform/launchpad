@@ -66,7 +66,7 @@ When this command is invoked:
 
 4. **After parsing, invoke the creating-skills skill**:
 
-   Read the skill definition at `.claude/skills/lp-creating-skills/SKILL.md` and follow its 7-phase workflow.
+   Read the built-in skill definition at `${CLAUDE_PLUGIN_ROOT}/skills/lp-creating-skills/SKILL.md` and follow its 7-phase workflow.
    - The skill handles all 7 phases autonomously
    - This command does NOT implement the phases — it delegates entirely
    - Pass the extracted topic and context file paths to the skill
@@ -94,4 +94,4 @@ Examples:
 - This command is interactive (Phase A) — it requires human domain expertise during the skill creation process
 - The skill handles research, extraction, contrarian analysis, writing, evaluation, and shipping
 - For iterating on existing skills, use `/lp-update-skill` instead
-- The creating-skills skill is located at `.claude/skills/lp-creating-skills/SKILL.md`
+- The creating-skills skill is located at `${CLAUDE_PLUGIN_ROOT}/skills/lp-creating-skills/SKILL.md`

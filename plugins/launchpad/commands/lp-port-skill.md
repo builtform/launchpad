@@ -42,7 +42,7 @@ Wait for user input, then proceed.
 
 ## Step 3: Execute the Porting Workflow
 
-Read `.claude/skills/lp-creating-skills/references/PORTING-GUIDE.md` and follow its 4-phase workflow.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/lp-creating-skills/references/PORTING-GUIDE.md` and follow its 4-phase workflow.
 
 - The guide handles all 4 phases
 - This command does NOT implement the phases — it delegates entirely

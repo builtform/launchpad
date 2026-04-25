@@ -1,0 +1,6 @@
+# Vendored Python dependencies — exclude from whitespace and EOL checks.
+# These files come verbatim from upstream packages (Jinja2, MarkupSafe, PyYAML)
+# and are not edited locally. Modifying them to satisfy lint would create
+# vendor-vs-upstream drift. `git diff --check` and similar tools should treat
+# them as binary-equivalent for the purposes of whitespace policing.
+plugins/launchpad/scripts/plugin_stack_adapters/_vendor/** -text -whitespace

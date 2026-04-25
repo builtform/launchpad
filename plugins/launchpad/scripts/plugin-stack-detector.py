@@ -22,6 +22,12 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+# Vendored deps (PyYAML, MarkupSafe, Jinja2). Injected before any YAML use.
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_VENDOR = _SCRIPT_DIR / "plugin_stack_adapters" / "_vendor"
+if str(_VENDOR) not in sys.path:
+    sys.path.insert(0, str(_VENDOR))
+
 # Strict allowlist — detector opens exactly these filenames and nothing else.
 MANIFEST_ALLOWLIST = frozenset([
     "package.json",
@@ -56,11 +62,83 @@ class DetectorError(Exception):
     """Raised when detection fails in a way the caller should surface."""
 
 
-def find_manifests(root: Path) -> list[Path]:
-    """Return all allowlisted manifests at repo root + 1 level deep.
+def _read_workspace_roots(root: Path) -> list[Path]:
+    """Read declared workspace roots from pnpm-workspace.yaml or package.json.
 
-    Never reads a file; just enumerates paths. The allowlist applies here
-    (if the filename isn't in MANIFEST_ALLOWLIST, we don't even consider it).
+    Returns a list of repo-relative directory paths (Path objects, not strings)
+    that are the actual workspace package roots — e.g. apps/web, apps/api,
+    packages/db. These are TRUSTED roots: the user declared them themselves.
+
+    Glob patterns like 'apps/*' and 'packages/*' are expanded literally; any
+    pattern that escapes the repo root (absolute, '..', symlink) is rejected.
+
+    Falls back silently to [] if neither manifest declares workspaces — mirrors
+    the bounded-walk default for non-monorepo projects.
+    """
+    import glob as _glob
+
+    patterns: list[str] = []
+
+    # pnpm-workspace.yaml: top-level `packages:` array of glob strings
+    pnpm_ws = root / "pnpm-workspace.yaml"
+    if pnpm_ws.is_file() and pnpm_ws.stat().st_size <= MAX_MANIFEST_BYTES:
+        try:
+            import yaml
+            data = yaml.safe_load(pnpm_ws.read_text(encoding="utf-8")) or {}
+            raw = data.get("packages") or []
+            if isinstance(raw, list):
+                patterns.extend(p for p in raw if isinstance(p, str))
+        except Exception:
+            # Bad YAML — skip silently; the depth-1 walk still covers root + 1.
+            pass
+
+    # package.json: top-level `workspaces` array (or `workspaces.packages` array)
+    pkg_json = root / "package.json"
+    if pkg_json.is_file() and pkg_json.stat().st_size <= MAX_MANIFEST_BYTES:
+        try:
+            data = json.loads(pkg_json.read_text(encoding="utf-8"))
+            ws = data.get("workspaces")
+            if isinstance(ws, list):
+                patterns.extend(p for p in ws if isinstance(p, str))
+            elif isinstance(ws, dict):
+                inner = ws.get("packages")
+                if isinstance(inner, list):
+                    patterns.extend(p for p in inner if isinstance(p, str))
+        except Exception:
+            pass
+
+    if not patterns:
+        return []
+
+    # Realpath-confined expansion: every match must resolve inside root.
+    root_real = root.resolve()
+    results: set[Path] = set()
+    for pat in patterns:
+        # Reject absolute / parent-escape patterns up-front
+        if pat.startswith("/") or ".." in Path(pat).parts:
+            continue
+        # iglob is anchored to cwd; switch to root for the duration
+        for match in _glob.iglob(str(root / pat)):
+            mp = Path(match)
+            if not mp.is_dir():
+                continue
+            try:
+                if mp.resolve().is_relative_to(root_real):
+                    results.add(mp)
+            except (OSError, ValueError):
+                continue
+
+    return sorted(results, key=lambda p: str(p.relative_to(root)))
+
+
+def find_manifests(root: Path) -> list[Path]:
+    """Return all allowlisted manifests at repo root, + 1 level deep, + any
+    declared workspace roots from pnpm-workspace.yaml or package.json.
+
+    Never reads a file outside the manifest allowlist or the workspace-config
+    allowlist (pnpm-workspace.yaml + package.json's workspaces field). The
+    manifest allowlist applies to discovered files (if the filename isn't in
+    MANIFEST_ALLOWLIST, we don't even consider it).
 
     Returns a deterministic, sorted-by-relative-path list so the downstream
     stack-detection and generator rendering produce bit-identical output for
@@ -89,11 +167,28 @@ def find_manifests(root: Path) -> list[Path]:
             if candidate.is_file():
                 found.append(candidate)
 
+    # Workspace roots: declared by the user via pnpm-workspace.yaml or
+    # package.json's workspaces field. Trusted because the user added them.
+    # Realpath-confined to prevent escape via symlink or '..'.
+    for ws_dir in _read_workspace_roots(root):
+        if ws_dir.name in EXCLUDED_DIRS or ws_dir.name.startswith("."):
+            continue
+        for name in MANIFEST_ALLOWLIST:
+            candidate = ws_dir / name
+            if candidate.is_file():
+                found.append(candidate)
+
     # Final deterministic ordering: sort by path relative to root so the
     # order is reproducible regardless of which directory iteration flip
-    # any future filesystem might produce.
-    found.sort(key=lambda p: str(p.relative_to(root)))
-    return found
+    # any future filesystem might produce. Dedup since workspace roots may
+    # overlap with depth-1 children.
+    seen: set[Path] = set()
+    deduped: list[Path] = []
+    for p in sorted(found, key=lambda x: str(x.relative_to(root))):
+        if p not in seen:
+            seen.add(p)
+            deduped.append(p)
+    return deduped
 
 
 def _safe_read(path: Path) -> bytes:

@@ -68,7 +68,7 @@ When this command is invoked:
 
 4. **After parsing, invoke the creating-agents skill**:
 
-   Read the skill definition at `.claude/skills/lp-creating-agents/SKILL.md` and follow its 6-phase workflow.
+   Read the built-in skill definition at `${CLAUDE_PLUGIN_ROOT}/skills/lp-creating-agents/SKILL.md` and follow its 6-phase workflow.
    - The skill handles all 6 phases autonomously
    - This command does NOT implement the phases — it delegates entirely
    - Pass the extracted agent description, mode (A or B), and source skill path to the skill

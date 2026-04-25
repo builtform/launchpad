@@ -23,7 +23,7 @@ Multi-agent parallel code review with confidence-based false-positive suppressio
 1. Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-review --require=.launchpad/agents.yml` — create-if-missing only (`/lp-define` is the authoritative seeder; this command never writes `agents.yml`).
 2. Load paths via `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-config-loader.py` so `paths.architecture_dir` etc. override defaults where relevant.
 3. Read `.launchpad/agents.yml` → extract `review_agents`, `review_db_agents`, `review_design_agents`, `review_copy_agents`
-4. Validate each agent name: must match `[a-z0-9-]+`, must resolve to a file in `.claude/agents/` (scan all subdirectories). Skip with warning if file not found — this handles `[Phase N]` agents gracefully.
+4. Validate each agent name: must match `[a-z0-9-]+`. Resolve to a file by scanning `${CLAUDE_PLUGIN_ROOT}/agents/**` for `lp-{name}.md` (built-ins shipped with the plugin) first, then `.claude/agents/**` for `{name}.md` (project-local extensions). Skip with warning if file not found — this handles unimplemented optional agents gracefully.
 5. Read `.harness/harness.local.md` → extract review context
 6. If `agents.yml` missing AFTER the prereq check: fall back to `pattern-finder` only, warn user
 

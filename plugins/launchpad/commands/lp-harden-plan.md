@@ -93,7 +93,7 @@ Read `harden_plan_agents` from `agents.yml`. Dispatch all listed agents in paral
 
 Read `harden_plan_conditional_agents` from `agents.yml`. Dispatch all listed agents in parallel.
 
-**Agent resolution:** Scan all `.claude/agents/` subdirectories for `{name}.md`. First match wins. If agent file not found, skip silently with a note.
+**Agent resolution:** Scan `${CLAUDE_PLUGIN_ROOT}/agents/**` for `lp-{name}.md` (built-ins shipped with the plugin) first, then `.claude/agents/**` for `{name}.md` (project-local extensions). First match wins. If agent file not found, skip silently with a note.
 
 ## Step 3.5: Dispatch Document-Review Agents
 

@@ -22,7 +22,7 @@ Invoke with `/lp-commit` or when the user says any of:
 
 ## Behavior
 
-Execute the commit command at `.claude/commands/lp-commit.md`. Follow every step in order. Never skip quality gates. Never use `--no-verify`.
+Execute the command at `${CLAUDE_PLUGIN_ROOT}/commands/lp-commit.md`. Follow every step in order. Never skip quality gates. Never use `--no-verify`.
 
 ## Key Points
 

@@ -11,16 +11,16 @@ Contract:
   - Serial execution, left-to-right (parallel deferred to v1.1)
   - Any non-zero exit stops the sequence; the stage's exit code is that exit
 
-Hash-change prompt:
-  - On the first run against a new commands-section hash, prompts the user
-    to confirm (interactive mode only). Skips prompt when LP_CONFIG_REVIEWED
-    matches the current hash. Non-interactive + no env-var override →
-    proceed (accept the current file-state; the hash-change prompt is for
-    user-visible review, not a blocking gate).
-  - Mismatched LP_CONFIG_REVIEWED vs current hash → refuse with stderr.
+CI hash-pin:
+  - LP_CONFIG_REVIEWED env var pins the reviewed `commands:` content-hash.
+    Mismatched current hash refuses with stderr (expected vs received).
+  - Unset env var means "trust the current file-state" — appropriate for
+    interactive local sessions where the user just edited config.yml. For
+    autonomous / CI runs, set LP_CONFIG_REVIEWED so any drift refuses.
+  - See SECURITY.md for the full threat model around config.yml commands.
 
 Usage:
-  plugin-build-runner.py --stage=test [--repo-root PATH] [--no-prompt]
+  plugin-build-runner.py --stage=test [--repo-root PATH]
 
 Exit codes:
   0   all commands in the stage succeeded (or [] = skip)
@@ -136,7 +136,7 @@ def _is_hex(s: str) -> bool:
         return False
 
 
-def run_stage(repo_root: Path, stage: str, *, no_prompt: bool = False) -> int:
+def run_stage(repo_root: Path, stage: str) -> int:
     """Run all commands for a stage serially. Returns first non-zero exit or 0."""
     if stage not in VALID_STAGES:
         print(f"invalid stage {stage!r}; valid: {VALID_STAGES}", file=sys.stderr)
@@ -172,13 +172,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--stage", required=True, choices=VALID_STAGES)
     ap.add_argument("--repo-root", default=os.environ.get("LP_REPO_ROOT", os.getcwd()))
-    ap.add_argument("--no-prompt", action="store_true", help="skip hash-change prompt (CI)")
     args = ap.parse_args()
 
     return run_stage(
         Path(args.repo_root).resolve(),
         args.stage,
-        no_prompt=args.no_prompt,
     )
 
 
