@@ -27,7 +27,7 @@ Do not offer to auto-create this file. The user / team must author it consciousl
 
 ### 0.2 — Config validation + CI override check
 
-Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-build-runner.py --stage=test` once as a preflight — it validates `LP_CONFIG_REVIEWED` against the current canonical commands hash and refuses loudly on mismatch. (`--stage` must be one of `test`, `typecheck`, `lint`, `format`, `build`; using `test` for the preflight is fine because the hash check happens before any command in the stage runs.) If the preflight returns exit 2, stop immediately with the error printed by the runner.
+Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-build-runner.py --stage=test --check-only` once as a preflight — `--check-only` validates the `LP_CONFIG_REVIEWED` hash pin and that `config.yml` parses, but does NOT execute any stage commands. This separates the gate check from command execution so target resolution and audit-log emission run before any user-controlled command runs. If the preflight returns exit 2, stop immediately with the error printed by the runner.
 
 Load `.launchpad/config.yml` via `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-config-loader.py`. Required fields:
 

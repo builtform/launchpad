@@ -56,11 +56,19 @@ CACHE_DIR="${LP_CACHE_DIR:-/tmp/lp-prereq-cache-$USER}"
 mkdir -p "$CACHE_DIR"
 
 # --- Session cache ---
-# Key: sha256 of concatenated mtimes for config.yml + top-level manifests.
-# Small enough that recomputing it is cheap; skipping the full detection when
+# Key: sha256 of concatenated mtimes (or "missing" sentinel) for:
+#   - config.yml + top-level manifests (tells us if detection input changed)
+#   - the literal --require list (caller-specific requirements)
+#   - each --require path's existence/mtime (so deleting a required file
+#     after a previous successful run does not pass on cache hit — was a
+#     real fail-open bug)
+# Small enough that recomputing is cheap; skipping the full detection when
 # nothing changed is the real win.
 compute_cache_key() {
   local key=""
+  local f
+  local mtime
+  # Detection inputs
   for f in \
     "$REPO_ROOT/.launchpad/config.yml" \
     "$REPO_ROOT/package.json" \
@@ -72,12 +80,34 @@ compute_cache_key() {
   do
     if [[ -f "$f" ]]; then
       # stat -f for macOS, stat -c for Linux; both produce mtime.
-      local mtime
       if mtime=$(stat -f %m "$f" 2>/dev/null); then :;
       else mtime=$(stat -c %Y "$f" 2>/dev/null || echo "0"); fi
       key+="$f:$mtime;"
+    else
+      key+="$f:missing;"
     fi
   done
+  # Caller-specific REQUIRE list — different requirements get different cache slots.
+  key+="REQUIRE=$REQUIRE;"
+  # Each required file's existence/mtime — invalidates the cache if a required
+  # file was deleted (or its content changed) since the last successful run.
+  if [[ -n "$REQUIRE" ]]; then
+    local req
+    local req_path
+    IFS=',' read -ra _CACHE_REQS <<< "$REQUIRE"
+    for req in "${_CACHE_REQS[@]}"; do
+      req="$(echo "$req" | xargs)"
+      [[ -z "$req" ]] && continue
+      req_path="$REPO_ROOT/$req"
+      if [[ -e "$req_path" ]]; then
+        if mtime=$(stat -f %m "$req_path" 2>/dev/null); then :;
+        else mtime=$(stat -c %Y "$req_path" 2>/dev/null || echo "0"); fi
+        key+="REQ:$req:$mtime;"
+      else
+        key+="REQ:$req:missing;"
+      fi
+    done
+  fi
   echo -n "$key" | shasum -a 256 | cut -d' ' -f1
 }
 

@@ -272,10 +272,19 @@ def detect_from_manifest(path: Path) -> dict[str, Any]:
             frameworks.append("express")
         if "@prisma/client" in deps or "prisma" in deps:
             frameworks.append("prisma")
-        # Workspaces + turbo => monorepo
+        # Map to ts_monorepo only when the project actually looks like one
+        # the adapter knows: workspaces / turbo, or a known framework
+        # (next.js / hono) the adapter seeds commands and docs for. A bare
+        # package.json (Express-only, plain Node, unknown framework) falls
+        # back to generic so the doc generator does not seed monorepo-shaped
+        # canonicals that do not match the project.
         is_monorepo = bool(content.get("workspaces")) or "turbo" in deps
-        stack = "ts_monorepo" if is_monorepo or "next" in deps else "ts_monorepo"
-        return {"stack": "ts_monorepo", "frameworks": frameworks, "evidence": str(path)}
+        has_known_ts_framework = "next" in deps or "hono" in deps
+        if is_monorepo or has_known_ts_framework:
+            stack = "ts_monorepo"
+        else:
+            stack = "generic"
+        return {"stack": stack, "frameworks": frameworks, "evidence": str(path)}
 
     if name == "pyproject.toml":
         frameworks = []
@@ -291,9 +300,15 @@ def detect_from_manifest(path: Path) -> dict[str, Any]:
             frameworks.append("fastapi")
         if "flask" in dep_str.lower():
             frameworks.append("flask")
-        # Default to python_django adapter if Django present, else generic Python
-        stack = "python_django" if "django" in frameworks else "python_django"
-        return {"stack": "python_django", "frameworks": frameworks, "evidence": str(path)}
+        # Map to python_django only when Django is actually present. FastAPI,
+        # Flask, plain-Python, or unknown-framework projects fall back to
+        # generic so the doc generator does not seed Django-specific commands
+        # (manage.py migrate, etc.) for projects that do not use Django.
+        if "django" in frameworks:
+            stack = "python_django"
+        else:
+            stack = "generic"
+        return {"stack": stack, "frameworks": frameworks, "evidence": str(path)}
 
     if name == "go.mod":
         return {"stack": "go_cli", "frameworks": ["go"], "evidence": str(path)}
@@ -325,21 +340,44 @@ def detect(root: Path) -> dict[str, Any]:
             "zero_manifest": True,
         }
 
-    stacks: list[str] = []
+    # Two-pass: first record (manifest_name, stack) for each manifest; then
+    # aggregate stacks at the language level so a TS monorepo's many
+    # sub-package.json files do not split into ts_monorepo + spurious
+    # generic. A real polyglot (TS + Python, TS + Go, etc.) keeps both
+    # because the spurious "generic" contribution only ever comes from the
+    # SAME language family that already produced the strong stack signal.
+    per_manifest: list[tuple[str, str]] = []  # (manifest filename, stack)
     all_frameworks: list[str] = []
-    seen_stacks = set()
-
     for m in manifests:
         result = detect_from_manifest(m)
         if not result:
             continue
-        stack = result["stack"]
-        if stack not in seen_stacks:
-            stacks.append(stack)
-            seen_stacks.add(stack)
+        per_manifest.append((m.name, result["stack"]))
         for fw in result["frameworks"]:
             if fw not in all_frameworks:
                 all_frameworks.append(fw)
+
+    package_json_stacks = {s for n, s in per_manifest if n == "package.json"}
+    pyproject_stacks = {s for n, s in per_manifest if n == "pyproject.toml"}
+
+    # Collapse same-language splits: if package.json produced ts_monorepo
+    # anywhere, every other package.json's "generic" contribution is just a
+    # sub-package of that monorepo, not a separate stack. Same for
+    # python_django vs generic from pyproject.toml.
+    suppress: set[tuple[str, str]] = set()
+    if "ts_monorepo" in package_json_stacks and "generic" in package_json_stacks:
+        suppress.add(("package.json", "generic"))
+    if "python_django" in pyproject_stacks and "generic" in pyproject_stacks:
+        suppress.add(("pyproject.toml", "generic"))
+
+    seen_stacks: set[str] = set()
+    stacks: list[str] = []
+    for n, s in per_manifest:
+        if (n, s) in suppress:
+            continue
+        if s not in seen_stacks:
+            stacks.append(s)
+            seen_stacks.add(s)
 
     if not stacks:
         stacks = ["generic"]

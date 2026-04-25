@@ -142,8 +142,14 @@ def _is_hex(s: str) -> bool:
         return False
 
 
-def run_stage(repo_root: Path, stage: str) -> int:
-    """Run all commands for a stage serially. Returns first non-zero exit or 0."""
+def run_stage(repo_root: Path, stage: str, *, check_only: bool = False) -> int:
+    """Run all commands for a stage serially. Returns first non-zero exit or 0.
+
+    With check_only=True, validates the LP_CONFIG_REVIEWED hash pin and that
+    config.yml parses, but does not execute any stage commands. This is the
+    preflight mode for harness commands that want to verify the gate before
+    target resolution and audit-log emission, without side effects.
+    """
     if stage not in VALID_STAGES:
         print(f"invalid stage {stage!r}; valid: {VALID_STAGES}", file=sys.stderr)
         return 2
@@ -158,6 +164,13 @@ def run_stage(repo_root: Path, stage: str) -> int:
     except (yaml.YAMLError, ValueError) as e:
         print(f"config error: {e}", file=sys.stderr)
         return 2
+
+    if check_only:
+        # Hash pin (if any) verified, config.yml parsed, stage commands resolved.
+        # Don't execute. Caller is responsible for invoking the stage explicitly
+        # when it's ready (after target resolution, after audit-log emission).
+        print(f"[{stage}] preflight ok ({len(cmds)} command(s) configured)", file=sys.stderr)
+        return 0
 
     if not cmds:
         print(f"[{stage}] skipped (empty array in config.yml)", file=sys.stderr)
@@ -178,11 +191,17 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--stage", required=True, choices=VALID_STAGES)
     ap.add_argument("--repo-root", default=os.environ.get("LP_REPO_ROOT", os.getcwd()))
+    ap.add_argument(
+        "--check-only",
+        action="store_true",
+        help="validate LP_CONFIG_REVIEWED + config.yml parse without executing commands",
+    )
     args = ap.parse_args()
 
     return run_stage(
         Path(args.repo_root).resolve(),
         args.stage,
+        check_only=args.check_only,
     )
 
 

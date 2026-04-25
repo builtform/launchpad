@@ -72,15 +72,34 @@ def run_detector(repo_root: Path) -> dict[str, Any]:
 # --- Jinja2 environment ---
 
 def make_jinja_env() -> jinja2.Environment:
-    """Mirror test_jinja2_autoescape.py config — autoescape=True, StrictUndefined.
+    """Build the Jinja2 Environment for canonical-doc generation.
 
-    Autoescape applies to ALL templates (not just HTML). Canonical docs are
-    .md — the default `select_autoescape()` wouldn't fire for .md, which
-    is why we force True unconditionally.
+    Autoescape policy: HTML-extension-only via `select_autoescape`. Canonical
+    docs are .md and .yml — globally forcing autoescape=True (the previous
+    config) escapes normal text characters like `&`, `<`, `>` even when they
+    appear in user-facing strings, producing artifacts like `R&amp;D` in
+    rendered PRD.md prose. The actual injection threat (a hostile value in
+    detected manifests being re-evaluated as Jinja) is already prevented by
+    Jinja's template model: variable values render as strings, never re-parsed
+    as syntax. The HTML autoescape on .md / .yml output therefore has no
+    security upside while it does measurably corrupt benign text.
+
+    Templates that ARE HTML (none today, but the door is open for v1.1) get
+    autoescape automatically via the extension match.
+
+    YAML templates use `tojson` or explicit yaml-safe quoting in the template
+    bodies for any field where a string might collide with YAML syntax — that
+    pattern is the right tool for YAML escaping, not HTML autoescape.
+
+    StrictUndefined stays on so missing variables fail loudly at render time
+    rather than silently emitting empty strings.
     """
     return jinja2.Environment(
         loader=jinja2.FileSystemLoader(str(SCRIPT_DIR / "plugin-default-generators")),
-        autoescape=True,
+        autoescape=jinja2.select_autoescape(
+            enabled_extensions=("html", "htm", "xml"),
+            default=False,
+        ),
         undefined=jinja2.StrictUndefined,
         keep_trailing_newline=True,
     )
