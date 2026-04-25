@@ -1,65 +1,65 @@
-# Code review agents — dispatched by /review
+# Code review agents — dispatched by /lp-review
 review_agents:
-  - pattern-finder
-  - security-auditor
-  - kieran-foad-ts-reviewer
-  - performance-auditor
-  - code-simplicity-reviewer
-  - architecture-strategist
-  - testing-reviewer
+  - lp-pattern-finder
+  - lp-security-auditor
+  - lp-kieran-foad-ts-reviewer
+  - lp-performance-auditor
+  - lp-code-simplicity-reviewer
+  - lp-architecture-strategist
+  - lp-testing-reviewer
 
 # DB agents — only when diff touches Prisma files
-# Dispatch order defined in /review Step 4 (sequential-then-parallel), not by list order
+# Dispatch order defined in /lp-review Step 4 (sequential-then-parallel), not by list order
 review_db_agents:
-  - schema-drift-detector
-  - data-migration-auditor
-  - data-integrity-auditor
+  - lp-schema-drift-detector
+  - lp-data-migration-auditor
+  - lp-data-integrity-auditor
 
-# Design review agents — dispatched by /review when design artifacts exist
+# Design review agents — dispatched by /lp-review when design artifacts exist
 # Artifact-based dispatch: IF .harness/design-artifacts/[section]-approved.png exists
 review_design_agents:
-  - design-ui-auditor
-  - design-responsive-auditor
-  - design-alignment-checker
-  - design-implementation-reviewer # conditional — only dispatched when Figma artifacts exist
+  - lp-design-ui-auditor
+  - lp-design-responsive-auditor
+  - lp-design-alignment-checker
+  - lp-design-implementation-reviewer # conditional — only dispatched when Figma artifacts exist
 
-# Copy review agents — dispatched during design workflow by /copy-review
-# Populated by downstream projects (e.g., BuiltForm adds copy-auditor in Phase 11)
+# Copy review agents — dispatched during design workflow by /lp-copy-review
+# Populated by downstream projects (e.g., BuiltForm adds copy-auditor)
 review_copy_agents: []
 
-# Plan hardening agents — always dispatched by /harden-plan (both intensities)
+# Plan hardening agents — always dispatched by /lp-harden-plan (both intensities)
 harden_plan_agents:
-  - pattern-finder
-  - security-auditor
-  - performance-auditor
-  - spec-flow-analyzer
+  - lp-pattern-finder
+  - lp-security-auditor
+  - lp-performance-auditor
+  - lp-spec-flow-analyzer
 
-# Conditional plan hardening agents — dispatched by /harden-plan (full only)
+# Conditional plan hardening agents — dispatched by /lp-harden-plan (full only)
 harden_plan_conditional_agents:
-  - architecture-strategist
-  - code-simplicity-reviewer
-  - frontend-races-reviewer
-  - schema-drift-detector
+  - lp-architecture-strategist
+  - lp-code-simplicity-reviewer
+  - lp-frontend-races-reviewer
+  - lp-schema-drift-detector
 
-# Document-review agents — dispatched by /harden-plan Step 3.5
+# Document-review agents — dispatched by /lp-harden-plan Step 3.5
 # These review the plan DOCUMENT (not code) with multiple lenses
 harden_document_agents:
-  - adversarial-document-reviewer
-  - coherence-reviewer
-  - feasibility-reviewer
-  - scope-guardian-reviewer
-  - product-lens-reviewer
-  - security-lens-reviewer
-  - design-lens-reviewer # Conditional: /harden-plan skips when "design:skipped"
+  - lp-adversarial-document-reviewer
+  - lp-coherence-reviewer
+  - lp-feasibility-reviewer
+  - lp-scope-guardian-reviewer
+  - lp-product-lens-reviewer
+  - lp-security-lens-reviewer
+  - lp-design-lens-reviewer # Conditional: /lp-harden-plan skips when "design:skipped"
 
 # Opt-in agents — not dispatched by default
-# To enable for /review: move to review_agents
-# To enable for /harden-plan: move to appropriate harden list
+# To enable for /lp-review: move to review_agents
+# To enable for /lp-harden-plan: move to appropriate harden list
 #   - deployment-verification-agent
 #   - frontend-races-reviewer      # already in harden conditional
 #   - kieran-foad-python-reviewer
 
-# Protected branches — read by /ship, /commit, /resolve-pr-comments (with default [main, master])
+# Protected branches — read by /lp-ship, /lp-commit, /lp-resolve-pr-comments (with default [main, master])
 protected_branches:
-  - main
-  - master
+  - lp-main
+  - lp-master

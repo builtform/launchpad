@@ -11,7 +11,7 @@ you can browse what's available and port what you need.
 
 1. Browse [CATALOG.md](CATALOG.md) to find skills worth porting
 2. Run the port command listed for that skill
-3. The `/port-skill` workflow handles everything: fetching, adapting to project
+3. The `/lp-port-skill` workflow handles everything: fetching, adapting to project
    conventions, validating against 16 quality criteria, generating eval scenarios,
    and registering in CLAUDE.md and AGENTS.md
 
@@ -38,4 +38,4 @@ the LaunchPad workflow:
 
 **Catalog skills** (listed in CATALOG.md) are recommendations — curated pointers to
 external skills worth porting. They stay inert until explicitly ported into a project
-with `/port-skill`.
+with `/lp-port-skill`.

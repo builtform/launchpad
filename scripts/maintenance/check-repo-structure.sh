@@ -93,6 +93,8 @@ ALLOWED_DOCS=(
   "SECURITY.template.md"
   "CHANGELOG.md"
   "CHANGELOG.template.md"
+  "ROADMAP.md"
+  "ROADMAP.template.md"
   "LICENSE"
   "LICENSE.template"
 )
@@ -123,6 +125,8 @@ ALLOWED_DIRS=(
   "packages"
   "scripts"
   "docs"
+  "plugins"
+  ".claude-plugin"
   ".github"
   ".vscode"
   ".claude"
@@ -366,8 +370,8 @@ if [ -f "$AGENTS_YML" ]; then
   # Filter: lines with "  - " under *_agents keys, not comments, not protected_branches
   while IFS= read -r agent_name; do
     [ -z "$agent_name" ] && continue
-    # Search all subdirectories under .claude/agents/ for a matching .md file
-    FOUND=$(find "$REPO_ROOT/.claude/agents" -name "${agent_name}.md" -type f 2>/dev/null | head -1)
+    # Search all subdirectories under plugins/launchpad/agents/ for a matching .md file
+    FOUND=$(find "$REPO_ROOT/plugins/launchpad/agents" -name "${agent_name}.md" -type f 2>/dev/null | head -1)
     if [ -z "$FOUND" ]; then
       MISSING_AGENTS="$MISSING_AGENTS      $agent_name\n"
     fi

@@ -34,17 +34,23 @@
 
 ```
 /
-├── apps/web/       # Next.js 15 frontend (App Router, Tailwind v4)
-├── apps/api/       # Hono API server (CORS, /health endpoint)
-├── packages/db/    # Prisma schema, client singleton, migrations
-├── packages/shared/# Shared TypeScript types and utilities
-├── packages/ui/    # Shared React components + Tailwind config + cn() helper
-├── docs/           # Architecture docs, plans, reports, experiments
-│   ├── tasks/      # BACKLOG.md + sections/ (section specs from /shape-section)
-│   └── skills-catalog/ # Skill usage tracking and user-facing index
-├── .harness/       # Runtime directory (todos, observations, design-artifacts, screenshots)
-├── .launchpad/     # Harness config (agents.yml, version, secret-patterns.txt)
-└── scripts/        # Build pipeline, maintenance, agent hydration
+├── .claude-plugin/          # Marketplace manifest (marketplace.json) — points at plugins/launchpad/
+├── plugins/launchpad/       # The LaunchPad plugin (commands, agents, skills, plugin.json)
+│   ├── .claude-plugin/      # plugin.json (plugin metadata)
+│   ├── commands/            # /lp-* slash commands
+│   ├── agents/              # Sub-agents (research/, review/, resolve/, design/, skills/, document-review/)
+│   └── skills/              # Plugin skills (lp-*/SKILL.md)
+├── apps/web/                # Next.js 15 frontend (App Router, Tailwind v4)
+├── apps/api/                # Hono API server (CORS, /health endpoint)
+├── packages/db/             # Prisma schema, client singleton, migrations
+├── packages/shared/         # Shared TypeScript types and utilities
+├── packages/ui/             # Shared React components + Tailwind config + cn() helper
+├── docs/                    # Architecture docs, plans, reports, experiments
+│   ├── tasks/               # BACKLOG.md + sections/ (section specs from /lp-shape-section)
+│   └── skills-catalog/      # Skill usage tracking and user-facing index
+├── .harness/                # Runtime directory (todos, observations, design-artifacts, screenshots)
+├── .launchpad/              # Harness config (agents.yml, version, secret-patterns.txt)
+└── scripts/                 # Build pipeline, maintenance, agent hydration
 ```
 
 > Before creating, moving, or deleting any file: check `docs/architecture/REPOSITORY_STRUCTURE.md`
@@ -126,28 +132,28 @@ git switch -c ⚡ ci/<topic>        # CI/CD changes
 <!-- Claude reads these only when the task is relevant — never all upfront.                       -->
 <!-- Pointers only. Never copy content here — it will go stale. No inline code snippets.          -->
 
-| Doc                                        | Read When                                           |
-| ------------------------------------------ | --------------------------------------------------- |
-| `docs/architecture/PRD.md`                 | Understanding feature intent or product scope       |
-| `docs/architecture/APP_FLOW.md`            | Working on navigation, auth flow, or user journeys  |
-| `docs/architecture/TECH_STACK.md`          | Evaluating or adding dependencies                   |
-| `docs/architecture/BACKEND_STRUCTURE.md`   | Modifying API routes, services, or data models      |
-| `docs/architecture/FRONTEND_GUIDELINES.md` | Building or refactoring UI components               |
-| `docs/architecture/DESIGN_SYSTEM.md`       | Defining UI components or visual design decisions   |
-| `docs/architecture/CI_CD.md`               | Configuring CI/CD pipelines or deployment           |
-| `docs/skills-catalog/skills-index.md`      | Managing, reviewing, or auditing installed skills   |
-| `docs/guides/HOW_IT_WORKS.md`              | Understanding the full pipeline workflow            |
-| `docs/guides/METHODOLOGY.md`               | Understanding the harness architecture layers       |
-| `.claude/skills/creating-agents/SKILL.md`  | Creating new agents or converting skills to agents  |
-| `.launchpad/agents.yml`                    | Configuring review agent lists                      |
-| `.harness/harness.local.md`                | Viewing or updating project-specific review context |
-| `docs/tasks/BACKLOG.md`                    | Checking project backlog and deferred items         |
+| Doc                                                    | Read When                                           |
+| ------------------------------------------------------ | --------------------------------------------------- |
+| `docs/architecture/PRD.md`                             | Understanding feature intent or product scope       |
+| `docs/architecture/APP_FLOW.md`                        | Working on navigation, auth flow, or user journeys  |
+| `docs/architecture/TECH_STACK.md`                      | Evaluating or adding dependencies                   |
+| `docs/architecture/BACKEND_STRUCTURE.md`               | Modifying API routes, services, or data models      |
+| `docs/architecture/FRONTEND_GUIDELINES.md`             | Building or refactoring UI components               |
+| `docs/architecture/DESIGN_SYSTEM.md`                   | Defining UI components or visual design decisions   |
+| `docs/architecture/CI_CD.md`                           | Configuring CI/CD pipelines or deployment           |
+| `docs/skills-catalog/skills-index.md`                  | Managing, reviewing, or auditing installed skills   |
+| `docs/guides/HOW_IT_WORKS.md`                          | Understanding the full pipeline workflow            |
+| `docs/guides/METHODOLOGY.md`                           | Understanding the harness architecture layers       |
+| `plugins/launchpad/skills/lp-creating-agents/SKILL.md` | Creating new agents or converting skills to agents  |
+| `.launchpad/agents.yml`                                | Configuring review agent lists                      |
+| `.harness/harness.local.md`                            | Viewing or updating project-specific review context |
+| `docs/tasks/BACKLOG.md`                                | Checking project backlog and deferred items         |
 
 ---
 
 ## Available Sub-Agents
 
-Agents are organized into 6 namespace subdirectories under `.claude/agents/`:
+Agents are organized into 6 namespace subdirectories under `plugins/launchpad/agents/`:
 
 ### research/ — Read-only documentarians
 

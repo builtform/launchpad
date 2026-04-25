@@ -8,7 +8,7 @@
 #
 # Usage:
 #   Interactive:  bash scripts/setup/pull-upstream.launchpad.sh
-#   Via command:  /pull-launchpad
+#   Via command:  /lp-pull-launchpad
 #
 # Requires:
 #   - .launchpad/upstream-commit file (written during init or bootstrap)
@@ -40,7 +40,7 @@ error() { printf "${RED}[ERROR]${RESET} %s\n" "$1" >&2; }
 # ---------------------------------------------------------------------------
 if [ -n "$(git status --porcelain)" ]; then
   error "Working tree is dirty. Commit or stash your changes, then re-run."
-  error "  /commit — to commit your current work"
+  error "  /lp-commit — to commit your current work"
   error "  git stash — to temporarily shelve changes"
   exit 1
 fi
@@ -64,7 +64,7 @@ OLD_SHA="$(cat "$ANCHOR_FILE" | tr -d '[:space:]')"
 
 if ! git remote get-url launchpad >/dev/null 2>&1; then
   error "No 'launchpad' remote found."
-  error "Add it with: git remote add launchpad https://github.com/foadshafighi/LaunchPad.git"
+  error "Add it with: git remote add launchpad https://github.com/builtform/launchpad.git"
   exit 1
 fi
 
@@ -381,8 +381,8 @@ if [ -t 0 ]; then
   SELECTED_INDICES=($(printf '%s\n' "${SELECTED_INDICES[@]}" | sort -un))
 else
   # Non-interactive: report only, do not apply anything.
-  # The /pull-launchpad command (Claude) handles user interaction and approval.
-  echo "Non-interactive mode — report complete. Use /pull-launchpad for guided approval."
+  # The /lp-pull-launchpad command (Claude) handles user interaction and approval.
+  echo "Non-interactive mode — report complete. Use /lp-pull-launchpad for guided approval."
   exit 0
 fi
 

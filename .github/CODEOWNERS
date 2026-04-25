@@ -1,0 +1,44 @@
+# CODEOWNERS for builtform/launchpad
+#
+# Each line maps a path pattern to one or more owners. When a PR touches a
+# matching path, GitHub automatically requests review from the listed owners.
+# Branch protection on `main` requires at least one owner approval before merge.
+#
+# Reference: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners — apply to every file unless overridden by a more specific rule below.
+* @builtform/core
+
+# Plugin source — the heart of LaunchPad
+/plugins/launchpad/                @builtform/core
+
+# Runtime scripts and stack adapters
+/plugins/launchpad/scripts/        @builtform/core
+
+# Test suite
+/plugins/launchpad/scripts/tests/  @builtform/core
+
+# Marketplace + plugin manifests
+/.claude-plugin/                   @builtform/core
+/plugins/launchpad/.claude-plugin/ @builtform/core
+
+# CI and repo automation
+/.github/                          @builtform/core
+/scripts/maintenance/              @builtform/core
+/scripts/setup/                    @builtform/core
+
+# Top-level documentation and policy
+/README.md                         @builtform/core
+/CHANGELOG.md                      @builtform/core
+/CONTRIBUTING.md                   @builtform/core
+/SECURITY.md                       @builtform/core
+/ROADMAP.md                        @builtform/core
+/CODE_OF_CONDUCT.md                @builtform/core
+/CLAUDE.md                         @builtform/core
+/AGENTS.md                         @builtform/core
+/LICENSE                           @builtform/core
+
+# Architecture and methodology
+/docs/architecture/                @builtform/core
+/docs/guides/                      @builtform/core
+/docs/releases/                    @builtform/core

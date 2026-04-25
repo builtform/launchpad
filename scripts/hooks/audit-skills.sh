@@ -2,7 +2,7 @@
 # =============================================================================
 # audit-skills.sh — Skill staleness audit hook
 #
-# Called by /commit and /ship workflows before committing.
+# Called by /lp-commit and /lp-ship workflows before committing.
 # Reads the skill usage tracking file and reports which skills
 # haven't been used recently.
 #
@@ -24,7 +24,7 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 USAGE_FILE="$REPO_ROOT/docs/skills-catalog/skills-usage.json"
-SKILLS_DIR="$REPO_ROOT/.claude/skills"
+SKILLS_DIR="$REPO_ROOT/plugins/launchpad/skills"
 
 # ---------------------------------------------------------------------------
 # Exit silently if usage file doesn't exist yet
@@ -67,7 +67,7 @@ if last_audit:
     except ValueError:
         pass  # Invalid date format, proceed with audit
 
-# Discover installed skills from .claude/skills/
+# Discover installed skills from skills/
 installed_skills = set()
 if os.path.isdir(skills_dir):
     for entry in os.listdir(skills_dir):
