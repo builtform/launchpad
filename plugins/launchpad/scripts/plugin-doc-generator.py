@@ -262,6 +262,31 @@ def prompt_overwrite(out_path: str, existing: str, new: str, all_mode: bool, is_
 
 # --- Main ---
 
+def _read_config_overwrite(repo_root: Path) -> str:
+    """Read the existing .launchpad/config.yml and return the configured
+    overwrite policy ('skip' | 'prompt' | 'force').
+
+    Returns 'prompt' when:
+      - config.yml does not exist (fresh /lp-define run)
+      - the file is unreadable or malformed
+      - the field is absent or has an unrecognized value
+    """
+    config_path = repo_root / ".launchpad" / "config.yml"
+    if not config_path.is_file():
+        return "prompt"
+    try:
+        import yaml  # type: ignore
+        cfg = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return "prompt"
+    if not isinstance(cfg, dict):
+        return "prompt"
+    val = cfg.get("overwrite", "prompt")
+    if val in ("skip", "prompt", "force"):
+        return val
+    return "prompt"
+
+
 def generate(repo_root: Path, *, dry_run: bool = False, force: bool = False, only: set[str] | None = None, product_name: str = "Your Product") -> int:
     # 1. Detect
     report = run_detector(repo_root)
@@ -288,8 +313,18 @@ def generate(repo_root: Path, *, dry_run: bool = False, force: bool = False, onl
               file=sys.stderr)
         return 1
 
-    # 5. Write with overwrite policy
-    all_mode = force
+    # 5. Resolve overwrite policy.
+    # Precedence: CLI --force > config.yml `overwrite:` field > prompt (default).
+    # Config policies:
+    #   force  — overwrite without asking (CLI --force equivalent)
+    #   skip   — never overwrite (treat all existing files as kept)
+    #   prompt — interactive per-file menu
+    config_policy = _read_config_overwrite(repo_root)
+    effective_force = force or (config_policy == "force")
+    skip_existing = (not force) and (config_policy == "skip")
+
+    # 6. Write with overwrite policy
+    all_mode = effective_force
     summary = {"written": [], "kept": [], "skipped": [], "skipped_after_skip_all": []}
     skip_remaining = False
 
@@ -312,7 +347,14 @@ def generate(repo_root: Path, *, dry_run: bool = False, force: bool = False, onl
                 summary["kept"].append(out_rel + " (unchanged)")
                 continue
 
-            if force:
+            if skip_existing:
+                # config.yml says `overwrite: skip` — never overwrite. The
+                # .launchpad/*.yml exclusion still applies (those files
+                # are user-tuned and never auto-overwritten regardless).
+                summary["kept"].append(out_rel + " (config: skip)")
+                continue
+
+            if effective_force:
                 decision = "overwrite" if not is_lp_yml else prompt_overwrite(out_rel, existing, new_content, all_mode, is_lp_yml)
             else:
                 decision = prompt_overwrite(out_rel, existing, new_content, all_mode, is_lp_yml)

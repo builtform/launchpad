@@ -58,7 +58,7 @@ Don't let verification interrupt your flow - batch it at natural stopping points
 
 ## Matching Existing Patterns
 
-Before implementing each phase, spawn a **pattern-finder** sub-agent to find existing patterns you should follow. This ensures new code is consistent with established conventions.
+Before implementing each phase, spawn a **lp-pattern-finder** sub-agent to find existing patterns you should follow. This ensures new code is consistent with established conventions.
 
 **When to spawn it:**
 
@@ -69,14 +69,14 @@ Before implementing each phase, spawn a **pattern-finder** sub-agent to find exi
 **How to spawn it:**
 
 ```
-Task(subagent_type="pattern-finder", prompt="Find existing patterns for [what you're about to implement] in [relevant directory]")
+Task(subagent_type="lp-pattern-finder", prompt="Find existing patterns for [what you're about to implement] in [relevant directory]")
 ```
 
 Use the returned code examples as your template — match the style, naming, structure, and error handling patterns exactly.
 
 ## Consulting Accumulated Knowledge
 
-Before each phase, also consider spawning a **docs-analyzer** sub-agent to check if `docs/solutions/` contains relevant learnings for the current phase's domain. This surfaces previously documented decisions, constraints, rejected approaches, and promoted patterns that may affect your implementation.
+Before each phase, also consider spawning a **lp-docs-analyzer** sub-agent to check if `docs/solutions/` contains relevant learnings for the current phase's domain. This surfaces previously documented decisions, constraints, rejected approaches, and promoted patterns that may affect your implementation.
 
 **When to spawn it:**
 
@@ -87,10 +87,10 @@ Before each phase, also consider spawning a **docs-analyzer** sub-agent to check
 **How to spawn it:**
 
 ```
-Task(subagent_type="docs-analyzer", prompt="Check docs/solutions/ and docs/lessons/ for any documented decisions, constraints, or promoted patterns related to [current phase's domain]")
+Task(subagent_type="lp-docs-analyzer", prompt="Check docs/solutions/ and docs/lessons/ for any documented decisions, constraints, or promoted patterns related to [current phase's domain]")
 ```
 
-Use the returned insights to avoid repeating mistakes and to follow previously promoted patterns. If the docs-analyzer finds relevant constraints or rejected approaches, factor them into your implementation.
+Use the returned insights to avoid repeating mistakes and to follow previously promoted patterns. If the lp-docs-analyzer finds relevant constraints or rejected approaches, factor them into your implementation.
 
 ## If You Get Stuck
 
@@ -102,7 +102,7 @@ When something isn't working as expected:
 
 Use sub-tasks for:
 
-- **Pattern matching**: Spawn **pattern-finder** to find similar implementations to model after
+- **Pattern matching**: Spawn **lp-pattern-finder** to find similar implementations to model after
 - **Targeted debugging**: Understanding unfamiliar code paths
 - **Exploring unfamiliar territory**: Locating relevant files and understanding how they work
 

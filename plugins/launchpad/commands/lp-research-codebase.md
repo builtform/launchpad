@@ -44,8 +44,8 @@ Then wait for the user's research query.
    #### Wave 1: Discovery (parallel, FAST and CHEAP — no Read tool)
 
    Spawn these locator agents in parallel:
-   - **file-locator** — finds WHERE files and components live (Glob/Grep only)
-   - **docs-locator** — finds WHERE relevant documents live across the knowledge base: `docs/solutions/`, `docs/plans/`, `docs/reports/`, `docs/architecture/`, `docs/tasks/`, `docs/lessons/`, `docs/brainstorms/` (Glob/Grep only). **Conditional**: Only spawn this agent if `docs/solutions/`, `docs/plans/`, `docs/reports/`, or `docs/lessons/` contain files beyond stubs or placeholder READMEs — i.e., the project has accumulated real knowledge. Skip on a fresh project where these directories are empty or contain only templates.
+   - **lp-file-locator** — finds WHERE files and components live (Glob/Grep only)
+   - **lp-docs-locator** — finds WHERE relevant documents live across the knowledge base: `docs/solutions/`, `docs/plans/`, `docs/reports/`, `docs/architecture/`, `docs/tasks/`, `docs/lessons/`, `docs/brainstorms/` (Glob/Grep only). **Conditional**: Only spawn this agent if `docs/solutions/`, `docs/plans/`, `docs/reports/`, or `docs/lessons/` contain files beyond stubs or placeholder READMEs — i.e., the project has accumulated real knowledge. Skip on a fresh project where these directories are empty or contain only templates.
 
    These agents return file paths, directory structures, and pattern locations. They do NOT read file contents.
 
@@ -54,10 +54,10 @@ Then wait for the user's research query.
    #### Wave 2: Analysis (parallel, AFTER Wave 1 completes)
 
    Using the specific paths and files discovered by Wave 1, spawn targeted analyzer agents:
-   - **code-analyzer** — understands HOW specific code works at the paths found by locators (without critiquing it)
-   - **pattern-finder** — finds examples of existing patterns at the locations identified (without evaluating them)
-   - **docs-analyzer** — extracts key decisions, constraints, rejected approaches, lessons learned, and promoted patterns from the documents found by docs-locator (only if docs-locator returned results)
-   - **web-researcher** — gathers external documentation and resources (only if user explicitly asks). IF used, instruct it to return LINKS with findings, and INCLUDE those links in your final report
+   - **lp-code-analyzer** — understands HOW specific code works at the paths found by locators (without critiquing it)
+   - **lp-pattern-finder** — finds examples of existing patterns at the locations identified (without evaluating them)
+   - **lp-docs-analyzer** — extracts key decisions, constraints, rejected approaches, lessons learned, and promoted patterns from the documents found by lp-docs-locator (only if lp-docs-locator returned results)
+   - **lp-web-researcher** — gathers external documentation and resources (only if user explicitly asks). IF used, instruct it to return LINKS with findings, and INCLUDE those links in your final report
 
    These agents READ files — they are expensive, so target them precisely using Wave 1 results.
 

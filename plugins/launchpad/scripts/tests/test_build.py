@@ -260,14 +260,26 @@ def test_runner_ci_override_rejects_wrong_16char() -> list[str]:
     return errors
 
 
-def test_runner_missing_config_skips() -> list[str]:
-    """No config.yml means no commands — runner skips cleanly."""
+def test_runner_missing_config_refuses() -> list[str]:
+    """No config.yml means quality gates have no commands to execute.
+    Round 9 fix: the runner now refuses (exit 2) instead of silently
+    exiting 0, so harness commands that wrap test/typecheck/lint cannot
+    silently pass when the harness was never seeded.
+    """
     errors = []
     fixture = make_fixture({})
     try:
         r = run([sys.executable, RUNNER, "--stage=test", f"--repo-root={fixture}"])
-        if r.returncode != 0:
-            errors.append(f"missing config should skip (exit 0), got {r.returncode}")
+        if r.returncode != 2:
+            errors.append(
+                f"missing config should refuse (exit 2), got {r.returncode}; "
+                f"stderr: {r.stderr[:200]}"
+            )
+        if "config.yml" not in r.stderr:
+            errors.append(
+                "missing-config refusal should mention config.yml in stderr; "
+                f"got: {r.stderr[:200]}"
+            )
     finally:
         cleanup(fixture)
     return errors
@@ -386,7 +398,7 @@ def main() -> int:
         ("runner_ci_override_accepts_16char_prefix", test_runner_ci_override_accepts_16char_prefix),
         ("runner_ci_override_refuse_mentions_audit_truncation", test_runner_ci_override_refuse_mentions_audit_truncation),
         ("runner_ci_override_rejects_wrong_16char", test_runner_ci_override_rejects_wrong_16char),
-        ("runner_missing_config_skips", test_runner_missing_config_skips),
+        ("runner_missing_config_refuses", test_runner_missing_config_refuses),
         ("audit_appends_entry", test_audit_appends_entry),
         ("audit_appends_multiple_entries", test_audit_appends_multiple_entries),
         ("audit_content_hash_survives_rebase", test_audit_content_hash_survives_rebase),

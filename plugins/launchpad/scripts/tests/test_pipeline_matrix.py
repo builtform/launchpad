@@ -102,12 +102,15 @@ def fixture_go() -> Path:
 
 
 def fixture_polyglot() -> Path:
-    """Polyglot fixture: TS + Python together."""
+    """Polyglot fixture: TS + Python together. Includes typescript dep so
+    the package.json satisfies all three ts_monorepo gates (workspaces +
+    typescript + relevant framework)."""
     return _make({
         "package.json": json.dumps({
             "name": "poly",
             "workspaces": ["apps/*"],
             "dependencies": {"next": "15.0.0"},
+            "devDependencies": {"typescript": "5.0.0"},
         }),
         "pyproject.toml": """
 [project]

@@ -55,7 +55,12 @@ def test_ts_monorepo() -> list[str]:
         "package.json": json.dumps({
             "name": "ts-mono",
             "workspaces": ["apps/*", "packages/*"],
-            "dependencies": {"next": "15.0.0", "hono": "4.0.0", "@prisma/client": "5.0.0"},
+            "dependencies": {
+                "next": "15.0.0",
+                "hono": "4.0.0",
+                "@prisma/client": "5.0.0",
+            },
+            "devDependencies": {"typescript": "5.0.0"},
         }),
     })
     try:
@@ -73,15 +78,18 @@ def test_ts_monorepo() -> list[str]:
 
 def test_polyglot() -> list[str]:
     errors = []
-    # Polyglot fixture declares workspaces so the package.json maps to
-    # ts_monorepo. A bare single-app package.json (no workspaces, no turbo)
-    # now correctly maps to generic, which would not exercise the polyglot
-    # ts_monorepo + python_django path this test cares about.
+    # Polyglot fixture must satisfy ts_monorepo's three gates:
+    # workspaces (monorepo signal), typescript (TS signal), and a
+    # relevant framework (next.js here). A bare single-app package.json
+    # without all three correctly maps to generic, which would not
+    # exercise the polyglot ts_monorepo + python_django path this test
+    # cares about.
     fixture = make_fixture({
         "package.json": json.dumps({
             "name": "poly",
             "workspaces": ["apps/*"],
             "dependencies": {"next": "15.0.0"},
+            "devDependencies": {"typescript": "5.0.0"},
         }),
         "pyproject.toml": '[project]\nname = "poly"\ndependencies = ["django"]\n',
     })
@@ -189,12 +197,15 @@ def test_deterministic_order() -> list[str]:
     repos. Without this, the file churns on every run even when nothing
     semantic changed."""
     errors = []
-    # Polyglot fixture declares workspaces so the package.json maps to
-    # ts_monorepo (otherwise a bare single-app package.json maps to
-    # generic now). Order should still be alphabetical: python_django
-    # before ts_monorepo.
+    # Polyglot fixture must satisfy ts_monorepo's three gates (workspaces
+    # + typescript + relevant framework). Order should still be
+    # alphabetical: python_django before ts_monorepo.
     fixture = make_fixture({
-        "package.json": '{"workspaces": ["apps/*"], "dependencies": {"next": "15"}}',
+        "package.json": (
+            '{"workspaces": ["apps/*"], '
+            '"dependencies": {"next": "15"}, '
+            '"devDependencies": {"typescript": "5.0.0"}}'
+        ),
         "pyproject.toml": '[project]\nname="x"\ndependencies=["django"]\n',
     })
     try:
@@ -222,10 +233,76 @@ def test_deterministic_order() -> list[str]:
     return errors
 
 
+def test_ts_monorepo_gates() -> list[str]:
+    """Round 9 fix: ts_monorepo requires workspaces + typescript +
+    relevant framework. Each missing gate falls back to generic.
+    """
+    errors = []
+
+    # Pure-JS monorepo (no typescript dep, no tsconfig) → generic.
+    fixture = make_fixture({
+        "package.json": json.dumps({
+            "name": "js-mono",
+            "workspaces": ["apps/*"],
+            "dependencies": {"next": "15.0.0"},
+        }),
+    })
+    try:
+        report = detect(fixture)
+        if report["stacks"] != ["generic"]:
+            errors.append(
+                f"pure-JS monorepo (no typescript): expected ['generic'], "
+                f"got {report['stacks']}"
+            )
+    finally:
+        cleanup(fixture)
+
+    # TS monorepo of unrelated libraries (no Next/Hono/Prisma) → generic.
+    fixture = make_fixture({
+        "package.json": json.dumps({
+            "name": "lib-mono",
+            "workspaces": ["packages/*"],
+            "devDependencies": {"typescript": "5.0.0", "eslint": "9.0.0"},
+        }),
+    })
+    try:
+        report = detect(fixture)
+        if report["stacks"] != ["generic"]:
+            errors.append(
+                f"TS lib monorepo (no relevant framework): expected "
+                f"['generic'], got {report['stacks']}"
+            )
+    finally:
+        cleanup(fixture)
+
+    # tsconfig.json at the package.json's directory satisfies the TS gate
+    # even without a typescript dep.
+    fixture = make_fixture({
+        "package.json": json.dumps({
+            "name": "tsconfig-only",
+            "workspaces": ["apps/*"],
+            "dependencies": {"next": "15.0.0"},
+        }),
+        "tsconfig.json": '{"compilerOptions": {"strict": true}}',
+    })
+    try:
+        report = detect(fixture)
+        if "ts_monorepo" not in report["stacks"]:
+            errors.append(
+                f"tsconfig.json should satisfy TS gate: expected "
+                f"ts_monorepo, got {report['stacks']}"
+            )
+    finally:
+        cleanup(fixture)
+
+    return errors
+
+
 def main() -> int:
     all_errors = []
     for name, test in [
         ("ts_monorepo", test_ts_monorepo),
+        ("ts_monorepo_gates", test_ts_monorepo_gates),
         ("polyglot", test_polyglot),
         ("zero_manifest", test_zero_manifest),
         ("size_cap", test_manifest_size_cap),
@@ -245,7 +322,7 @@ def main() -> int:
             print(e)
         return 1
 
-    print("PASS: stack detector (7 tests)")
+    print("PASS: stack detector (8 tests)")
     return 0
 
 

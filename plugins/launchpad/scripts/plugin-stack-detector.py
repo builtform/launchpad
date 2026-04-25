@@ -333,20 +333,37 @@ def detect_from_manifest(path: Path) -> dict[str, Any]:
             frameworks.append("express")
         if "@prisma/client" in deps or "prisma" in deps:
             frameworks.append("prisma")
-        # Map to ts_monorepo ONLY when the project IS a monorepo: the
-        # ts_monorepo adapter hardcodes pnpm + Turborepo + apps/web,
-        # apps/api, packages/db defaults that are wrong for a plain
-        # single-app Next or Hono project (npm or yarn, no apps/, no
-        # packages/). A previous version also returned ts_monorepo for
-        # any next/hono dependency, which fed Turborepo-shaped commands
-        # into single-app repos.
-        # Single-app TS / Next / Hono / React projects fall back to
-        # generic; their detected frameworks are still surfaced in the
-        # detector report so docs can mention them, but the seeded
-        # commands and structure stay neutral until a future per-app
-        # adapter (or Codex's "ts_app/ts_service" suggestion) lands.
+        # Map to ts_monorepo ONLY when the project IS a monorepo AND has
+        # the framework profile the adapter is shaped for: pnpm + Turborepo
+        # + apps/web (Next), apps/api (Hono), packages/db (Prisma). Three
+        # gates, all must hold:
+        #
+        #   (1) Monorepo signal — workspaces declared OR turbo dependency.
+        #       A single-app project gets generic regardless of frameworks.
+        #
+        #   (2) TypeScript signal — `typescript` dependency OR a
+        #       tsconfig.json at the manifest's directory. A pure-JS
+        #       monorepo, or a Python/Go workspace that happens to have a
+        #       package.json, gets generic — not TS-shaped commands.
+        #
+        #   (3) Relevant framework signal — at least one of Next.js, Hono,
+        #       or Prisma. A monorepo of unrelated TS libraries (eslint
+        #       configs, build tools, design tokens) gets generic so the
+        #       doc generator does not seed Next/Hono/Prisma prose for a
+        #       project that uses none of them.
+        #
+        # Any failed gate falls back to generic. Detected frameworks are
+        # still surfaced in the report so the doc generator can mention
+        # them; only the *stack template* changes.
         is_monorepo = bool(content.get("workspaces")) or "turbo" in deps
-        if is_monorepo:
+        has_typescript = (
+            "typescript" in deps
+            or (path.parent / "tsconfig.json").is_file()
+        )
+        has_relevant_framework = any(
+            fw in frameworks for fw in ("next.js", "hono", "prisma")
+        )
+        if is_monorepo and has_typescript and has_relevant_framework:
             stack = "ts_monorepo"
         else:
             stack = "generic"

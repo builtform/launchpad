@@ -111,8 +111,98 @@ def test_modify_commit_caught() -> list[str]:
     return errors
 
 
+def _build_cross_commit_repo(tmp: Path) -> None:
+    """Simulate a hostile PR splitting ack and section across two commits.
+
+    Timeline:
+      main: commit 1 — registry created with benign-section, no ack.
+      feature branch off main:
+        commit 2 — adds .launchpad/autonomous-ack.md (no section change).
+        commit 3 — adds hostile-section to the registry.
+
+    The previous same-commit-only guard did not catch this: commit 3 (the
+    section introduction) does not touch the ack file, so the check
+    returns False. The cross-commit fix detects that the ack was first
+    created in commit 2, which is on the feature branch (not on main),
+    and refuses.
+    """
+    _git(tmp, "init", "-q", "-b", "main")
+    _git(tmp, "config", "user.email", "test@example.com")
+    _git(tmp, "config", "user.name", "Test")
+
+    registry = tmp / "docs" / "tasks" / "SECTION_REGISTRY.md"
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    registry.write_text(
+        "# Section Registry\n\n## Registry\n\n"
+        "### benign-section\n\n- **Status:** shaped\n",
+        encoding="utf-8",
+    )
+    _git(tmp, "add", "docs/tasks/SECTION_REGISTRY.md")
+    _git(tmp, "commit", "-q", "-m", "init: registry on main")
+
+    # Branch off main.
+    _git(tmp, "checkout", "-q", "-b", "feature/hostile")
+
+    # Commit 2 on the branch: just the ack.
+    ack = tmp / ".launchpad" / "autonomous-ack.md"
+    ack.parent.mkdir(parents=True, exist_ok=True)
+    ack.write_text("ack\n", encoding="utf-8")
+    _git(tmp, "add", ".launchpad/autonomous-ack.md")
+    _git(tmp, "commit", "-q", "-m", "chore: opt into autonomous mode")
+
+    # Commit 3 on the branch: just the new section.
+    registry.write_text(
+        "# Section Registry\n\n## Registry\n\n"
+        "### benign-section\n\n- **Status:** shaped\n\n"
+        "### hostile-section\n\n- **Status:** shaped\n",
+        encoding="utf-8",
+    )
+    _git(tmp, "add", "docs/tasks/SECTION_REGISTRY.md")
+    _git(tmp, "commit", "-q", "-m", "feat: add hostile-section")
+
+
+def test_cross_commit_caught() -> list[str]:
+    """Round 9 fix: cross-commit attack must also be refused.
+
+    Ack is added in one commit on the branch and section in a later commit
+    on the same branch. The same-commit check alone misses this; the
+    merge-base check catches it.
+    """
+    errors: list[str] = []
+    with tempfile.TemporaryDirectory(prefix="lp-guard-cross-") as tmpstr:
+        tmp = Path(tmpstr).resolve()
+        _build_cross_commit_repo(tmp)
+
+        if not section_added_with_ack(tmp, "hostile-section"):
+            errors.append(
+                "guard returned False for hostile-section in a cross-commit "
+                "attack — ack added in one commit, section in a later commit "
+                "on the same branch was not caught"
+            )
+
+        # benign-section predates the ack on main; ack itself was added on
+        # the branch, but benign-section's introduction commit is in main's
+        # history — the cross-commit check still triggers because the ack
+        # was added in this branch, regardless of which section we ask
+        # about. This is intentional: any branch that introduces ack
+        # invalidates fast-path approval for ALL sections planned on that
+        # branch, since the human has not had a chance to review the ack
+        # in the merged base.
+        if not section_added_with_ack(tmp, "benign-section"):
+            errors.append(
+                "guard returned False for benign-section on a branch that "
+                "introduced the ack — once ack is added in a branch, every "
+                "section plan on that branch must refuse fast-path approval"
+            )
+
+    return errors
+
+
 def main() -> int:
-    tests = [("modify_commit_caught", test_modify_commit_caught)]
+    tests = [
+        ("modify_commit_caught", test_modify_commit_caught),
+        ("cross_commit_caught", test_cross_commit_caught),
+    ]
     all_errors: list[str] = []
     for name, t in tests:
         errs = t()

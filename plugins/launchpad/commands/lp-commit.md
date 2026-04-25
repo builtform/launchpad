@@ -15,11 +15,13 @@ Bash, Read, Grep, Glob, Edit, Write, TodoWrite, Task
 
 ## Step 0: Prerequisite Check (Lite)
 
-Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-commit --require=.launchpad/agents.yml`.
+Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-commit --require=.launchpad/agents.yml,.launchpad/config.yml`.
 
-This is **verify-or-refuse only** — the lite helper checks the required file exists and exits 1 with a pointer to `/lp-define` when it does not. It does NOT create missing files and does NOT run the full detect/classify/present/scaffold protocol (that's harness-level). If `.launchpad/agents.yml` is missing, the helper refuses; halt with the printed error and run `/lp-define` to seed it.
+This is **verify-or-refuse only** — the lite helper checks each required file exists and exits 1 with a pointer to `/lp-define` when any is missing. It does NOT create missing files and does NOT run the full detect/classify/present/scaffold protocol (that's harness-level). If either `.launchpad/agents.yml` or `.launchpad/config.yml` is missing, the helper refuses; halt with the printed error and run `/lp-define` to seed them.
 
-`/lp-define` is the authoritative seeder for `agents.yml`; `/lp-commit` never writes it.
+Both files are required: `agents.yml` defines the review-agent roster and protected branches, and `config.yml` defines the quality-gate commands the runner executes in Step 5. Without `config.yml`, the runner has no commands to dispatch and would silently exit 0 — leaving test/typecheck/lint un-run.
+
+`/lp-define` is the authoritative seeder for both files; `/lp-commit` never writes them.
 
 ---
 

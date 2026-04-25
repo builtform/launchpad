@@ -68,6 +68,7 @@ def test_ts_monorepo_happy_path() -> list[str]:
             "name": "ts-mono",
             "workspaces": ["apps/*"],
             "dependencies": {"next": "15.0.0", "hono": "4.0.0"},
+            "devDependencies": {"typescript": "5.0.0"},
         }),
     })
     try:
@@ -151,6 +152,7 @@ def test_polyglot_ts_python_shape() -> list[str]:
             "name": "poly",
             "workspaces": ["apps/*"],
             "dependencies": {"next": "15.0.0"},
+            "devDependencies": {"typescript": "5.0.0"},
         }),
         "pyproject.toml": '[project]\nname = "poly-be"\ndependencies = ["django>=5"]\n',
     })
@@ -353,6 +355,7 @@ def test_agents_yml_seeded_polyglot() -> list[str]:
         "package.json": json.dumps({
             "workspaces": ["apps/*"],
             "dependencies": {"next": "15"},
+            "devDependencies": {"typescript": "5.0.0"},
         }),
         "pyproject.toml": '[project]\nname = "poly"\ndependencies = ["django"]\n',
     })
@@ -405,6 +408,7 @@ def test_agents_yml_ts_only_omits_python_reviewer() -> list[str]:
         "package.json": json.dumps({
             "workspaces": ["apps/*"],
             "dependencies": {"next": "15"},
+            "devDependencies": {"typescript": "5.0.0"},
         }),
     })
     try:

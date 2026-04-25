@@ -48,11 +48,28 @@ import yaml  # noqa: E402
 VALID_STAGES = ("test", "typecheck", "lint", "format", "build")
 
 
+class ConfigMissingError(FileNotFoundError):
+    """Raised when .launchpad/config.yml is absent.
+
+    Distinct from an explicitly-empty `commands.<stage>: []`, which is a
+    legitimate skip marker. Missing config means the harness was never
+    seeded — caller should refuse rather than silently exit 0.
+    """
+
+
 def load_commands(repo_root: Path, stage: str) -> list[str]:
-    """Load config.yml and return the command list for the requested stage."""
+    """Load config.yml and return the command list for the requested stage.
+
+    Raises ConfigMissingError when the file does not exist. An empty list
+    return value means the file exists but the stage is explicitly empty
+    (skip marker).
+    """
     cfg_path = repo_root / ".launchpad" / "config.yml"
     if not cfg_path.is_file():
-        return []
+        raise ConfigMissingError(
+            f".launchpad/config.yml not found at {cfg_path}. "
+            "Run /lp-define to seed it."
+        )
 
     doc = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
     if not isinstance(doc, dict):
@@ -196,6 +213,9 @@ def run_stage(repo_root: Path, stage: str, *, check_only: bool = False) -> int:
         for s in VALID_STAGES:
             try:
                 per_stage_counts[s] = len(load_commands(repo_root, s))
+            except ConfigMissingError as e:
+                print(f"config error: {e}", file=sys.stderr)
+                return 2
             except (yaml.YAMLError, ValueError) as e:
                 print(
                     f"config error in commands.{s}: {e}",
@@ -212,6 +232,12 @@ def run_stage(repo_root: Path, stage: str, *, check_only: bool = False) -> int:
 
     try:
         cmds = load_commands(repo_root, stage)
+    except ConfigMissingError as e:
+        # Refuse rather than silently skip. Missing config.yml means the
+        # harness was never seeded; running a no-op stage as success would
+        # let test/typecheck/lint quality gates pass without ever executing.
+        print(f"config error: {e}", file=sys.stderr)
+        return 2
     except (yaml.YAMLError, ValueError) as e:
         print(f"config error: {e}", file=sys.stderr)
         return 2
