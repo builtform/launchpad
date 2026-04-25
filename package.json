@@ -16,7 +16,7 @@
     "eslint": "^9.0.0",
     "lefthook": "^1.0.0",
     "prettier": "^3.0.0",
-    "turbo": "^2.0.0",
+    "turbo": "^2.9.6",
     "typescript": "^5.0.0",
     "vitest": "^1.0.0"
   },
