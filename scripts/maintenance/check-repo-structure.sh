@@ -322,8 +322,13 @@ echo "📋 Checking for production code importing from experiments/..."
 
 EXPERIMENT_IMPORTS=""
 
-# Check files in apps/ only (no services/ in this repo)
-if [ -d "$REPO_ROOT/apps" ]; then
+# Check both apps/ and packages/. Shared packages cannot bypass the sandbox
+# rule by importing from experiments/ either; the rule applies to ALL
+# production code, regardless of which workspace it lives in.
+SCAN_PATHS=()
+[ -d "$REPO_ROOT/apps" ] && SCAN_PATHS+=("$REPO_ROOT/apps")
+[ -d "$REPO_ROOT/packages" ] && SCAN_PATHS+=("$REPO_ROOT/packages")
+if [ ${#SCAN_PATHS[@]} -gt 0 ]; then
   EXPERIMENT_IMPORTS=$(grep -rn \
     --include="*.py" \
     --include="*.ts" \
@@ -331,7 +336,7 @@ if [ -d "$REPO_ROOT/apps" ]; then
     --include="*.js" \
     --include="*.jsx" \
     -E "(from experiments|import experiments)" \
-    "$REPO_ROOT/apps" 2>/dev/null || true)
+    "${SCAN_PATHS[@]}" 2>/dev/null || true)
 fi
 
 if [ -n "$EXPERIMENT_IMPORTS" ]; then
@@ -370,8 +375,16 @@ if [ -f "$AGENTS_YML" ]; then
   # Filter: lines with "  - " under *_agents keys, not comments, not protected_branches
   while IFS= read -r agent_name; do
     [ -z "$agent_name" ] && continue
-    # Search all subdirectories under plugins/launchpad/agents/ for a matching .md file
-    FOUND=$(find "$REPO_ROOT/plugins/launchpad/agents" -name "${agent_name}.md" -type f 2>/dev/null | head -1)
+    # Mirror the runtime resolver: scan plugins/launchpad/agents/** for
+    # built-ins first, then .claude/agents/** for project-local extensions.
+    # A downstream project legitimately holding a custom agent under
+    # .claude/agents/ should not fail the structure check just because the
+    # name does not exist in the shipped plugin tree.
+    FOUND=""
+    [ -d "$REPO_ROOT/plugins/launchpad/agents" ] && FOUND=$(find "$REPO_ROOT/plugins/launchpad/agents" -name "${agent_name}.md" -type f 2>/dev/null | head -1)
+    if [ -z "$FOUND" ] && [ -d "$REPO_ROOT/.claude/agents" ]; then
+      FOUND=$(find "$REPO_ROOT/.claude/agents" -name "${agent_name}.md" -type f 2>/dev/null | head -1)
+    fi
     if [ -z "$FOUND" ]; then
       MISSING_AGENTS="$MISSING_AGENTS      $agent_name\n"
     fi

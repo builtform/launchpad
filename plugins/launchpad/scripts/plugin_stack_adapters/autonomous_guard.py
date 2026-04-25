@@ -46,16 +46,27 @@ def _git(repo_root: Path, *args: str) -> str | None:
 
 def _find_section_introduction_commit(repo_root: Path, section_name: str) -> str | None:
     """Return the commit SHA that first added the section's `### <name>` heading
-    to SECTION_REGISTRY.md. Returns None if not found."""
+    to SECTION_REGISTRY.md. Returns None if not found.
+
+    Uses git's pickaxe (`-S`) to find commits whose diff changed the count of
+    lines containing the heading string. The previous implementation also
+    passed `--diff-filter=A`, which filtered to commits where the whole
+    SECTION_REGISTRY.md file was added — meaning in any normal repo where
+    the registry already exists, modifications that added a new section to
+    an existing file were silently dropped from the result. A hostile PR
+    that committed a new section line and `.launchpad/autonomous-ack.md`
+    in the same commit would then bypass the guard entirely. Removing the
+    file-level diff-filter so MODIFY commits are also inspected closes the
+    bypass; the pickaxe `-S` is the right primitive for "added this
+    string", whether the file was new or already present.
+    """
     registry_rel = "docs/tasks/SECTION_REGISTRY.md"
 
-    # Follow renames, pickaxe for the exact heading string.
     pickaxe = f"### {section_name}"
     out = _git(
         repo_root,
         "log",
         "--follow",
-        "--diff-filter=A",  # A=added line
         "-S", pickaxe,
         "--pretty=format:%H",
         "--",

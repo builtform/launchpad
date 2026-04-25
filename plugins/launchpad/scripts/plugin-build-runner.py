@@ -55,7 +55,16 @@ def load_commands(repo_root: Path, stage: str) -> list[str]:
         return []
 
     doc = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+    if not isinstance(doc, dict):
+        raise ValueError(
+            f"config.yml: expected top-level mapping, got {type(doc).__name__}"
+        )
     commands = doc.get("commands", {}) or {}
+    if not isinstance(commands, dict):
+        raise ValueError(
+            f"config.yml: 'commands' must be a mapping of stage→list, "
+            f"got {type(commands).__name__}"
+        )
     val = commands.get(stage, [])
 
     # Be forgiving: scalar → [scalar], empty string → []

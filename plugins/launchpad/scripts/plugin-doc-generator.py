@@ -324,16 +324,20 @@ def generate(repo_root: Path, *, dry_run: bool = False, force: bool = False, onl
         out_abs.write_text(new_content, encoding="utf-8")
         summary["written"].append(out_rel)
 
-    # 6. Post-write: ensure .launchpad/audit.log is gitignored when audit.committed=false
-    #    Only runs after a successful write (any new/changed artifacts). The audit-log doc
-    #    is a per-user debug log; committing it leaks developer-activity timelines in public
-    #    repos and creates merge conflicts on multi-contributor ones.
-    ensure_audit_gitignore(repo_root, summary)
+    # Post-write helpers must NOT run during --dry-run: they mutate
+    # .gitignore and create paths.sections_dir on disk, which would violate
+    # dry-run's contract of zero filesystem side effects.
+    if not dry_run:
+        # 6. Post-write: ensure .launchpad/audit.log is gitignored when audit.committed=false
+        #    Only runs after a successful write (any new/changed artifacts). The audit-log doc
+        #    is a per-user debug log; committing it leaks developer-activity timelines in public
+        #    repos and creates merge conflicts on multi-contributor ones.
+        ensure_audit_gitignore(repo_root, summary)
 
-    # 7. Post-write: scaffold paths.sections_dir. /lp-shape-section writes
-    #    to this directory and fails cleanly if absent. Creating it here saves
-    #    the user one "directory not found" error on their first section shape.
-    ensure_sections_dir(repo_root, summary)
+        # 7. Post-write: scaffold paths.sections_dir. /lp-shape-section writes
+        #    to this directory and fails cleanly if absent. Creating it here saves
+        #    the user one "directory not found" error on their first section shape.
+        ensure_sections_dir(repo_root, summary)
 
     # 8. Report
     print(json.dumps({"detected_stacks": stacks, "summary": summary}, indent=2))

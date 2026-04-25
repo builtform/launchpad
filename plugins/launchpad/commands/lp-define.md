@@ -64,7 +64,14 @@ The generator does:
 1. **Detect** — runs the stack detector (manifest allowlist, 1MB cap, bounded walk)
 2. **Compose** — single-stack adapter OR polyglot composer (multi-language path)
 3. **Render** — 4 canonical docs + section registry + config.yml through Jinja2
-   with `autoescape=True` (SSTI-safe) and `StrictUndefined`
+   with `select_autoescape(enabled_extensions=('html','htm','xml'), default=False)`
+   so HTML / XML templates autoescape (no template here today, door open for
+   v1.1) but Markdown and YAML render variable content verbatim. Variable
+   values are strings, never re-parsed as Jinja syntax — the SSTI guard
+   was always Jinja's template model, not HTML autoescape, which on
+   Markdown only corrupted benign text like `R&D <Pilot>`. YAML safety
+   relies on `tojson` / explicit yaml-safe quoting in template bodies.
+   `StrictUndefined` is preserved so missing variables fail loudly
 4. **Strip** — package.json `scripts.*`, pyproject.toml `[tool.*]` URLs,
    registry tokens, embedded credentials all redacted before template interpolation
 5. **Scan** — every rendered doc passed through `.launchpad/secret-patterns.txt`

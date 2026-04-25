@@ -24,7 +24,12 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 USAGE_FILE="$REPO_ROOT/docs/skills-catalog/skills-usage.json"
-SKILLS_DIR="$REPO_ROOT/plugins/launchpad/skills"
+# Audit ONLY user-installed skills under .claude/skills/. Built-in plugin
+# skills under plugins/launchpad/skills/ ship with the plugin install — they
+# are not project state and would generate noisy "never used" reports if we
+# audited them here. /lp-create-skill and /lp-update-skill write into
+# .claude/skills/, so that is the directory whose staleness this hook tracks.
+SKILLS_DIR="$REPO_ROOT/.claude/skills"
 
 # ---------------------------------------------------------------------------
 # Exit silently if usage file doesn't exist yet
