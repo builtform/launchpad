@@ -172,35 +172,68 @@ def find_manifests(root: Path) -> list[Path]:
     if not root.is_dir():
         raise DetectorError(f"repo root {root} is not a directory")
 
+    root_real = root.resolve()
+
+    def _safe_candidate(candidate: Path) -> Path | None:
+        """Refuse the candidate if any of:
+        - it is a symlink (file or via parent dir)
+        - its real path resolves outside root_real
+        - it is not actually a regular file
+        Returns the candidate Path on success, None on rejection. The
+        previous walk simply called `is_file()`, which silently followed
+        symlinks; a hostile repo containing `package.json -> ../secret.json`
+        or a symlinked workspace dir could read files outside the repo via
+        the manifest allowlist.
+        """
+        try:
+            if candidate.is_symlink():
+                return None
+            if not candidate.is_file():
+                return None
+            real = candidate.resolve(strict=True)
+            if not real.is_relative_to(root_real):
+                return None
+            return candidate
+        except (OSError, ValueError):
+            return None
+
     # Depth 0: repo root itself
     for name in MANIFEST_ALLOWLIST:
-        candidate = root / name
-        if candidate.is_file():
-            found.append(candidate)
+        sc = _safe_candidate(root / name)
+        if sc is not None:
+            found.append(sc)
 
     # Depth 1: immediate subdirs (excluding noise). Sort iterdir() explicitly
     # because filesystem iteration order is not guaranteed stable across mtime
-    # changes or re-indexes.
+    # changes or re-indexes. Skip symlinked directories — they can point
+    # outside the repo, which would let manifests there be read despite
+    # the allowlist.
     for child in sorted(root.iterdir(), key=lambda p: p.name):
+        if child.is_symlink():
+            continue
         if not child.is_dir():
             continue
         if child.name in EXCLUDED_DIRS or child.name.startswith("."):
             continue
         for name in MANIFEST_ALLOWLIST:
-            candidate = child / name
-            if candidate.is_file():
-                found.append(candidate)
+            sc = _safe_candidate(child / name)
+            if sc is not None:
+                found.append(sc)
 
     # Workspace roots: declared by the user via pnpm-workspace.yaml or
     # package.json's workspaces field. Trusted because the user added them.
-    # Realpath-confined to prevent escape via symlink or '..'.
+    # Same symlink/realpath checks apply — a workspace pattern like
+    # `apps/*` could glob a symlinked directory the user did not intend
+    # to expose.
     for ws_dir in _read_workspace_roots(root):
+        if ws_dir.is_symlink():
+            continue
         if ws_dir.name in EXCLUDED_DIRS or ws_dir.name.startswith("."):
             continue
         for name in MANIFEST_ALLOWLIST:
-            candidate = ws_dir / name
-            if candidate.is_file():
-                found.append(candidate)
+            sc = _safe_candidate(ws_dir / name)
+            if sc is not None:
+                found.append(sc)
 
     # Final deterministic ordering: sort by path relative to root so the
     # order is reproducible regardless of which directory iteration flip
@@ -300,15 +333,20 @@ def detect_from_manifest(path: Path) -> dict[str, Any]:
             frameworks.append("express")
         if "@prisma/client" in deps or "prisma" in deps:
             frameworks.append("prisma")
-        # Map to ts_monorepo only when the project actually looks like one
-        # the adapter knows: workspaces / turbo, or a known framework
-        # (next.js / hono) the adapter seeds commands and docs for. A bare
-        # package.json (Express-only, plain Node, unknown framework) falls
-        # back to generic so the doc generator does not seed monorepo-shaped
-        # canonicals that do not match the project.
+        # Map to ts_monorepo ONLY when the project IS a monorepo: the
+        # ts_monorepo adapter hardcodes pnpm + Turborepo + apps/web,
+        # apps/api, packages/db defaults that are wrong for a plain
+        # single-app Next or Hono project (npm or yarn, no apps/, no
+        # packages/). A previous version also returned ts_monorepo for
+        # any next/hono dependency, which fed Turborepo-shaped commands
+        # into single-app repos.
+        # Single-app TS / Next / Hono / React projects fall back to
+        # generic; their detected frameworks are still surfaced in the
+        # detector report so docs can mention them, but the seeded
+        # commands and structure stay neutral until a future per-app
+        # adapter (or Codex's "ts_app/ts_service" suggestion) lands.
         is_monorepo = bool(content.get("workspaces")) or "turbo" in deps
-        has_known_ts_framework = "next" in deps or "hono" in deps
-        if is_monorepo or has_known_ts_framework:
+        if is_monorepo:
             stack = "ts_monorepo"
         else:
             stack = "generic"

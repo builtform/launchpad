@@ -144,8 +144,14 @@ def test_django_backend_only() -> list[str]:
 def test_polyglot_ts_python_shape() -> list[str]:
     """Polyglot (TS + Python) shape. Commands must include both suites."""
     errors = []
+    # Polyglot fixture declares workspaces so the package.json maps to
+    # ts_monorepo (a bare single-app package.json now maps to generic).
     fixture = make_fixture({
-        "package.json": json.dumps({"name": "poly", "dependencies": {"next": "15.0.0"}}),
+        "package.json": json.dumps({
+            "name": "poly",
+            "workspaces": ["apps/*"],
+            "dependencies": {"next": "15.0.0"},
+        }),
         "pyproject.toml": '[project]\nname = "poly-be"\ndependencies = ["django>=5"]\n',
     })
     try:
@@ -341,7 +347,13 @@ def test_agents_yml_seeded_polyglot() -> list[str]:
     kieran-foad-python-reviewer."""
     errors = []
     fixture = make_fixture({
-        "package.json": json.dumps({"dependencies": {"next": "15"}}),
+        # Workspaces declared so package.json maps to ts_monorepo (a bare
+        # single-app package.json now maps to generic, which would not
+        # exercise the TS-reviewer-roster-seeded path this test covers).
+        "package.json": json.dumps({
+            "workspaces": ["apps/*"],
+            "dependencies": {"next": "15"},
+        }),
         "pyproject.toml": '[project]\nname = "poly"\ndependencies = ["django"]\n',
     })
     try:
@@ -386,8 +398,14 @@ def test_agents_yml_seeded_polyglot() -> list[str]:
 def test_agents_yml_ts_only_omits_python_reviewer() -> list[str]:
     """TS-only stack must not list lp-kieran-foad-python-reviewer."""
     errors = []
+    # Workspaces declared so package.json maps to ts_monorepo. A bare
+    # single-app package.json now maps to generic, which would not seed
+    # the lp-kieran-foad-ts-reviewer the test asserts is present.
     fixture = make_fixture({
-        "package.json": json.dumps({"dependencies": {"next": "15"}}),
+        "package.json": json.dumps({
+            "workspaces": ["apps/*"],
+            "dependencies": {"next": "15"},
+        }),
     })
     try:
         run_generator(fixture, "--force")

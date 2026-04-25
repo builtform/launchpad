@@ -100,7 +100,22 @@ def _coerce_commands(commands: dict[str, Any]) -> dict[str, list[str]]:
         if isinstance(val, str):
             val = [val] if val else []
         elif isinstance(val, list):
-            val = [str(v) for v in val if v]
+            # Every item must be a string. Previously str(v) coerced YAML
+            # scalars like true/123 or mappings into command strings —
+            # silently turning typos into executed bogus commands. Refuse
+            # non-strings with a clear ConfigError instead.
+            cleaned: list[str] = []
+            for i, v in enumerate(val):
+                if v is None or (isinstance(v, str) and v == ""):
+                    continue
+                if not isinstance(v, str):
+                    raise ConfigError(
+                        f"commands.{key}[{i}]: expected string, got "
+                        f"{type(v).__name__} (value={v!r}). Quote the "
+                        "value in YAML if it should be passed literally."
+                    )
+                cleaned.append(v)
+            val = cleaned
         else:
             raise ConfigError(f"commands.{key}: expected list or string, got {type(val).__name__}")
         out[key] = val

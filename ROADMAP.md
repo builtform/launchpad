@@ -28,6 +28,7 @@ The cross-tool bridge ([AGENTS.md](AGENTS.md)) continues to work for Cursor, Aid
 
 Other v1.1 items:
 
+- Single-app TypeScript adapter (`ts_app` / `ts_service`) so plain Next.js / Hono projects without workspaces or Turborepo get sensible non-monorepo defaults instead of falling through to `generic`. Today the detector deliberately routes them to `generic` to avoid seeding hardcoded `apps/web/`, `apps/api/`, `packages/db/`, pnpm-only commands into single-app repos.
 - Polyglot stack-detection refinements (Python framework distinction beyond Django, env-manager detection for poetry/uv)
 - Non-interactive mode for dialogue-heavy commands (`/lp-pnf`, `/lp-brainstorm`)
 - Brownfield TODO-import adapter (`/lp-shape-section --from-todo <id>`)

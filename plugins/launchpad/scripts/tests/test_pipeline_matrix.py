@@ -252,17 +252,34 @@ def step_F_audit(fixture: Path) -> list[str]:
 def step_G_no_silent_failures(fixture: Path) -> list[str]:
     """Intentionally break a command and ensure the build runner surfaces it."""
     errors = []
-    # Force test stage to fail with a recognizable message
     cfg = fixture / ".launchpad" / "config.yml"
     original = cfg.read_text()
 
     import re
+    # Try the in-place rewrite first (handles non-empty test arrays).
     broken = re.sub(
         r"^  test:\s*\n(\s+-[^\n]+\n)+",
         '  test:\n    - "exit 42"\n',
         original,
         flags=re.MULTILINE,
     )
+    if broken == original:
+        # Empty test array (generic-adapter shape: 'test: []') needs an
+        # array-form rewrite. Match either 'test: []' on one line or
+        # 'test:\n' followed by no list items.
+        broken = re.sub(
+            r"^  test:\s*\[\]\s*$",
+            '  test:\n    - "exit 42"',
+            original,
+            flags=re.MULTILINE,
+        )
+        if broken == original:
+            broken = re.sub(
+                r"^  test:\s*\n(?!\s+-)",
+                '  test:\n    - "exit 42"\n',
+                original,
+                flags=re.MULTILINE,
+            )
     cfg.write_text(broken)
 
     try:
@@ -312,12 +329,21 @@ def run_matrix_row(
 
 MATRIX = [
     {
+        # Plain single-app Next + Express, no workspaces, no Turborepo —
+        # detector now correctly maps this to 'generic' rather than
+        # ts_monorepo, since the ts_monorepo adapter hardcodes pnpm,
+        # Turborepo, apps/web/, apps/api/, packages/db/ defaults that do
+        # not match a single-app shape. The frameworks list (next.js,
+        # express) is still surfaced via the detector's framework
+        # detection so docs can mention them; only the *adapter routing*
+        # shifts to generic. A future ts_app adapter would handle this
+        # better — tracked in ROADMAP for v1.1.
         "name": "ts_non_launchpad",
         "builder": fixture_ts_nonlaunchpad,
-        "expected_stacks": {"ts_monorepo"},
+        "expected_stacks": {"generic"},
         "expected_frameworks": {"next.js", "express"},
-        "expected_test_empty": False,  # ts_monorepo adapter seeds pnpm test
-        "expected_design_skipped": False,
+        "expected_test_empty": True,  # generic adapter seeds empty
+        "expected_design_skipped": True,  # generic disables design pipeline
     },
     {
         "name": "django",

@@ -73,8 +73,16 @@ def test_ts_monorepo() -> list[str]:
 
 def test_polyglot() -> list[str]:
     errors = []
+    # Polyglot fixture declares workspaces so the package.json maps to
+    # ts_monorepo. A bare single-app package.json (no workspaces, no turbo)
+    # now correctly maps to generic, which would not exercise the polyglot
+    # ts_monorepo + python_django path this test cares about.
     fixture = make_fixture({
-        "package.json": json.dumps({"name": "poly", "dependencies": {"next": "15.0.0"}}),
+        "package.json": json.dumps({
+            "name": "poly",
+            "workspaces": ["apps/*"],
+            "dependencies": {"next": "15.0.0"},
+        }),
         "pyproject.toml": '[project]\nname = "poly"\ndependencies = ["django"]\n',
     })
     try:
@@ -181,9 +189,12 @@ def test_deterministic_order() -> list[str]:
     repos. Without this, the file churns on every run even when nothing
     semantic changed."""
     errors = []
-    # Polyglot fixture — order should be alphabetical: python_django before ts_monorepo
+    # Polyglot fixture declares workspaces so the package.json maps to
+    # ts_monorepo (otherwise a bare single-app package.json maps to
+    # generic now). Order should still be alphabetical: python_django
+    # before ts_monorepo.
     fixture = make_fixture({
-        "package.json": '{"dependencies": {"next": "15"}}',
+        "package.json": '{"workspaces": ["apps/*"], "dependencies": {"next": "15"}}',
         "pyproject.toml": '[project]\nname="x"\ndependencies=["django"]\n',
     })
     try:

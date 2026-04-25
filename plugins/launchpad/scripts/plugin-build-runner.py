@@ -72,7 +72,24 @@ def load_commands(repo_root: Path, stage: str) -> list[str]:
         return [val] if val else []
     if not isinstance(val, list):
         raise ValueError(f"commands.{stage}: expected list or string, got {type(val).__name__}")
-    return [str(v) for v in val if v]
+    # Every item MUST be a string. Previously this used str(v), which
+    # silently coerced YAML scalars like `true`, `123`, or mappings into
+    # shell command strings — turning a mistyped config into an executed
+    # bogus command. Strings only; refuse anything else with a clear
+    # config error. Empty strings are skip markers and are filtered out.
+    out: list[str] = []
+    for i, v in enumerate(val):
+        if v is None or (isinstance(v, str) and v == ""):
+            continue
+        if not isinstance(v, str):
+            raise ValueError(
+                f"commands.{stage}[{i}]: expected string, got "
+                f"{type(v).__name__} (value={v!r}). YAML scalars like "
+                "true/123 are not valid shell commands; quote the value "
+                "if it should be passed literally."
+            )
+        out.append(v)
+    return out
 
 
 def _compute_hash(repo_root: Path) -> str:

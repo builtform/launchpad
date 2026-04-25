@@ -93,13 +93,26 @@ compute_cache_key() {
     _stat_to_key "$f"
   done
   # Workspace-config files: pnpm-workspace.yaml + package.json's workspaces
-  # field both expand into nested workspace roots. The detector reads them,
-  # so cache invalidation must follow them. We hash the workspace-config
-  # FILES (their mtimes capture pattern changes) plus every package.json
-  # found under common workspace roots (apps/* and packages/* — covering
-  # the LaunchPad/Turborepo/pnpm convention) so changing
-  # apps/web/package.json busts the cache too.
+  # field declare nested workspace roots that arbitrary projects may put
+  # under apps/, packages/, libs/, services/, or anywhere else. The cache
+  # must invalidate when ANY declared workspace's package.json changes,
+  # not just the conventional apps/* and packages/* layouts.
+  #
+  # We use a small inline Python helper to read the two config files and
+  # expand their patterns into concrete package.json paths. This mirrors
+  # the detector's _read_workspace_roots logic but is intentionally
+  # standalone — it does NOT invoke the detector, so the cache key
+  # remains cheap to compute (no full stack-detection on every Step 0).
   _stat_to_key "$REPO_ROOT/pnpm-workspace.yaml"
+  if command -v python3 >/dev/null 2>&1 && [[ -f "$SCRIPT_DIR/plugin-workspace-manifests.py" ]]; then
+    while IFS= read -r nested; do
+      [[ -z "$nested" ]] && continue
+      _stat_to_key "$nested"
+    done < <(LP_REPO_ROOT="$REPO_ROOT" python3 "$SCRIPT_DIR/plugin-workspace-manifests.py" 2>/dev/null || true)
+  fi
+  # Always also stat the conventional fallback locations even if neither
+  # workspace config exists. Belt-and-braces so a no-config repo with
+  # apps/* or packages/* still invalidates correctly.
   if [[ -d "$REPO_ROOT/apps" ]]; then
     while IFS= read -r -d '' nested; do
       _stat_to_key "$nested"

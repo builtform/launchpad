@@ -41,7 +41,12 @@ This document was seeded from the following manifests detected at the repo root:
 {% for m in manifests %}- `{{ m }}`
 {% endfor %}
 
-**Secret-scrubbed:** the generator strips `scripts.*` values, `[tool.*]` URLs,
-private-registry tokens, and `repositories[].url` credentials before
-interpolation. If you see `<redacted>` somewhere, that's a field with a
-known secret-bearing shape — restore manually if safe.
+**Manifest paths only:** this section lists the manifest files detected
+during seeding. The generator does not embed parsed manifest *content*
+into this document, so secret-bearing fields like `scripts.*` values,
+private-registry tokens, or `repositories[].url` credentials never reach
+this output — there is no field-level redaction step because there is
+nothing to redact in the rendered text. Every rendered doc is
+additionally passed through `secret-patterns.txt` before write as a
+defense-in-depth check; a match there refuses the write entirely
+rather than redacting in place.
