@@ -75,7 +75,7 @@ Load `${CLAUDE_PLUGIN_ROOT}/skills/lp-creating-skills/SKILL.md` and execute ONLY
 - **Phase 3 (Contrarian):** Compare updated scope against the existing contrarian frame. Only re-derive invalidated patterns.
 - **Phase 4 (Architecture):** Present current tier alongside recommended new tier. Explain file additions/removals if tier changes.
 - **Phase 5 (Write):** Read reference templates from `${CLAUDE_PLUGIN_ROOT}/skills/lp-creating-skills/references/` before writing. Apply surgical edits -- do not rewrite unchanged sections. Preserve existing voice and structure unless the change targets them.
-- **Phase 6 (Validate):** Read `${CLAUDE_PLUGIN_ROOT}/skills/lp-creating-skills/references/QUALITY-GATES.md`. Spawn `skill-evaluator` sub-agent (Sonnet) with access to BOTH old and new versions. Any gate that previously passed must still pass (regression check).
+- **Phase 6 (Validate):** Read `${CLAUDE_PLUGIN_ROOT}/skills/lp-creating-skills/references/QUALITY-GATES.md`. Spawn `lp-skill-evaluator` sub-agent (Sonnet) with access to BOTH old and new versions. Any gate that previously passed must still pass (regression check).
 - **Phase 7 (Ship):** Update CLAUDE.md/AGENTS.md if triggers, scope, or agents changed. Update eval scenarios to cover new behavior.
 
 ## Step 5: Present Changes
@@ -131,4 +131,4 @@ If any item fails, return to the relevant phase and fix before delivering.
 - This command is interactive (Phase A) -- requires human input about what gaps emerged
 - The existing skill files serve as Phase 1 context (no sub-agent research needed)
 - For creating new skills from scratch, use `/lp-create-skill` instead
-- The `skill-evaluator` sub-agent validates against the same quality criteria as new skills, plus a regression check against the previous version
+- The `lp-skill-evaluator` sub-agent validates against the same quality criteria as new skills, plus a regression check against the previous version

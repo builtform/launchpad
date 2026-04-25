@@ -64,7 +64,7 @@ When `agents.yml` is missing, halt with the prereq error message and ask the use
 - Match by: tags, category, module in YAML frontmatter
 - Skip files with malformed or missing frontmatter
 - IF `docs/solutions/` empty or missing: skip silently
-- Dispatch `learnings-researcher` agent to search by frontmatter metadata
+- Dispatch `lp-learnings-researcher` agent to search by frontmatter metadata
 - IF matches found: pass at most 5 most-recent matches (key insight only, not full document)
 - This ensures past mistakes and discoveries inform plan review
 
@@ -96,7 +96,7 @@ Read `harden_plan_conditional_agents` from `agents.yml`. Dispatch all listed age
 
 - Read `harden_document_agents` from `.launchpad/agents.yml`
 - IF not empty: dispatch all document-review agents in parallel with plan + project context
-- `design-lens-reviewer`: ONLY dispatched when section has UI components (skip when `"design:skipped"`)
+- `lp-design-lens-reviewer`: ONLY dispatched when section has UI components (skip when `"design:skipped"`)
 - Runs AFTER Step 3 code-focused agents complete, so document reviewers can reference code-focused findings
 
 ## Step 3.7: Interactive Deepening

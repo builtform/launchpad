@@ -100,6 +100,32 @@ def _commands_sha(repo_root: Path) -> str:
     return "no-commands"
 
 
+def _sanitize_field(raw: str) -> str:
+    """Escape characters that would corrupt or forge a one-line audit
+    entry. Every interpolated field gets this treatment, not just `command`.
+    git user.email / user.name are user-controlled (via local git config or
+    a hostile commit author trailer) and could otherwise smuggle newlines or
+    control characters into the log to fake separate entries or hide rows.
+    """
+    if raw is None:
+        return ""
+    out_chars: list[str] = []
+    for ch in str(raw):
+        # Newlines and CRs would split the line.
+        if ch == "\n":
+            out_chars.append("\\n")
+        elif ch == "\r":
+            out_chars.append("\\r")
+        # Field separator we choose (' ') is fine to keep, but any other
+        # control character (DEL, \t, \0, ANSI escapes) gets percent-escaped
+        # so nothing renders as terminal control or breaks log parsing.
+        elif ord(ch) < 0x20 or ord(ch) == 0x7f:
+            out_chars.append(f"\\x{ord(ch):02x}")
+        else:
+            out_chars.append(ch)
+    return "".join(out_chars)
+
+
 def append_entry(repo_root: Path, command: str) -> Path:
     """Append a single line to .launchpad/audit.log. Creates the file if
     missing; never truncates or rotates. Returns the log path."""
@@ -107,13 +133,13 @@ def append_entry(repo_root: Path, command: str) -> Path:
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "audit.log"
 
-    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
-    user = _git_user(repo_root)
-    head = _git_head(repo_root)
-    sha = _commands_sha(repo_root)
-
-    # Sanitize command: no newlines in entry (log format is one-line-per-entry)
-    safe_cmd = command.replace("\n", "\\n").replace("\r", "\\r")
+    timestamp = _sanitize_field(
+        datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+    )
+    user = _sanitize_field(_git_user(repo_root))
+    head = _sanitize_field(_git_head(repo_root))
+    sha = _sanitize_field(_commands_sha(repo_root))
+    safe_cmd = _sanitize_field(command)
 
     line = (
         f"{timestamp} user={user} head={head} commands_sha={sha} command={safe_cmd}\n"

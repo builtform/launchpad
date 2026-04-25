@@ -25,7 +25,7 @@ Multi-agent parallel code review with confidence-based false-positive suppressio
 3. Read `.launchpad/agents.yml` → extract `review_agents`, `review_db_agents`, `review_design_agents`, `review_copy_agents`
 4. Validate each agent name: must match `[a-z0-9-]+`. Resolve to a file by scanning `${CLAUDE_PLUGIN_ROOT}/agents/**` for `{name}.md` (built-ins shipped with the plugin; their on-disk filenames already include the `lp-` prefix, e.g. `lp-pattern-finder.md`, and `agents.yml` stores names with the prefix to match) first, then `.claude/agents/**` for `{name}.md` (project-local extensions). Skip with warning if file not found — this handles unimplemented optional agents gracefully.
 5. Read `.harness/harness.local.md` → extract review context
-6. If `agents.yml` missing AFTER the prereq check: fall back to `pattern-finder` only, warn user
+6. If `agents.yml` missing AFTER the prereq check: fall back to `lp-pattern-finder` only, warn user
 
 ## Step 1: Determine Diff Scope
 
@@ -57,22 +57,22 @@ For each agent in `review_agents`:
 
 - Spawn agent with: diff content + changed file list + files they directly import (1-hop) + review context from `.harness/harness.local.md`
 - Agents use Grep/Glob for broader pattern checks — do NOT Read every file in the repo
-- For `code-simplicity-reviewer`: additionally pass "Changed Files: {list}. Suggest changes only to these files. Return observation text for anything outside this list."
+- For `lp-code-simplicity-reviewer`: additionally pass "Changed Files: {list}. Suggest changes only to these files. Return observation text for anything outside this list."
 - Prompt: "Review this code diff for issues in your domain. Return findings as structured list with file:line, severity (P1/P2/P3), and description."
 
 ## Step 4: Conditional DB Agent Dispatch (sequential-then-parallel)
 
 IF changed files match `prisma/schema.prisma` OR `prisma/migrations/*`:
 
-**Step 4a:** Dispatch `schema-drift-detector` (SEQUENTIAL — runs first)
+**Step 4a:** Dispatch `lp-schema-drift-detector` (SEQUENTIAL — runs first)
 
 - Pass: diff + Prisma files + review context
 - Wait for output → `drift_report`
 
 **Step 4b:** Dispatch IN PARALLEL with drift report as context:
 
-- `data-migration-auditor` — receives: diff + Prisma files + review context + `drift_report`
-- `data-integrity-auditor` — receives: diff + Prisma files + review context + `drift_report`
+- `lp-data-migration-auditor` — receives: diff + Prisma files + review context + `drift_report`
+- `lp-data-integrity-auditor` — receives: diff + Prisma files + review context + `drift_report`
 
 The drift report lets downstream agents focus only on legitimate changes, ignoring drifted changes that should be removed.
 
@@ -83,7 +83,7 @@ The drift report lets downstream agents focus only on legitimate changes, ignori
 - Check if `.harness/design-artifacts/` contains any `*-approved.png` files
 - IF approved design artifacts exist AND `review_design_agents` is not empty:
   - Dispatch all agents from `review_design_agents` in parallel
-  - IF Figma artifacts also exist (`.harness/design-artifacts/*-figma.*`): additionally dispatch `design-implementation-reviewer` (marked `# conditional` in agents.yml)
+  - IF Figma artifacts also exist (`.harness/design-artifacts/*-figma.*`): additionally dispatch `lp-design-implementation-reviewer` (marked `# conditional` in agents.yml)
 - IF no design artifacts exist: skip design agents entirely
 - IF no design artifacts but diff contains UI-relevant files (`.tsx`, `.css`, `.html` in `apps/web/` or `packages/ui/`): emit P2 warning finding
 
@@ -191,7 +191,7 @@ Score each finding 0.00-1.00 using this rubric:
 
 4. IF zero findings above threshold: write "Clean review — no actionable findings" to summary
 
-5. Write observation text from `code-simplicity-reviewer` to `.harness/observations/`:
+5. Write observation text from `lp-code-simplicity-reviewer` to `.harness/observations/`:
    - For each observation, create `.harness/observations/{id}-{description}.md`
    - YAML frontmatter: `status: observation`, `priority: p3`, `issue_id: "obs-{N}"`, `tags: [simplification]`, `observed_in: "path/to/file"`, `feature_scope: "{changed files list}"`
    - Body: Observation description + "Why Not Actioned: Outside the current feature scope."

@@ -72,16 +72,19 @@ The generator does:
    Markdown only corrupted benign text like `R&D <Pilot>`. YAML safety
    relies on `tojson` / explicit yaml-safe quoting in template bodies.
    `StrictUndefined` is preserved so missing variables fail loudly
-4. **Strip** — package.json `scripts.*`, pyproject.toml `[tool.*]` URLs,
-   registry tokens, embedded credentials all redacted before template interpolation
-5. **Scan** — every rendered doc passed through `.launchpad/secret-patterns.txt`
-   (with conservative built-in fallback); any match blocks the write
-6. **Apply overwrite menu** per existing file:
+4. **Scan** — every rendered doc passed through `.launchpad/secret-patterns.txt`
+   (with conservative built-in fallback); any match blocks the write. The
+   doc generator does not interpolate parsed manifest CONTENT into template
+   output (it renders manifest paths only), so there is no per-field strip
+   step here today; a `manifest_stripper` helper exists for the case where
+   a future template needs to embed a manifest value, at which point it
+   would be wired at that interpolation boundary
+5. **Apply overwrite menu** per existing file:
    `[k]eep / [o]verwrite / [d]iff preview / [a]ll-overwrite / [s]kip-all`
    - `.launchpad/config.yml` and `.launchpad/agents.yml` are **never**
      included in `[a]ll-overwrite` — always individual prompt with mandatory
      diff (user-tuned state is too costly to lose)
-7. **Write** — writes the new files to disk at their canonical paths
+6. **Write** — writes the new files to disk at their canonical paths
 
 The generator is non-interactive-safe: if stdin isn't a TTY and `--force`
 isn't passed, it defaults every existing-file prompt to `keep`. This makes

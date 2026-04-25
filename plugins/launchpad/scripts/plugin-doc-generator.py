@@ -48,7 +48,17 @@ if str(SCRIPT_DIR) not in sys.path:
 
 import jinja2  # noqa: E402
 
-from plugin_stack_adapters import generic, go_cli, polyglot, python_django, ts_monorepo, manifest_stripper, secret_scanner  # noqa: E402
+from plugin_stack_adapters import generic, go_cli, polyglot, python_django, ts_monorepo, secret_scanner  # noqa: E402
+
+# manifest_stripper is intentionally NOT imported here. The stripper exists
+# as a defense-in-depth layer for a flow that does not currently happen:
+# the templates render manifest PATHS, never parsed manifest CONTENT, so
+# there is no field for the stripper to scrub before rendering. If a future
+# template ever interpolates a value lifted from a parsed manifest, wire
+# manifest_stripper at that boundary; until then importing it would
+# misleadingly imply work that is not done. Secret scanning of the rendered
+# output continues via secret_scanner before write — that is the active
+# gate today.
 from plugin_stack_adapters.contracts import AdapterOutput  # noqa: E402
 
 

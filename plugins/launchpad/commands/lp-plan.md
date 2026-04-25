@@ -143,7 +143,7 @@ Parse the section spec for UI indicators:
 - Build UI components (write TSX/CSS following design system tokens)
 - Open browser (agent-browser primary, Playwright MCP fallback)
   - Requires dev server running (detect, don't start)
-- Screenshot → self-evaluate → adjust → screenshot (3-5 auto-cycles via `design-iterator`)
+- Screenshot → self-evaluate → adjust → screenshot (3-5 auto-cycles via `lp-design-iterator`)
 - Offer `/lp-design-onboard` if section involves onboarding/empty states
 - Present first draft to user with live localhost URL
 
@@ -151,8 +151,8 @@ Parse the section spec for UI indicators:
 
 Guide the user through iterative design improvement:
 
-- User gives feedback → dispatch `design-iterator` (ONE change per iteration)
-- User requests Figma sync → dispatch `figma-design-sync` (requires Figma URL)
+- User gives feedback → dispatch `lp-design-iterator` (ONE change per iteration)
+- User requests Figma sync → dispatch `lp-figma-design-sync` (requires Figma URL)
 - User requests systematic polish → run `/lp-design-polish`
 - Skills stay loaded: `frontend-design`, `web-design-guidelines`, `responsive-design`
 
@@ -162,10 +162,10 @@ Session guides user: "Give feedback / Run /lp-design-polish / Provide Figma URL 
 
 1. Run `/lp-design-review` first (sequential — comprehensive 8 design + 4 tech dimensions, AI slop detection)
 2. Then in parallel:
-   - `design-ui-auditor` (5 quick checks)
-   - `design-responsive-auditor` (6 responsive checks)
-   - `design-alignment-checker` (14-dimension audit)
-   - `design-implementation-reviewer` (Figma comparison — IF Figma URL was provided during session)
+   - `lp-design-ui-auditor` (5 quick checks)
+   - `lp-design-responsive-auditor` (6 responsive checks)
+   - `lp-design-alignment-checker` (14-dimension audit)
+   - `lp-design-implementation-reviewer` (Figma comparison — IF Figma URL was provided during session)
    - `/lp-copy-review` (dispatches `review_copy_agents` if configured)
 3. Present findings
 4. IF issues → back to 2b (iterate/fix → re-audit)

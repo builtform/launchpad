@@ -33,7 +33,7 @@ Resolves pending review findings from `.harness/todos/` using parallel resolver 
 
 ## Step 3: Spawn Resolver Agents
 
-- Spawn `harness-todo-resolver` agents (max 5 concurrent)
+- Spawn `lp-harness-todo-resolver` agents (max 5 concurrent)
 - Each agent receives:
   - The full todo file content
   - The working directory context
@@ -50,7 +50,7 @@ For each resolver agent's results:
 
 - Verify modified files are within scope (files referenced in the todo + 1-hop imports)
 - IF out-of-scope changes detected: revert those specific changes before committing
-- This mirrors the `pr-comment-resolver` Step 4 pattern
+- This mirrors the `lp-pr-comment-resolver` Step 4 pattern
 
 ## Step 5: Stage and Commit
 

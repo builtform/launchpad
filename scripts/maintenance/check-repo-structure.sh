@@ -329,13 +329,22 @@ SCAN_PATHS=()
 [ -d "$REPO_ROOT/apps" ] && SCAN_PATHS+=("$REPO_ROOT/apps")
 [ -d "$REPO_ROOT/packages" ] && SCAN_PATHS+=("$REPO_ROOT/packages")
 if [ ${#SCAN_PATHS[@]} -gt 0 ]; then
+  # Catch every shape production code might use to reach into the sandbox:
+  #   Python:     from experiments...   import experiments...
+  #   TS/JS ESM:  import x from "../docs/experiments/..."
+  #               import x from "docs/experiments/..."
+  #               import("../docs/experiments/...")
+  #   Aliased:    from "@/docs/experiments/..." (tsconfig path alias)
+  # The previous pattern only matched the bare-namespace 'from experiments'
+  # / 'import experiments' forms used in Python, so a TS file reaching into
+  # docs/experiments/ via a relative path slipped through.
   EXPERIMENT_IMPORTS=$(grep -rn \
     --include="*.py" \
     --include="*.ts" \
     --include="*.tsx" \
     --include="*.js" \
     --include="*.jsx" \
-    -E "(from experiments|import experiments)" \
+    -E "(from[[:space:]]+experiments|import[[:space:]]+experiments|docs/experiments|/experiments/|@/experiments)" \
     "${SCAN_PATHS[@]}" 2>/dev/null || true)
 fi
 

@@ -18,7 +18,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +26,31 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _VENDOR = _SCRIPT_DIR / "plugin_stack_adapters" / "_vendor"
 if str(_VENDOR) not in sys.path:
     sys.path.insert(0, str(_VENDOR))
+
+# TOML parsing: tomllib is stdlib only on Python 3.11+. The plugin commands
+# invoke bare `python3`, which on macOS or older Linux distributions can be
+# 3.9/3.10. Fall back to `tomli` (the upstream package tomllib was forked
+# from, API-compatible) when stdlib tomllib is missing. If neither is
+# available, raise a clear actionable error at the point where toml parsing
+# is actually attempted, not at module import time — projects without any
+# pyproject.toml or Cargo.toml never need toml parsing and should still run.
+try:
+    import tomllib  # type: ignore[import-not-found]
+    _TOML_IMPORT_ERROR: str | None = None
+except ImportError:
+    try:
+        import tomli as tomllib  # type: ignore[no-redef]
+        _TOML_IMPORT_ERROR = None
+    except ImportError:
+        tomllib = None  # type: ignore[assignment]
+        _TOML_IMPORT_ERROR = (
+            "TOML parsing requires Python 3.11+ (stdlib tomllib) or the "
+            "`tomli` package (pip install tomli). Detected Python "
+            f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]} "
+            "with neither available. Projects with no pyproject.toml / "
+            "Cargo.toml are unaffected; install tomli or upgrade Python "
+            "to detect those manifests."
+        )
 
 # Strict allowlist — detector opens exactly these filenames and nothing else.
 MANIFEST_ALLOWLIST = frozenset([
@@ -211,11 +235,15 @@ def parse_package_json(path: Path) -> dict[str, Any]:
 
 
 def parse_pyproject_toml(path: Path) -> dict[str, Any]:
+    if tomllib is None:
+        raise DetectorError(_TOML_IMPORT_ERROR or "tomllib unavailable")
     data = _safe_read(path)
     return tomllib.loads(data.decode("utf-8"))
 
 
 def parse_cargo_toml(path: Path) -> dict[str, Any]:
+    if tomllib is None:
+        raise DetectorError(_TOML_IMPORT_ERROR or "tomllib unavailable")
     data = _safe_read(path)
     return tomllib.loads(data.decode("utf-8"))
 

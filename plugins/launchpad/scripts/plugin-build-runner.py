@@ -155,9 +155,12 @@ def run_stage(repo_root: Path, stage: str, *, check_only: bool = False) -> int:
     """Run all commands for a stage serially. Returns first non-zero exit or 0.
 
     With check_only=True, validates the LP_CONFIG_REVIEWED hash pin and that
-    config.yml parses, but does not execute any stage commands. This is the
-    preflight mode for harness commands that want to verify the gate before
-    target resolution and audit-log emission, without side effects.
+    config.yml parses for ALL stages (not just the requested one), but does
+    not execute any stage command. This is the preflight mode for harness
+    commands that want to verify the gate before target resolution and
+    audit-log emission, without side effects. All-stage validation prevents
+    a malformed `commands.lint` from passing preflight against
+    `--stage=test` and only failing later in the autonomous loop.
     """
     if stage not in VALID_STAGES:
         print(f"invalid stage {stage!r}; valid: {VALID_STAGES}", file=sys.stderr)
@@ -168,18 +171,33 @@ def run_stage(repo_root: Path, stage: str, *, check_only: bool = False) -> int:
     if rc != 0:
         return rc
 
+    if check_only:
+        # Validate every stage's commands list parses, not just the
+        # caller-supplied one. The flagged --stage value is informational
+        # for the report only.
+        per_stage_counts: dict[str, int] = {}
+        for s in VALID_STAGES:
+            try:
+                per_stage_counts[s] = len(load_commands(repo_root, s))
+            except (yaml.YAMLError, ValueError) as e:
+                print(
+                    f"config error in commands.{s}: {e}",
+                    file=sys.stderr,
+                )
+                return 2
+        summary = ", ".join(f"{s}={n}" for s, n in per_stage_counts.items())
+        print(
+            f"[preflight ok] requested-stage={stage}; "
+            f"all-stages-validated ({summary})",
+            file=sys.stderr,
+        )
+        return 0
+
     try:
         cmds = load_commands(repo_root, stage)
     except (yaml.YAMLError, ValueError) as e:
         print(f"config error: {e}", file=sys.stderr)
         return 2
-
-    if check_only:
-        # Hash pin (if any) verified, config.yml parsed, stage commands resolved.
-        # Don't execute. Caller is responsible for invoking the stage explicitly
-        # when it's ready (after target resolution, after audit-log emission).
-        print(f"[{stage}] preflight ok ({len(cmds)} command(s) configured)", file=sys.stderr)
-        return 0
 
     if not cmds:
         print(f"[{stage}] skipped (empty array in config.yml)", file=sys.stderr)

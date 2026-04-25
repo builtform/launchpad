@@ -3,8 +3,8 @@
 # Reads a report or section spec, creates PRD + tasks, runs execution loop, quality sweep.
 # Does NOT push, create PR, or extract learnings (see /lp-ship and compound-learning.sh).
 #
-# Usage: ./lp-build.sh [--dry-run] [--ambition] [--evaluator] [--contract] [docs/tasks/sections/<section>.md]
-#        ./lp-build.sh --plan path/to/plan.md
+# Usage: scripts/compound/build.sh [--dry-run] [--ambition] [--evaluator] [--contract] [docs/tasks/sections/<section>.md]
+#        scripts/compound/build.sh --plan path/to/plan.md
 #
 # CLI flags replace the interactive menu. No flags = defaults from config.json.
 # NEVER prompts via `read`.

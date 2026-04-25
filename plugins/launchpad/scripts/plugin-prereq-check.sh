@@ -68,7 +68,19 @@ compute_cache_key() {
   local key=""
   local f
   local mtime
-  # Detection inputs
+  # Helper: append "$f:$mtime;" or "$f:missing;" to $key.
+  _stat_to_key() {
+    local _f="$1"
+    local _m
+    if [[ -f "$_f" ]]; then
+      if _m=$(stat -f %m "$_f" 2>/dev/null); then :;
+      else _m=$(stat -c %Y "$_f" 2>/dev/null || echo "0"); fi
+      key+="$_f:$_m;"
+    else
+      key+="$_f:missing;"
+    fi
+  }
+  # Detection inputs at the repo root.
   for f in \
     "$REPO_ROOT/.launchpad/config.yml" \
     "$REPO_ROOT/package.json" \
@@ -78,15 +90,26 @@ compute_cache_key() {
     "$REPO_ROOT/Gemfile" \
     "$REPO_ROOT/composer.json"
   do
-    if [[ -f "$f" ]]; then
-      # stat -f for macOS, stat -c for Linux; both produce mtime.
-      if mtime=$(stat -f %m "$f" 2>/dev/null); then :;
-      else mtime=$(stat -c %Y "$f" 2>/dev/null || echo "0"); fi
-      key+="$f:$mtime;"
-    else
-      key+="$f:missing;"
-    fi
+    _stat_to_key "$f"
   done
+  # Workspace-config files: pnpm-workspace.yaml + package.json's workspaces
+  # field both expand into nested workspace roots. The detector reads them,
+  # so cache invalidation must follow them. We hash the workspace-config
+  # FILES (their mtimes capture pattern changes) plus every package.json
+  # found under common workspace roots (apps/* and packages/* — covering
+  # the LaunchPad/Turborepo/pnpm convention) so changing
+  # apps/web/package.json busts the cache too.
+  _stat_to_key "$REPO_ROOT/pnpm-workspace.yaml"
+  if [[ -d "$REPO_ROOT/apps" ]]; then
+    while IFS= read -r -d '' nested; do
+      _stat_to_key "$nested"
+    done < <(find "$REPO_ROOT/apps" -mindepth 2 -maxdepth 2 -name package.json -print0 2>/dev/null)
+  fi
+  if [[ -d "$REPO_ROOT/packages" ]]; then
+    while IFS= read -r -d '' nested; do
+      _stat_to_key "$nested"
+    done < <(find "$REPO_ROOT/packages" -mindepth 2 -maxdepth 2 -name package.json -print0 2>/dev/null)
+  fi
   # Caller-specific REQUIRE list — different requirements get different cache slots.
   key+="REQUIRE=$REQUIRE;"
   # Each required file's existence/mtime — invalidates the cache if a required

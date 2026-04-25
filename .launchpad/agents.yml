@@ -52,12 +52,14 @@ harden_document_agents:
   - lp-security-lens-reviewer
   - lp-design-lens-reviewer # Conditional: /lp-harden-plan skips when "design:skipped"
 
-# Opt-in agents — not dispatched by default
+# Opt-in agents — not dispatched by default. Names follow the lp- prefix
+# convention so they resolve correctly under the runtime resolver if a user
+# uncomments and moves them into an active list.
 # To enable for /lp-review: move to review_agents
 # To enable for /lp-harden-plan: move to appropriate harden list
-#   - deployment-verification-agent
-#   - frontend-races-reviewer      # already in harden conditional
-#   - kieran-foad-python-reviewer
+#   - lp-deployment-verification-agent
+#   - lp-frontend-races-reviewer      # already in harden conditional
+#   - lp-kieran-foad-python-reviewer
 
 # Protected branches — read by /lp-ship, /lp-commit, /lp-resolve-pr-comments (with default [main, master])
 protected_branches:

@@ -935,7 +935,7 @@ If issues are found, present them and ask: "Would you like to adjust any of thes
 
 ## Step 10c: Enrich harness.local.md
 
-After quality validation, write or update the `## Design Context` section in `.harness/harness.local.md`. This provides compact project-specific design context to design agents (`design-iterator`, `figma-design-sync`, `design-ui-auditor`, `design-responsive-auditor`, `design-alignment-checker`, `/lp-design-review`, `/lp-design-polish`).
+After quality validation, write or update the `## Design Context` section in `.harness/harness.local.md`. This provides compact project-specific design context to design agents (`lp-design-iterator`, `lp-figma-design-sync`, `lp-design-ui-auditor`, `lp-design-responsive-auditor`, `lp-design-alignment-checker`, `/lp-design-review`, `/lp-design-polish`).
 
 Extract values from the Q&A answers in Steps 4-9 (DS-0 through FG-3) and condense into:
 

@@ -20,7 +20,7 @@ Collaborative brainstorming command. Explores ideas, generates approaches, and c
 
 1. Load brainstorming skill (process knowledge)
 2. IF codebase exists (package.json or similar detected):
-   - Dispatch `code-analyzer` + `pattern-finder` in parallel (lightweight repo scan)
+   - Dispatch `lp-code-analyzer` + `lp-pattern-finder` in parallel (lightweight repo scan)
    - Research agents MAY read schemas, routes, configs to verify infrastructure claims
    - Prevents stating "table X does not exist" without checking
 3. Collaborative dialogue:
