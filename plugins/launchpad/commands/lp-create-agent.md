@@ -97,4 +97,4 @@ Examples:
 - The skill handles research, contrarian analysis, writing, validation, and registration
 - For creating skills (multi-phase workflows), use `/lp-create-skill` instead
 - For updating existing agents, edit the agent file directly
-- The creating-agents skill is located at `.claude/skills/lp-creating-agents/SKILL.md`
+- The creating-agents skill is located at `${CLAUDE_PLUGIN_ROOT}/skills/lp-creating-agents/SKILL.md`

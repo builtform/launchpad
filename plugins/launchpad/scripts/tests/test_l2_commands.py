@@ -11,8 +11,8 @@ Validates:
   - Shell-invoking L2 commands (/lp-commit, /lp-ship) route quality gates
     through plugin-build-runner.py instead of hardcoded pnpm strings
   - /lp-test-browser has an explicit pipeline.build.test_browser skip gate
-  - /lp-harden-plan honors create-if-missing semantics for agents.yml
-    (never overwrites)
+  - /lp-harden-plan refuses (lite mode fail-fast) when agents.yml is
+    missing, never overwrites it when present
   - /lp-pnf reads from SECTION_REGISTRY.md via section_registry helper
     (back-compat shim to PRD preserved)
   - Frontmatter integrity still holds (no regressions)
@@ -104,13 +104,16 @@ def test_test_browser_pipeline_skip_gate() -> list[str]:
     return errors
 
 
-def test_harden_plan_create_if_missing() -> list[str]:
+def test_harden_plan_fails_fast_when_missing() -> list[str]:
     errors = []
     content = read_cmd("lp-harden-plan")
+    # Must say it never overwrites an existing agents.yml.
     if "never overwrites" not in content.lower() and "never writes" not in content.lower():
         errors.append("lp-harden-plan: must state agents.yml is never overwritten")
-    if "create-if-missing" not in content.lower() and "create-if-absent" not in content.lower():
-        errors.append("lp-harden-plan: must mention create-if-missing semantics")
+    # Must direct cold-brownfield users to /lp-define rather than creating
+    # a placeholder agents.yml inline.
+    if "/lp-define" not in content:
+        errors.append("lp-harden-plan: must point cold-brownfield users to /lp-define")
     return errors
 
 
@@ -181,7 +184,7 @@ def main() -> int:
         ("step0_lite_on_all_migrated_commands", test_step0_lite_on_all_migrated_commands),
         ("quality_gates_via_build_runner", test_quality_gates_via_build_runner),
         ("test_browser_pipeline_skip_gate", test_test_browser_pipeline_skip_gate),
-        ("harden_plan_create_if_missing", test_harden_plan_create_if_missing),
+        ("harden_plan_fails_fast_when_missing", test_harden_plan_fails_fast_when_missing),
         ("pnf_uses_section_registry", test_pnf_uses_section_registry),
         ("pnf_not_only_prd_for_registry", test_pnf_not_only_prd_for_registry),
         ("shape_section_writes_registry", test_shape_section_writes_registry),

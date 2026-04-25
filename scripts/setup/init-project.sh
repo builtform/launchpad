@@ -583,55 +583,62 @@ fi
 # Create .launchpad/agents.yml (agent dispatch configuration)
 if [ ! -f ".launchpad/agents.yml" ]; then
   cat > .launchpad/agents.yml <<'AYEOF'
+# Agent names use the lp- prefix to match plugin file naming. The /lp-review
+# and /lp-harden-plan resolvers look up `{name}.md` directly in
+# ${CLAUDE_PLUGIN_ROOT}/agents/** and .claude/agents/**, so values here MUST
+# match the on-disk filenames (e.g. lp-pattern-finder.md, lp-security-auditor.md).
+# Re-running /lp-define against this file regenerates from
+# plugin-default-generators/agents.yml.j2; keep the two in sync.
+
 # Code review agents — dispatched by /lp-review
 review_agents:
-  - pattern-finder
-  - security-auditor
-  - kieran-foad-ts-reviewer
-  - performance-auditor
-  - code-simplicity-reviewer
-  - architecture-strategist
-  - testing-reviewer
+  - lp-pattern-finder
+  - lp-security-auditor
+  - lp-kieran-foad-ts-reviewer
+  - lp-performance-auditor
+  - lp-code-simplicity-reviewer
+  - lp-architecture-strategist
+  - lp-testing-reviewer
 
 # DB agents — only when diff touches Prisma files
 review_db_agents:
-  - schema-drift-detector
-  - data-migration-auditor
-  - data-integrity-auditor
+  - lp-schema-drift-detector
+  - lp-data-migration-auditor
+  - lp-data-integrity-auditor
 
 # Design review agents — dispatched by /lp-review when design artifacts exist
 review_design_agents:
-  - design-ui-auditor
-  - design-responsive-auditor
-  - design-alignment-checker
-  - design-implementation-reviewer
+  - lp-design-ui-auditor
+  - lp-design-responsive-auditor
+  - lp-design-alignment-checker
+  - lp-design-implementation-reviewer
 
 # Copy review agents — populated by downstream projects
 review_copy_agents: []
 
 # Plan hardening agents — always dispatched by /lp-harden-plan
 harden_plan_agents:
-  - pattern-finder
-  - security-auditor
-  - performance-auditor
-  - spec-flow-analyzer
+  - lp-pattern-finder
+  - lp-security-auditor
+  - lp-performance-auditor
+  - lp-spec-flow-analyzer
 
 # Conditional plan hardening agents — dispatched by /lp-harden-plan (full only)
 harden_plan_conditional_agents:
-  - architecture-strategist
-  - code-simplicity-reviewer
-  - frontend-races-reviewer
-  - schema-drift-detector
+  - lp-architecture-strategist
+  - lp-code-simplicity-reviewer
+  - lp-frontend-races-reviewer
+  - lp-schema-drift-detector
 
 # Document-review agents — dispatched by /lp-harden-plan Step 3.5
 harden_document_agents:
-  - adversarial-document-reviewer
-  - coherence-reviewer
-  - feasibility-reviewer
-  - scope-guardian-reviewer
-  - product-lens-reviewer
-  - security-lens-reviewer
-  - design-lens-reviewer            # Conditional: /lp-harden-plan skips when "design:skipped"
+  - lp-adversarial-document-reviewer
+  - lp-coherence-reviewer
+  - lp-feasibility-reviewer
+  - lp-scope-guardian-reviewer
+  - lp-product-lens-reviewer
+  - lp-security-lens-reviewer
+  - lp-design-lens-reviewer            # Conditional: /lp-harden-plan skips when "design:skipped"
 
 # Protected branches
 protected_branches:

@@ -87,8 +87,15 @@ query ($owner: String!, $repo: String!, $pr: Int!) {
 ## Step 5: Optionally Auto-Resolve Threads (--auto-resolve only)
 
 - IF `--auto-resolve` flag NOT provided: skip to Step 6
-- Run quality gates: `pnpm typecheck && pnpm test`
-  - IF gates fail: WARN "Quality gates failed — threads NOT auto-resolved." Skip to Step 6.
+- Run quality gates via the shared build runner so the same logic works in any stack (TS / Python / Go / polyglot), reading `commands.*` from `.launchpad/config.yml`:
+
+  ```bash
+  python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plugin-build-runner.py --stage=typecheck \
+    && python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plugin-build-runner.py --stage=test
+  ```
+
+  IF gates fail: WARN "Quality gates failed — threads NOT auto-resolved." Skip to Step 6.
+
 - Batch all thread resolutions into single GraphQL mutation:
 
 ```graphql

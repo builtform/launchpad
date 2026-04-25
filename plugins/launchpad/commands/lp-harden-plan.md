@@ -29,12 +29,9 @@ If no intensity flag provided, default to `--lightweight`.
 
 Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-harden-plan --require=.launchpad/agents.yml`.
 
-**Ownership rule:** `/lp-harden-plan` ONLY reads `.launchpad/agents.yml` — it never seeds or overwrites. If the file is missing in a cold brownfield:
+**Ownership rule:** `/lp-harden-plan` ONLY reads `.launchpad/agents.yml` — it never writes and never overwrites. If the file is missing in a cold brownfield, the lite-mode prereq check exits 1 and prints a pointer to `/lp-define`. The shared prereq helper (`plugin-prereq-check.sh --mode=lite`) is fail-fast: it verifies required files exist and refuses if not, rather than creating them with placeholder content.
 
-- Create-if-missing with a minimal language-agnostic default (security-auditor + performance-auditor + spec-flow-analyzer + pattern-finder — the four baseline plan agents that don't assume a specific language). Prints a one-line notice to stderr suggesting the user run `/lp-define` for a stack-tailored roster.
-- Never overwrites an existing file. Even `--auto` + `--force` pathways MUST NOT overwrite user-tuned `agents.yml`. This command never writes to `agents.yml` when it already exists.
-
-Authoritative seeding of `agents.yml` lives in `/lp-define`. Self-healing here is strictly the last-resort create-if-absent, not a re-seed.
+When `agents.yml` is missing, halt with the prereq error message and ask the user to run `/lp-define` to seed it. Do not invent or write a default `agents.yml` from inside `/lp-harden-plan` — authoritative seeding lives in `/lp-define` and crossing that boundary creates drift between hand-tuned and auto-seeded roster shapes.
 
 ---
 

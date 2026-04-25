@@ -84,11 +84,13 @@ compute_cache_key() {
 CACHE_KEY="$(compute_cache_key)"
 CACHE_FILE="$CACHE_DIR/$COMMAND-$MODE-$CACHE_KEY"
 
-# --- Lite mode: create-if-missing for required state files ---
+# --- Lite mode: fail-fast on missing required state files ---
 # Lite is strictly a subset of Full. It does NOT run the detect→classify→
-# present→scaffold protocol. It only ensures the caller's required files
-# exist (create with empty defaults if absent). Any more than this belongs
-# in Full mode, called from a harness command.
+# present→scaffold protocol, and it does NOT create missing files. It only
+# verifies that the caller's required files exist. If anything is missing,
+# it prints a list and exits 1 with a pointer to /lp-define (the
+# authoritative seeder). Anything richer than verify-or-refuse belongs in
+# Full mode, called from a harness command.
 lite_check() {
   local missing=()
   IFS=',' read -ra REQS <<< "$REQUIRE"

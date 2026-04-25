@@ -68,4 +68,4 @@ Examples:
 - After porting, the skill is fully detached from its upstream source
 - Use /lp-update-skill to iterate on ported skills (same as any other project skill)
 - Use /lp-create-skill to build skills from scratch instead
-- The porting guide is at `.claude/skills/lp-creating-skills/references/PORTING-GUIDE.md`
+- The porting guide is at `${CLAUDE_PLUGIN_ROOT}/skills/lp-creating-skills/references/PORTING-GUIDE.md`
