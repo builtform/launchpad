@@ -35,10 +35,36 @@ def _read_pnpm_workspace_packages(pw: Path) -> list[str]:
     """
     if not pw.is_file():
         return []
+    def _strip_inline_comment(s: str) -> str:
+        """Strip a YAML-style trailing '# ...' comment, but only when the
+        '#' is not inside a quoted string. Conservative: a quoted token
+        like '"foo # bar"' keeps its hash, while 'foo # comment' drops the
+        comment portion. Without this the parser dropped legitimate
+        workspace entries when they carried trailing comments.
+        """
+        in_single = False
+        in_double = False
+        for i, ch in enumerate(s):
+            if ch == "'" and not in_double:
+                in_single = not in_single
+            elif ch == '"' and not in_single:
+                in_double = not in_double
+            elif ch == "#" and not in_single and not in_double:
+                # Only treat as comment if preceded by whitespace or at start
+                if i == 0 or s[i - 1].isspace():
+                    return s[:i].rstrip()
+        return s
+
+    def _unquote(tok: str) -> str:
+        tok = tok.strip()
+        if len(tok) >= 2 and tok[0] == tok[-1] and tok[0] in ("'", '"'):
+            return tok[1:-1]
+        return tok
+
     out: list[str] = []
     in_packages = False
     for raw in pw.read_text(encoding="utf-8", errors="replace").splitlines():
-        line = raw.rstrip()
+        line = _strip_inline_comment(raw.rstrip())
         if not line or line.lstrip().startswith("#"):
             continue
         if line.startswith("packages:"):
@@ -47,7 +73,7 @@ def _read_pnpm_workspace_packages(pw: Path) -> list[str]:
             if inline.startswith("[") and inline.endswith("]"):
                 inner = inline[1:-1]
                 for tok in inner.split(","):
-                    tok = tok.strip().strip("'").strip('"')
+                    tok = _unquote(tok)
                     if tok:
                         out.append(tok)
                 in_packages = False
@@ -55,7 +81,7 @@ def _read_pnpm_workspace_packages(pw: Path) -> list[str]:
         if in_packages:
             stripped = line.lstrip()
             if stripped.startswith("- "):
-                tok = stripped[2:].strip().strip("'").strip('"')
+                tok = _unquote(stripped[2:])
                 if tok:
                     out.append(tok)
             elif line and not line.startswith((" ", "\t")):

@@ -9,7 +9,7 @@ description: "Create a new Claude Code skill using the 7-phase Meta-Skill Forge 
 
 Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-create-skill --require=.launchpad/agents.yml`.
 
-Create-if-missing only — the helper does NOT run the full detect/classify/present/scaffold protocol (that's harness-level). Reads `config.yml` `paths.*` but primarily writes into `.claude/skills/`.
+Verify-or-refuse — the lite helper checks the required file exists and exits 1 with a pointer to `/lp-define` if not; it does NOT create or seed missing files. Reads `config.yml` `paths.*` but primarily writes new skill definitions into `.claude/skills/` (the project-local user-skill location, separate from the plugin's built-in `${CLAUDE_PLUGIN_ROOT}/skills/`).
 
 ---
 

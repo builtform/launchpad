@@ -9,7 +9,7 @@ description: "Captures learnings from resolved problems into structured solution
 
 Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-learn --require=.launchpad/agents.yml`.
 
-Create-if-missing only — the helper does NOT run the full detect/classify/present/scaffold protocol (that's harness-level). Honors `config.yml` `paths.solutions_dir` for learnings output.
+Verify-or-refuse only — the lite helper checks the required file exists and exits 1 with a pointer to `/lp-define` if not; it does NOT create missing files or run the full detect/classify/present/scaffold protocol (that's harness-level). Honors `config.yml` `paths.solutions_dir` for learnings output.
 
 ---
 

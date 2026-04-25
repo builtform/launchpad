@@ -9,7 +9,7 @@ description: "Deep-dive into a specific product section with guided questions"
 
 Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-shape-section --require=.launchpad/config.yml`.
 
-Create-if-missing only — the helper does NOT run the full detect/classify/present/scaffold protocol (that's harness-level). Reads `paths.sections_dir` + `paths.tasks_dir` and writes to `SECTION_REGISTRY.md`.
+Verify-or-refuse only — the lite helper checks the required file exists and exits 1 with a pointer to `/lp-define` if not; it does NOT create missing files or run the full detect/classify/present/scaffold protocol (that's harness-level). Reads `paths.sections_dir` + `paths.tasks_dir` and writes to `SECTION_REGISTRY.md`.
 
 ---
 

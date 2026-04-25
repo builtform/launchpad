@@ -13,7 +13,7 @@ Autonomous shipping command. Stages changes, runs quality gates, commits, pushes
 
 Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-ship --require=.launchpad/agents.yml,.launchpad/config.yml`.
 
-Create-if-missing only. If either required file is missing, exit with a pointer to `/lp-define`. `/lp-ship` never writes `agents.yml` or `config.yml` — those are owned by `/lp-define`.
+Verify-or-refuse only. The lite helper checks both required files exist and exits 1 with a pointer to `/lp-define` if either is missing. `/lp-ship` never writes `agents.yml` or `config.yml` — those are owned by `/lp-define`.
 
 ---
 

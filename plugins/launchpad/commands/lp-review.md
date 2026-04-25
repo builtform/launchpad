@@ -20,12 +20,12 @@ Multi-agent parallel code review with confidence-based false-positive suppressio
 
 ## Step 0: Read Configuration
 
-1. Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-review --require=.launchpad/agents.yml` — create-if-missing only (`/lp-define` is the authoritative seeder; this command never writes `agents.yml`).
+1. Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-review --require=.launchpad/agents.yml` — verify-or-refuse: the lite helper checks the required file exists and exits 1 with a pointer to `/lp-define` if not. `/lp-define` is the authoritative seeder; this command never writes `agents.yml`.
 2. Load paths via `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-config-loader.py` so `paths.architecture_dir` etc. override defaults where relevant.
 3. Read `.launchpad/agents.yml` → extract `review_agents`, `review_db_agents`, `review_design_agents`, `review_copy_agents`
 4. Validate each agent name: must match `[a-z0-9-]+`. Resolve to a file by scanning `${CLAUDE_PLUGIN_ROOT}/agents/**` for `{name}.md` (built-ins shipped with the plugin; their on-disk filenames already include the `lp-` prefix, e.g. `lp-pattern-finder.md`, and `agents.yml` stores names with the prefix to match) first, then `.claude/agents/**` for `{name}.md` (project-local extensions). Skip with warning if file not found — this handles unimplemented optional agents gracefully.
 5. Read `.harness/harness.local.md` → extract review context
-6. If `agents.yml` missing AFTER the prereq check: fall back to `lp-pattern-finder` only, warn user
+6. The lite prereq helper above already refuses with a `/lp-define` pointer when `agents.yml` is missing, so reaching this point means the file exists. No in-command fallback is needed; the legacy "fall back to `lp-pattern-finder` only" path was prose drift that contradicted the helper's verify-or-refuse contract.
 
 ## Step 1: Determine Diff Scope
 

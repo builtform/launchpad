@@ -9,7 +9,7 @@ description: "Build pipeline that reads the latest report or section spec, creat
 
 Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-inf --require=.launchpad/agents.yml,.launchpad/config.yml`.
 
-Create-if-missing only — the helper does NOT run the full detect/classify/present/scaffold protocol (that's harness-level). Reads `config.yml` `pipeline.*` toggles so skipped stages short-circuit cleanly. Never modifies `config.yml`.
+Verify-or-refuse only — the lite helper checks the required files exist and exits 1 with a pointer to `/lp-define` if not; it does NOT create missing files or run the full detect/classify/present/scaffold protocol (that's harness-level). Reads `config.yml` `pipeline.*` toggles so skipped stages short-circuit cleanly. Never modifies `config.yml`.
 
 ---
 

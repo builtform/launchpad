@@ -9,7 +9,7 @@ description: Resolves review findings in .harness/todos/ by spawning parallel ha
 
 Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-resolve-todo-parallel --require=.launchpad/agents.yml`.
 
-Create-if-missing only — the helper does NOT run the full detect/classify/present/scaffold protocol (that's harness-level). Honors `config.yml` `paths.harness_dir` when scanning `.harness/todos/`.
+Verify-or-refuse only — the lite helper checks the required files exist and exits 1 with a pointer to `/lp-define` if not; it does NOT create missing files or run the full detect/classify/present/scaffold protocol (that's harness-level). Honors `config.yml` `paths.harness_dir` when scanning `.harness/todos/`.
 
 ---
 

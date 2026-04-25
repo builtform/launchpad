@@ -17,7 +17,7 @@ Bash, Read, Grep, Glob, Edit, Write, TodoWrite, Task
 
 Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-commit --require=.launchpad/agents.yml`.
 
-This is **create-if-missing only** — the helper does NOT run the full detect/classify/present/scaffold protocol (that's harness-level). If `.launchpad/agents.yml` is missing, exit with a pointer to `/lp-define`.
+This is **verify-or-refuse only** — the lite helper checks the required file exists and exits 1 with a pointer to `/lp-define` when it does not. It does NOT create missing files and does NOT run the full detect/classify/present/scaffold protocol (that's harness-level). If `.launchpad/agents.yml` is missing, the helper refuses; halt with the printed error and run `/lp-define` to seed it.
 
 `/lp-define` is the authoritative seeder for `agents.yml`; `/lp-commit` never writes it.
 
