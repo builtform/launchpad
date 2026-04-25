@@ -193,11 +193,11 @@ git commit -m "$(cat <<'EOF'
 type(scope): description
 
 - bullet points if applicable
-
-Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )"
 ```
+
+Do NOT add a `Co-Authored-By: Claude` (or any AI co-authorship) trailer. AI attribution in commit messages is intentionally omitted from this plugin's commit format.
 
 Run `git status` after commit to verify success.
 
@@ -381,7 +381,7 @@ gh pr view --json mergeable
 4. Never skip quality gates.
 5. Fix root causes, never work around failures.
 6. Always use HEREDOC for commit messages.
-7. Always include the `Co-Authored-By` trailer.
+7. Never add a `Co-Authored-By: Claude` (or any AI co-authorship) trailer.
 8. Keep the subject line under 72 characters.
 9. Use imperative mood in commit descriptions.
 10. If any step fails, stop and fix before continuing.

@@ -83,15 +83,13 @@ type(scope): short imperative description
 
 Optional longer body explaining root cause, file paths, test results,
 or anything that would be useful to a future reader of git log.
-
-Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
 - **Types**: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `style`, `perf`, `ci`, `security`, `release`
 - **Scope** (optional): the affected area — `commands`, `agents`, `skills`, `scripts`, `plugin`, `init`, `docs`, etc.
 - **Subject**: imperative mood, lowercase after the colon, no trailing period, ~60 characters
 - **Body** (optional but encouraged for non-trivial changes): file:line references, bullet-pointed change manifests, test-result counts, issue numbers inline (`fixes #123`)
-- **AI co-authorship**: if a substantial portion of the change was AI-assisted, add the generic `Co-Authored-By: Claude <noreply@anthropic.com>` trailer. Do not include model version or context-window mentions — those churn unnecessarily.
+- **AI attribution**: do NOT add `Co-Authored-By: Claude` or any AI co-authorship trailer. The plugin's commit format intentionally omits it. Human authorship attribution stays standard (`git commit --author=...` if needed).
 
 The `/lp-commit` slash command (when contributing from inside Claude Code) generates messages following this pattern automatically.
 
