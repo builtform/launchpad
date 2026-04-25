@@ -218,7 +218,16 @@ git fetch origin main
 git merge origin/main
 ```
 
-- IF merge brings new changes: re-run quality gates via `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plugin-build-runner.py --stage=test && --stage=typecheck && --stage=lint`. IF they fail, fix before proceeding.
+- IF merge brings new changes: re-run quality gates by invoking the build runner once per stage:
+
+  ```bash
+  python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plugin-build-runner.py --stage=test \
+    && python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plugin-build-runner.py --stage=typecheck \
+    && python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plugin-build-runner.py --stage=lint
+  ```
+
+  IF they fail, fix before proceeding.
+
 - IF merge has conflicts: resolve them, re-run quality gates, re-stage.
 - IF merge is a no-op (already up to date): proceed.
 

@@ -92,9 +92,13 @@ def scan(content: str, patterns: list[re.Pattern] | None = None, patterns_file: 
     for line_no, line in enumerate(content.splitlines(), start=1):
         for pat in patterns:
             if pat.search(line):
-                # Log the LINE preview (truncated), not the match — keep the
-                # actual secret out of logs / test output.
-                preview = line.strip()[:80]
+                # Build a redacted preview: replace every match of the pattern
+                # in the line with the literal string "<REDACTED>", then
+                # truncate to 80 chars. The previous form (line.strip()[:80])
+                # leaked the secret's first 80 chars when the secret started
+                # at column 0 of the line.
+                redacted = pat.sub("<REDACTED>", line)
+                preview = redacted.strip()[:80]
                 matches.append(SecretMatch(pattern=pat.pattern, line_no=line_no, preview=preview))
                 break  # one hit per line is enough to flag it
     return matches

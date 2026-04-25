@@ -119,7 +119,9 @@ lite_check() {
 # classify+scaffold layer is built on top of this in calling commands.
 full_check() {
   local detect_out
-  if ! detect_out=$(python3 "$SCRIPT_DIR/plugin-stack-detector.py" 2>&1); then
+  # Pass REPO_ROOT through so detector and config-loader operate on the
+  # caller-specified repo, not whatever happens to be `pwd`.
+  if ! detect_out=$(LP_REPO_ROOT="$REPO_ROOT" python3 "$SCRIPT_DIR/plugin-stack-detector.py" 2>&1); then
     echo "Step 0 (full) — stack detection failed:" >&2
     echo "$detect_out" >&2
     return 2
@@ -131,7 +133,7 @@ full_check() {
   echo "$detect_out" >&2
 
   # Also check config.yml parses
-  if ! python3 "$SCRIPT_DIR/plugin-config-loader.py" --strict > /dev/null 2>&1; then
+  if ! LP_REPO_ROOT="$REPO_ROOT" python3 "$SCRIPT_DIR/plugin-config-loader.py" --strict > /dev/null 2>&1; then
     echo "Step 0 (full) — .launchpad/config.yml has errors; run /lp-define to reset or fix manually." >&2
     return 1
   fi

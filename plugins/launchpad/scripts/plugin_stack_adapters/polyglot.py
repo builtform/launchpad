@@ -134,17 +134,52 @@ def _merge_commands(outputs: list[AdapterOutput]) -> CommandsConfig:
 
 
 def _merge_pipeline_overrides(outputs: list[AdapterOutput]) -> PipelineOverrides:
-    """Restrictive wins: if ANY adapter says a stage is disabled, the composite
-    respects that. Safer default — prevents accidentally running design-review
-    on a polyglot project where one adapter is backend-only.
+    """Two-policy merge for pipeline-override flags:
+
+    1. design_enabled / test_browser_enabled — ENABLED-WINS.
+       In a TS+Python polyglot, the TS adapter provides a frontend that
+       design-review and browser tests should still cover, even though the
+       Python (Django) adapter marks them False on its own. These two
+       flags represent CI workflow gates whose presence in the polyglot
+       composite tracks the union of capabilities, not the intersection.
+
+       Implementation: leave the flag unset on the composite if ANY
+       adapter has it True / unset (default-True), meaning downstream
+       consumers see the default-True. Only set False when EVERY adapter
+       explicitly says False.
+
+    2. frontend_docs_enabled — RESTRICTIVE-WINS (legacy contract).
+       This flag controls whether the canonical-doc generator emits
+       frontend-shaped sections in TECH_STACK.md and BACKEND_STRUCTURE.md
+       prose. Backend-heavy adapters intentionally restrict it to avoid
+       contradictory doc shape; the existing test contract enforces this.
     """
     result: PipelineOverrides = PipelineOverrides()
-    for key in ("design_enabled", "test_browser_enabled", "frontend_docs_enabled"):
+
+    # Enabled-wins for the two CI workflow flags.
+    for key in ("design_enabled", "test_browser_enabled"):
+        any_enabled = False
+        all_false = True
         for o in outputs:
-            if key in o["pipeline_overrides"] and o["pipeline_overrides"][key] is False:
-                result[key] = False  # type: ignore[literal-required]
-                break
-        # If no adapter said False, leave the field unset (defaults apply).
+            ov = o["pipeline_overrides"]
+            if key not in ov:
+                any_enabled = True
+                all_false = False
+                continue
+            if ov[key] is not False:
+                any_enabled = True
+                all_false = False
+        if any_enabled:
+            continue
+        if all_false:
+            result[key] = False  # type: ignore[literal-required]
+
+    # Restrictive-wins for frontend_docs_enabled.
+    for o in outputs:
+        if o["pipeline_overrides"].get("frontend_docs_enabled") is False:
+            result["frontend_docs_enabled"] = False
+            break
+
     return result
 
 

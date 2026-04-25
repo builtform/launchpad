@@ -61,5 +61,5 @@ harden_document_agents:
 
 # Protected branches — read by /lp-ship, /lp-commit, /lp-resolve-pr-comments (with default [main, master])
 protected_branches:
-  - lp-main
-  - lp-master
+  - main
+  - master

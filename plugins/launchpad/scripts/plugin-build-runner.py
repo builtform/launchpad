@@ -93,13 +93,19 @@ def check_ci_override(repo_root: Path) -> int:
 
     current = _compute_hash(repo_root)
     if not current:
-        # Can't compute — don't block, but warn
+        # Can't compute — fail closed. The user explicitly opted into the
+        # pin by setting LP_CONFIG_REVIEWED, so an inability to verify
+        # the current hash (missing config.yml, unreadable, malformed) is
+        # a hard refuse. Otherwise an attacker who deletes config.yml
+        # would silently bypass the gate.
         print(
-            "WARN: LP_CONFIG_REVIEWED set but couldn't compute current commands hash; "
-            "proceeding without the pin check.",
+            "REFUSE: LP_CONFIG_REVIEWED is set but the current commands hash "
+            "cannot be computed (missing/unreadable .launchpad/config.yml). "
+            "Restore config.yml and re-pin LP_CONFIG_REVIEWED to the new hash, "
+            "or unset LP_CONFIG_REVIEWED for unpinned interactive runs.",
             file=sys.stderr,
         )
-        return 0
+        return 2
 
     # Accept a 16-char hex prefix as a convenience — matches what .launchpad/audit.log
     # displays as commands_sha=... . Collision resistance at 64 bits (16 hex chars)
