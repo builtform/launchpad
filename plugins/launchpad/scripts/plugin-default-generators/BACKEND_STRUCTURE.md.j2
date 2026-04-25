@@ -1,0 +1,45 @@
+# Backend Structure
+
+## Framework & style
+
+- **Framework:** {{ backend.framework }}
+{%- if backend.api_style %}
+- **API style:** {{ backend.api_style }}
+{%- endif %}
+
+## Routes
+
+_Route handlers live under:_ `{{ backend.routes_dir }}`
+
+{% if backend.routes_dir %}
+Add new endpoints by creating files here and wiring them into the
+framework's router. Follow the existing naming conventions.
+{% endif %}
+
+## Data models
+{% if backend.models_dir %}
+_Models live in:_ `{{ backend.models_dir }}`
+
+Schema changes flow through the framework's migration path. Never edit
+production schema directly.
+{% else %}
+_No dedicated models directory detected. Inline model definitions in route
+handlers, or establish a models location if the project grows._
+{% endif %}
+
+## Authentication
+{% if backend.auth_pattern %}
+- **Pattern:** {{ backend.auth_pattern }}
+{% else %}
+_No authentication pattern detected. Document yours here once established._
+{% endif %}
+
+## Error handling
+
+_Document the error-response contract (shape, status codes, retry semantics).
+Apply it uniformly across handlers._
+
+## Observability
+
+_Logging destination, metrics provider, tracing approach. These are the
+lookups on-call will need at 3am — make them easy to find._

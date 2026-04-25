@@ -1,0 +1,20 @@
+{
+  "name": "builtform",
+  "owner": {
+    "name": "Foad Shafighi",
+    "url": "https://github.com/foadshafighi"
+  },
+  "metadata": {
+    "description": "BuiltForm marketplace — plugins and tools shipped under the BuiltForm umbrella brand, starting with the LaunchPad harness.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "launchpad",
+      "description": "Autonomous software-engineering harness. Brownfield-safe adaptation pipeline (detect → define → plan → build) across TypeScript, Python, Go, Django, and polyglot codebases.",
+      "category": "development",
+      "source": "./plugins/launchpad",
+      "homepage": "https://github.com/builtform/launchpad"
+    }
+  ]
+}
