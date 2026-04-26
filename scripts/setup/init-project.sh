@@ -396,7 +396,10 @@ docs/guides/METHODOLOGY.md
 docs/guides/HOW_IT_WORKS.md
 docs/guides/MEMPALACE_INTEGRATION.md
 .github/workflows/release-notes-check.yml
-docs/maintainers/RELEASE_PROCESS.md
+# docs/maintainers/* is excluded via the directory-level case statement
+# in pull-upstream.launchpad.sh:is_excluded(), so individual files
+# inside docs/maintainers/ are NOT listed here. Keep that case statement
+# in sync if more LaunchPad-internal directories are added.
 MANIFEST
 
 # Conditional entries based on init choices
