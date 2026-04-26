@@ -5,8 +5,7 @@
     "url": "https://github.com/foadshafighi"
   },
   "metadata": {
-    "description": "BuiltForm marketplace — plugins and tools shipped under the BuiltForm umbrella brand, starting with the LaunchPad harness.",
-    "version": "1.0.0"
+    "description": "BuiltForm marketplace — plugins and tools shipped under the BuiltForm umbrella brand, starting with the LaunchPad harness."
   },
   "plugins": [
     {
