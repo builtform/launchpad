@@ -108,27 +108,35 @@ IF any fail → **AUTO-FIX** (max 3 attempts):
 
 ### Gate B: Advisory AI Reviews (non-blocking on timeout)
 
-Two complementary AI reviewers post advisory comments on the PR. Both are non-blocking — if either is unavailable, missing, or quota-failed, the gate passes. Codex is the **narrow / line-level** lane; Greptile is the **wide / codebase-aware** lane.
+Two complementary AI reviewers post advisory comments on the PR. Both are non-blocking — if either is unavailable, missing, or quota-failed, the gate passes. Codex is the **narrow / line-level** lane; Greptile is the **wide / codebase-aware** lane. Sub-gate numbering matches `/lp-commit`'s monitoring loop (B1 = human review, skipped in autonomous mode; B2 = Codex; B3 = Greptile) so the two flows can be reasoned about with one mental model.
 
-#### Gate B1: Codex Review
+#### Gate B1: Human Reviews
+
+Skipped in autonomous mode. `/lp-ship` does not block on human approval — that decision belongs to the user at merge time.
+
+#### Gate B2: Codex Review
 
 - Poll for the Codex review comment (header `## Codex Automated Code Review`) for up to 5 minutes
 - IF no comment: pass
-- IF comment: parse P0–P3 sections, evaluate each finding (AGREE/PARTIALLY AGREE/DISAGREE)
-- Auto-fix AGREE items only. Max 3 fix rounds, then stop.
+- IF comment: parse P0–P3 severity sections, evaluate each finding (AGREE / PARTIALLY AGREE / DISAGREE)
+- Auto-fix only AGREE findings at P0 or P1 severity. Max 3 fix rounds, then stop.
 - Apply sensitive file denylist: if a Codex suggestion targets auth/middleware/security paths → report "Needs manual review" instead of auto-fixing.
 
-#### Gate B2: Greptile Review
+#### Gate B3: Greptile Review
 
 - Poll for the Greptile review comment (header `### Greptile Summary`, posted by `greptile-apps[bot]`) for up to 5 minutes
-- IF no comment: pass (Greptile may not be installed on this repo or not yet indexed)
-- IF comment: parse the **Confidence Score** (1/5 to 5/5) and any inline finding tables
-- Treat Greptile as a **codebase-aware second opinion**: it sees cross-file consistency, architectural drift, and convention violations Codex misses by design
-- Auto-fix only findings Greptile marks high-confidence AND that align with Codex (when both agree, signal is strongest)
-- DISAGREE findings (Greptile flags, Codex doesn't) → present to user without auto-fix, let them decide
-- Same sensitive-file denylist applies
+- IF no comment: pass (Greptile may not be installed on this repo, not yet indexed, or this PR's author is in `greptile.json` `excludeAuthors`)
+- IF comment: parse two distinct signals:
+  - **Confidence Score** (1/5 to 5/5) — Greptile's overall verdict on the PR. Treat 5/5 as "no findings worth acting on"; 4/5 means "merge after addressing the called-out finding"; ≤3/5 warrants pause and full triage.
+  - **Per-finding severity** in the inline tables (P0 / P1 / P2) — these are Greptile's per-issue ratings, the same scale Codex uses
+- Auto-fix criteria (must satisfy ALL):
+  1. Finding severity is **P0 or P1** in Greptile's inline table (not P2 / nitpicks)
+  2. Codex (Gate B2) flagged the **same file and line** OR Greptile's finding makes a cross-file claim that Codex by design cannot make (e.g., "this name does not match the convention used by the other 12 callers in `apps/api/`"). Single-file findings Greptile alone flagged are presented to user, not auto-fixed.
+  3. Same sensitive-file denylist as B2
+- Max 3 fix rounds combined across B2 + B3, then stop.
+- Greptile-only findings that don't meet the auto-fix criteria → present to user with "Greptile-only finding, manual review" labeling.
 
-Both gates are skip-on-timeout. Skip human review gate (autonomous).
+All three sub-gates are skip-on-timeout.
 
 ### Gate C: Conflicts
 
