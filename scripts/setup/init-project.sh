@@ -395,6 +395,11 @@ scripts/setup/init-project.sh
 docs/guides/METHODOLOGY.md
 docs/guides/HOW_IT_WORKS.md
 docs/guides/MEMPALACE_INTEGRATION.md
+.github/workflows/release-notes-check.yml
+# docs/maintainers/* is excluded via the directory-level case statement
+# in pull-upstream.launchpad.sh:is_excluded(), so individual files
+# inside docs/maintainers/ are NOT listed here. Keep that case statement
+# in sync if more LaunchPad-internal directories are added.
 MANIFEST
 
 # Conditional entries based on init choices
@@ -451,6 +456,25 @@ fi
 if [ -f "docs/guides/MEMPALACE_INTEGRATION.md" ]; then
   mv "docs/guides/MEMPALACE_INTEGRATION.md" ".launchpad/MEMPALACE_INTEGRATION.md"
   info "Moved docs/guides/MEMPALACE_INTEGRATION.md -> .launchpad/MEMPALACE_INTEGRATION.md"
+fi
+
+# Remove LaunchPad-internal-only files from downstream projects.
+# These exist for LaunchPad's own maintainer release process and should not
+# be imposed on downstream projects whose release practices we cannot
+# predict (private vs public, semver vs continuous deploy, etc.).
+if [ -f ".github/workflows/release-notes-check.yml" ]; then
+  rm -f ".github/workflows/release-notes-check.yml"
+  info "Removed .github/workflows/release-notes-check.yml (LaunchPad-internal release-process gate)"
+fi
+
+if [ -d "docs/maintainers" ]; then
+  rm -rf "docs/maintainers"
+  info "Removed docs/maintainers/ (LaunchPad-internal maintainer-process docs)"
+fi
+
+if [ -d "docs/releases" ]; then
+  rm -rf "docs/releases"
+  info "Removed docs/releases/ (LaunchPad's own release notes; downstream projects choose their own release-notes location)"
 fi
 
 # Update REPOSITORY_STRUCTURE.md to reflect moved files (Issue #10)

@@ -1,0 +1,70 @@
+name: Release Notes Check
+
+# Enforces that every release PR and tag push includes a hand-authored
+# docs/releases/v<VERSION>.md file. See docs/maintainers/RELEASE_PROCESS.md
+# for the why and the full release process.
+#
+# This workflow is LaunchPad-internal only — `scripts/setup/init-project.sh`
+# removes it from downstream projects scaffolded via the LaunchPad template,
+# because the per-version release-notes-file convention is a maintainer
+# choice, not something we impose on downstream projects whose release
+# practices we cannot predict.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    tags: ["v*.*.*"]
+
+jobs:
+  check:
+    name: Verify release notes file exists
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Resolve version and check file
+        run: |
+          set -euo pipefail
+
+          # Determine version from event context
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+            CONTEXT="tag push (${VERSION})"
+          else
+            BRANCH="${GITHUB_HEAD_REF}"
+            # Anchor the version match: it must appear immediately after the
+            # branch type prefix (chore/, release/, fix/, etc.) — i.e. as
+            # `<type>/vX.Y.Z` or `<type>/vX.Y.Z-<summary>`. This avoids false
+            # positives on branches that mention a library version in their
+            # name (e.g. fix/pin-hono-v4.12.15 — the v4.12.15 there refers to
+            # hono, not a LaunchPad release). The release-process doc
+            # (docs/maintainers/RELEASE_PROCESS.md) prescribes the
+            # `<type>/vX.Y.Z-<summary>` convention this regex enforces.
+            if [[ "${BRANCH}" =~ ^[a-z]+/v([0-9]+\.[0-9]+\.[0-9]+)([\-/]|$) ]]; then
+              VERSION="v${BASH_REMATCH[1]}"
+              CONTEXT="PR branch ${BRANCH} (inferred ${VERSION})"
+            else
+              echo "::notice::Branch '${BRANCH}' does not match a release-branch pattern (^[a-z]+/vX.Y.Z[-/$]). Skipping release-notes check."
+              exit 0
+            fi
+          fi
+
+          NOTES_FILE="docs/releases/${VERSION}.md"
+
+          if [[ ! -f "${NOTES_FILE}" ]]; then
+            echo "::error file=${NOTES_FILE}::Release notes file ${NOTES_FILE} is missing."
+            echo "::error::Context: ${CONTEXT}"
+            echo "::error::This repo follows the per-version release-notes-file convention."
+            echo "::error::Add docs/releases/${VERSION}.md to this PR (or amend the tagged commit) before merging/tagging."
+            echo "::error::See docs/maintainers/RELEASE_PROCESS.md for the full release process."
+            exit 1
+          fi
+
+          # Sanity-check the file isn't empty / placeholder
+          if ! grep -qE '^# ' "${NOTES_FILE}"; then
+            echo "::error file=${NOTES_FILE}::Release notes file exists but appears to lack a top-level heading. Confirm it is hand-authored content, not a placeholder."
+            exit 1
+          fi
+
+          echo "::notice::Release notes file ${NOTES_FILE} exists and is non-empty. ✓"
