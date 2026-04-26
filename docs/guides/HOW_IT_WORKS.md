@@ -83,7 +83,7 @@ If you want a fresh TypeScript + Next.js + Hono monorepo with LaunchPad pre-inst
 | Database   | [Prisma](https://www.prisma.io/) + PostgreSQL                                                           |
 | Build      | [Turborepo](https://turbo.build/) + [pnpm](https://pnpm.io/) workspaces                                 |
 | Quality    | ESLint 9, Prettier, [Vitest](https://vitest.dev/), [Lefthook](https://github.com/evilmartians/lefthook) |
-| CI         | GitHub Actions + Codex AI review                                                                        |
+| CI         | GitHub Actions + dual AI code review (Codex narrow + Greptile codebase-wide)                            |
 | AI context | `CLAUDE.md`, `AGENTS.md`                                                                                |
 
 ### Run the wizard
@@ -320,7 +320,7 @@ Only Moderate-and-above findings reach `.harness/todos/`. The six false-positive
 
 ### `/lp-ship`
 
-Autonomous shipping pipeline. Stages tracked files, runs quality gates (parallel `pnpm test` / `pnpm typecheck` / `pnpm lint` + pre-commit hooks, with 3-attempt auto-fix), generates a conventional commit, pushes, creates a PR, and enters a 3-gate monitoring loop (CI checks, Codex review, merge conflicts). **Never merges.**
+Autonomous shipping pipeline. Stages tracked files, runs quality gates (parallel `pnpm test` / `pnpm typecheck` / `pnpm lint` + pre-commit hooks, with 3-attempt auto-fix), generates a conventional commit, pushes, creates a PR, and enters a 3-gate monitoring loop (CI checks, advisory AI reviews from Codex + Greptile, merge conflicts). **Never merges.**
 
 ### `/lp-commit`
 
@@ -533,11 +533,27 @@ Every PR to `main` runs six jobs on GitHub Actions:
 - `structure` — `check-repo-structure.sh` (repository layout rules)
 - `summary` — aggregate status gate
 
-Additionally, **Codex posts an AI review** with P0–P3 severity ratings on every PR. Both `/lp-inf` and `/lp-commit` monitor for P0/P1 issues automatically when they open PRs.
+Additionally, **two AI code reviewers post advisory reviews** on every PR. Both are advisory-only — neither blocks merge — and they cover complementary lanes:
+
+- **Codex (narrow / line-level)** — posts a P0–P3-ranked review comment via the `codex-review.yml` GitHub Action. Sees the diff plus what it can read in its sandbox. Strong on per-line correctness, off-by-one bugs, missing null checks, typos in changed code. Quota-bounded (per-user OpenAI billing).
+- **Greptile (wide / codebase-aware)** — posts a review comment via the Greptile GitHub App. Pre-indexes the entire repo as a graph (functions, classes, dependencies) and reviews each PR with whole-codebase context. Strong on cross-file refactor consistency, architectural drift, and convention violations a per-PR-diff reviewer cannot see. Free under Greptile's OSS Program for MIT/Apache/GPL repos.
+
+Both `/lp-inf` and `/lp-commit` monitor PR review comments and surface findings to the user. The two lanes overlap on local logic bugs; they don't on cross-file or architecture concerns. Running both at advisory-only level is the safest balance — broad coverage, no false-positive blocks.
 
 ### Required GitHub Secret for Codex review
 
 Add `OPENAI_API_KEY` to your GitHub repository secrets (Settings → Secrets and variables → Actions). Without it, the Codex review job skips silently.
+
+### Setting up Greptile (one-time per repo)
+
+Greptile is a GitHub App, not a GitHub Action — there's no workflow to author. Setup:
+
+1. **Apply for the OSS program** at [greptile.com/open-source](https://www.greptile.com/open-source) if your repo is MIT/Apache/GPL (free reviews). Otherwise pricing is $30/seat/month.
+2. **Install the GitHub App** at [github.com/apps/greptile-apps](https://github.com/apps/greptile-apps), scoped to this repo (or "All repositories" if you want it across the org).
+3. **Enable indexing** in the Greptile dashboard: Repositories → Manage Repos → enable your repo. Initial index takes 3–5 minutes for a small repo, up to 1–2 hours for a large monorepo.
+4. **Verify on the next PR** — Greptile should post a "Greptile Summary" comment within ~5 minutes. If not, check the App's repository scope at `github.com/settings/installations`.
+
+Configuration lives in `greptile.json` at the repo root (already templated by `init-project.sh`). Tune `commentTypes`, `strictness`, and `ignorePatterns` to taste. See [docs/architecture/CI_CD.md](../architecture/CI_CD.md) for the field-by-field reference.
 
 Other CI-relevant env vars live in the [Environment variables](#environment-variables-template-path-only) table below — `LP_CONFIG_REVIEWED` is specifically the CI-side pin that unblocks autonomous `/lp-build` runs under the content-hash audit.
 

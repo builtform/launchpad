@@ -103,6 +103,7 @@ Especially for non-coders shipping real software with LaunchPad:
 - **Watch the first three autonomous runs in full.** Read the audit log. Understand what the agent actually does in your repository before letting it run unattended.
 - **Use minimally scoped API keys.** A repo-scoped GitHub token is safer than a personal access token; a read-only API key is safer than read-write.
 - **Install dcg.** See the previous section. The 10 minutes spent setting it up is the single highest-leverage security improvement you can make on top of the defaults.
+- **Run dual AI code review on every PR.** LaunchPad templates ship with two complementary CI reviewers: **Codex** (a GitHub Action that posts a P0–P3-ranked line-level review per PR; strong on local correctness within the diff) and **Greptile** (a GitHub App that pre-indexes the whole repo as a graph and reviews each PR with codebase-wide context; strong on cross-file consistency, architectural drift, and convention violations a diff-only reviewer cannot see). Both are advisory — neither blocks merge — but together they catch substantially more than either alone. Codex covers the **narrow / line-level** lane; Greptile covers the **wide / codebase-aware** lane. Treat their findings as a checklist, not a verdict; the required `ci.yml` quality gates remain the merge gate. Setup details in [docs/guides/HOW_IT_WORKS.md](docs/guides/HOW_IT_WORKS.md#setting-up-greptile-one-time-per-repo) and [docs/architecture/CI_CD.md](docs/architecture/CI_CD.md).
 
 ## Reporting a vulnerability
 

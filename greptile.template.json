@@ -1,0 +1,11 @@
+{
+  "instructions": "Project: {{PROJECT_NAME}}. Focus on cross-file consistency, architectural drift, and inter-file invariants the existing CI checks (Type Check, Lint, Build, Test, Repo Structure, Install) cannot catch. Trust the existing CI for lint/format/typecheck. The Codex GitHub Action is the line-level / narrow lane; Greptile fills the codebase-wide / cross-file lane. Both reviewers are advisory; merge gating is the required CI checks.",
+  "commentTypes": ["logic", "syntax", "style"],
+  "strictness": 1,
+  "triggerOnUpdates": true,
+  "triggerOnDrafts": false,
+  "statusCheck": false,
+  "statusCommentsEnabled": true,
+  "ignorePatterns": "**/node_modules/**\n**/.next/**\n**/dist/**\n**/.turbo/**\npnpm-lock.yaml\n**/*.d.ts\npackages/db/prisma/migrations/**",
+  "excludeAuthors": ["dependabot[bot]"]
+}

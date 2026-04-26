@@ -369,6 +369,7 @@ ROADMAP.md
 CLAUDE.md
 AGENTS.md
 package.json
+greptile.json
 # --- App source (project metadata injected) ---
 apps/web/src/app/layout.tsx
 # --- Commands/skills (project name injected) ---
@@ -434,6 +435,7 @@ swap_template "CODE_OF_CONDUCT.template.md" "CODE_OF_CONDUCT.md"
 swap_template "CHANGELOG.template.md"       "CHANGELOG.md"
 swap_template "CONTRIBUTING.template.md"    "CONTRIBUTING.md"
 swap_template "ROADMAP.template.md"         "ROADMAP.md"
+swap_template "greptile.template.json"      "greptile.json"
 
 # Move Launchpad-specific docs to .launchpad/ for reference
 if [ -f "docs/guides/METHODOLOGY.md" ]; then
@@ -785,6 +787,7 @@ OTHER_FILES=(
   "docs/architecture/CI_CD.md"
   "plugins/launchpad/skills/lp-tasks/SKILL.md"
   "plugins/launchpad/commands/lp-define-product.md"
+  "greptile.json"
 )
 
 # Combine all files that need {{PROJECT_NAME}} replacement
