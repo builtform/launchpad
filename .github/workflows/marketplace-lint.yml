@@ -4,10 +4,12 @@ on:
   pull_request:
     paths:
       - ".claude-plugin/marketplace.json"
+      - ".github/workflows/marketplace-lint.yml"
   push:
     branches: [main]
     paths:
       - ".claude-plugin/marketplace.json"
+      - ".github/workflows/marketplace-lint.yml"
 
 permissions:
   contents: read
@@ -28,17 +30,30 @@ jobs:
             exit 1
           fi
 
+          # Validate JSON parses and has the expected top-level shape before
+          # running forbidden-field checks. Without this, malformed JSON or
+          # an unexpected schema would let `jq -e` exit non-zero on the
+          # forbidden-field probes and silently report "passed".
+          if ! jq empty "$FILE" 2>/dev/null; then
+            echo "::error::$FILE is not valid JSON"
+            exit 1
+          fi
+          if ! jq -e 'type=="object" and (.plugins|type=="array") and (.metadata|type=="object")' "$FILE" > /dev/null; then
+            echo "::error::$FILE must be an object with array .plugins and object .metadata"
+            exit 1
+          fi
+
           # Forbidden: per-plugin version (breaks /plugin update cache invalidation).
           # Anthropic's CLI uses this field as a cache key, pinning users to the
           # cached version. See https://github.com/anthropics/claude-code/issues/31462
-          if jq -e '.plugins[] | select(has("version"))' "$FILE" > /dev/null 2>&1; then
+          if jq -e '.plugins[] | select(has("version"))' "$FILE" > /dev/null; then
             echo "::error::marketplace.json plugins[] entries must NOT include 'version' — breaks /plugin update"
             exit 1
           fi
 
           # Forbidden: marketplace-level metadata.version (function unclear; Anthropic's
           # official marketplace omits it). Removed in 2026-04-26 cleanup.
-          if jq -e '.metadata | has("version")' "$FILE" | grep -q true; then
+          if jq -e '.metadata | has("version")' "$FILE" > /dev/null; then
             echo "::error::marketplace.json metadata.version is forbidden — function unclear and Anthropic's official marketplace omits it"
             exit 1
           fi
