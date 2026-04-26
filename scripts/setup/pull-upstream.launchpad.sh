@@ -125,7 +125,7 @@ is_excluded() {
   esac
   # Directory-level exclusions (LaunchPad-internal content, not for downstream)
   case "$file" in
-    docs/reports/launchpad_reports/*|docs/plans/launchpad_plans/*|docs/handoffs/launchpad_handoffs/*|docs/maintainers/*) return 0 ;;
+    docs/reports/launchpad_reports/*|docs/plans/launchpad_plans/*|docs/handoffs/launchpad_handoffs/*|docs/maintainers/*|docs/releases/*) return 0 ;;
   esac
   # Check exact paths from manifest
   local p

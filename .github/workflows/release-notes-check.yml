@@ -33,11 +33,19 @@ jobs:
             CONTEXT="tag push (${VERSION})"
           else
             BRANCH="${GITHUB_HEAD_REF}"
-            if [[ "${BRANCH}" =~ v([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            # Anchor the version match: it must appear immediately after the
+            # branch type prefix (chore/, release/, fix/, etc.) — i.e. as
+            # `<type>/vX.Y.Z` or `<type>/vX.Y.Z-<summary>`. This avoids false
+            # positives on branches that mention a library version in their
+            # name (e.g. fix/pin-hono-v4.12.15 — the v4.12.15 there refers to
+            # hono, not a LaunchPad release). The release-process doc
+            # (docs/maintainers/RELEASE_PROCESS.md) prescribes the
+            # `<type>/vX.Y.Z-<summary>` convention this regex enforces.
+            if [[ "${BRANCH}" =~ ^[a-z]+/v([0-9]+\.[0-9]+\.[0-9]+)([\-/]|$) ]]; then
               VERSION="v${BASH_REMATCH[1]}"
               CONTEXT="PR branch ${BRANCH} (inferred ${VERSION})"
             else
-              echo "::notice::Branch '${BRANCH}' does not match a version pattern (vX.Y.Z). Skipping release-notes check."
+              echo "::notice::Branch '${BRANCH}' does not match a release-branch pattern (^[a-z]+/vX.Y.Z[-/$]). Skipping release-notes check."
               exit 0
             fi
           fi

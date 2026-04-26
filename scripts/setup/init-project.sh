@@ -472,6 +472,11 @@ if [ -d "docs/maintainers" ]; then
   info "Removed docs/maintainers/ (LaunchPad-internal maintainer-process docs)"
 fi
 
+if [ -d "docs/releases" ]; then
+  rm -rf "docs/releases"
+  info "Removed docs/releases/ (LaunchPad's own release notes; downstream projects choose their own release-notes location)"
+fi
+
 # Update REPOSITORY_STRUCTURE.md to reflect moved files (Issue #10)
 replace_in_file "docs/architecture/REPOSITORY_STRUCTURE.md" \
   '│   │   └── METHODOLOGY.md' \
