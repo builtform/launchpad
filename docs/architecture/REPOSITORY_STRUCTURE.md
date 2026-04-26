@@ -45,6 +45,7 @@ The repo root is clean and predictable. Only whitelisted files and directories b
 | `.gitattributes`                      | Git attribute rules, line endings (optional — created when needed)       |
 | `.worktreeinclude`                    | Claude Code worktree env file declarations (which `.env*` files to copy) |
 | `greptile.json`                       | Greptile AI code-reviewer config (must be at root per Greptile's spec)   |
+| `greptile.template.json`              | Template version of `greptile.json`; init-project.sh swaps in            |
 
 Note: Files marked with `.template` or `.template.md` are used by `init-project.sh` to scaffold downstream projects. Agents do not create or modify template files.
 

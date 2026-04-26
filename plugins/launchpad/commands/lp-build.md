@@ -141,7 +141,7 @@ Load `pipeline.build.test_browser` from `config.yml`. If it's `skipped`, Step 3 
 - Run `/lp-ship`
 - IF PR already exists: skip PR creation, proceed to monitoring
 - Stage, quality gates, auto-fix, commit, push, PR creation
-- PR monitoring (CI + Codex + conflicts)
+- PR monitoring (CI + advisory AI reviews [Codex narrow + Greptile codebase-wide] + conflicts)
 - **STOPS at "all gates green" — NEVER merges**
 
 ## Step 5: /lp-learn

@@ -291,7 +291,14 @@ gh pr view --json latestReviews,comments
 
 - If there are change requests: address each comment, make the fix, re-run quality gates (Step 4), commit, push, and restart this loop.
 
-### Gate B2: Codex Automated Review
+### Gate B2: Codex Automated Review (narrow / line-level lane)
+
+LaunchPad ships with **two complementary AI code reviewers** on every PR. Both are advisory — neither blocks merge — and they cover different lanes:
+
+- **Codex** (this gate B2) — line-level review on the diff, posted as a P0–P3 ranked comment by the `codex-review.yml` GitHub Action. Quota-bounded; may skip silently if `OPENAI_API_KEY` is not configured or quota is exhausted.
+- **Greptile** (gate B3 below) — codebase-wide review using a pre-indexed graph of the entire repo, posted by the `greptile-apps[bot]`. Free for OSS repos under Greptile's program; covers cross-file consistency and architectural drift Codex cannot see.
+
+Both gates are non-blocking on timeout — if either reviewer is unavailable, missing, or has not yet posted within the polling window, the gate passes.
 
 Poll for the Codex review comment (posted by the `codex-review.yml` GitHub Action):
 
@@ -359,6 +366,28 @@ Ask: **"Should I fix the recommended issues, or do you want to adjust the list?"
 - If the user adjusts the list: fix only the user-specified issues, re-run quality gates (Step 4), commit, push, and restart this loop.
 - If the user declines all fixes: note the user's decision and pass.
 
+### Gate B3: Greptile Automated Review (wide / codebase-aware lane)
+
+Poll for the Greptile review comment (posted by `greptile-apps[bot]` on every PR if the App is installed and the repo is indexed):
+
+```bash
+gh api repos/{owner}/{repo}/issues/{pr_number}/comments \
+  --jq '[.[] | select(.user.login == "greptile-apps[bot]")] | last'
+```
+
+- **Poll for up to 5 minutes** (10 checks, 30 seconds apart). If no Greptile comment appears within that window, pass — this gate is non-blocking on timeout (Greptile may not be installed on this repo, or the initial repo index may still be running).
+- When the comment arrives, parse:
+  - The **Confidence Score** (1/5 to 5/5) — Greptile's overall safety judgment for this PR
+  - The **Greptile Summary** section — natural-language synthesis of what changed and any concerns
+  - Any **Important Files Changed** table or inline finding callouts
+- Greptile findings are **codebase-aware** by design. Where Codex would only see the diff, Greptile validated cross-file consistency, naming conventions across the repo, and architectural drift. Treat its findings as a second opinion focused on the lanes Codex cannot cover.
+- Evaluation process for each Greptile finding (same as Codex):
+  1. Read the referenced file and surrounding context
+  2. Determine whether the issue actually exists, or is a false positive (Greptile is documented to have higher recall but higher false-positive rate than Codex)
+  3. Form an opinion (AGREE / PARTIALLY AGREE / DISAGREE) with a one-sentence justification
+- Where Codex (B2) and Greptile (B3) **both flag the same line**, the signal is strongest — prioritize fixing those.
+- Where Greptile flags something Codex did not, weigh the cross-file evidence in Greptile's comment (it explains _why_ via its repo graph). Present to the user with "Greptile-only finding" labeling so they can judge whether the cross-file context justifies the fix.
+
 ### Gate C: Conflicts
 
 ```bash
@@ -370,7 +399,7 @@ gh pr view --json mergeable
 ### Loop Exit
 
 - All gates must pass on the **same cycle** to exit the loop.
-- When all gates are green, notify the user: **"All CI checks pass, no outstanding reviews, Codex review clean, and no conflicts. Ready to merge."**
+- When all gates are green, notify the user: **"All CI checks pass, no outstanding reviews, Codex and Greptile reviews clean, and no conflicts. Ready to merge."**
 - **NEVER auto-merge.** The user decides when to merge.
 
 ---

@@ -119,6 +119,7 @@ ALLOWED_CONFIGS=(
   "tsconfig.json"
   ".worktreeinclude"
   "greptile.json"
+  "greptile.template.json"
 )
 
 ALLOWED_DIRS=(

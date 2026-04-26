@@ -106,14 +106,29 @@ IF any fail → **AUTO-FIX** (max 3 attempts):
 - Poll `gh pr checks` (30s intervals, max 10 waits)
 - IF failed: read logs, diagnose, fix, re-run Step 4, push, restart loop
 
-### Gate B: Codex Review (non-blocking on timeout)
+### Gate B: Advisory AI Reviews (non-blocking on timeout)
 
-- Poll for Codex comment (max 5 min)
+Two complementary AI reviewers post advisory comments on the PR. Both are non-blocking — if either is unavailable, missing, or quota-failed, the gate passes. Codex is the **narrow / line-level** lane; Greptile is the **wide / codebase-aware** lane.
+
+#### Gate B1: Codex Review
+
+- Poll for the Codex review comment (header `## Codex Automated Code Review`) for up to 5 minutes
 - IF no comment: pass
-- IF comment: parse findings, evaluate each (AGREE/DISAGREE)
+- IF comment: parse P0–P3 sections, evaluate each finding (AGREE/PARTIALLY AGREE/DISAGREE)
 - Auto-fix AGREE items only. Max 3 fix rounds, then stop.
-- Apply sensitive file denylist: if Codex suggestion targets auth/middleware/security paths → report "Needs manual review" instead of auto-fixing.
-- Skip human review gate (autonomous)
+- Apply sensitive file denylist: if a Codex suggestion targets auth/middleware/security paths → report "Needs manual review" instead of auto-fixing.
+
+#### Gate B2: Greptile Review
+
+- Poll for the Greptile review comment (header `### Greptile Summary`, posted by `greptile-apps[bot]`) for up to 5 minutes
+- IF no comment: pass (Greptile may not be installed on this repo or not yet indexed)
+- IF comment: parse the **Confidence Score** (1/5 to 5/5) and any inline finding tables
+- Treat Greptile as a **codebase-aware second opinion**: it sees cross-file consistency, architectural drift, and convention violations Codex misses by design
+- Auto-fix only findings Greptile marks high-confidence AND that align with Codex (when both agree, signal is strongest)
+- DISAGREE findings (Greptile flags, Codex doesn't) → present to user without auto-fix, let them decide
+- Same sensitive-file denylist applies
+
+Both gates are skip-on-timeout. Skip human review gate (autonomous).
 
 ### Gate C: Conflicts
 
