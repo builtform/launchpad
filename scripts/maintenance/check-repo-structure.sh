@@ -118,6 +118,7 @@ ALLOWED_CONFIGS=(
   "vitest.config.ts"
   "tsconfig.json"
   ".worktreeinclude"
+  "greptile.json"
 )
 
 ALLOWED_DIRS=(

@@ -13,12 +13,12 @@
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "eslint": "^9.0.0",
-    "lefthook": "^1.0.0",
-    "prettier": "^3.0.0",
-    "turbo": "^2.0.0",
-    "typescript": "^5.0.0",
-    "vitest": "^1.0.0"
+    "eslint": "^9.39.4",
+    "lefthook": "^1.13.6",
+    "prettier": "^3.8.3",
+    "turbo": "^2.9.6",
+    "typescript": "^5.9.3",
+    "vitest": "^1.6.1"
   },
   "packageManager": "pnpm@9.0.0",
   "engines": {
