@@ -396,6 +396,7 @@ docs/guides/METHODOLOGY.md
 docs/guides/HOW_IT_WORKS.md
 docs/guides/MEMPALACE_INTEGRATION.md
 .github/workflows/release-notes-check.yml
+.github/workflows/marketplace-lint.yml
 # docs/maintainers/* is excluded via the directory-level case statement
 # in pull-upstream.launchpad.sh:is_excluded(), so individual files
 # inside docs/maintainers/ are NOT listed here. Keep that case statement
@@ -465,6 +466,11 @@ fi
 if [ -f ".github/workflows/release-notes-check.yml" ]; then
   rm -f ".github/workflows/release-notes-check.yml"
   info "Removed .github/workflows/release-notes-check.yml (LaunchPad-internal release-process gate)"
+fi
+
+if [ -f ".github/workflows/marketplace-lint.yml" ]; then
+  rm -f ".github/workflows/marketplace-lint.yml"
+  info "Removed .github/workflows/marketplace-lint.yml (LaunchPad-internal marketplace.json schema gate)"
 fi
 
 if [ -d "docs/maintainers" ]; then
