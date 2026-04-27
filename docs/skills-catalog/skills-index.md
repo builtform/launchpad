@@ -1,6 +1,6 @@
 # LaunchPad Skills Index
 
-A user-facing reference for all 15 installed skills in LaunchPad. Each skill is a reusable workflow that Claude Code executes when triggered by a slash command, agent, or natural language.
+A user-facing reference for all 16 installed skills in LaunchPad. Each skill is a reusable workflow that Claude Code executes when triggered by a slash command, agent, or natural language.
 
 ---
 
@@ -10,16 +10,17 @@ A user-facing reference for all 15 installed skills in LaunchPad. Each skill is 
 
 Skills loaded by workflow commands during planning, execution, and shipping.
 
-| #   | Skill               | Category | Description                                                           | Loaded By                                                |
-| --- | ------------------- | -------- | --------------------------------------------------------------------- | -------------------------------------------------------- |
-| 1   | **brainstorming**   | Process  | Structured brainstorming sessions with progressive questioning        | `/lp-brainstorm`, `/lp-kickoff`                          |
-| 2   | **commit**          | Process  | Commit workflow with quality gates, staging, and optional PR creation | `/lp-commit`, `/lp-ship`                                 |
-| 3   | **compound-docs**   | Process  | Structured problem documentation (14 categories, YAML schema)         | `/lp-learn`                                              |
-| 4   | **creating-agents** | Process  | Agent creation methodology (8-section body, 5-tier tool assignment)   | `/lp-create-agent`, natural language                     |
-| 5   | **creating-skills** | Process  | Skill creation methodology (7-phase Meta-Skill Forge)                 | `/lp-create-skill`, `/lp-update-skill`, `/lp-port-skill` |
-| 6   | **document-review** | Process  | Plan document review (6-step assessment, 4 criteria, 2-pass)          | `/lp-brainstorm`, `/lp-harden-plan`                      |
-| 7   | **prd**             | Process  | Product Requirements Document generation from feature descriptions    | `/lp-define-product`                                     |
-| 8   | **tasks**           | Process  | PRD markdown to `prd.json` conversion for compound execution loop     | `/lp-pnf`, `/lp-inf`                                     |
+| #   | Skill                              | Category | Description                                                                                            | Loaded By                                                 |
+| --- | ---------------------------------- | -------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| 1   | **brainstorming**                  | Process  | Structured brainstorming sessions with progressive questioning                                         | `/lp-brainstorm`, `/lp-kickoff`                           |
+| 2   | **commit**                         | Process  | Commit workflow with quality gates, staging, and optional PR creation                                  | `/lp-commit`, `/lp-ship`                                  |
+| 3   | **compound-docs**                  | Process  | Structured problem documentation (14 categories, YAML schema)                                          | `/lp-learn`                                               |
+| 4   | **creating-agents**                | Process  | Agent creation methodology (8-section body, 5-tier tool assignment)                                    | `/lp-create-agent`, natural language                      |
+| 5   | **creating-skills**                | Process  | Skill creation methodology (7-phase Meta-Skill Forge)                                                  | `/lp-create-skill`, `/lp-update-skill`, `/lp-port-skill`  |
+| 6   | **document-review**                | Process  | Plan document review (6-step assessment, 4 criteria, 2-pass)                                           | `/lp-brainstorm`, `/lp-harden-plan`                       |
+| 7   | **prd**                            | Process  | Product Requirements Document generation from feature descriptions                                     | `/lp-define-product`                                      |
+| 8   | **tasks**                          | Process  | PRD markdown to `prd.json` conversion for compound execution loop                                      | `/lp-pnf`, `/lp-inf`                                      |
+| 9   | **verification-before-completion** | Process  | Evidence-before-claims enforcement; refuses completion claims without fresh test/typecheck/lint output | auto-trigger on completion-claim phrasing across commands |
 
 ### Design Skills
 

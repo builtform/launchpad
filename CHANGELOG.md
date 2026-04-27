@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 Tracked in [ROADMAP.md](ROADMAP.md). v1.1 will ship the Codex CLI overlay generator alongside polyglot stack-detection refinements.
 
+### Added
+
+- **`lp-verification-before-completion` skill.** Enforces evidence-before-claims for completion assertions. Maps each kind of completion claim ("tests pass", "build green", "PR ready") to the verification command that produces fresh evidence (test/typecheck/lint/build) and refuses the claim until the command's output is attached. Auto-triggers on completion-claim phrasing across commands. Closes the most common agentic failure mode where work is declared done without running the checks. Adapted from [obra/superpowers](https://github.com/obra/superpowers) (MIT). See `plugins/launchpad/skills/lp-verification-before-completion/SKILL.md`.
+
 ## [1.0.0] — 2026-04-24
 
 First public release. LaunchPad is now installable as a Claude Code plugin from the BuiltForm marketplace and runs end-to-end in any brownfield repository — no template clone required.
