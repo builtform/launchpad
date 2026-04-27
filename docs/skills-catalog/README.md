@@ -17,7 +17,7 @@ you can browse what's available and port what you need.
 
 ## Harness Skills vs Catalog Skills
 
-**Harness skills** (16 skills shipped under `plugins/launchpad/skills/`, installed
+**Harness skills** (17 skills shipped under `plugins/launchpad/skills/`, installed
 to `${CLAUDE_PLUGIN_ROOT}/skills/` after `/plugin install launchpad@builtform`)
 auto-load in every project and power the LaunchPad workflow:
 
@@ -36,7 +36,8 @@ auto-load in every project and power the LaunchPad workflow:
 13. `lp-step-zero` — shared lite-mode prereq check the L2 commands compose with
 14. `lp-stripe-best-practices` — Stripe integration patterns
 15. `lp-tasks` — PRD-to-JSON task conversion
-16. `lp-web-design-guidelines` — 100+ accessibility/performance/UX rules
+16. `lp-verification-before-completion` — evidence-before-claims enforcement for completion assertions
+17. `lp-web-design-guidelines` — 100+ accessibility/performance/UX rules
 
 **Catalog skills** (listed in CATALOG.md) are recommendations — curated pointers to
 external skills worth porting. They stay inert until explicitly ported into a project

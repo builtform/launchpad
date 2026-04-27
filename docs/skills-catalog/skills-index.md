@@ -1,6 +1,6 @@
 # LaunchPad Skills Index
 
-A user-facing reference for all 15 installed skills in LaunchPad. Each skill is a reusable workflow that Claude Code executes when triggered by a slash command, agent, or natural language.
+A user-facing reference for all 17 installed skills in LaunchPad. Each skill is a reusable workflow that Claude Code executes when triggered by a slash command, agent, or natural language.
 
 ---
 
@@ -10,16 +10,18 @@ A user-facing reference for all 15 installed skills in LaunchPad. Each skill is 
 
 Skills loaded by workflow commands during planning, execution, and shipping.
 
-| #   | Skill               | Category | Description                                                           | Loaded By                                                |
-| --- | ------------------- | -------- | --------------------------------------------------------------------- | -------------------------------------------------------- |
-| 1   | **brainstorming**   | Process  | Structured brainstorming sessions with progressive questioning        | `/lp-brainstorm`, `/lp-kickoff`                          |
-| 2   | **commit**          | Process  | Commit workflow with quality gates, staging, and optional PR creation | `/lp-commit`, `/lp-ship`                                 |
-| 3   | **compound-docs**   | Process  | Structured problem documentation (14 categories, YAML schema)         | `/lp-learn`                                              |
-| 4   | **creating-agents** | Process  | Agent creation methodology (8-section body, 5-tier tool assignment)   | `/lp-create-agent`, natural language                     |
-| 5   | **creating-skills** | Process  | Skill creation methodology (7-phase Meta-Skill Forge)                 | `/lp-create-skill`, `/lp-update-skill`, `/lp-port-skill` |
-| 6   | **document-review** | Process  | Plan document review (6-step assessment, 4 criteria, 2-pass)          | `/lp-brainstorm`, `/lp-harden-plan`                      |
-| 7   | **prd**             | Process  | Product Requirements Document generation from feature descriptions    | `/lp-define-product`                                     |
-| 8   | **tasks**           | Process  | PRD markdown to `prd.json` conversion for compound execution loop     | `/lp-pnf`, `/lp-inf`                                     |
+| #   | Skill                              | Category | Description                                                                                                                   | Loaded By                                                             |
+| --- | ---------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| 1   | **brainstorming**                  | Process  | Structured brainstorming sessions with progressive questioning                                                                | `/lp-brainstorm`, `/lp-kickoff`                                       |
+| 2   | **commit**                         | Process  | Commit workflow with quality gates, staging, and optional PR creation                                                         | `/lp-commit`, `/lp-ship`                                              |
+| 3   | **compound-docs**                  | Process  | Structured problem documentation (14 categories, YAML schema)                                                                 | `/lp-learn`                                                           |
+| 4   | **creating-agents**                | Process  | Agent creation methodology (8-section body, 5-tier tool assignment)                                                           | `/lp-create-agent`, natural language                                  |
+| 5   | **creating-skills**                | Process  | Skill creation methodology (7-phase Meta-Skill Forge)                                                                         | `/lp-create-skill`, `/lp-update-skill`, `/lp-port-skill`              |
+| 6   | **document-review**                | Process  | Plan document review (6-step assessment, 4 criteria, 2-pass)                                                                  | `/lp-brainstorm`, `/lp-harden-plan`                                   |
+| 7   | **prd**                            | Process  | Product Requirements Document generation from feature descriptions                                                            | `/lp-define-product`                                                  |
+| 8   | **step-zero**                      | Process  | Shared prerequisite-and-capability check (Full + Lite modes); composed by every harness and L2 command before main logic runs | `/lp-kickoff`, `/lp-define`, `/lp-plan`, `/lp-build`, all L2 commands |
+| 9   | **tasks**                          | Process  | PRD markdown to `prd.json` conversion for compound execution loop                                                             | `/lp-pnf`, `/lp-inf`                                                  |
+| 10  | **verification-before-completion** | Process  | Evidence-before-claims enforcement; refuses completion claims without fresh test/typecheck/lint output                        | auto-trigger on completion-claim phrasing across commands             |
 
 ### Design Skills
 
@@ -27,9 +29,9 @@ Skills loaded by design workflow commands to enforce visual quality and responsi
 
 | #   | Skill                     | Category | Description                                                            | Loaded By                                           |
 | --- | ------------------------- | -------- | ---------------------------------------------------------------------- | --------------------------------------------------- |
-| 9   | **frontend-design**       | Design   | Creative direction, anti-AI-slop, bold aesthetic (+ 7 reference files) | `/lp-inf`, design agents                            |
-| 10  | **web-design-guidelines** | Design   | Engineering compliance checklist (MUST/SHOULD/NEVER rules)             | `/lp-inf`, design agents                            |
-| 11  | **responsive-design**     | Design   | Spec-layer responsive thinking (3 modes: A/B/C)                        | `/lp-shape-section`, `/lp-define-design`, `/lp-pnf` |
+| 11  | **frontend-design**       | Design   | Creative direction, anti-AI-slop, bold aesthetic (+ 7 reference files) | `/lp-inf`, design agents                            |
+| 12  | **web-design-guidelines** | Design   | Engineering compliance checklist (MUST/SHOULD/NEVER rules)             | `/lp-inf`, design agents                            |
+| 13  | **responsive-design**     | Design   | Spec-layer responsive thinking (3 modes: A/B/C)                        | `/lp-shape-section`, `/lp-define-design`, `/lp-pnf` |
 
 ### Methodology Skills
 
@@ -37,8 +39,8 @@ Domain-specific best-practice rulesets loaded conditionally by planning and impl
 
 | #   | Skill                     | Category    | Description                                                          | Loaded By                          |
 | --- | ------------------------- | ----------- | -------------------------------------------------------------------- | ---------------------------------- |
-| 12  | **react-best-practices**  | Methodology | React/Next.js patterns (70 rules, 9 categories, + 9 reference files) | `/lp-pnf`, `/lp-inf` (conditional) |
-| 13  | **stripe-best-practices** | Methodology | Stripe integration patterns (+ 3 reference files + 1 eval)           | `/lp-pnf`, `/lp-inf` (conditional) |
+| 14  | **react-best-practices**  | Methodology | React/Next.js patterns (70 rules, 9 categories, + 9 reference files) | `/lp-pnf`, `/lp-inf` (conditional) |
+| 15  | **stripe-best-practices** | Methodology | Stripe integration patterns (+ 3 reference files + 1 eval)           | `/lp-pnf`, `/lp-inf` (conditional) |
 
 ### Utility Skills
 
@@ -46,8 +48,8 @@ Standalone tools loaded by specific commands for file management and media workf
 
 | #   | Skill      | Category | Description                                      | Loaded By           |
 | --- | ---------- | -------- | ------------------------------------------------ | ------------------- |
-| 14  | **rclone** | Utility  | Cloud file management (S3, R2, B2, GDrive, etc.) | `/lp-feature-video` |
-| 15  | **imgup**  | Utility  | Lightweight image hosting for quick sharing      | `/lp-feature-video` |
+| 16  | **rclone** | Utility  | Cloud file management (S3, R2, B2, GDrive, etc.) | `/lp-feature-video` |
+| 17  | **imgup**  | Utility  | Lightweight image hosting for quick sharing      | `/lp-feature-video` |
 
 ---
 
@@ -111,7 +113,15 @@ Generates Product Requirements Documents from a feature description. Supports in
 - **Loaded By:** `/lp-define-product`
 - **Interconnections:** Feeds into the `tasks` skill for JSON conversion. Uses `file-locator`, `pattern-finder`, `docs-locator`, `docs-analyzer` sub-agents.
 
-#### 8. tasks
+#### 8. step-zero
+
+Shared prerequisite-and-capability check used by every LaunchPad harness command and L2 command that depends on canonical state. Routes all Step 0 logic through a single shell helper (`${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh`) to prevent drift between command-specific implementations. Exposes two modes: **Full** (harness-level — detect, classify, present, scaffold) and **Lite** (L2-level — verify required state files exist, refuse with a `/lp-define` pointer if missing).
+
+- **Key Outputs:** Pass/refuse signal; harness mode may scaffold canonical state files; Lite mode never writes
+- **Loaded By:** `/lp-kickoff`, `/lp-define`, `/lp-plan`, `/lp-build` (Full mode); all L2 commands like `/lp-commit`, `/lp-review`, `/lp-ship`, `/lp-harden-plan` (Lite mode with explicit `--require` list)
+- **Interconnections:** Enforces the "Lite ⊆ Full" contract mechanically. Never inlined in command prose — keeps the check in one place.
+
+#### 9. tasks
 
 Converts PRD markdown documents into `prd.json` format for the compound execution loop. Explodes high-level tasks into granular, machine-verifiable sub-tasks ordered by dependencies.
 
@@ -119,9 +129,17 @@ Converts PRD markdown documents into `prd.json` format for the compound executio
 - **Loaded By:** `/lp-pnf`, `/lp-inf`
 - **Interconnections:** Consumes output from `prd` skill. Output is consumed by `build.sh` and `loop.sh` execution pipeline.
 
+#### 10. verification-before-completion
+
+Enforcement-style skill that mandates fresh verification evidence (test/typecheck/lint/build output) before any agent claims work is done, fixed, or passing. Auto-triggers on completion-claim phrasing across commands and refuses claims that lack attached command output. Maps each kind of claim ("tests pass", "build green", "PR ready", "Definition of Done met") to the verification command that proves it.
+
+- **Key Outputs:** Verification evidence (command output) attached to every completion claim
+- **Loaded By:** auto-trigger on completion-claim phrasing across commands; effective in any command that issues completion claims (notably `/lp-commit`, `/lp-ship`, `/lp-build`)
+- **Interconnections:** Closes the most common agentic failure mode where work is declared done without running checks. Adapted from [obra/superpowers](https://github.com/obra/superpowers) (MIT).
+
 ### Design Skills
 
-#### 9. frontend-design
+#### 11. frontend-design
 
 Creative direction skill that enforces bold, distinctive aesthetics and fights generic AI-generated UI. Includes 7 reference files covering typography, color, layout, animation, and component patterns.
 
@@ -129,7 +147,7 @@ Creative direction skill that enforces bold, distinctive aesthetics and fights g
 - **Loaded By:** `/lp-inf`, design agents
 - **Interconnections:** Works alongside `web-design-guidelines` and `responsive-design` for complete design coverage.
 
-#### 10. web-design-guidelines
+#### 12. web-design-guidelines
 
 Engineering compliance checklist organized as MUST/SHOULD/NEVER rules. Covers accessibility, keyboard navigation, focus management, forms, animation, typography, images, performance, dark mode, i18n, and hydration.
 
@@ -137,7 +155,7 @@ Engineering compliance checklist organized as MUST/SHOULD/NEVER rules. Covers ac
 - **Loaded By:** `/lp-inf`, design agents
 - **Interconnections:** Complements `frontend-design` (aesthetic) with engineering correctness.
 
-#### 11. responsive-design
+#### 13. responsive-design
 
 Injects responsive-first thinking into section specs and design definitions. Operates in 3 modes: A (full spec enrichment), B (component-level breakpoint audit), C (quick mobile-first check).
 
@@ -147,7 +165,7 @@ Injects responsive-first thinking into section specs and design definitions. Ope
 
 ### Methodology Skills
 
-#### 12. react-best-practices
+#### 14. react-best-practices
 
 70 rules across 9 categories for React and Next.js development, prioritized by impact (CRITICAL > HIGH > MEDIUM > LOW). Covers async patterns, bundle optimization, server-side performance, client-side dynamics, and composition. Includes 9 reference files.
 
@@ -155,7 +173,7 @@ Injects responsive-first thinking into section specs and design definitions. Ope
 - **Loaded By:** `/lp-pnf`, `/lp-inf` (loaded conditionally when project uses React/Next.js)
 - **Interconnections:** Enforced during implementation and reviewed during `/lp-review`.
 
-#### 13. stripe-best-practices
+#### 15. stripe-best-practices
 
 Stripe integration patterns enforcing Checkout Sessions over raw PaymentIntents, modern API usage, webhook security with Hono, Prisma-backed subscription state, and Connect platform best practices. Includes 3 reference files and 1 eval.
 
@@ -165,7 +183,7 @@ Stripe integration patterns enforcing Checkout Sessions over raw PaymentIntents,
 
 ### Utility Skills
 
-#### 14. rclone
+#### 16. rclone
 
 Cloud file management using rclone. Covers setup checking, installation, remote configuration (S3, R2, B2, GDrive, Dropbox), common operations (copy, sync, ls, move), large file handling, and verification.
 
@@ -173,7 +191,7 @@ Cloud file management using rclone. Covers setup checking, installation, remote 
 - **Loaded By:** `/lp-feature-video`
 - **Interconnections:** Used by `feature-video` command for uploading recorded video assets.
 
-#### 15. imgup
+#### 17. imgup
 
 Lightweight image hosting for quick sharing. Uploads screenshots and small files to public hosting services (pixhost, catbox, imagebin, beeimg) without cloud provider setup. Returns public URLs for embedding in markdown.
 
