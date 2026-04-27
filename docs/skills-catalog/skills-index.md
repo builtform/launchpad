@@ -28,9 +28,9 @@ Skills loaded by design workflow commands to enforce visual quality and responsi
 
 | #   | Skill                     | Category | Description                                                            | Loaded By                                           |
 | --- | ------------------------- | -------- | ---------------------------------------------------------------------- | --------------------------------------------------- |
-| 9   | **frontend-design**       | Design   | Creative direction, anti-AI-slop, bold aesthetic (+ 7 reference files) | `/lp-inf`, design agents                            |
-| 10  | **web-design-guidelines** | Design   | Engineering compliance checklist (MUST/SHOULD/NEVER rules)             | `/lp-inf`, design agents                            |
-| 11  | **responsive-design**     | Design   | Spec-layer responsive thinking (3 modes: A/B/C)                        | `/lp-shape-section`, `/lp-define-design`, `/lp-pnf` |
+| 10  | **frontend-design**       | Design   | Creative direction, anti-AI-slop, bold aesthetic (+ 7 reference files) | `/lp-inf`, design agents                            |
+| 11  | **web-design-guidelines** | Design   | Engineering compliance checklist (MUST/SHOULD/NEVER rules)             | `/lp-inf`, design agents                            |
+| 12  | **responsive-design**     | Design   | Spec-layer responsive thinking (3 modes: A/B/C)                        | `/lp-shape-section`, `/lp-define-design`, `/lp-pnf` |
 
 ### Methodology Skills
 
@@ -38,8 +38,8 @@ Domain-specific best-practice rulesets loaded conditionally by planning and impl
 
 | #   | Skill                     | Category    | Description                                                          | Loaded By                          |
 | --- | ------------------------- | ----------- | -------------------------------------------------------------------- | ---------------------------------- |
-| 12  | **react-best-practices**  | Methodology | React/Next.js patterns (70 rules, 9 categories, + 9 reference files) | `/lp-pnf`, `/lp-inf` (conditional) |
-| 13  | **stripe-best-practices** | Methodology | Stripe integration patterns (+ 3 reference files + 1 eval)           | `/lp-pnf`, `/lp-inf` (conditional) |
+| 13  | **react-best-practices**  | Methodology | React/Next.js patterns (70 rules, 9 categories, + 9 reference files) | `/lp-pnf`, `/lp-inf` (conditional) |
+| 14  | **stripe-best-practices** | Methodology | Stripe integration patterns (+ 3 reference files + 1 eval)           | `/lp-pnf`, `/lp-inf` (conditional) |
 
 ### Utility Skills
 
@@ -47,8 +47,8 @@ Standalone tools loaded by specific commands for file management and media workf
 
 | #   | Skill      | Category | Description                                      | Loaded By           |
 | --- | ---------- | -------- | ------------------------------------------------ | ------------------- |
-| 14  | **rclone** | Utility  | Cloud file management (S3, R2, B2, GDrive, etc.) | `/lp-feature-video` |
-| 15  | **imgup**  | Utility  | Lightweight image hosting for quick sharing      | `/lp-feature-video` |
+| 15  | **rclone** | Utility  | Cloud file management (S3, R2, B2, GDrive, etc.) | `/lp-feature-video` |
+| 16  | **imgup**  | Utility  | Lightweight image hosting for quick sharing      | `/lp-feature-video` |
 
 ---
 
@@ -120,9 +120,17 @@ Converts PRD markdown documents into `prd.json` format for the compound executio
 - **Loaded By:** `/lp-pnf`, `/lp-inf`
 - **Interconnections:** Consumes output from `prd` skill. Output is consumed by `build.sh` and `loop.sh` execution pipeline.
 
+#### 9. verification-before-completion
+
+Enforcement-style skill that mandates fresh verification evidence (test/typecheck/lint/build output) before any agent claims work is done, fixed, or passing. Auto-triggers on completion-claim phrasing across commands and refuses claims that lack attached command output. Maps each kind of claim ("tests pass", "build green", "PR ready", "Definition of Done met") to the verification command that proves it.
+
+- **Key Outputs:** Verification evidence (command output) attached to every completion claim
+- **Loaded By:** auto-trigger on completion-claim phrasing across commands; effective in any command that issues completion claims (notably `/lp-commit`, `/lp-ship`, `/lp-build`)
+- **Interconnections:** Closes the most common agentic failure mode where work is declared done without running checks. Adapted from [obra/superpowers](https://github.com/obra/superpowers) (MIT).
+
 ### Design Skills
 
-#### 9. frontend-design
+#### 10. frontend-design
 
 Creative direction skill that enforces bold, distinctive aesthetics and fights generic AI-generated UI. Includes 7 reference files covering typography, color, layout, animation, and component patterns.
 
@@ -130,7 +138,7 @@ Creative direction skill that enforces bold, distinctive aesthetics and fights g
 - **Loaded By:** `/lp-inf`, design agents
 - **Interconnections:** Works alongside `web-design-guidelines` and `responsive-design` for complete design coverage.
 
-#### 10. web-design-guidelines
+#### 11. web-design-guidelines
 
 Engineering compliance checklist organized as MUST/SHOULD/NEVER rules. Covers accessibility, keyboard navigation, focus management, forms, animation, typography, images, performance, dark mode, i18n, and hydration.
 
@@ -138,7 +146,7 @@ Engineering compliance checklist organized as MUST/SHOULD/NEVER rules. Covers ac
 - **Loaded By:** `/lp-inf`, design agents
 - **Interconnections:** Complements `frontend-design` (aesthetic) with engineering correctness.
 
-#### 11. responsive-design
+#### 12. responsive-design
 
 Injects responsive-first thinking into section specs and design definitions. Operates in 3 modes: A (full spec enrichment), B (component-level breakpoint audit), C (quick mobile-first check).
 
@@ -148,7 +156,7 @@ Injects responsive-first thinking into section specs and design definitions. Ope
 
 ### Methodology Skills
 
-#### 12. react-best-practices
+#### 13. react-best-practices
 
 70 rules across 9 categories for React and Next.js development, prioritized by impact (CRITICAL > HIGH > MEDIUM > LOW). Covers async patterns, bundle optimization, server-side performance, client-side dynamics, and composition. Includes 9 reference files.
 
@@ -156,7 +164,7 @@ Injects responsive-first thinking into section specs and design definitions. Ope
 - **Loaded By:** `/lp-pnf`, `/lp-inf` (loaded conditionally when project uses React/Next.js)
 - **Interconnections:** Enforced during implementation and reviewed during `/lp-review`.
 
-#### 13. stripe-best-practices
+#### 14. stripe-best-practices
 
 Stripe integration patterns enforcing Checkout Sessions over raw PaymentIntents, modern API usage, webhook security with Hono, Prisma-backed subscription state, and Connect platform best practices. Includes 3 reference files and 1 eval.
 
@@ -166,7 +174,7 @@ Stripe integration patterns enforcing Checkout Sessions over raw PaymentIntents,
 
 ### Utility Skills
 
-#### 14. rclone
+#### 15. rclone
 
 Cloud file management using rclone. Covers setup checking, installation, remote configuration (S3, R2, B2, GDrive, Dropbox), common operations (copy, sync, ls, move), large file handling, and verification.
 
@@ -174,7 +182,7 @@ Cloud file management using rclone. Covers setup checking, installation, remote 
 - **Loaded By:** `/lp-feature-video`
 - **Interconnections:** Used by `feature-video` command for uploading recorded video assets.
 
-#### 15. imgup
+#### 16. imgup
 
 Lightweight image hosting for quick sharing. Uploads screenshots and small files to public hosting services (pixhost, catbox, imagebin, beeimg) without cloud provider setup. Returns public URLs for embedding in markdown.
 
