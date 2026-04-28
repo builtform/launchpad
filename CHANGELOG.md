@@ -6,11 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Tracked in [ROADMAP.md](ROADMAP.md). v1.1 will ship the Codex CLI overlay generator alongside polyglot stack-detection refinements.
+Tracked in [ROADMAP.md](ROADMAP.md). Future minor releases will continue with the Codex CLI overlay generator and polyglot stack-detection refinements.
+
+## [1.1.0] — 2026-04-27
+
+Minor release. Adds an enforcement-style skill that mandates fresh verification evidence before any agent claims work is done. No breaking changes; install path unchanged.
 
 ### Added
 
-- **`lp-verification-before-completion` skill.** Enforces evidence-before-claims for completion assertions. Maps each kind of completion claim ("tests pass", "build green", "PR ready") to the verification command that produces fresh evidence (test/typecheck/lint/build) and refuses the claim until the command's output is attached. Auto-triggers on completion-claim phrasing across commands. Closes the most common agentic failure mode where work is declared done without running the checks. Adapted from [obra/superpowers](https://github.com/obra/superpowers) (MIT). See `plugins/launchpad/skills/lp-verification-before-completion/SKILL.md`.
+- **`lp-verification-before-completion` skill.** Enforces evidence-before-claims for completion assertions. Maps each kind of completion claim ("tests pass", "build green", "PR ready", "Definition of Done met") to the verification command that proves it (test/typecheck/lint/build) and refuses the claim until the command's exit code and output are attached. Auto-triggers on completion-claim phrasing across commands. Closes the most common agentic failure mode where work is declared done without running the checks. The TS-stack pnpm examples in the skill prose are illustrative; for other stacks, commands resolve to `.launchpad/config.yml`'s `commands.test`/`commands.typecheck`/`commands.lint`/`commands.build` arrays via `plugin-build-runner.py`. Adapted from [obra/superpowers](https://github.com/obra/superpowers) (MIT). See `plugins/launchpad/skills/lp-verification-before-completion/SKILL.md`.
+
+### Documentation
+
+- `docs/skills-catalog/skills-index.md` — new entry for `lp-verification-before-completion` plus full Detailed Description; closes a pre-existing gap by adding the missing entry for `lp-step-zero`; numbering 1–17 contiguous across all sections; header count reconciled with `README.md` and the on-disk skills directory at 17
+- `docs/skills-catalog/README.md` — harness-skills count and alphabetical list updated (16 → 17)
+- `docs/releases/v1.1.0.md` — hand-authored release notes (required by the LaunchPad-only release-notes-check gate)
+
+### Internal
+
+- All 15 plugin test suites pass; frontmatter integrity check now reports 17 skills (was 16)
+- Full `ci.yml` required-checks suite green (Type Check, Lint, Build, Test, Repo Structure, Install)
+- Greptile + Codex dual-reviewer cycle ran clean
 
 ## [1.0.0] — 2026-04-24
 
