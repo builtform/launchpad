@@ -75,5 +75,7 @@ Carried forward into v1.1:
 
 Full v1.1 scope in [ROADMAP.md](ROADMAP.md).
 
-[Unreleased]: https://github.com/builtform/launchpad/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/builtform/launchpad/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/builtform/launchpad/compare/v1.0.1...v1.1.0
+[1.0.1]: https://github.com/builtform/launchpad/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/builtform/launchpad/releases/tag/v1.0.0
