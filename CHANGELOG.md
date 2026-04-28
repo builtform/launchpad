@@ -28,6 +28,40 @@ Minor release. Adds an enforcement-style skill that mandates fresh verification 
 - Full `ci.yml` required-checks suite green (Type Check, Lint, Build, Test, Repo Structure, Install)
 - Greptile + Codex dual-reviewer cycle ran clean
 
+## [1.0.1] — 2026-04-26
+
+Patch release: dependency hygiene and a second AI code reviewer for every PR. No production code changes — the plugin behavior at install is identical to v1.0.0.
+
+### Security
+
+- **23 of 26 flagged CVEs cleared** via direct dep bumps + `pnpm update --recursive && pnpm dedupe`
+  - High-severity fixes: `hono` → 4.12.15 (arbitrary file access via serveStatic), `@hono/node-server` → 1.19.14 (auth bypass via encoded slashes), `next` → 15.5.15 (Server Components DoS), `picomatch` (ReDoS), `defu` (proto pollution), `effect` (concurrency context contamination), `flatted` (proto pollution)
+  - Medium-severity fixes: cleared 12+ medium CVEs across `hono`, `next`, `picomatch`, `brace-expansion`, `postcss`, `vite`, and others
+- **3 residual CVEs** in deeply-transitive copies (esbuild 0.21.5, postcss 8.4.31, vite 5.4.21) pinned by other dependencies; addressable via `pnpm.overrides` if upstream Dependabot keeps flagging them
+- **GitHub Actions runners upgraded** to current major versions (commit-pinned): `actions/checkout` v6.0.2, `actions/setup-node` v6.4.0, `actions/cache` v5.0.5
+
+### Added
+
+- **Greptile as a second AI code reviewer** alongside Codex on every PR. Codex covers the narrow / line-level lane (per-PR diff context); Greptile covers the wide / codebase-aware lane (pre-indexed graph of the whole repo). Both advisory only; merge gating remains the existing required `ci.yml` jobs. Configured via `greptile.json` at repo root.
+- **Template support for downstream projects** — `greptile.template.json` + `init-project.sh` swap-chain wiring so projects scaffolded from the LaunchPad template inherit the dual-reviewer pattern automatically.
+- New CI workflow `.github/workflows/release-notes-check.yml` (LaunchPad-only) — enforces that every release PR and tag push includes a hand-authored `docs/releases/v<VERSION>.md` file.
+- New maintainer-only doc `docs/maintainers/RELEASE_PROCESS.md` (LaunchPad-only) — explicit step-by-step release checklist.
+
+### Changed
+
+- `/lp-commit`, `/lp-ship`, and `/lp-build` PR-monitoring loops now include Gate B3 for Greptile alongside Gate B2 for Codex
+- Gate numbering aligned across `/lp-commit` and `/lp-ship` (B1 = human review, B2 = Codex, B3 = Greptile)
+- `/lp-ship` autonomous auto-fix criteria for Greptile findings now use concrete signals (P0/P1 severity + cross-file evidence)
+
+### Documentation
+
+- New `docs/architecture/CI_CD.md` — full dual-reviewer reference, Dependabot hygiene, merge protocol
+- `docs/guides/HOW_IT_WORKS.md` — tech-stack table updated; new "Setting up Greptile" subsection
+- `SECURITY.md` — new hardening recommendation describing the dual-reviewer pattern
+- `docs/architecture/REPOSITORY_STRUCTURE.md` + `scripts/maintenance/check-repo-structure.sh` — root-file whitelist now allows `greptile.json` and `greptile.template.json`
+
+Full details in [docs/releases/v1.0.1.md](docs/releases/v1.0.1.md).
+
 ## [1.0.0] — 2026-04-24
 
 First public release. LaunchPad is now installable as a Claude Code plugin from the BuiltForm marketplace and runs end-to-end in any brownfield repository — no template clone required.
