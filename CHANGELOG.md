@@ -6,11 +6,61 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Tracked in [ROADMAP.md](ROADMAP.md). v1.1 will ship the Codex CLI overlay generator alongside polyglot stack-detection refinements.
+Tracked in [ROADMAP.md](ROADMAP.md). Future minor releases will continue with the Codex CLI overlay generator and polyglot stack-detection refinements.
+
+## [1.1.0] — 2026-04-27
+
+Minor release. Adds an enforcement-style skill that mandates fresh verification evidence before any agent claims work is done. No breaking changes; install path unchanged.
 
 ### Added
 
-- **`lp-verification-before-completion` skill.** Enforces evidence-before-claims for completion assertions. Maps each kind of completion claim ("tests pass", "build green", "PR ready") to the verification command that produces fresh evidence (test/typecheck/lint/build) and refuses the claim until the command's output is attached. Auto-triggers on completion-claim phrasing across commands. Closes the most common agentic failure mode where work is declared done without running the checks. Adapted from [obra/superpowers](https://github.com/obra/superpowers) (MIT). See `plugins/launchpad/skills/lp-verification-before-completion/SKILL.md`.
+- **`lp-verification-before-completion` skill.** Enforces evidence-before-claims for completion assertions. Maps each kind of completion claim ("tests pass", "build green", "PR ready", "Definition of Done met") to the verification command that proves it (test/typecheck/lint/build) and refuses the claim until the command's exit code and output are attached. Auto-triggers on completion-claim phrasing across commands. Closes the most common agentic failure mode where work is declared done without running the checks. The TS-stack pnpm examples in the skill prose are illustrative; for other stacks, commands resolve to `.launchpad/config.yml`'s `commands.test`/`commands.typecheck`/`commands.lint`/`commands.build` arrays via `plugin-build-runner.py`. Adapted from [obra/superpowers](https://github.com/obra/superpowers) (MIT). See `plugins/launchpad/skills/lp-verification-before-completion/SKILL.md`.
+
+### Documentation
+
+- `docs/skills-catalog/skills-index.md` — new entry for `lp-verification-before-completion` plus full Detailed Description; closes a pre-existing gap by adding the missing entry for `lp-step-zero`; numbering 1–17 contiguous across all sections; header count reconciled with `README.md` and the on-disk skills directory at 17
+- `docs/skills-catalog/README.md` — harness-skills count and alphabetical list updated (16 → 17)
+- `docs/releases/v1.1.0.md` — hand-authored release notes (required by the LaunchPad-only release-notes-check gate)
+
+### Internal
+
+- All 15 plugin test suites pass; frontmatter integrity check now reports 17 skills (was 16)
+- Full `ci.yml` required-checks suite green (Type Check, Lint, Build, Test, Repo Structure, Install)
+- Greptile + Codex dual-reviewer cycle ran clean
+
+## [1.0.1] — 2026-04-26
+
+Patch release: dependency hygiene and a second AI code reviewer for every PR. No production code changes — the plugin behavior at install is identical to v1.0.0.
+
+### Security
+
+- **23 of 26 flagged CVEs cleared** via direct dep bumps + `pnpm update --recursive && pnpm dedupe`
+  - High-severity fixes: `hono` → 4.12.15 (arbitrary file access via serveStatic), `@hono/node-server` → 1.19.14 (auth bypass via encoded slashes), `next` → 15.5.15 (Server Components DoS), `picomatch` (ReDoS), `defu` (proto pollution), `effect` (concurrency context contamination), `flatted` (proto pollution)
+  - Medium-severity fixes: cleared 12+ medium CVEs across `hono`, `next`, `picomatch`, `brace-expansion`, `postcss`, `vite`, and others
+- **3 residual CVEs** in deeply-transitive copies (esbuild 0.21.5, postcss 8.4.31, vite 5.4.21) pinned by other dependencies; addressable via `pnpm.overrides` if upstream Dependabot keeps flagging them
+- **GitHub Actions runners upgraded** to current major versions (commit-pinned): `actions/checkout` v6.0.2, `actions/setup-node` v6.4.0, `actions/cache` v5.0.5
+
+### Added
+
+- **Greptile as a second AI code reviewer** alongside Codex on every PR. Codex covers the narrow / line-level lane (per-PR diff context); Greptile covers the wide / codebase-aware lane (pre-indexed graph of the whole repo). Both advisory only; merge gating remains the existing required `ci.yml` jobs. Configured via `greptile.json` at repo root.
+- **Template support for downstream projects** — `greptile.template.json` + `init-project.sh` swap-chain wiring so projects scaffolded from the LaunchPad template inherit the dual-reviewer pattern automatically.
+- New CI workflow `.github/workflows/release-notes-check.yml` (LaunchPad-only) — enforces that every release PR and tag push includes a hand-authored `docs/releases/v<VERSION>.md` file.
+- New maintainer-only doc `docs/maintainers/RELEASE_PROCESS.md` (LaunchPad-only) — explicit step-by-step release checklist.
+
+### Changed
+
+- `/lp-commit`, `/lp-ship`, and `/lp-build` PR-monitoring loops now include Gate B3 for Greptile alongside Gate B2 for Codex
+- Gate numbering aligned across `/lp-commit` and `/lp-ship` (B1 = human review, B2 = Codex, B3 = Greptile)
+- `/lp-ship` autonomous auto-fix criteria for Greptile findings now use concrete signals (P0/P1 severity + cross-file evidence)
+
+### Documentation
+
+- New `docs/architecture/CI_CD.md` — full dual-reviewer reference, Dependabot hygiene, merge protocol
+- `docs/guides/HOW_IT_WORKS.md` — tech-stack table updated; new "Setting up Greptile" subsection
+- `SECURITY.md` — new hardening recommendation describing the dual-reviewer pattern
+- `docs/architecture/REPOSITORY_STRUCTURE.md` + `scripts/maintenance/check-repo-structure.sh` — root-file whitelist now allows `greptile.json` and `greptile.template.json`
+
+Full details in [docs/releases/v1.0.1.md](docs/releases/v1.0.1.md).
 
 ## [1.0.0] — 2026-04-24
 
@@ -59,5 +109,7 @@ Carried forward into v1.1:
 
 Full v1.1 scope in [ROADMAP.md](ROADMAP.md).
 
-[Unreleased]: https://github.com/builtform/launchpad/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/builtform/launchpad/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/builtform/launchpad/compare/v1.0.1...v1.1.0
+[1.0.1]: https://github.com/builtform/launchpad/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/builtform/launchpad/releases/tag/v1.0.0
