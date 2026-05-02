@@ -53,7 +53,7 @@ def _check_typed_dict(obj: dict, expected_type: type, context: str, errors: list
             errors.append(f"{context}: missing required key {key!r}")
 
 
-def test_adapter(name: str, module) -> list[str]:
+def _check_adapter(name: str, module) -> list[str]:
     errors: list[str] = []
     ctx = f"adapter={name}"
 
@@ -87,7 +87,7 @@ def test_adapter(name: str, module) -> list[str]:
     return errors
 
 
-def test_polyglot_composer() -> list[str]:
+def _check_polyglot_composer() -> list[str]:
     errors: list[str] = []
 
     # Single-stack input → fast path (no merging)
@@ -139,10 +139,10 @@ def main() -> int:
     all_errors: list[str] = []
 
     for name, mod in ADAPTERS:
-        errs = test_adapter(name, mod)
+        errs = _check_adapter(name, mod)
         all_errors.extend(errs)
 
-    all_errors.extend(test_polyglot_composer())
+    all_errors.extend(_check_polyglot_composer())
 
     if all_errors:
         print("FAIL: adapter contract validation")

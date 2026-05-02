@@ -1,0 +1,21 @@
+{
+  "cross_cutting_files": ["lefthook.yml", ".gitignore"],
+  "decision_nonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "decision_sha256": "4836451131e714bbf206d922e42b9bf19cc5db95e426e5293332c7c575e938a3",
+  "layers_materialized": [
+    {
+      "files_created": ["package.json", "astro.config.mjs", "src/pages/index.astro"],
+      "path": ".",
+      "scaffolder_used": "orchestrate",
+      "stack": "astro"
+    }
+  ],
+  "scaffolded_at": "2026-04-30T12:05:00Z",
+  "secret_scan_passed": true,
+  "sha256": "e0a5fab54d422ea01c9a1f997f33975c433d41a67f443110c887ad5ed6e27d2c",
+  "tier1_governance_summary": {
+    "architecture_docs_rendered": 8
+  },
+  "toolchains_detected": ["node"],
+  "version": "1.0"
+}

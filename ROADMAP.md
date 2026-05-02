@@ -44,6 +44,79 @@ Explicit non-goals so the scope stays honest:
 - **Cross-CLI plugin marketplace federation.** Each CLI continues to ship from its own marketplace. The overlay generator produces artifacts; it does not publish them automatically.
 - **`lp-` filename-prefix removal.** The plugin already namespaces commands at the CLI level; the additional `lp-` filename prefix is cosmetic redundancy. Removal is queued indefinitely as it touches ~100 files for no functional gain.
 
+## v2.0 — Released
+
+v2.0 introduces a 4-step user pipeline for greenfield project scaffolding: `/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`. The brownfield path (existing-repo `/lp-brainstorm` → `/lp-define`) continues to work unchanged.
+
+Full release notes: [docs/releases/v2.0.0.md](docs/releases/v2.0.0.md).
+
+### v2.0 catalog (10 stacks)
+
+| Stack      | Pillar                       | Status  |
+| ---------- | ---------------------------- | ------- |
+| `astro`    | Frontend Content/Performance | ✅ v2.0 |
+| `next`     | Frontend App                 | ✅ v2.0 |
+| `eleventy` | Frontend Content             | ✅ v2.0 |
+| `hugo`     | Frontend Content (Go)        | ✅ v2.0 |
+| `hono`     | Backend Edge-native TS       | ✅ v2.0 |
+| `fastapi`  | Backend Python               | ✅ v2.0 |
+| `django`   | Backend Python               | ✅ v2.0 |
+| `rails`    | Backend MVC (Ruby)           | ✅ v2.0 |
+| `supabase` | Backend Managed              | ✅ v2.0 |
+| `expo`     | Frontend Mobile (RN)         | ✅ v2.0 |
+
+The 10-stack scope is curated so every recommendation `/lp-pick-stack` makes points to a stack with a working `/lp-define` adapter rendering stack-specific architecture docs.
+
+### v2.0 integrity primitives
+
+- **JSON canonicalization + `canonical_hash()`** — byte-deterministic SHA-256 across implementations
+- **`scaffold-decision.json` schema** with `bound_cwd` triple (realpath + st_dev + st_ino), nonce ledger replay protection, 4-hour replay window
+- **`scaffold-receipt.json`** with chain-of-custody back to pick-stack
+- **Path validator + greenfield/brownfield detector** as single sources of truth across commands
+- **Rationale summary extractor** with prompt-injection defenses (NFKC normalization, forbidden-bullet patterns)
+- **`safe_run()` subprocess helper** with strict env allowlist + LC_CTYPE override
+
+## v2.1
+
+v2.1 is documentation-only: refreshed `METHODOLOGY.md` + `HOW_IT_WORKS.md` + governance updates that reflect the v2.0 pipeline as a first-class workflow. No new stacks, no new commands.
+
+## v2.2
+
+v2.2 lands the operational/security infrastructure deferred from v2.0 per the v2.0 strip-back, plus the 10 deferred stacks queued behind v2.0's curated catalog.
+
+### Operational/security infrastructure
+
+- `forensic_writer.py` SRP-split module with `security-events.jsonl` chain-hashing
+- Multi-signal CI detection (filesystem markers + parent-process check)
+- PyYAML AST `pull_request_target` shape check (replaces grep-based v2.0 check)
+- Tag protection rule + content verification + nightly watchdog
+- Recall procedure (`vX.Y.Z-recalled` rename) + 24h post-tag observation window
+- Authored runbooks: `rollback-runbook.md` + `branch-protection-token.md`
+- Consolidated `v2-nightly-checks.yml` workflow
+- `recovery_commands` runtime enforcement contract
+- Exponential-backoff polling for `verify-v2-ship`
+- KAT cross-platform parity (macOS CI leg)
+- `.first-run-marker` integrity binding (JSON envelope + sha256 + bound_cwd)
+
+### Deferred stacks
+
+The following stacks are queued for v2.2 alongside the infrastructure work — user demand and ecosystem signal drive prioritization within the list.
+
+| Stack                | Pillar                    |
+| -------------------- | ------------------------- |
+| `cloudflare-workers` | Backend Edge-native       |
+| `tauri`              | Cross-platform desktop    |
+| `nestjs`             | Enterprise TS backend     |
+| `laravel`            | PHP MVC framework         |
+| `vite`               | Generic SPA scaffolder    |
+| `sveltekit`          | Frontend App              |
+| `elysia`             | Backend Edge-native TS    |
+| `phoenix-liveview`   | Backend Realtime (Elixir) |
+| `convex`             | Backend Managed           |
+| `flutter`            | Frontend Mobile (Dart)    |
+
+Want a deferred stack moved up the v2.2 priority list? Open an issue at the LaunchPad GitHub repo with the title `[v2.2] Stack request: <name>` and a one-paragraph use case.
+
 ## Branch model
 
 LaunchPad uses a simple branch model:

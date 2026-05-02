@@ -62,6 +62,16 @@ MANIFEST_ALLOWLIST = frozenset([
     "composer.json",
 ])
 
+# v2.0 single-source enforcement (HANDSHAKE §8): the broader brownfield-
+# detection set is owned by `cwd_state.py` and shared across v1 + v2 surfaces.
+# This module IMPORTS it (does NOT redefine it). The stack-detector itself
+# uses the narrower MANIFEST_ALLOWLIST above for its own bounded-walk
+# parsing logic; the imported constant is exposed for the single-source
+# CI lint assertion + identity check (test_brownfield_manifests_single_source.py).
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+from cwd_state import BROWNFIELD_MANIFESTS  # noqa: E402  (single-source enforcement)
+
 # Noise directories that bloat the walk with dep/build output.
 EXCLUDED_DIRS = frozenset([
     "node_modules",

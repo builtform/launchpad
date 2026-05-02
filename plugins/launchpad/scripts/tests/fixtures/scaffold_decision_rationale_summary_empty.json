@@ -1,0 +1,52 @@
+{
+  "bound_cwd": {
+    "realpath": "/tmp/lp-fixture",
+    "st_dev": 16777220,
+    "st_ino": 1234567
+  },
+  "generated_at": "2026-04-30T12:00:00Z",
+  "generated_by": "/lp-pick-stack",
+  "layers": [
+    {
+      "options": {
+        "template": "blog"
+      },
+      "path": ".",
+      "role": "frontend",
+      "stack": "astro"
+    }
+  ],
+  "matched_category_id": "static-blog-astro",
+  "monorepo": false,
+  "nonce": "ffffffffffffffffffffffffffffffff",
+  "rationale_path": ".launchpad/rationale.md",
+  "rationale_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "rationale_summary": [
+    {
+      "bullets": [],
+      "section": "project-understanding"
+    },
+    {
+      "bullets": [],
+      "section": "matched-category"
+    },
+    {
+      "bullets": [],
+      "section": "stack"
+    },
+    {
+      "bullets": [],
+      "section": "why-this-fits"
+    },
+    {
+      "bullets": [],
+      "section": "alternatives"
+    },
+    {
+      "bullets": [],
+      "section": "notes"
+    }
+  ],
+  "sha256": "9aefc279421ca9729636d12178812bc1be864bb8e3fb772c85e906b48e1ba70c",
+  "version": "1.0"
+}

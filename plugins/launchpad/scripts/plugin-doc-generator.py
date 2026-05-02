@@ -48,7 +48,20 @@ if str(SCRIPT_DIR) not in sys.path:
 
 import jinja2  # noqa: E402
 
-from plugin_stack_adapters import generic, go_cli, polyglot, python_django, ts_monorepo, secret_scanner  # noqa: E402
+from plugin_stack_adapters import (  # noqa: E402
+    astro_adapter,
+    eleventy_adapter,
+    expo_adapter,
+    fastapi_adapter,
+    generic,
+    go_cli,
+    hugo_adapter,
+    polyglot,
+    python_django,
+    rails_adapter,
+    secret_scanner,
+    ts_monorepo,
+)
 
 # manifest_stripper is intentionally NOT imported here. The stripper exists
 # as a defense-in-depth layer for a flow that does not currently happen:
@@ -138,12 +151,121 @@ def compose_adapter_output(stacks: list[str]) -> AdapterOutput:
     return polyglot.compose(stacks)
 
 
+# Default-path prefixes the per-adapter contract uses for path fields. When
+# a layer materializes at a different `path` (e.g., `.` for static-blog
+# greenfield), these prefixes are rewritten in the AdapterOutput so the
+# rendered architecture docs reference the actual scaffolded location
+# (PR #41 cycle 10 #1 closure — Codex P1).
+_ADAPTER_DEFAULT_PATH_PREFIXES = {
+    "astro": "apps/web",
+    "next": "apps/web",
+    "ts_monorepo": "apps/web",
+    "fastapi": "apps/api",
+    "expo": "apps/mobile",
+    "hugo": "",       # hugo defaults to project-root paths (content/, layouts/)
+    "eleventy": "",   # eleventy defaults to project-root paths (src/)
+    "rails": "",      # rails defaults to project-root paths (app/, config/)
+    "python_django": "",
+    "go_cli": "",
+    "generic": "",
+    "hono": "apps/api",
+    "django": "",
+    "supabase": "supabase",
+}
+
+
+def _rewrite_path(value: str | None, old_prefix: str, new_prefix: str) -> str | None:
+    """Replace a leading `old_prefix/` with `new_prefix/` (or strip if new is `.`).
+
+    Returns the original value unchanged when:
+      - value is None / empty
+      - old_prefix is empty (adapter doesn't use a fixed prefix)
+      - value doesn't start with `old_prefix/` (already-customized path)
+    """
+    if not value or not old_prefix:
+        return value
+    needle = old_prefix.rstrip("/") + "/"
+    if not value.startswith(needle):
+        return value
+    suffix = value[len(needle):]
+    new = new_prefix.rstrip("/")
+    if new in ("", "."):
+        return suffix
+    return f"{new}/{suffix}"
+
+
+def _rewrite_adapter_paths(
+    adapter_out: AdapterOutput,
+    layer_paths: dict[str, str],
+    stacks: list[str],
+) -> AdapterOutput:
+    """Rewrite path-bearing fields in AdapterOutput to match the layer paths
+    actually used by the scaffolder (read from the receipt's
+    `layers_materialized[].path`).
+
+    For both single-stack AND multi-stack scaffolds: walks every layer's
+    stack→path mapping and rewrites that stack's documented default prefix
+    in the merged AdapterOutput's backend/frontend fields. The rewrite is
+    conservative — it only swaps the adapter's documented default prefix;
+    user-customized paths (anything not starting with the default prefix)
+    pass through unchanged.
+
+    Multi-stack handling (PR #41 cycle 11 #1 closure — Codex P1): without
+    this loop, polyglot composers picked the first STACK_PRECEDENCE adapter
+    for backend/frontend output, but the actual scaffolded paths could be
+    elsewhere (e.g., polyglot-next-fastapi puts FastAPI at `services/api`
+    while next is at `apps/web`). The composer-side `compose_with_layers()`
+    selects the correct adapter by role; this rewriter ensures its path
+    fields point at the correct on-disk location.
+    """
+    if not stacks or not layer_paths:
+        return adapter_out
+    backend = dict(adapter_out["backend"])
+    front = adapter_out.get("frontend")
+    if isinstance(front, dict):
+        front = dict(front)
+    for stack_id, actual_path in layer_paths.items():
+        if not actual_path:
+            continue
+        default_prefix = _ADAPTER_DEFAULT_PATH_PREFIXES.get(stack_id, "")
+        if not default_prefix or default_prefix == actual_path.rstrip("/"):
+            continue
+        backend["routes_dir"] = _rewrite_path(
+            backend.get("routes_dir"), default_prefix, actual_path,
+        )
+        backend["models_dir"] = _rewrite_path(
+            backend.get("models_dir"), default_prefix, actual_path,
+        )
+        if isinstance(front, dict):
+            front["component_dir"] = _rewrite_path(
+                front.get("component_dir"), default_prefix, actual_path,
+            )
+    rewritten = dict(adapter_out)
+    rewritten["backend"] = backend
+    if front is not None:
+        rewritten["frontend"] = front
+    return rewritten  # type: ignore[return-value]
+
+
 def _single_adapter(stack_id: str):
     mapping = {
         "ts_monorepo": ts_monorepo,
         "python_django": python_django,
         "go_cli": go_cli,
         "generic": generic,
+        "astro": astro_adapter,
+        "fastapi": fastapi_adapter,
+        "rails": rails_adapter,
+        "hugo": hugo_adapter,
+        "eleventy": eleventy_adapter,
+        "expo": expo_adapter,
+        # v2.0 catalog aliases (PR #41 cycle 3 #2 — closes the receipt-
+        # dispatch silent-fallback gap for `next`, `django`, `hono`,
+        # `supabase` which were missing from the legacy adapter mapping).
+        "next": ts_monorepo,
+        "django": python_django,
+        "hono": generic,
+        "supabase": generic,
     }
     return mapping.get(stack_id, generic)
 
@@ -288,15 +410,84 @@ def _read_config_overwrite(repo_root: Path) -> str:
 
 
 def generate(repo_root: Path, *, dry_run: bool = False, force: bool = False, only: set[str] | None = None, product_name: str = "Your Product") -> int:
-    # 1. Detect
+    # 1. Detect (manifest-based; the brownfield path)
     report = run_detector(repo_root)
     report["_repo_root"] = str(repo_root)  # passed through to render_docs for path-relativizing
 
-    # 2. Compose
-    stacks = report.get("stacks", ["generic"])
-    adapter_out = compose_adapter_output(stacks)
+    # 2. Compose. The greenfield path: prefer scaffold-receipt.json's
+    # `layers_materialized[].stack` over manifest detection. This is required
+    # for curate-mode stacks (eleventy/fastapi/django) which write only a
+    # README.scaffold.md and produce no detectable manifests, so manifest-
+    # detection alone would route them to `generic` (per Codex review #1 on
+    # PR #41 cycle 3 — receipt-based dispatch contract gap closure).
+    receipt_path = repo_root / ".launchpad" / "scaffold-receipt.json"
+    receipt_stacks: list[str] = []
+    receipt_layer_paths: dict[str, str] = {}  # stack_id → materialized path
+    receipt_layers: list[dict] = []  # full {stack, role, path} entries for compose_with_layers
+    if receipt_path.is_file():
+        try:
+            from plugin_scaffold_receipt_loader import load_receipt  # type: ignore[import-not-found]
+        except ImportError:
+            # Receipt loader is a sibling script; import via runpy-style fallback.
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "plugin_scaffold_receipt_loader",
+                SCRIPT_DIR / "plugin-scaffold-receipt-loader.py",
+            )
+            if spec and spec.loader:
+                _mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(_mod)
+                load_receipt = _mod.load_receipt  # type: ignore[attr-defined]
+            else:
+                load_receipt = None  # type: ignore[assignment]
+        if load_receipt is not None:
+            try:
+                receipt = load_receipt(receipt_path)
+                for layer in receipt.get("layers_materialized", []):
+                    if not isinstance(layer, dict) or "stack" not in layer:
+                        continue
+                    stack_id = str(layer["stack"])
+                    receipt_stacks.append(stack_id)
+                    # PR #41 cycle 10 #1 closure (Codex P1): preserve
+                    # layers_materialized[].path so adapter path fields can
+                    # be rewritten to match the actual scaffolded location.
+                    if "path" in layer:
+                        receipt_layer_paths[stack_id] = str(layer["path"])
+                    receipt_layers.append({
+                        "stack": stack_id,
+                        "role": str(layer.get("role", "")),
+                        "path": str(layer.get("path", "")),
+                    })
+            except Exception:
+                # Receipt malformed/expired: fall back to manifest detection.
+                receipt_stacks = []
+                receipt_layer_paths = {}
+                receipt_layers = []
+    stacks = receipt_stacks or report.get("stacks", ["generic"])
+    # PR #41 cycle 11 #1 closure (Codex P1): for receipt-driven multi-stack
+    # scaffolds with role data, use the role-aware composer so backend docs
+    # reflect the layer with role=backend/backend-managed/fullstack rather
+    # than the STACK_PRECEDENCE winner. Falls back to compose_adapter_output
+    # for single-stack receipts and for legacy receipts missing role data.
+    has_role_data = bool(receipt_layers) and any(
+        layer.get("role") for layer in receipt_layers
+    )
+    if has_role_data and len(receipt_layers) > 1:
+        adapter_out = polyglot.compose_with_layers(receipt_layers)
+    else:
+        adapter_out = compose_adapter_output(stacks)
+    if receipt_layer_paths:
+        adapter_out = _rewrite_adapter_paths(adapter_out, receipt_layer_paths, stacks)
 
-    # 3. Render
+    # 3. Render — overwrite the detector's manifest-derived stacks with the
+    # resolved value so stack-conditional templates (e.g., agents.yml.j2)
+    # see what the adapter dispatch actually used. Curate-mode greenfield
+    # stacks (eleventy/fastapi/hugo) leave detector_report.stacks empty
+    # because there are no manifests on disk; without this overwrite the
+    # adapter renders a correct PRD/TECH_STACK but the conditional templates
+    # render against an empty stacks list and miss stack-specific blocks
+    # (PR #41 cycle 8 #3 closure — Codex P2).
+    report["stacks"] = list(stacks)
     rendered = render_docs(adapter_out, report, product_name)
     if only:
         rendered = {k: v for k, v in rendered.items() if Path(k).name in only}

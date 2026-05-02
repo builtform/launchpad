@@ -11,8 +11,20 @@ Collaborative brainstorming command. Explores ideas, generates approaches, and c
 
 ---
 
-## Phase 0: Assess Clarity
+## Phase 0: Assess Clarity + cwd_state routing
 
+- **cwd_state routing (v2.0 pipeline)** — call `cwd_state.cwd_state(cwd)`
+  per `docs/architecture/SCAFFOLD_HANDSHAKE.md` §8 BEFORE the brainstorm
+  prompt. The result drives the "Suggested next step" section the
+  brainstorm-summary will close with:
+  - `empty` (greenfield): suggest `/lp-pick-stack`
+  - `brownfield`: suggest `/lp-define` (the brownfield happy path skips
+    `/lp-pick-stack` + `/lp-scaffold-stack` entirely)
+  - `ambiguous`: prompt the user to confirm intent; default to brownfield
+    suggestion on no-answer
+- The `cwd_state_when_generated` field in `brainstorm-summary.md`
+  frontmatter is the result of THIS classification — recomputed on every
+  re-run per HANDSHAKE §7 (never inherited from a prior summary).
 - IF requirement is already clear and specific: skip to Phase 2
 - IF vague or exploratory: proceed to Phase 1
 
@@ -51,6 +63,42 @@ Collaborative brainstorming command. Explores ideas, generates approaches, and c
    - Key Decisions
    - Open Questions
    - Next Steps
+7. **v2.0 pipeline brainstorm-summary** — when the brainstorm is part of
+   the v2.0 greenfield pipeline (cwd_state classified at Phase 0), ALSO
+   write `.launchpad/brainstorm-summary.md` per `docs/architecture/SCAFFOLD_HANDSHAKE.md`
+   §7 with this frontmatter shape:
+
+   ```markdown
+   ---
+   generated_at: <ISO 8601 UTC sec-precision Z-suffix>
+   generated_by: /lp-brainstorm
+   greenfield: <true if cwd_state == "empty" else false>
+   cwd_state_when_generated: <empty | brownfield | ambiguous>
+   ---
+
+   # Project summary
+
+   <2-4 paragraphs of free-form Markdown describing the project intent.>
+
+   # Suggested next step
+
+   Run `/lp-pick-stack` next to choose a stack.
+
+   <!-- Or for brownfield: "Run /lp-define next." -->
+   ```
+
+   The body is treated as untrusted-as-data by every later-stage consumer;
+   `/lp-pick-stack` re-asks the user for a project description rather than
+   parsing the body. Re-running `/lp-brainstorm` overwrites the summary
+   with a new `generated_at` and recomputed `cwd_state_when_generated`.
+
+8. **Greenfield first-run marker (v2.0 pipeline; SCAFFOLD_HANDSHAKE.md §4 rule 10 strip-back substitute)**:
+   - Compute `cwd_state(.)` via `python3 plugins/launchpad/scripts/cwd_state.py` (or import + call) — ONLY proceed with marker write when state == "empty"
+   - For `brownfield` or `ambiguous` cwds: skip the marker write entirely; suggest `/lp-define` (brownfield happy path) and stop
+   - For `empty` (greenfield) cwds: `mkdir -p .launchpad/` then create `.launchpad/.first-run-marker` via `os.open(".launchpad/.first-run-marker", O_WRONLY | O_CREAT | O_EXCL, 0o600)` — the `O_EXCL` flag race-detects concurrent `/lp-brainstorm` invocations
+   - On `FileExistsError`: refuse with the user-facing hint: **"session in progress; remove `.launchpad/.first-run-marker` if stale OR run `/lp-scaffold-stack` to consume it first"** and exit
+   - The marker is an empty positive-presence sentinel — NO JSON envelope, NO sha256, NO bound_cwd, NO `.first-run-marker.lock`. The integrity-bound JSON envelope is BL-235 deferred to v2.2 per `docs/architecture/SCAFFOLD_HANDSHAKE.md` §1.5 strip-back notice
+   - The marker tells `/lp-scaffold-stack` that `/lp-brainstorm` ran in this cwd with greenfield state — it provides handoff context only. The empty-nonce-ledger first-run fast-path optimization is BL-235 DEFERRED to v2.2 (see `lp-scaffold-stack.md` Phase 0); v2.0 always takes the slow-path nonce-ledger check whether the marker exists or not. After `/lp-scaffold-stack` succeeds the marker gets renamed to `.first-run-marker.consumed.<iso-sec-ts>`.
 
 ## Phase 4: Refine + Handoff
 

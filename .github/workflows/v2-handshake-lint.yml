@@ -1,0 +1,72 @@
+# v2.0 handshake CI lint (OPERATIONS §2 + HANDSHAKE §12).
+# Single PR-triggered workflow; minimum-privilege `contents: read` token.
+# v1.x marketplace-lint and other workflows continue running unchanged on
+# feature branches; this workflow is scoped to feat/v2-greenfield-pipeline.
+name: v2-handshake-lint
+
+on:
+  pull_request:
+    branches:
+      - feat/v2-greenfield-pipeline
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  v2-handshake-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install psutil (vendored pin reference)
+        run: |
+          PIN=$(cat plugins/launchpad/scripts/_vendor/PSUTIL_VERSION)
+          python -m pip install --upgrade pip
+          python -m pip install "psutil==${PIN}"
+
+      - name: Install pyyaml (vendored pin reference)
+        run: |
+          PIN=$(cat plugins/launchpad/scripts/_vendor/PYYAML_VERSION)
+          python -m pip install "pyyaml==${PIN}"
+
+      - name: Install pytest
+        run: python -m pip install pytest
+
+      - name: Run v2 handshake lint
+        run: python plugins/launchpad/scripts/plugin-v2-handshake-lint.py
+
+      - name: Run full v2 test suite
+        # Run the FULL pytest suite under plugins/launchpad/scripts/. The
+        # configured testpaths in pytest.ini cover both `tests/` and
+        # `plugin_stack_adapters/tests/` — invoking pytest with no
+        # positional path picks up both (PR #41 cycle 6 #2 closure: the
+        # previous `tests/` argument silently excluded the StackId widening
+        # acceptance test). The previous narrow subset also masked the
+        # parents[3]→plugins/ default-paths bug because every test passed
+        # explicit override paths (cycle 4 #5 closure). If the full suite
+        # cost grows beyond 60s, partition with pytest-xdist instead of
+        # returning to a subset.
+        working-directory: plugins/launchpad/scripts
+        run: python -m pytest -q
+
+      - name: Default catalog paths smoke check
+        # Direct assertion that DEFAULT_SCAFFOLDERS_YML +
+        # DEFAULT_CATEGORY_PATTERNS_YML resolve to existing files when the
+        # engine module is imported with no overrides — guards against the
+        # parents[N] off-by-one bug recurring (cycle 4 #1 regression pin).
+        working-directory: plugins/launchpad/scripts
+        run: |
+          python -c "import sys; sys.path.insert(0, '.'); \
+            from lp_scaffold_stack.engine import DEFAULT_SCAFFOLDERS_YML, DEFAULT_CATEGORY_PATTERNS_YML; \
+            assert DEFAULT_SCAFFOLDERS_YML.is_file(), f'DEFAULT_SCAFFOLDERS_YML does not exist: {DEFAULT_SCAFFOLDERS_YML}'; \
+            assert DEFAULT_CATEGORY_PATTERNS_YML.is_file(), f'DEFAULT_CATEGORY_PATTERNS_YML does not exist: {DEFAULT_CATEGORY_PATTERNS_YML}'; \
+            print('default catalog paths exist')"
+
+      - name: Freshness advisory
+        run: python plugins/launchpad/scripts/plugin-freshness-check.py

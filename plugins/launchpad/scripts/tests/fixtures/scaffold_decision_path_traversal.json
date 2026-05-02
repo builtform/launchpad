@@ -1,0 +1,52 @@
+{
+  "bound_cwd": {
+    "realpath": "/tmp/lp-fixture",
+    "st_dev": 16777220,
+    "st_ino": 1234567
+  },
+  "generated_at": "2026-04-30T12:00:00Z",
+  "generated_by": "/lp-pick-stack",
+  "layers": [
+    {
+      "options": {
+        "template": "blog"
+      },
+      "path": "../escape",
+      "role": "frontend",
+      "stack": "astro"
+    }
+  ],
+  "matched_category_id": "static-blog-astro",
+  "monorepo": false,
+  "nonce": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "rationale_path": ".launchpad/rationale.md",
+  "rationale_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "rationale_summary": [
+    {
+      "bullets": ["Static blog for personal writing."],
+      "section": "project-understanding"
+    },
+    {
+      "bullets": ["static-blog-astro: Static blog (Astro)."],
+      "section": "matched-category"
+    },
+    {
+      "bullets": ["astro as frontend at ../escape"],
+      "section": "stack"
+    },
+    {
+      "bullets": ["TypeScript-first islands match user preference."],
+      "section": "why-this-fits"
+    },
+    {
+      "bullets": ["static-blog-eleventy: chosen against because TypeScript was preferred."],
+      "section": "alternatives"
+    },
+    {
+      "bullets": ["Six-month freshness review per BL-105."],
+      "section": "notes"
+    }
+  ],
+  "sha256": "47e0f9121d9b551ae33d620d9478e0cc282433853bdcdc4ae88bd0438989bd00",
+  "version": "1.0"
+}
