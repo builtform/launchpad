@@ -254,28 +254,43 @@ def run_pipeline(
     category_patterns_yml = category_patterns_yml or DEFAULT_CATEGORY_PATTERNS_YML
 
     # --- Step 0: greenfield gate ---
+    # Recovery exception: if a previous scaffold attempt left a partial-
+    # cleanup record (`.launchpad/scaffold-failed-*.json`) AND the original
+    # decision file is still present, allow the rerun even if cwd_state()
+    # now reports brownfield (any manifest the failed scaffolder created
+    # would tip the classifier). This preserves the documented recovery
+    # contract ("rerun /lp-scaffold-stack with the same decision after
+    # failure") which the strict greenfield gate would otherwise refuse
+    # (PR #41 cycle 5 #2 — closes self-contradicting recovery flow).
     if not skip_greenfield_gate:
-        try:
-            refuse_if_not_greenfield(cwd, COMMAND_NAME)
-        except (RuntimeError, NotADirectoryError) as exc:
-            elapsed = time.monotonic() - start
-            reason = ("cwd_state_brownfield" if "brownfield" in str(exc)
-                      else "cwd_state_ambiguous")
-            rej = Rejected(reason=reason, message=str(exc), field_name="cwd")
-            log_path = _emit_rejection(repo_root, rej, stderr=stderr)
-            result = PipelineResult(
-                success=False,
-                outcome=Outcome.ABORTED,
-                reason=reason,
-                message=str(exc),
-                rejection_log_path=log_path,
-                elapsed_seconds=elapsed,
-            )
-            if write_telemetry_flag:
-                _emit_telemetry(repo_root, outcome=Outcome.ABORTED,
-                                elapsed_seconds=elapsed,
-                                cwd_state_value=None, reason=reason)
-            return result
+        recovery_record = next(
+            (cwd / ".launchpad").glob("scaffold-failed-*.json"), None
+        ) if (cwd / ".launchpad").is_dir() else None
+        decision_present = (cwd / ".launchpad" / "scaffold-decision.json").is_file()
+        in_recovery_mode = recovery_record is not None and decision_present
+
+        if not in_recovery_mode:
+            try:
+                refuse_if_not_greenfield(cwd, COMMAND_NAME)
+            except (RuntimeError, NotADirectoryError) as exc:
+                elapsed = time.monotonic() - start
+                reason = ("cwd_state_brownfield" if "brownfield" in str(exc)
+                          else "cwd_state_ambiguous")
+                rej = Rejected(reason=reason, message=str(exc), field_name="cwd")
+                log_path = _emit_rejection(repo_root, rej, stderr=stderr)
+                result = PipelineResult(
+                    success=False,
+                    outcome=Outcome.ABORTED,
+                    reason=reason,
+                    message=str(exc),
+                    rejection_log_path=log_path,
+                    elapsed_seconds=elapsed,
+                )
+                if write_telemetry_flag:
+                    _emit_telemetry(repo_root, outcome=Outcome.ABORTED,
+                                    elapsed_seconds=elapsed,
+                                    cwd_state_value=None, reason=reason)
+                return result
 
     # --- Step 1a: decision file load + JSON parse ---
     decision_path = decision_file_path if decision_file_path is not None \
@@ -473,6 +488,7 @@ def run_pipeline(
             elapsed=elapsed,
             install_seconds=install_seconds,
             write_telemetry_flag=write_telemetry_flag,
+            cross_cutting_files=list(wiring.cross_cutting_files),
             recovery_action=(
                 "Secret-scan flagged content in materialized files. Investigate "
                 "the findings, remove sensitive material, and re-run."
@@ -515,6 +531,7 @@ def run_pipeline(
         return result
 
     # --- Step 5b: nonce ledger append (AFTER receipt fsync) ---
+    nonce_appended = True
     try:
         append_nonce(accepted.nonce, repo_root)
     except NonceLedgerError as exc:
@@ -528,6 +545,12 @@ def run_pipeline(
         # AFTER a clean receipt write).
         rej = Rejected(reason=exc.reason, message=str(exc), field_name="nonce-ledger")
         _emit_rejection(repo_root, rej, stderr=stderr)
+        # nonce_consumed reports whether the LEDGER was actually updated.
+        # Receipt-based replay protection still holds, but callers checking
+        # this field for retry/cleanup decisions need accurate state
+        # (PR #41 cycle 5 / Greptile cycle-1 G-A — closes nonce_consumed
+        # misreport when the ledger append fails post-receipt).
+        nonce_appended = False
         # Continue — receipt is the load-bearing artifact.
 
     elapsed = time.monotonic() - start
@@ -536,7 +559,7 @@ def run_pipeline(
         outcome=Outcome.COMPLETED,
         receipt_path=receipt_path,
         decision_path=decision_path,
-        nonce_consumed=True,
+        nonce_consumed=nonce_appended,
         layers_materialized=materialized,
         elapsed_seconds=elapsed,
         install_seconds=install_seconds,
@@ -566,9 +589,19 @@ def _record_partial_failure(
     write_telemetry_flag: bool,
     recovery_action: str,
     recovery_layer_path: str | None = None,
+    cross_cutting_files: list[str] | None = None,
 ) -> PipelineResult:
-    """Common scaffold-failed emission path used by Step 3 + Step 4 errors."""
+    """Common scaffold-failed emission path used by Step 3 + Step 4 errors.
+
+    `cross_cutting_files` (lefthook.yml + optional pnpm-workspace.yaml /
+    turbo.json) MUST be passed when the failure happened AFTER
+    wire_cross_cutting() succeeded — those files are already on disk and a
+    rerun would collide on them unless the recovery record names them
+    (PR #41 cycle 5 #3 — closes secret-scan-failure-recovery-collision gap).
+    """
     materialized_files = [f for mr in materialized for f in mr.files_created]
+    if cross_cutting_files:
+        materialized_files = materialized_files + list(cross_cutting_files)
     recovery_commands: list[dict] = []
     if recovery_layer_path and recovery_layer_path != ".":
         recovery_commands.append({"op": "rmdir_recursive", "path": recovery_layer_path})

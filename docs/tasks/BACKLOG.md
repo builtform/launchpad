@@ -1004,3 +1004,20 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 6. Closes: headless django scaffolding works without interactive prompt; v2.0 curate-mode workaround obsolete.
 
 **Default decision**: defer to v2.2. v2.0 ships django as `curate` so the orchestrate path can't fail; v2.2 promotes it back to orchestrate-headless via the template-based destination_argv shape.
+
+#### BL-239 - v2.1: Resolve `path: "."` scaffolder vs `.launchpad/` state conflict
+
+**Driver**: PR #41 Codex review cycle 5 (P1 finding #1) flagged that orchestrate-type scaffolders with `layer.path == "."` run in cwd, but `/lp-pick-stack` already wrote `.launchpad/scaffold-decision.json` + `rationale.md` there. CLIs like `npx create-next-app@latest .`, `rails new .`, `npm create astro@latest .`, etc. are invoked against a non-empty directory.
+
+**Practical impact varies by stack**: modern CLIs differ — some ignore hidden directories (`.launchpad/` is hidden, so `create-next-app` typically tolerates it), others refuse outright on any pre-existing files. v2.0 ships with the limitation documented in `lp-scaffold-stack.md` ("if the orchestrate scaffolder refuses to run in a directory containing `.launchpad/`, run `/lp-scaffold-stack` from the parent directory or a fresh subdir").
+
+**v2.1 retarget rationale**: the correct fix is non-trivial — needs either (a) move-aside-and-restore semantics for `.launchpad/` around the scaffolder invocation (with proper cleanup on failure), OR (b) run the scaffolder in a temp empty directory and merge results into cwd minus conflicts. Both approaches require careful design + test coverage that doesn't fit the strip-back-aware ship surface for v2.0. v2.1 is the right home alongside the rest of the integration polish.
+
+**At v2.1 design time**:
+
+1. Decide between (a) move-aside vs (b) temp-dir-merge approach. Recommend (b) — it's more invasive but cleaner: scaffolder runs against a known-empty FS, merge step is auditable, no atomic-move dance for `.launchpad/`.
+2. If (b): wrap orchestrate invocation in a `tempfile.TemporaryDirectory()` block, pass that as the `cwd` argument to safe_run, then walk the temp tree and copy each entry into the real cwd via `shutil.move()` (or a structured "merge" helper that detects collisions with `.launchpad/` files and refuses, since the user shouldn't have any conflicts at scaffold time anyway).
+3. Add tests: (i) astro/next/rails scaffolder runs cleanly with `.launchpad/scaffold-decision.json` + `rationale.md` present; (ii) collision between scaffolder output and `.launchpad/` files is rejected (real ones never overlap, but the safety check matters); (iii) failure during merge cleans up the temp dir.
+4. Update `lp-scaffold-stack.md` to remove the v2.0 documented limitation once shipped.
+
+**Default decision**: defer to v2.1. v2.0 ships with the documented limitation; the move-aside vs temp-dir-merge design call needs deliberate scoping that doesn't fit the v2.0 ship surface.

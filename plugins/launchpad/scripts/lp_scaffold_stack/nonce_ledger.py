@@ -203,9 +203,10 @@ def _check_filesystem_whitelist(repo_root: Path) -> None:
         raise NonceLedgerError(
             (
                 f"remediation: move .launchpad/ to a local POSIX filesystem "
-                f"(apfs/ext4/xfs/btrfs/zfs). Non-local filesystem support "
-                f"(WSL2 9p, tmpfs, overlayfs, FUSE) is deferred to v2.1 "
-                f"(BL-218). Detected fs={fs_type!r}."
+                f"(apfs/ext4/xfs/btrfs/zfs; tmpfs/overlay/overlayfs are also "
+                f"accepted). Network/remote filesystem support (WSL2 9p, "
+                f"smbfs, NFS, FUSE) is deferred to v2.1 (BL-218). "
+                f"Detected fs={fs_type!r}."
             ),
             reason="platform_unsupported_filesystem",
         )
@@ -530,8 +531,16 @@ def append_nonce(
                         os.write(fd, f"# corrupt:{ts}\n".encode("ascii"))
                         os.fsync(fd)
                     except OSError as exc2:
+                        # Write a `.corrupted` sentinel file next to the
+                        # ledger rather than chmod-ing the lock to 0o000.
+                        # Removing all permissions on the lock would brick
+                        # the entire nonce ledger for the next process under
+                        # strict ACL setups (subsequent os.open hits EACCES).
+                        # The sentinel preserves recovery options
+                        # (PR #41 cycle 5 / Greptile cycle-1 G-B closure).
                         try:
-                            os.chmod(str(lock_path(repo_root)), 0o000)
+                            sentinel = ledger_path(repo_root).parent / ".nonce-ledger.corrupted"
+                            sentinel.touch(exist_ok=True)
                         except OSError:
                             pass
                         raise NonceLedgerError(

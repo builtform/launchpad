@@ -28,10 +28,11 @@ def test_valid_combinations_is_frozenset():
     assert isinstance(VALID_COMBINATIONS, frozenset)
 
 
-def test_valid_combinations_count_is_thirteen():
-    """HANDSHAKE §12: 13 tuples (10 stacks at canonical role + 3 dual-role
-    variations for next/django/rails); promote to YAML > ~30."""
-    assert len(VALID_COMBINATIONS) == 13
+def test_valid_combinations_count_is_twenty_one():
+    """HANDSHAKE §12: 21 tuples (10 stacks at canonical role + 3 dual-role
+    variations for next/django/rails + 8 multi-frontend variants for
+    astro/eleventy/hugo/next); promote to YAML > ~30."""
+    assert len(VALID_COMBINATIONS) == 21
 
 
 def test_each_entry_is_string_tuple():

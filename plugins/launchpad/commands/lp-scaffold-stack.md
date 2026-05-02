@@ -104,9 +104,19 @@ For each layer in `decision.layers`:
 
 - Look up scaffolder entry by `layer.stack`.
 - For `type: "orchestrate"`: build argv from scaffolder's `command` +
-  `headless_flags` + per-layer `options`. Validate every argv element
-  matches `^[A-Za-z0-9@._\-/=:]+$` via `safe_run._validate_argv()`.
-  Run via `safe_run.safe_run()` from the resolved layer path.
+  `destination_argv` + `headless_flags` + per-layer `options`. Validate
+  every argv element matches `^[A-Za-z0-9@._\-/=:]+$` via
+  `safe_run._validate_argv()`. Run via `safe_run.safe_run()` from the
+  resolved layer path.
+  - **Known v2.0 limitation (BL-239 v2.1)**: when `layer.path == "."`,
+    the scaffolder runs in cwd, which already contains
+    `.launchpad/scaffold-decision.json` + `rationale.md` from
+    `/lp-pick-stack`. Most modern CLIs (`create-next-app`, `rails new`,
+    `npm create astro@latest`) tolerate hidden directories like
+    `.launchpad/` and proceed normally. If your chosen scaffolder
+    refuses on a non-empty directory, run `/lp-scaffold-stack` from a
+    fresh sibling subdirectory and move the `.launchpad/` state across
+    afterward. v2.1 closes this gap with temp-dir-merge semantics.
 - For `type: "curate"` (eleventy, fastapi): load the knowledge-anchor
   pattern doc via `knowledge_anchor_loader.read_and_verify()` (sha256
   pinned per scaffolders.yml). Drop a placeholder file (`README.scaffold.md`

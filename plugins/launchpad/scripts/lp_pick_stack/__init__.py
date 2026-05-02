@@ -32,10 +32,19 @@ WRITTEN_DECISION_VERSION = "1.0"
 # (astro, eleventy, hugo, hono, fastapi, supabase, expo) are pinned to
 # their one valid role; cross-role tuples remain default-deny.
 VALID_COMBINATIONS = frozenset({
-    # Frontend (single-purpose)
+    # Frontend (single-purpose) — base role
     ("astro", "frontend"),
     ("eleventy", "frontend"),
     ("hugo", "frontend"),
+    # Multi-frontend variants — used by the multi-frontend category
+    # (frontend-main + frontend-dashboard pairing). manual_override_resolver
+    # already accepts these roles in ALLOWED_ROLES; tuples below close the
+    # cross-check so users can manually re-create the multi-frontend shape
+    # (PR #41 cycle 5 #4 + Greptile cycle-4 P1 closure).
+    ("astro", "frontend-main"), ("astro", "frontend-dashboard"),
+    ("eleventy", "frontend-main"), ("eleventy", "frontend-dashboard"),
+    ("hugo", "frontend-main"), ("hugo", "frontend-dashboard"),
+    ("next", "frontend-main"), ("next", "frontend-dashboard"),
     # Frontend or fullstack (next is the only TS framework with both modes)
     ("next", "frontend"),
     ("next", "fullstack"),
