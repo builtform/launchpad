@@ -244,7 +244,26 @@ def _materialize_curate(
         ) from exc
 
     placeholder = layer_target / "README.scaffold.md"
-    placeholder.write_bytes(buf)
+    # PR #41 cycle 8 #4 closure (Codex P2): atomic create-only write
+    # matching the rest of the pipeline (decision_writer, receipt_writer,
+    # cross_cutting_wirer). Previously `write_bytes()` would silently
+    # overwrite an existing file — clobbering a user-edited recovery
+    # artifact or a small pre-existing placeholder in an otherwise
+    # greenfield directory. O_NOFOLLOW also refuses symlink writes.
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    try:
+        fd = os.open(str(placeholder), flags, 0o600)
+    except FileExistsError as exc:
+        raise LayerMaterializationError(
+            f"curate-mode placeholder already exists: {placeholder.relative_to(cwd)}; "
+            f"resolve the collision and re-run /lp-scaffold-stack",
+            reason="layer_materialization_failed",
+        ) from exc
+    try:
+        os.write(fd, buf)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
     post = _walk_files_under(layer_target, since_set=pre_snap)
     rel_files = sorted(str(p.relative_to(cwd)) for p in post)

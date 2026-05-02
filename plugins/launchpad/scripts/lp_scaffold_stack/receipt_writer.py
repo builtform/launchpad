@@ -69,10 +69,22 @@ def build_receipt_payload(
     pass a complete dict.
     """
     if tier1_governance_summary is None:
+        # Per PR #41 cycle 8 #1 closure (Codex P1 + Greptile P1 dual-flag):
+        # `whitelisted_paths` and `slash_commands_wired` are NOT known at
+        # scaffold-stack time — `/lp-define` hasn't run yet, so REPOSITORY_
+        # STRUCTURE.md and `.launchpad/config.yml` don't exist. Previously
+        # these were emitted as `0` with comments "/lp-define populates",
+        # but the receipt is sealed (sha256) before /lp-define touches it
+        # and nothing rewrote the values. The Tier 1 panel rendered "0
+        # paths whitelisted" / "0 slash commands wired" forever.
+        #
+        # Fix: emit `null` to make "unknown — compute live at panel render
+        # time" explicit. lp-define.md Step 3 now computes these from the
+        # live filesystem (parses REPOSITORY_STRUCTURE.md + config.yml).
         tier1_governance_summary = {
-            "whitelisted_paths": 0,  # Phase 3 doesn't compute this; /lp-define populates
+            "whitelisted_paths": None,
             "lefthook_hooks": ["secret-scan", "structure-drift", "typecheck", "lint"],
-            "slash_commands_wired": 0,  # /lp-define populates after adapter dispatch
+            "slash_commands_wired": None,
             "architecture_docs_rendered": TIER1_ARCHITECTURE_DOCS_RENDERED,
         }
     payload: dict[str, Any] = {

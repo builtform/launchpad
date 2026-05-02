@@ -47,6 +47,8 @@ def test_receipt_tier1_summary_complete(tmp_path: Path):
     assert "lefthook_hooks" in summary
     assert "slash_commands_wired" in summary
     assert "architecture_docs_rendered" in summary
-    assert summary["architecture_docs_rendered"] == 8
+    # PR #41 cycle 8 #2 (Codex P1): doc-generator emits 4 docs/architecture/*
+    # outputs (PRD/TECH_STACK/BACKEND_STRUCTURE/APP_FLOW), not 8.
+    assert summary["architecture_docs_rendered"] == 4
     expected_hooks = {"secret-scan", "structure-drift", "typecheck", "lint"}
     assert set(summary["lefthook_hooks"]) == expected_hooks

@@ -156,6 +156,9 @@ def test_concurrent_scaffold_exactly_one_wins(iteration):
         # The Phase 3 pipeline serializes via several nested ordering points:
         #   Step 1   — validator catches `nonce_seen` if the winner already
         #              committed the nonce ledger entry.
+        #   Step 3   — `layer_materialization_failed` if the winner already
+        #              dropped a curate-mode `README.scaffold.md`
+        #              (O_CREAT|O_EXCL — PR #41 cycle 8 #4 closure).
         #   Step 4   — `cross_cutting_wiring_collision` if the winner already
         #              wrote `lefthook.yml`/`pnpm-workspace.yaml` (O_CREAT|O_EXCL).
         #   Step 5a  — `scaffold_receipt_already_exists` if the winner already
@@ -165,6 +168,7 @@ def test_concurrent_scaffold_exactly_one_wins(iteration):
         # MUST trip exactly one of them.
         race_markers = {
             "nonce_seen", "nonce_lock_contention",
+            "layer_materialization_failed",
             "scaffold_receipt_already_exists",
             "cross_cutting_wiring_collision",
         }

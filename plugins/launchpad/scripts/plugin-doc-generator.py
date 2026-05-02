@@ -356,7 +356,15 @@ def generate(repo_root: Path, *, dry_run: bool = False, force: bool = False, onl
     stacks = receipt_stacks or report.get("stacks", ["generic"])
     adapter_out = compose_adapter_output(stacks)
 
-    # 3. Render
+    # 3. Render — overwrite the detector's manifest-derived stacks with the
+    # resolved value so stack-conditional templates (e.g., agents.yml.j2)
+    # see what the adapter dispatch actually used. Curate-mode greenfield
+    # stacks (eleventy/fastapi/hugo) leave detector_report.stacks empty
+    # because there are no manifests on disk; without this overwrite the
+    # adapter renders a correct PRD/TECH_STACK but the conditional templates
+    # render against an empty stacks list and miss stack-specific blocks
+    # (PR #41 cycle 8 #3 closure — Codex P2).
+    report["stacks"] = list(stacks)
     rendered = render_docs(adapter_out, report, product_name)
     if only:
         rendered = {k: v for k, v in rendered.items() if Path(k).name in only}

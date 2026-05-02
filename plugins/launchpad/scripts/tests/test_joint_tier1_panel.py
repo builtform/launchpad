@@ -121,8 +121,12 @@ def test_tier1_panel_greenfield():
             assert required in panel, (
                 f"tier1_governance_summary missing field {required!r}: {panel!r}"
             )
-        # Concrete numbers populated.
-        assert isinstance(panel["whitelisted_paths"], int)
+        # PR #41 cycle 8 #1 (Codex P1 + Greptile P1): whitelisted_paths
+        # and slash_commands_wired are NOT known at scaffold-stack time
+        # (REPOSITORY_STRUCTURE.md and config.yml don't exist until
+        # /lp-define runs). Receipt emits explicit None to signal
+        # "unknown — compute live at panel-render time."
+        assert panel["whitelisted_paths"] is None
         assert isinstance(panel["lefthook_hooks"], list)
         assert len(panel["lefthook_hooks"]) == 4, (
             f"lefthook_hooks expected 4 entries, got "
@@ -131,9 +135,11 @@ def test_tier1_panel_greenfield():
         assert set(panel["lefthook_hooks"]) == {
             "secret-scan", "structure-drift", "typecheck", "lint",
         }
-        assert isinstance(panel["slash_commands_wired"], int)
-        assert panel["architecture_docs_rendered"] == 8, (
-            f"architecture_docs_rendered expected 8 (TIER1_ARCHITECTURE_"
+        assert panel["slash_commands_wired"] is None
+        # PR #41 cycle 8 #2 (Codex P1): doc generator emits 4 docs/architecture/*
+        # outputs (PRD/TECH_STACK/BACKEND_STRUCTURE/APP_FLOW), not 8.
+        assert panel["architecture_docs_rendered"] == 4, (
+            f"architecture_docs_rendered expected 4 (TIER1_ARCHITECTURE_"
             f"DOCS_RENDERED constant); got {panel['architecture_docs_rendered']!r}"
         )
     finally:
@@ -205,7 +211,7 @@ def test_tier1_panel_telemetry_disabled():
         assert "whitelisted_paths" in panel
         assert "lefthook_hooks" in panel
         assert "slash_commands_wired" in panel
-        assert panel["architecture_docs_rendered"] == 8
+        assert panel["architecture_docs_rendered"] == 4
 
         # Telemetry analytics file should NOT exist.
         obs = cwd / ".harness" / "observations"

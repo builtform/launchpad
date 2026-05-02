@@ -43,8 +43,16 @@ def test_build_payload_shape():
     assert payload["decision_sha256"] == "a" * 64
     assert payload["decision_nonce"] == "b" * 32
     assert payload["secret_scan_passed"] is True
-    assert payload["tier1_governance_summary"]["architecture_docs_rendered"] == 8
+    # PR #41 cycle 8 #2 (Codex P1): doc-generator emits 4 docs/architecture/*
+    # outputs, not 8. Receipt now reflects reality.
+    assert payload["tier1_governance_summary"]["architecture_docs_rendered"] == 4
     assert "secret-scan" in payload["tier1_governance_summary"]["lefthook_hooks"]
+    # PR #41 cycle 8 #1 (Codex P1 + Greptile P1): whitelisted_paths and
+    # slash_commands_wired are computed live by /lp-define at panel-render
+    # time, not known at scaffold-stack receipt-seal time. Receipt emits
+    # explicit `null` to make "unknown" semantics unambiguous.
+    assert payload["tier1_governance_summary"]["whitelisted_paths"] is None
+    assert payload["tier1_governance_summary"]["slash_commands_wired"] is None
 
 
 def test_seal_computes_canonical_hash():

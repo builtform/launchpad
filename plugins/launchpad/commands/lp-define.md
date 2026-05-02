@@ -148,11 +148,26 @@ Run /help to see what slash commands are now available, or
 /lp-build when you're ready to ship a feature.
 ```
 
-Substitute the four bracketed numbers (`<whitelisted_paths>`,
-`<lefthook_hooks>`, `<slash_commands_wired>`, `<architecture_docs_rendered>`)
-from `scaffold-receipt.json.tier1_governance_summary`. If the receipt is
-missing OR malformed, fall back to the brownfield variant rather than
-inventing numbers.
+Compute the bracketed values:
+
+- `<lefthook_hooks>` and `<architecture_docs_rendered>` come from the
+  receipt's `tier1_governance_summary` (these are known at scaffold-stack
+  time and sealed into the receipt's sha256).
+- `<whitelisted_paths>` is **computed live** at panel-render time by
+  reading the just-rendered `docs/architecture/REPOSITORY_STRUCTURE.md` and
+  counting entries under its `whitelist:` (or equivalent) section. The
+  receipt carries `null` for this field by design — `/lp-scaffold-stack`
+  doesn't render REPOSITORY_STRUCTURE.md, `/lp-define` does (PR #41 cycle
+  8 #1 closure).
+- `<slash_commands_wired>` is **computed live** by counting the number of
+  slash commands referenced in `.launchpad/config.yml` (sum of unique
+  command names across all `commands.*` arrays). The receipt also carries
+  `null` for this field.
+
+If the receipt's `whitelisted_paths` or `slash_commands_wired` is `null`
+(expected for v2.0 receipts), fall back to live filesystem counts. If the
+receipt is missing OR malformed, fall back to the brownfield variant
+rather than inventing numbers.
 
 ### Brownfield variant
 
@@ -171,7 +186,7 @@ filesystem-only counts (no chain-of-custody, no receipt SHA cross-check):
     → consistent automation semantics across sessions
   • .harness/ — <N> observations, <M> todos (last run: <timestamp>)
     → continuity across sessions; review agents read past learnings
-  • docs/architecture/ — 8 architecture docs refreshed against
+  • docs/architecture/ — 4 architecture docs refreshed against
     your current code
     → re-renders pick up changes since last /lp-define run
 

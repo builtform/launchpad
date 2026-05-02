@@ -34,10 +34,14 @@ EXPECTED_DECISION_VERSION = frozenset({"1.0"})
 # the decision version at v2.0.0 ship per HANDSHAKE §10.
 WRITTEN_RECEIPT_VERSION = "1.0"
 
-# Static count of architecture docs the Tier 1 reveal panel asserts; hardcoded
-# at v2.0 per BL-217 (single-source TIER1_ARCHITECTURE_DOCS constant deferred
-# to v2.1).
-TIER1_ARCHITECTURE_DOCS_RENDERED = 8
+# Count of `docs/architecture/*` outputs the doc generator emits — single
+# source for the Tier 1 reveal panel. Per PR #41 cycle 8 #2 closure: this
+# was hardcoded as 8 in the original BL-217 placeholder, but the generator
+# emits only 4 docs/architecture/* outputs (PRD, TECH_STACK,
+# BACKEND_STRUCTURE, APP_FLOW). The receipt and panel now reflect reality.
+# Counted by hand here to avoid an import cycle from the generator side
+# (generator imports adapters which would need this constant).
+TIER1_ARCHITECTURE_DOCS_RENDERED = 4
 
 
 __all__ = [
