@@ -152,13 +152,18 @@ def _validate_layer_paths(
         # reachable; rule 1 already enforced the monorepo+layers shape, and
         # the writer-side `manual_override_resolver` guards against accidental
         # duplicates outside the path == "." case.
-        if path in seen_paths and path != ".":
+        # Normalize trailing slashes so `apps/web` and `apps/web/` collide
+        # (path_validator allows trailing slashes for catalog ergonomics
+        # like `supabase/`; without normalization the uniqueness gate
+        # treated them as distinct — PR #41 cycle 10 #2 closure, Codex P1).
+        norm_path = path.rstrip("/") if path != "/" else path
+        if norm_path in seen_paths and norm_path != ".":
             return Rejected(
                 reason="layer_paths_collide",
-                message=f"layers[{i}].path={path!r} duplicates an earlier layer",
+                message=f"layers[{i}].path={path!r} duplicates an earlier layer (normalized to {norm_path!r})",
                 field_name=f"layers[{i}].path",
             )
-        seen_paths.add(path)
+        seen_paths.add(norm_path)
     return None
 
 

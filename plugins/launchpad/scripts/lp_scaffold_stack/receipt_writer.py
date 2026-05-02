@@ -10,8 +10,9 @@ Per HANDSHAKE §5: receipt fields are
   secret_scan_passed, tier1_governance_summary{...}, sha256.
 
 The Tier 1 governance summary's `architecture_docs_rendered` is hardcoded
-to 8 at v2.0 per BL-217 (single-source TIER1_ARCHITECTURE_DOCS_RENDERED
-constant lives in `lp_scaffold_stack/__init__.py`).
+to the count of `docs/architecture/*` outputs the doc generator emits at
+v2.0 (PRD, TECH_STACK, BACKEND_STRUCTURE, APP_FLOW = 4) — single-source
+TIER1_ARCHITECTURE_DOCS_RENDERED constant lives in `lp_scaffold_stack/__init__.py`.
 """
 from __future__ import annotations
 

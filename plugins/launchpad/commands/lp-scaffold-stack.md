@@ -167,10 +167,10 @@ Build the payload per HANDSHAKE §5 schema:
   "toolchains_detected": ["node", "python", ...],
   "secret_scan_passed": True | False,
   "tier1_governance_summary": {
-      "whitelisted_paths": <int>,
+      "whitelisted_paths": null,             # /lp-define computes live at panel render
       "lefthook_hooks": ["secret-scan", "structure-drift", "typecheck", "lint"],
-      "slash_commands_wired": <int>,
-      "architecture_docs_rendered": 8,  # hardcoded per BL-217
+      "slash_commands_wired": null,          # /lp-define computes live at panel render
+      "architecture_docs_rendered": 4,        # PRD + TECH_STACK + BACKEND_STRUCTURE + APP_FLOW
   },
   "sha256": <canonical_hash over fields above>,
 }

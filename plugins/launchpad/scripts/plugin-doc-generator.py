@@ -151,6 +151,93 @@ def compose_adapter_output(stacks: list[str]) -> AdapterOutput:
     return polyglot.compose(stacks)
 
 
+# Default-path prefixes the per-adapter contract uses for path fields. When
+# a layer materializes at a different `path` (e.g., `.` for static-blog
+# greenfield), these prefixes are rewritten in the AdapterOutput so the
+# rendered architecture docs reference the actual scaffolded location
+# (PR #41 cycle 10 #1 closure — Codex P1).
+_ADAPTER_DEFAULT_PATH_PREFIXES = {
+    "astro": "apps/web",
+    "next": "apps/web",
+    "ts_monorepo": "apps/web",
+    "fastapi": "apps/api",
+    "expo": "apps/mobile",
+    "hugo": "",       # hugo defaults to project-root paths (content/, layouts/)
+    "eleventy": "",   # eleventy defaults to project-root paths (src/)
+    "rails": "",      # rails defaults to project-root paths (app/, config/)
+    "python_django": "",
+    "go_cli": "",
+    "generic": "",
+    "hono": "apps/api",
+    "django": "",
+    "supabase": "supabase",
+}
+
+
+def _rewrite_path(value: str | None, old_prefix: str, new_prefix: str) -> str | None:
+    """Replace a leading `old_prefix/` with `new_prefix/` (or strip if new is `.`).
+
+    Returns the original value unchanged when:
+      - value is None / empty
+      - old_prefix is empty (adapter doesn't use a fixed prefix)
+      - value doesn't start with `old_prefix/` (already-customized path)
+    """
+    if not value or not old_prefix:
+        return value
+    needle = old_prefix.rstrip("/") + "/"
+    if not value.startswith(needle):
+        return value
+    suffix = value[len(needle):]
+    new = new_prefix.rstrip("/")
+    if new in ("", "."):
+        return suffix
+    return f"{new}/{suffix}"
+
+
+def _rewrite_adapter_paths(
+    adapter_out: AdapterOutput,
+    layer_paths: dict[str, str],
+    stacks: list[str],
+) -> AdapterOutput:
+    """Rewrite path-bearing fields in AdapterOutput to match the layer paths
+    actually used by the scaffolder (read from the receipt's
+    `layers_materialized[].path`).
+
+    Only single-stack scaffolds rewrite; polyglot composers already merge
+    per-stack paths via their own logic. The rewrite is conservative: it
+    only swaps the adapter's documented default prefix; user-customized
+    paths (anything not starting with the default prefix) pass through
+    unchanged.
+    """
+    if len(stacks) != 1:
+        return adapter_out
+    stack_id = stacks[0]
+    actual_path = layer_paths.get(stack_id)
+    if not actual_path:
+        return adapter_out
+    default_prefix = _ADAPTER_DEFAULT_PATH_PREFIXES.get(stack_id, "")
+    if not default_prefix or default_prefix == actual_path.rstrip("/"):
+        return adapter_out
+    backend = dict(adapter_out["backend"])
+    backend["routes_dir"] = _rewrite_path(
+        backend.get("routes_dir"), default_prefix, actual_path,
+    )
+    backend["models_dir"] = _rewrite_path(
+        backend.get("models_dir"), default_prefix, actual_path,
+    )
+    front = adapter_out.get("frontend")
+    if isinstance(front, dict):
+        front = dict(front)
+        front["component_dir"] = _rewrite_path(
+            front.get("component_dir"), default_prefix, actual_path,
+        )
+    rewritten = dict(adapter_out)
+    rewritten["backend"] = backend
+    if front is not None:
+        rewritten["frontend"] = front
+    return rewritten  # type: ignore[return-value]
+
+
 def _single_adapter(stack_id: str):
     mapping = {
         "ts_monorepo": ts_monorepo,
@@ -326,6 +413,7 @@ def generate(repo_root: Path, *, dry_run: bool = False, force: bool = False, onl
     # PR #41 cycle 3 — receipt-based dispatch contract gap closure).
     receipt_path = repo_root / ".launchpad" / "scaffold-receipt.json"
     receipt_stacks: list[str] = []
+    receipt_layer_paths: dict[str, str] = {}  # stack_id → materialized path
     if receipt_path.is_file():
         try:
             from plugin_scaffold_receipt_loader import load_receipt  # type: ignore[import-not-found]
@@ -345,16 +433,24 @@ def generate(repo_root: Path, *, dry_run: bool = False, force: bool = False, onl
         if load_receipt is not None:
             try:
                 receipt = load_receipt(receipt_path)
-                receipt_stacks = [
-                    str(layer["stack"])
-                    for layer in receipt.get("layers_materialized", [])
-                    if isinstance(layer, dict) and "stack" in layer
-                ]
+                for layer in receipt.get("layers_materialized", []):
+                    if not isinstance(layer, dict) or "stack" not in layer:
+                        continue
+                    stack_id = str(layer["stack"])
+                    receipt_stacks.append(stack_id)
+                    # PR #41 cycle 10 #1 closure (Codex P1): preserve
+                    # layers_materialized[].path so adapter path fields can
+                    # be rewritten to match the actual scaffolded location.
+                    if "path" in layer:
+                        receipt_layer_paths[stack_id] = str(layer["path"])
             except Exception:
                 # Receipt malformed/expired: fall back to manifest detection.
                 receipt_stacks = []
+                receipt_layer_paths = {}
     stacks = receipt_stacks or report.get("stacks", ["generic"])
     adapter_out = compose_adapter_output(stacks)
+    if receipt_layer_paths:
+        adapter_out = _rewrite_adapter_paths(adapter_out, receipt_layer_paths, stacks)
 
     # 3. Render — overwrite the detector's manifest-derived stacks with the
     # resolved value so stack-conditional templates (e.g., agents.yml.j2)

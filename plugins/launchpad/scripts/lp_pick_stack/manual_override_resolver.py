@@ -137,10 +137,18 @@ def resolve_manual(
 
     layers = [_normalize_layer(s, i, cwd) for i, s in enumerate(layer_specs)]
 
+    # Normalize trailing slashes before uniqueness check so `apps/web` and
+    # `apps/web/` are caught as duplicates (PR #41 cycle 10 #2 closure —
+    # Codex P1). Catalog entries like `supabase/` must round-trip safely
+    # against `supabase` from a sibling layer.
+    def _norm(p: str) -> str:
+        return p.rstrip("/") if p != "/" else p
     paths = [layer["path"] for layer in layers]
-    if len(paths) != len(set(paths)):
+    norm_paths = [_norm(p) for p in paths]
+    if len(norm_paths) != len(set(norm_paths)):
         raise ManualOverrideError(
-            f"path uniqueness violated: {paths}", "layers.path-uniqueness"
+            f"path uniqueness violated (normalized): {paths}",
+            "layers.path-uniqueness",
         )
 
     roles = [layer["role"] for layer in layers]
