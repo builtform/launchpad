@@ -34,9 +34,15 @@ if str(_SCRIPTS) not in sys.path:
 from knowledge_anchor_loader import read_and_verify  # noqa: E402
 from safe_run import UnsafeArgvError, safe_run  # noqa: E402
 
-# Default: the LaunchPad repo root (3 levels up from this file:
-# scripts/lp_scaffold_stack/ → scripts/ → launchpad/ → plugins/ → repo).
-DEFAULT_PLUGINS_ROOT = Path(__file__).resolve().parents[3]
+# Default: the LaunchPad repo root. This file is at
+# plugins/launchpad/scripts/lp_scaffold_stack/layer_materializer.py, so
+# parents[0..4] are lp_scaffold_stack / scripts / launchpad / plugins / repo.
+# parents[3] would be `plugins/` (knowledge anchors land at
+# `plugins/launchpad/scaffolders/*.md` — joining with `plugins/` produces
+# `plugins/plugins/launchpad/...`, broken). parents[4] = repo root, which
+# is the correct base for plugin-shipped relative anchor paths
+# (PR #41 cycle 4 #1 closure).
+DEFAULT_PLUGINS_ROOT = Path(__file__).resolve().parents[4]
 
 # Default scaffolder wall-clock budget. Most modern CLIs (create-next-app,
 # rails new, etc.) finish in under 2 minutes on a healthy network; the

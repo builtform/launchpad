@@ -570,6 +570,23 @@ def validate_decision(
                 ),
                 field_name="rationale_sha256",
             )
+    else:
+        # No rationale file (--no-rationale mode). The declared sha MUST be
+        # the canonical empty-bytes hash; otherwise any 64-char hex value
+        # would pass once the envelope hash was recomputed
+        # (PR #41 cycle 4 #3 closure — closes silent-bypass on absent
+        # rationale).
+        import hashlib
+        empty_sha = hashlib.sha256(b"").hexdigest()
+        if declared_sha != empty_sha:
+            return Rejected(
+                reason="rationale_sha256_mismatch",
+                message=(
+                    "rationale absent (--no-rationale mode); rationale_sha256 "
+                    f"must equal sha256(b'') = {empty_sha!r}, got {declared_sha!r}"
+                ),
+                field_name="rationale_sha256",
+            )
 
     # --- Rule 7: rationale_summary ---
     rs_rej = _validate_rationale_summary(decision["rationale_summary"])

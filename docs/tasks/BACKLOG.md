@@ -951,7 +951,7 @@ Trade-off: grep can be bypassed via `fromJSON(toJSON())` / bracket-notation / ex
 **Phase 7.5 pre-ship review findings (D-verdict, fold into the v2.1 ruff sweep)**: a `lp-kieran-foad-python-reviewer` pre-ship pass surfaced 13 D-verdict items that ruff would catch or that pair with the ruff rollout. Listed here so the v2.1 implementer has a concrete starter punch-list:
 
 - D3: `lp_pick_stack/rationale_renderer.py:189-192` — default `alternatives` fallback bullet length is just barely above the 30-char minimum; add a unit-test pin so future shortening doesn't silently break ambiguity-cluster validator output.
-- D4: `lp_scaffold_stack/cross_cutting_wirer.py:109-116` — `_atomic_write` uses `path.write_text` instead of the `O_CREAT|O_EXCL|fsync` pattern used by `decision_writer.py` and `receipt_writer.py`. Harmonize to close the TOCTOU window.
+- ~~D4~~: **CLOSED in PR #41 cycle 4** — `_atomic_write` now uses `O_CREAT|O_EXCL|O_NOFOLLOW|fsync` matching the decision_writer/receipt_writer pattern.
 - D5: `lp_scaffold_stack/cleanup_recorder.py:240-242` — `target.exists() + os.open(O_CREAT|O_EXCL)` doesn't catch `FileExistsError` for retry. Mirror `rejection_logger.py`'s retry ladder.
 - D6: `telemetry_writer.py:36-56` — `_telemetry_off` uses single-line grep parser for `telemetry: off`; replace with `yaml.safe_load` once config-loader is on the v2.0 hot path.
 - D7: `lp_scaffold_stack/nonce_ledger.py:144-148` — Linux mountinfo parser doesn't decode `\040`-escaped spaces in mount points; mountpoints with spaces would silently mis-parse.

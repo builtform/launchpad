@@ -107,13 +107,33 @@ def _is_monorepo_layout(layers: Sequence[dict]) -> bool:
 
 
 def _atomic_write(path: Path, content: str) -> None:
-    """Write text content to `path`; raise CrossCuttingError on collision."""
-    if path.exists():
+    """Write text content to `path` via O_CREAT|O_EXCL|O_WRONLY at 0o600.
+
+    True atomic-on-create semantics: a single open() call performs the
+    "create-only" check + create in one syscall, eliminating the
+    `exists() + write_text()` race that would let a file appear between
+    those two operations. O_NOFOLLOW refuses to write through a symlink
+    (TOCTOU defense). Fsync flushes the file before close so partial
+    writes don't survive a crash. Mirrors the pattern used by
+    decision_writer.py + receipt_writer.py for v2.0's load-bearing
+    sealed artifacts (PR #41 cycle 4 #4 — pulls forward BL-236 D4).
+    """
+    import os
+
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    try:
+        fd = os.open(str(path), flags, 0o600)
+    except FileExistsError as exc:
         raise CrossCuttingError(
-            f"cross-cutting file already exists: {path.relative_to(path.parent.parent) if path.is_absolute() else path}",
+            f"cross-cutting file already exists: "
+            f"{path.relative_to(path.parent.parent) if path.is_absolute() else path}",
             reason="cross_cutting_wiring_collision",
-        )
-    path.write_text(content, encoding="utf-8")
+        ) from exc
+    try:
+        os.write(fd, content.encode("utf-8"))
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def _emit_pnpm_workspace(cwd: Path, layers: Sequence[dict]) -> Path:

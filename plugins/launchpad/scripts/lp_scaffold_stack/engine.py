@@ -75,8 +75,13 @@ from lp_scaffold_stack.rejection_logger import write_rejection  # noqa: E402
 
 COMMAND_NAME = "/lp-scaffold-stack"
 
-# Default catalog/pattern paths (may be overridden in tests).
-_REPO_ROOT_DEFAULT = Path(__file__).resolve().parents[3]
+# Default catalog/pattern paths (may be overridden in tests). Path arithmetic:
+# this file is at plugins/launchpad/scripts/lp_scaffold_stack/engine.py, so
+# parents[0..4] are lp_scaffold_stack / scripts / launchpad / plugins / repo
+# root. The repo root is parents[4]; previous parents[3] resolved to plugins/
+# which produced `plugins/plugins/launchpad/...` for the catalog defaults
+# (PR #41 cycle 4 #1 — silent default-args ship-blocker since fc5b3da).
+_REPO_ROOT_DEFAULT = Path(__file__).resolve().parents[4]
 DEFAULT_SCAFFOLDERS_YML = _REPO_ROOT_DEFAULT / "plugins" / "launchpad" / "scaffolders.yml"
 DEFAULT_CATEGORY_PATTERNS_YML = (
     _REPO_ROOT_DEFAULT / "plugins" / "launchpad" / "scripts"

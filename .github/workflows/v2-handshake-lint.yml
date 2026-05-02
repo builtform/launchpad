@@ -41,21 +41,28 @@ jobs:
       - name: Run v2 handshake lint
         run: python plugins/launchpad/scripts/plugin-v2-handshake-lint.py
 
-      - name: Run unit tests for v2 modules
+      - name: Run full v2 test suite
+        # Run the FULL pytest suite under plugins/launchpad/scripts/tests/
+        # so default-args invocation paths get exercised. The previous narrow
+        # subset masked the parents[3]→plugins/ default-paths bug because
+        # every test passed explicit override paths (PR #41 cycle 4 #5
+        # closure). If the full suite cost grows beyond 60s, partition with
+        # pytest-xdist instead of returning to a subset.
+        working-directory: plugins/launchpad/scripts
+        run: python -m pytest tests/ -q
+
+      - name: Default catalog paths smoke check
+        # Direct assertion that DEFAULT_SCAFFOLDERS_YML +
+        # DEFAULT_CATEGORY_PATTERNS_YML resolve to existing files when the
+        # engine module is imported with no overrides — guards against the
+        # parents[N] off-by-one bug recurring (cycle 4 #1 regression pin).
         working-directory: plugins/launchpad/scripts
         run: |
-          python -m pytest \
-            tests/test_decision_integrity.py \
-            tests/test_path_validator.py \
-            tests/test_cwd_state.py \
-            tests/test_brownfield_manifests_single_source.py \
-            tests/test_safe_run.py \
-            tests/test_telemetry_writer.py \
-            tests/test_knowledge_anchor_loader.py \
-            tests/test_valid_combinations.py \
-            tests/test_rationale_summary_extractor.py \
-            tests/test_pid_identity.py \
-            -v
+          python -c "import sys; sys.path.insert(0, '.'); \
+            from lp_scaffold_stack.engine import DEFAULT_SCAFFOLDERS_YML, DEFAULT_CATEGORY_PATTERNS_YML; \
+            assert DEFAULT_SCAFFOLDERS_YML.is_file(), f'DEFAULT_SCAFFOLDERS_YML does not exist: {DEFAULT_SCAFFOLDERS_YML}'; \
+            assert DEFAULT_CATEGORY_PATTERNS_YML.is_file(), f'DEFAULT_CATEGORY_PATTERNS_YML does not exist: {DEFAULT_CATEGORY_PATTERNS_YML}'; \
+            print('default catalog paths exist')"
 
       - name: Freshness advisory
         run: python plugins/launchpad/scripts/plugin-freshness-check.py
