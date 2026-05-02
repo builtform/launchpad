@@ -18,6 +18,12 @@
 #   type:                   "orchestrate" | "curate"
 #   flavor:                 "pure-headless" | "mixed-prompts" | "n/a"
 #   command:                scaffolder command (omit for curate)
+#   destination_argv:       per-stack positional argv inserted between
+#                           `command` and `headless_flags`. Most modern CLIs
+#                           accept `["."]` to scaffold into the current dir;
+#                           `[]` for CLIs that scaffold-in-place by default
+#                           (e.g. supabase init). django requires a project
+#                           name (TODO BL-238 v2.1 — auto-derive from cwd).
 #   headless_flags:         array of flags appended for non-interactive mode
 #   knowledge_anchor:       relative path to <stack>-pattern.md
 #   knowledge_anchor_sha256: sha256 hex of the anchor file's bytes
@@ -31,6 +37,7 @@ stacks:
     type: "orchestrate"
     flavor: "pure-headless"
     command: "npm create astro@latest"
+    destination_argv: ["."]
     headless_flags: ["--", "--yes", "--template"]
     knowledge_anchor: "plugins/launchpad/scaffolders/astro-pattern.md"
     knowledge_anchor_sha256: "f8631d16c290a805eb58927efdb6c6c3e253842c471e1f4de04395b573f77121"
@@ -43,6 +50,7 @@ stacks:
     type: "orchestrate"
     flavor: "pure-headless"
     command: "npx create-next-app@latest"
+    destination_argv: ["."]
     headless_flags: ["--yes", "--typescript", "--eslint", "--tailwind", "--app", "--turbopack"]
     knowledge_anchor: "plugins/launchpad/scaffolders/next-pattern.md"
     knowledge_anchor_sha256: "de5c9cfabec3649c87d7dacb0ee0b40b24dc21ab3e69575d26be9415966fd157"
@@ -66,6 +74,7 @@ stacks:
     type: "orchestrate"
     flavor: "pure-headless"
     command: "hugo new site"
+    destination_argv: ["."]
     headless_flags: ["--force"]
     knowledge_anchor: "plugins/launchpad/scaffolders/hugo-pattern.md"
     knowledge_anchor_sha256: "f2bfa556b1ecd19f6f4d455ae7779c76a65a405984bcec10d3e3b4bbb3ec62a5"
@@ -78,6 +87,7 @@ stacks:
     type: "orchestrate"
     flavor: "pure-headless"
     command: "npm create hono@latest"
+    destination_argv: ["."]
     headless_flags: ["--", "--yes", "--template"]
     knowledge_anchor: "plugins/launchpad/scaffolders/hono-pattern.md"
     knowledge_anchor_sha256: "c03656e1ce87ece9ffa9667c54f032828a1c962090f35475e3730a24369723f5"
@@ -100,6 +110,11 @@ stacks:
     type: "orchestrate"
     flavor: "pure-headless"
     command: "django-admin startproject"
+    # django-admin startproject REQUIRES a project name; auto-derivation from
+    # cwd basename is deferred to v2.1 BL-238. v2.0 leaves destination_argv
+    # empty — orchestrated scaffold will fail with a usage error until the
+    # user supplies the name interactively.
+    destination_argv: []
     headless_flags: []
     knowledge_anchor: "plugins/launchpad/scaffolders/django-pattern.md"
     knowledge_anchor_sha256: "4d1a7272f7f74c793be08991b5b88fdfc2a76bc03270a4b730ac57b31eb16021"
@@ -112,6 +127,7 @@ stacks:
     type: "orchestrate"
     flavor: "pure-headless"
     command: "rails new"
+    destination_argv: ["."]
     headless_flags: ["--skip-bundle", "--skip-git"]
     knowledge_anchor: "plugins/launchpad/scaffolders/rails-pattern.md"
     knowledge_anchor_sha256: "a1768b9e08ce47cc0a62543ab3b9f3f39a57b1bf001dea9831c67d842a0e17ef"
@@ -125,6 +141,8 @@ stacks:
     type: "orchestrate"
     flavor: "mixed-prompts"
     command: "supabase init"
+    # supabase init scaffolds in cwd by default; no destination arg needed.
+    destination_argv: []
     headless_flags: []
     knowledge_anchor: "plugins/launchpad/scaffolders/supabase-pattern.md"
     knowledge_anchor_sha256: "38c6c5170c7347ba588f10bdd44259e0fbf593dd68bfeeebb2b2347d6a8c9ef3"
@@ -138,6 +156,7 @@ stacks:
     type: "orchestrate"
     flavor: "pure-headless"
     command: "npx create-expo-app@latest"
+    destination_argv: ["."]
     headless_flags: ["--yes", "--template"]
     knowledge_anchor: "plugins/launchpad/scaffolders/expo-pattern.md"
     knowledge_anchor_sha256: "41ab885607443c6cad34750e79bda13aa7207165f1e78178e9a616535fd89bfe"

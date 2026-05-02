@@ -102,7 +102,14 @@ def _load_category_patterns(path: Path | None) -> dict:
     YAML is loaded via `yaml.safe_load` (no aliases-as-references; HANDSHAKE
     §2 rule for trusted-as-data plugin-shipped configs).
     """
-    import yaml  # late import to avoid making yaml a hard dep at module load
+    try:
+        import yaml  # late import to avoid making yaml a hard dep at module load
+    except ImportError as exc:  # pragma: no cover
+        raise ImportError(
+            "pyyaml is required for /lp-pick-stack. Install with: "
+            "`pip install -r plugins/launchpad/scripts/requirements.txt` "
+            "(pinned version lives in plugins/launchpad/scripts/_vendor/PYYAML_VERSION)."
+        ) from exc
 
     target = path if path is not None else DEFAULT_CATEGORY_PATTERNS_PATH
     text = target.read_text(encoding="utf-8")

@@ -52,8 +52,9 @@ def test_path_outside_plugins_root_rejected(tmp_path: Path):
 
 
 def test_symlink_pointing_outside_plugins_rejected(tmp_path: Path):
-    """A symlink in plugins/ pointing OUTSIDE plugins resolves to an external
-    path; the cwd-containment check rejects it."""
+    """A symlink in the input path is rejected by the pre-resolve symlink
+    walk — regardless of where it points. The post-resolve containment check
+    is a secondary defense."""
     plugins = tmp_path / "plugins"
     plugins.mkdir()
     outside = tmp_path / "outside.md"
@@ -62,7 +63,10 @@ def test_symlink_pointing_outside_plugins_rejected(tmp_path: Path):
     sym.symlink_to(outside)
     with pytest.raises(ValueError) as exc:
         read_and_verify(sym, _sha(b"x"), plugins)
-    assert "escapes plugins root" in str(exc.value)
+    # Pre-resolve walk fires first; either rejection message is acceptable
+    # (defense-in-depth — symlink check OR escapes-root check both reject).
+    msg = str(exc.value)
+    assert "symlink" in msg or "escapes plugins root" in msg
 
 
 def test_ancestor_symlink_rejected(tmp_path: Path):

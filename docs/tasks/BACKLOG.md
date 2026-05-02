@@ -985,3 +985,20 @@ These are the polish/hardening items the agent surfaced; ruff itself catches a s
 5. Closes: silent CI-lint coverage hole that would mask future regressions; the broad-scope `safe_run` mandate from HANDSHAKE §6 is now actually enforced everywhere it claims to be.
 
 **Default decision**: defer to v2.1. The v2.0 ship is clean (the fixed-argv mount call is not exploitable at single-maintainer scale); the lint-tightening is the correct fix and lands as a small configuration adjustment in v2.1.
+
+#### BL-238 - v2.1: Auto-derive django project name from cwd basename for headless scaffolding
+
+**Driver**: PR #41 Codex review (P1 finding #3) flagged that `scaffolders.yml` orchestrate-type CLIs were invoked without positional destination arguments, breaking headless scaffolding for `create-next-app`, `rails new`, `hugo new site`, `npm create astro@latest`, etc. The v2.0 fix added a `destination_argv` field per scaffolder; 6 CLIs accept `["."]` (scaffold-into-cwd) and `supabase init` needs no argument. **`django-admin startproject` is the one outlier** — it requires a positional project name (a valid Python identifier) and creates a subdirectory by default. There's no equivalent of `.` for django at the CLI surface; you'd need `django-admin startproject <name> .` to flatten into cwd, where `<name>` becomes the python module name.
+
+v2.0 ships django with `destination_argv: []` and an inline comment noting the gap. Headless django scaffolding will fail with a usage error until the user supplies a name interactively. v2.1 closes this with auto-derivation.
+
+**At v2.1 design time**:
+
+1. Extend `_build_orchestrate_argv` in `lp_scaffold_stack/layer_materializer.py` to support a `destination_argv_template` field with `${CWD_BASENAME}` and `${PROJECT_NAME}` substitutions (sourced from `cwd.name` and the scaffold-decision's project_name field respectively).
+2. Update `scaffolders.yml` django entry: `destination_argv_template: ["${PROJECT_NAME}", "."]` (creates the python module with the user's chosen name, files in cwd).
+3. Add validation: project*name must match `^[a-z]a-z0-9*]\*$` (django identifier rules — starts with letter, alphanumeric + underscore). Reject if cwd basename or supplied name fails the pattern.
+4. Update layer.options schema to allow optional `project_name` override (otherwise auto-derive from cwd basename, sanitized via the regex above + s/-/\_/g).
+5. Tests: add positive cases for cwd basename auto-derivation, override via layer.options.project_name, and rejection cases for invalid python identifiers.
+6. Closes: headless django scaffolding works without interactive prompt; v2.0 documented limitation lifted.
+
+**Default decision**: defer to v2.1. The v2.0 contract has django scaffolding partially-headless (user must supply name interactively); v2.1 extends `destination_argv` with template substitution, which is the right shape and matches the BL-237 / BL-236 framing of "small config adjustments fit in v2.1's docs-focused window."

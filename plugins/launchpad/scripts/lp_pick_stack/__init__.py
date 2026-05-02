@@ -2,18 +2,19 @@
 
 Inlines the manual-override `VALID_COMBINATIONS` frozenset of `(stack, role)`
 tuples per HANDSHAKE §12 + pick-stack plan §3.4. NOT a separate YAML or .py
-file: at 7 rules the file overhead doesn't earn its keep. Promote to a
+file: at 13 rules the file overhead doesn't earn its keep. Promote to a
 separate module when the matrix exceeds ~30 rules; promote to YAML when the
 rules need data-file editing without a Python diff.
 
-The 7 tuples below cover the v2.0 10-stack catalog's primary single-stack
-default-role combinations. Multi-stack combinations (frontend + backend
-polyglot, frontend-main + frontend-dashboard, backend-managed + frontend)
-compose two valid singletons and are validated by the pick-stack command's
-layer-set-validation logic, which lives later in the pipeline and is
-gated by the matrix's cross-layer rules (single-role-per-layer, fullstack-
-precludes-split, mobile-standalone, polyglot-allowed, multi-frontend-allowed,
-backend-managed-pairing, path-uniqueness).
+The 13 tuples below cover all 10 stacks from the v2.0 catalog (HANDSHAKE §11)
+at their canonical default role, plus dual-role variations for next/django/
+rails (which ship both fullstack and backend-only personas). Multi-stack
+combinations (frontend + backend polyglot, frontend-main + frontend-dashboard,
+backend-managed + frontend) compose two valid singletons and are validated
+by the pick-stack command's layer-set-validation logic, which lives later in
+the pipeline and is gated by the matrix's cross-layer rules (single-role-
+per-layer, fullstack-precludes-split, mobile-standalone, polyglot-allowed,
+multi-frontend-allowed, backend-managed-pairing, path-uniqueness).
 
 Constants exported: WRITTEN_DECISION_VERSION (writer-side §10 single source).
 """
@@ -24,18 +25,30 @@ from __future__ import annotations
 # §10. v2.1+ revisions follow the §10 forward-compat policy (BL-211).
 WRITTEN_DECISION_VERSION = "1.0"
 
-# 7 (stack, role) tuples — manual-override catalog. Each tuple represents a
-# stack + its primary default role per the v2.0 10-stack catalog
-# (HANDSHAKE §11). next/rails/django/supabase/eleventy/hugo combinations
-# beyond their default role compose via the multi-stack rules in the manual-
-# override matrix (pick-stack plan §3.4).
+# 13 (stack, role) tuples — manual-override catalog. Covers all 10 stacks
+# from the v2.0 catalog (HANDSHAKE §11) at their canonical default role,
+# plus dual-role variations for stacks that ship both fullstack and
+# backend-only personas (next, django, rails). Single-purpose stacks
+# (astro, eleventy, hugo, hono, fastapi, supabase, expo) are pinned to
+# their one valid role; cross-role tuples remain default-deny.
 VALID_COMBINATIONS = frozenset({
+    # Frontend (single-purpose)
     ("astro", "frontend"),
+    ("eleventy", "frontend"),
+    ("hugo", "frontend"),
+    # Frontend or fullstack (next is the only TS framework with both modes)
+    ("next", "frontend"),
     ("next", "fullstack"),
+    # Backend (single-purpose)
     ("hono", "backend"),
     ("fastapi", "backend"),
+    ("supabase", "backend"),
+    # Backend or fullstack (server-rendered frameworks with API-only mode)
+    ("django", "backend"),
     ("django", "fullstack"),
+    ("rails", "backend"),
     ("rails", "fullstack"),
+    # Mobile (single-purpose)
     ("expo", "mobile"),
 })
 

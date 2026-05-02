@@ -22,7 +22,15 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-import psutil
+try:
+    import psutil
+except ImportError as exc:  # pragma: no cover
+    raise ImportError(
+        "psutil is required for /lp-scaffold-stack and the lefthook commit-msg "
+        "hook. Install with: "
+        "`pip install -r plugins/launchpad/scripts/requirements.txt` "
+        "(pinned version lives in plugins/launchpad/scripts/_vendor/PSUTIL_VERSION)."
+    ) from exc
 
 
 def get_pid_start_time() -> str:

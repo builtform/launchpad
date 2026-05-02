@@ -100,12 +100,15 @@ def _build_orchestrate_argv(
     scaffolder: Mapping[str, Any],
     layer: Mapping[str, Any],
 ) -> list[str]:
-    """Build argv from scaffolder's `command` + `headless_flags` + per-layer
-    `options`.
+    """Build argv from scaffolder's `command` + `destination_argv` +
+    `headless_flags` + per-layer `options`.
 
     The command may be a multi-token string (e.g., `npm create astro@latest`);
-    we split on whitespace. Headless flags appended verbatim. Options keys
-    that look like CLI flags (`--key=value`) appended after.
+    we split on whitespace. `destination_argv` (per-stack tokens like `["."]`)
+    is appended next so positional destination args land in the right slot for
+    CLIs that require them (create-next-app, rails new, hugo new site, etc.).
+    Headless flags appended verbatim. Options keys that look like CLI flags
+    (`--key=value`) appended after.
 
     Every argv element is validated against `safe_run`'s allowlist via
     `safe_run`'s internal `_validate_argv` — which we re-trigger by passing
@@ -121,6 +124,9 @@ def _build_orchestrate_argv(
             reason="scaffolder_command_missing",
         )
     argv = cmd.split()
+    destination_argv = scaffolder.get("destination_argv") or []
+    for token in destination_argv:
+        argv.append(str(token))
     flags = scaffolder.get("headless_flags") or []
     for flag in flags:
         argv.append(str(flag))

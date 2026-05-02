@@ -28,9 +28,10 @@ def test_valid_combinations_is_frozenset():
     assert isinstance(VALID_COMBINATIONS, frozenset)
 
 
-def test_valid_combinations_count_is_seven():
-    """HANDSHAKE §12: 7 tuples; promote to YAML > ~30."""
-    assert len(VALID_COMBINATIONS) == 7
+def test_valid_combinations_count_is_thirteen():
+    """HANDSHAKE §12: 13 tuples (10 stacks at canonical role + 3 dual-role
+    variations for next/django/rails); promote to YAML > ~30."""
+    assert len(VALID_COMBINATIONS) == 13
 
 
 def test_each_entry_is_string_tuple():
@@ -52,10 +53,16 @@ def test_decision_version_pinned_at_v2():
 
 @pytest.mark.parametrize("stack,role", [
     ("astro", "frontend"),
+    ("eleventy", "frontend"),
+    ("hugo", "frontend"),
+    ("next", "frontend"),
     ("next", "fullstack"),
     ("hono", "backend"),
     ("fastapi", "backend"),
+    ("supabase", "backend"),
+    ("django", "backend"),
     ("django", "fullstack"),
+    ("rails", "backend"),
     ("rails", "fullstack"),
     ("expo", "mobile"),
 ])
@@ -65,20 +72,22 @@ def test_allowed_combinations(stack: str, role: str):
 
 
 def test_positive_count_meets_lower_bound():
-    """Pick-stack plan: ≥10 positive cases. With 7 distinct allowed tuples
-    we exercise each + 3 boundary cases via case-sensitivity."""
+    """Pick-stack plan: ≥10 positive cases. The 13 distinct allowed tuples
+    exceed the lower bound; we exercise each."""
     cases = [
         ("astro", "frontend"),
+        ("eleventy", "frontend"),
+        ("hugo", "frontend"),
+        ("next", "frontend"),
         ("next", "fullstack"),
         ("hono", "backend"),
         ("fastapi", "backend"),
+        ("supabase", "backend"),
+        ("django", "backend"),
         ("django", "fullstack"),
+        ("rails", "backend"),
         ("rails", "fullstack"),
         ("expo", "mobile"),
-        # Boundary: exact tuples present in the frozenset.
-        ("astro", "frontend"),
-        ("next", "fullstack"),
-        ("hono", "backend"),
     ]
     assert len(cases) >= 10
     for stack, role in cases:

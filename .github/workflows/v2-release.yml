@@ -8,9 +8,13 @@
 # DEFERRED to v2.2 under BL-226 / BL-227 / BL-232. The 4 checks below are
 # load-bearing for v2.0 ship; the deferred 4 are load-bearing for v2.2.
 #
-# Trigger: tag push matching `v[0-9]+.[0-9]+.[0-9]+` (strict semver; the
-# `-yanked` / `-recalled` / `-rc*` / `-dryrun` suffix patterns intentionally
-# do NOT trigger this workflow per HANDSHAKE §10 + §12).
+# Trigger: tag push matching the `v*.*.*` glob; strict semver shape is
+# enforced inside the job via a regex check on `${{ github.ref_name }}`.
+# (Note: GitHub Actions tag filters are glob-only — `[0-9]+` would be parsed
+# as literal characters, NOT a regex quantifier — so we keep the filter
+# permissive and validate inside.) The `-yanked` / `-recalled` / `-rc*` /
+# `-dryrun` suffix patterns intentionally do NOT pass the in-job regex per
+# HANDSHAKE §10 + §12.
 #
 # All 4 checks must pass for the tag to be considered "verified-shipped".
 # Failure → §7.1 inline rollback procedure (delete tag from origin, ship a
@@ -20,7 +24,7 @@ name: verify-v2-ship
 on:
   push:
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v*.*.*"
 
 permissions: {}
 
@@ -45,9 +49,22 @@ jobs:
 
       - name: Install vendored deps
         run: |
-          PIN=$(cat plugins/launchpad/scripts/_vendor/PSUTIL_VERSION)
+          PSUTIL_PIN=$(cat plugins/launchpad/scripts/_vendor/PSUTIL_VERSION)
+          PYYAML_PIN=$(cat plugins/launchpad/scripts/_vendor/PYYAML_VERSION)
           python -m pip install --upgrade pip
-          python -m pip install "psutil==${PIN}"
+          python -m pip install "psutil==${PSUTIL_PIN}" "pyyaml==${PYYAML_PIN}"
+
+      - name: 0) Strict semver shape (in-job validation)
+        run: |
+          # GitHub tag filters are glob-only; in-job regex enforces the strict
+          # `vMAJOR.MINOR.PATCH` shape. Suffix patterns (-yanked / -recalled /
+          # -rc* / -dryrun) are intentionally rejected here, NOT at the trigger.
+          TAG="${GITHUB_REF#refs/tags/}"
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag $TAG is not strict semver (vMAJOR.MINOR.PATCH); refusing"
+            exit 1
+          fi
+          echo "Tag $TAG passes strict semver gate"
 
       - name: 1) Tag SHA matches squash-merge HEAD on main
         run: |

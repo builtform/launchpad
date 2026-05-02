@@ -118,7 +118,14 @@ def _utc_iso_sec() -> str:
 
 def _load_yaml(path: Path) -> dict:
     """yaml.safe_load with vendor-bootstrap (matches lp_pick_stack/engine.py)."""
-    import yaml  # noqa: PLC0415
+    try:
+        import yaml  # noqa: PLC0415
+    except ImportError as exc:  # pragma: no cover
+        raise ImportError(
+            "pyyaml is required for /lp-scaffold-stack. Install with: "
+            "`pip install -r plugins/launchpad/scripts/requirements.txt` "
+            "(pinned version lives in plugins/launchpad/scripts/_vendor/PYYAML_VERSION)."
+        ) from exc
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
 
