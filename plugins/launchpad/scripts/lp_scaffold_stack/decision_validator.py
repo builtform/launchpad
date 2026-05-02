@@ -189,14 +189,37 @@ def _validate_layer_options(
                 message=f"layers[{i}].options must be a dict, got {type(options).__name__}",
                 field_name=f"layers[{i}].options",
             )
-        allowed_options = set((scaffolder.get("options_schema") or {}).keys())
-        for key in options:
+        options_schema = scaffolder.get("options_schema") or {}
+        allowed_options = set(options_schema.keys())
+        for key, val in options.items():
             if key not in allowed_options:
                 return Rejected(
                     reason="layer_options_unknown_key",
                     message=(
                         f"layers[{i}].options.{key!r} not in scaffolder "
                         f"options_schema {sorted(allowed_options)!r}"
+                    ),
+                    field_name=f"layers[{i}].options.{key}",
+                )
+            # Validate declared value type so malformed options can't slip
+            # through validation and produce broken argv at scaffold time
+            # (PR #41 cycle 3 #6 — closes type-validation gap).
+            declared = options_schema.get(key)
+            if declared == "string" and not isinstance(val, str):
+                return Rejected(
+                    reason="layer_options_type_mismatch",
+                    message=(
+                        f"layers[{i}].options.{key!r} declared as 'string' "
+                        f"in scaffolder options_schema; got {type(val).__name__}"
+                    ),
+                    field_name=f"layers[{i}].options.{key}",
+                )
+            if declared == "boolean" and not isinstance(val, bool):
+                return Rejected(
+                    reason="layer_options_type_mismatch",
+                    message=(
+                        f"layers[{i}].options.{key!r} declared as 'boolean' "
+                        f"in scaffolder options_schema; got {type(val).__name__}"
                     ),
                     field_name=f"layers[{i}].options.{key}",
                 )

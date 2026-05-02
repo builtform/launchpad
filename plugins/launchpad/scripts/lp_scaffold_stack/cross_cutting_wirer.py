@@ -166,15 +166,19 @@ def _emit_lefthook_yml(cwd: Path, toolchains: Sequence[str]) -> Path:
         body_lines.append("    lint:")
         body_lines.append("      run: 'pnpm -r lint'")
     elif "python" in toolchains:
+        # Real failing commands — no `|| true` masking. If the project does
+        # not yet have mypy/ruff configured, the user runs `pip install mypy
+        # ruff` (or removes the hook). Quality gates that can't fail are not
+        # gates (PR #41 cycle 3 #7 closure).
         body_lines.append("    typecheck:")
-        body_lines.append("      run: 'python -m mypy . || true'")
+        body_lines.append("      run: 'python -m mypy .'")
         body_lines.append("    lint:")
-        body_lines.append("      run: 'python -m ruff check . || true'")
+        body_lines.append("      run: 'python -m ruff check .'")
     elif "ruby" in toolchains:
         body_lines.append("    typecheck:")
         body_lines.append("      run: 'echo \"typecheck not configured for ruby\"'")
         body_lines.append("    lint:")
-        body_lines.append("      run: 'bundle exec rubocop || true'")
+        body_lines.append("      run: 'bundle exec rubocop'")
     elif "go" in toolchains:
         body_lines.append("    typecheck:")
         body_lines.append("      run: 'go vet ./...'")

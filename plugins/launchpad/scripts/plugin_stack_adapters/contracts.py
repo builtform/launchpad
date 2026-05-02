@@ -18,6 +18,10 @@ StackId = Literal[
     "ts_monorepo", "python_django", "go_cli", "generic",
     "astro", "fastapi", "rails", "hugo",
     "eleventy", "expo",
+    # v2.0 catalog stack IDs (HANDSHAKE §11). next/django alias to the legacy
+    # ts_monorepo / python_django adapters; hono and supabase route to
+    # generic until dedicated adapters land in v2.1+.
+    "next", "django", "hono", "supabase",
 ]
 
 

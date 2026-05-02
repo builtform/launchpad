@@ -85,6 +85,19 @@ def main(argv: list[str] | None = None) -> int:
             print(f"receipt: {result.receipt_path}")
         return 0
 
+    # Failure path — surface structured reason/message + log paths so the
+    # user can diagnose without grepping the JSONL audit log themselves
+    # (PR #41 cycle 3 #5 — closed silent-CLI-exit bug).
+    print(
+        f"/lp-scaffold-stack: {result.outcome}"
+        f"{f' reason={result.reason!r}' if result.reason else ''}"
+        f"{f' — {result.message}' if result.message else ''}",
+        file=sys.stderr,
+    )
+    if result.failed_record_path is not None:
+        print(f"partial-cleanup record: {result.failed_record_path}", file=sys.stderr)
+    if result.rejection_log_path is not None:
+        print(f"rejection log: {result.rejection_log_path}", file=sys.stderr)
     if result.outcome == Outcome.ABORTED:
         return 1
     # Outcome.FAILED — partial-cleanup recorded.

@@ -50,13 +50,17 @@ from .contracts import (
 # `commands.dev` when the user composes a polyglot project.
 STACK_PRECEDENCE: tuple[StackId, ...] = (
     "ts_monorepo",
+    "next",          # aliases to ts_monorepo
     "python_django",
+    "django",        # aliases to python_django
     "rails",
     "astro",
     "hugo",
     "expo",
     "fastapi",
     "eleventy",
+    "hono",          # aliases to generic until a hono-specific adapter ships
+    "supabase",      # aliases to generic until a supabase-specific adapter ships
     "go_cli",
     "generic",
 )
@@ -72,6 +76,13 @@ ADAPTERS = {
     "hugo": hugo_adapter,
     "eleventy": eleventy_adapter,
     "expo": expo_adapter,
+    # v2.0 catalog aliases — wire the canonical catalog stack IDs to the
+    # appropriate adapter so receipt-driven dispatch (PR #41 cycle 3 #1)
+    # never silently falls back to generic for a real catalog stack.
+    "next": ts_monorepo,
+    "django": python_django,
+    "hono": generic,
+    "supabase": generic,
 }
 
 

@@ -38,7 +38,10 @@ stacks:
     flavor: "pure-headless"
     command: "npm create astro@latest"
     destination_argv: ["."]
-    headless_flags: ["--", "--yes", "--template"]
+    # `--template` is a value-taking flag emitted via options_schema
+    # (--template=<value>); listing it bare in headless_flags would consume
+    # the next arg as its value and break the parser.
+    headless_flags: ["--", "--yes"]
     knowledge_anchor: "plugins/launchpad/scaffolders/astro-pattern.md"
     knowledge_anchor_sha256: "f8631d16c290a805eb58927efdb6c6c3e253842c471e1f4de04395b573f77121"
     options_schema:
@@ -88,7 +91,8 @@ stacks:
     flavor: "pure-headless"
     command: "npm create hono@latest"
     destination_argv: ["."]
-    headless_flags: ["--", "--yes", "--template"]
+    # `--template` is value-taking — emitted via options_schema, not bare.
+    headless_flags: ["--", "--yes"]
     knowledge_anchor: "plugins/launchpad/scaffolders/hono-pattern.md"
     knowledge_anchor_sha256: "c03656e1ce87ece9ffa9667c54f032828a1c962090f35475e3730a24369723f5"
     options_schema:
@@ -137,12 +141,14 @@ stacks:
 
   supabase:
     pillar: "Backend Managed"
-    type: "orchestrate"
-    flavor: "mixed-prompts"
-    command: "supabase init"
-    # supabase init scaffolds in cwd by default; no destination arg needed.
-    destination_argv: []
-    headless_flags: []
+    # type: curate (NOT orchestrate) at v2.0 — `supabase init` is mixed-
+    # prompts with no non-interactive flag set, so headless invocation
+    # would hang on stdin until the 5-minute timeout. Demoted to curate
+    # so users follow the pattern doc and run `supabase init` themselves.
+    # Future v2.1+ work: identify a verified non-interactive invocation
+    # path (env vars + --yes equivalent) and promote back to orchestrate.
+    type: "curate"
+    flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/supabase-pattern.md"
     knowledge_anchor_sha256: "38c6c5170c7347ba588f10bdd44259e0fbf593dd68bfeeebb2b2347d6a8c9ef3"
     options_schema:
@@ -156,7 +162,8 @@ stacks:
     flavor: "pure-headless"
     command: "npx create-expo-app@latest"
     destination_argv: ["."]
-    headless_flags: ["--yes", "--template"]
+    # `--template` is value-taking — emitted via options_schema, not bare.
+    headless_flags: ["--yes"]
     knowledge_anchor: "plugins/launchpad/scaffolders/expo-pattern.md"
     knowledge_anchor_sha256: "41ab885607443c6cad34750e79bda13aa7207165f1e78178e9a616535fd89bfe"
     options_schema:

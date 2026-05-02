@@ -163,6 +163,13 @@ def _single_adapter(stack_id: str):
         "hugo": hugo_adapter,
         "eleventy": eleventy_adapter,
         "expo": expo_adapter,
+        # v2.0 catalog aliases (PR #41 cycle 3 #2 — closes the receipt-
+        # dispatch silent-fallback gap for `next`, `django`, `hono`,
+        # `supabase` which were missing from the legacy adapter mapping).
+        "next": ts_monorepo,
+        "django": python_django,
+        "hono": generic,
+        "supabase": generic,
     }
     return mapping.get(stack_id, generic)
 
@@ -307,12 +314,46 @@ def _read_config_overwrite(repo_root: Path) -> str:
 
 
 def generate(repo_root: Path, *, dry_run: bool = False, force: bool = False, only: set[str] | None = None, product_name: str = "Your Product") -> int:
-    # 1. Detect
+    # 1. Detect (manifest-based; the brownfield path)
     report = run_detector(repo_root)
     report["_repo_root"] = str(repo_root)  # passed through to render_docs for path-relativizing
 
-    # 2. Compose
-    stacks = report.get("stacks", ["generic"])
+    # 2. Compose. The greenfield path: prefer scaffold-receipt.json's
+    # `layers_materialized[].stack` over manifest detection. This is required
+    # for curate-mode stacks (eleventy/fastapi/django) which write only a
+    # README.scaffold.md and produce no detectable manifests, so manifest-
+    # detection alone would route them to `generic` (per Codex review #1 on
+    # PR #41 cycle 3 — receipt-based dispatch contract gap closure).
+    receipt_path = repo_root / ".launchpad" / "scaffold-receipt.json"
+    receipt_stacks: list[str] = []
+    if receipt_path.is_file():
+        try:
+            from plugin_scaffold_receipt_loader import load_receipt  # type: ignore[import-not-found]
+        except ImportError:
+            # Receipt loader is a sibling script; import via runpy-style fallback.
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "plugin_scaffold_receipt_loader",
+                SCRIPT_DIR / "plugin-scaffold-receipt-loader.py",
+            )
+            if spec and spec.loader:
+                _mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(_mod)
+                load_receipt = _mod.load_receipt  # type: ignore[attr-defined]
+            else:
+                load_receipt = None  # type: ignore[assignment]
+        if load_receipt is not None:
+            try:
+                receipt = load_receipt(receipt_path)
+                receipt_stacks = [
+                    str(layer["stack"])
+                    for layer in receipt.get("layers_materialized", [])
+                    if isinstance(layer, dict) and "stack" in layer
+                ]
+            except Exception:
+                # Receipt malformed/expired: fall back to manifest detection.
+                receipt_stacks = []
+    stacks = receipt_stacks or report.get("stacks", ["generic"])
     adapter_out = compose_adapter_output(stacks)
 
     # 3. Render
