@@ -63,11 +63,29 @@ _SECRET_PATTERNS = [
 
 
 class CrossCuttingError(RuntimeError):
-    """Raised on cross-cutting wiring failures. Carries `reason:` field."""
+    """Raised on cross-cutting wiring failures. Carries `reason:` field
+    and the list of cross-cutting files written before the failure.
 
-    def __init__(self, message: str, reason: str):
+    Per PR #41 cycle 7 #5 closure: when `wire_cross_cutting()` raises
+    mid-sequence (e.g., lefthook.yml succeeds, pnpm-workspace.yaml
+    collides), the engine's collision handler needs to know which files
+    are already on disk so the scaffold-failed recovery record can name
+    them. Without this, a rerun collides on the orphan files because the
+    recovery_commands payload doesn't list them.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        reason: str,
+        *,
+        cross_cutting_files_written: list[str] | None = None,
+    ):
         super().__init__(message)
         self.reason = reason
+        self.cross_cutting_files_written: list[str] = list(
+            cross_cutting_files_written or []
+        )
 
 
 @dataclass
@@ -255,15 +273,26 @@ def wire_cross_cutting(
     toolchains = _detect_toolchains(stacks)
     written: list[str] = []
 
+    def _emit(emit_fn, *args) -> None:
+        try:
+            target = emit_fn(*args)
+        except CrossCuttingError as exc:
+            # Re-raise with partial-write state attached so the engine's
+            # collision handler can list orphans in the scaffold-failed
+            # recovery_commands payload (PR #41 cycle 7 #5 closure).
+            raise CrossCuttingError(
+                str(exc),
+                reason=exc.reason,
+                cross_cutting_files_written=sorted(written),
+            ) from exc
+        written.append(str(target.relative_to(cwd)))
+
     # Always emit lefthook.yml (single-layer projects benefit from the hooks).
-    lefthook = _emit_lefthook_yml(cwd, toolchains)
-    written.append(str(lefthook.relative_to(cwd)))
+    _emit(_emit_lefthook_yml, cwd, toolchains)
 
     if _is_monorepo_layout(layers):
-        ws = _emit_pnpm_workspace(cwd, layers)
-        written.append(str(ws.relative_to(cwd)))
-        turbo = _emit_turbo_json(cwd)
-        written.append(str(turbo.relative_to(cwd)))
+        _emit(_emit_pnpm_workspace, cwd, layers)
+        _emit(_emit_turbo_json, cwd)
 
     findings = _scan_for_secrets(cwd, materialized_files)
     return CrossCuttingResult(

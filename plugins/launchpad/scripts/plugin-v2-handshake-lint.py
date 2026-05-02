@@ -213,6 +213,13 @@ LEAKAGE_FILE_ALLOWLIST = (
     "plugins/launchpad/scripts/plugin_stack_adapters/ts_monorepo.py",
     "plugins/launchpad/commands/lp-define.md",
     "plugins/launchpad/commands/lp-copy.md",
+    # Carve-out 3: docs that TEACH the porting-attribution pattern itself.
+    # The literal string "Ported from: [source]" appears as a TEMPLATE
+    # placeholder in skill-creation/porting how-to docs — it's the lint
+    # target, not a real attribution. Surfaced by PR #41 cycle 7 #1 closure
+    # (case-insensitive prefilter); the previous case-sensitive prefilter
+    # silently dropped these even though the post-filter regex was IGNORECASE.
+    "plugins/launchpad/skills/lp-creating-skills/references/PORTING-GUIDE.md",
 )
 
 
@@ -238,22 +245,38 @@ def _run(cmd: list[str], *, cwd: Path = REPO_ROOT) -> tuple[int, str]:
     return res.returncode, res.stdout
 
 
-def _git_grep(pattern: str, *paths: str, fixed: bool = False, regex: bool = False) -> list[str]:
+def _git_grep(
+    pattern: str,
+    *paths: str,
+    fixed: bool = False,
+    regex: bool = False,
+    ignorecase: bool = False,
+) -> list[str]:
     """Search for pattern across the worktree (tracked + untracked).
 
     We walk the filesystem rather than calling `git grep` so the lint works
     on untracked files during Phase -1 (the v2 modules are not yet committed
     per the no-push golden rule).
+
+    `ignorecase` (PR #41 cycle 7 #1 closure): if True, the prefilter regex
+    compiles with `re.IGNORECASE`. Required by the private-origin leakage
+    scan so case variants like `Ported From` / `Builtform` aren't filtered
+    out before the case-insensitive `cre.search()` post-check fires.
     """
+    flags = re.IGNORECASE if ignorecase else 0
     if regex:
-        pat = re.compile(pattern)
+        pat = re.compile(pattern, flags)
         match = lambda line: bool(pat.search(line))  # noqa: E731
     elif fixed:
-        match = lambda line: pattern in line  # noqa: E731
+        if ignorecase:
+            needle = pattern.lower()
+            match = lambda line: needle in line.lower()  # noqa: E731
+        else:
+            match = lambda line: pattern in line  # noqa: E731
     else:
         # Plain pattern, treat as regex (matches git grep default behavior
         # closely enough for our needs).
-        pat = re.compile(re.escape(pattern))
+        pat = re.compile(re.escape(pattern), flags)
         match = lambda line: bool(pat.search(line))  # noqa: E731
 
     if not paths:
@@ -515,7 +538,7 @@ def check_private_origin_leakage(failures: list[str]) -> None:
             cre = re.compile(pat, re.IGNORECASE)
         except re.error:
             continue
-        for hit in _git_grep(pat, *LEAKAGE_SCAN_PATHS, regex=True):
+        for hit in _git_grep(pat, *LEAKAGE_SCAN_PATHS, regex=True, ignorecase=True):
             path = hit.split(":", 1)[0]
             if _is_leakage_allowlisted(path):
                 continue

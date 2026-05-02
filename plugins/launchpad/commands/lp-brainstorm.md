@@ -98,7 +98,7 @@ Collaborative brainstorming command. Explores ideas, generates approaches, and c
    - For `empty` (greenfield) cwds: `mkdir -p .launchpad/` then create `.launchpad/.first-run-marker` via `os.open(".launchpad/.first-run-marker", O_WRONLY | O_CREAT | O_EXCL, 0o600)` — the `O_EXCL` flag race-detects concurrent `/lp-brainstorm` invocations
    - On `FileExistsError`: refuse with the user-facing hint: **"session in progress; remove `.launchpad/.first-run-marker` if stale OR run `/lp-scaffold-stack` to consume it first"** and exit
    - The marker is an empty positive-presence sentinel — NO JSON envelope, NO sha256, NO bound_cwd, NO `.first-run-marker.lock`. The integrity-bound JSON envelope is BL-235 deferred to v2.2 per `docs/architecture/SCAFFOLD_HANDSHAKE.md` §1.5 strip-back notice
-   - The marker tells `/lp-scaffold-stack` that this cwd is mid-pipeline (authorizes the empty-nonce-ledger first-run fast path); after `/lp-scaffold-stack` succeeds it gets renamed to `.first-run-marker.consumed.<iso-sec-ts>`
+   - The marker tells `/lp-scaffold-stack` that `/lp-brainstorm` ran in this cwd with greenfield state — it provides handoff context only. The empty-nonce-ledger first-run fast-path optimization is BL-235 DEFERRED to v2.2 (see `lp-scaffold-stack.md` Phase 0); v2.0 always takes the slow-path nonce-ledger check whether the marker exists or not. After `/lp-scaffold-stack` succeeds the marker gets renamed to `.first-run-marker.consumed.<iso-sec-ts>`.
 
 ## Phase 4: Refine + Handoff
 

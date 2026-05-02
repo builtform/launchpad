@@ -110,6 +110,89 @@ If the generator reported secret-scan findings:
 
 ---
 
+## Step 3: Render the Tier 1 governance reveal panel
+
+Per OPERATIONS §5, after the generator's JSON summary, render the Tier 1
+reveal panel so the user sees concrete proof of what governance gates were
+installed. The panel variant depends on the cwd state captured by Step 0.1
+(greenfield vs. brownfield).
+
+### Greenfield variant
+
+If `cwd_state == "empty"` AND `.launchpad/scaffold-receipt.json` exists,
+read the receipt's `tier1_governance_summary` block and render:
+
+```
+✓ Tier 1 governance kernel installed:
+
+  • REPOSITORY_STRUCTURE.md whitelists <whitelisted_paths> paths; CI rejects anything else
+    → blocks structure-drift PRs before reviewer time is wasted
+  • lefthook pre-commit hooks gate: <lefthook_hooks joined with ", ">
+    → catches `.env.local` leaks and broken types before push
+  • .launchpad/config.yml drives <slash_commands_wired> slash commands across
+    your project lifecycle
+    → consistent /lp-build, /lp-define, /lp-commit semantics across sessions
+  • .harness/ captures run logs, observations, todos for compound
+    learning
+    → past mistakes inform future review agents automatically
+  • docs/architecture/ — <architecture_docs_rendered> living architecture docs, kept current
+    by /lp-define re-runs
+    → architecture stays in sync with code; no doc rot
+
+Telemetry: local-only (.harness/observations/v2-pipeline-*.jsonl).
+Opt out via .launchpad/config.yml: telemetry: off.
+CI users: set CI=true + LP_CONFIG_AUTO_REVIEW=1 (with positive CI
+filesystem signal) to skip config-review prompts on first invocation.
+
+Run /help to see what slash commands are now available, or
+/lp-build when you're ready to ship a feature.
+```
+
+Substitute the four bracketed numbers (`<whitelisted_paths>`,
+`<lefthook_hooks>`, `<slash_commands_wired>`, `<architecture_docs_rendered>`)
+from `scaffold-receipt.json.tier1_governance_summary`. If the receipt is
+missing OR malformed, fall back to the brownfield variant rather than
+inventing numbers.
+
+### Brownfield variant
+
+If `cwd_state != "empty"` OR no scaffold-receipt is available, render with
+filesystem-only counts (no chain-of-custody, no receipt SHA cross-check):
+
+```
+✓ Tier 1 governance verified — all gates green:
+
+  • REPOSITORY_STRUCTURE.md — <N> paths whitelisted (<M> new this run)
+    → structure-drift detector blocks misplaced files before merge
+  • lefthook pre-commit hooks — installed/verified: secret-scan,
+    structure-drift, typecheck, lint
+    → catches secrets and broken types at commit time, not in CI
+  • .launchpad/config.yml — <N> slash commands wired
+    → consistent automation semantics across sessions
+  • .harness/ — <N> observations, <M> todos (last run: <timestamp>)
+    → continuity across sessions; review agents read past learnings
+  • docs/architecture/ — 8 architecture docs refreshed against
+    your current code
+    → re-renders pick up changes since last /lp-define run
+
+Telemetry: local-only (.harness/observations/v2-pipeline-*.jsonl).
+Opt out via .launchpad/config.yml: telemetry: off.
+
+Run /help to see your slash commands, or /lp-build when you're
+ready to ship a feature.
+```
+
+### Telemetry-disabled modifier
+
+If `.launchpad/config.yml` has `telemetry: off`, replace the two telemetry
+lines (Telemetry / Opt-out) in either variant with the single line:
+
+```
+Telemetry: disabled (.launchpad/config.yml: telemetry: off).
+```
+
+---
+
 ## Acceptance behavior
 
 - **Greenfield (empty repo)**: LaunchPad defaults; 4-doc scaffold + config.yml.

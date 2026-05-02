@@ -459,6 +459,11 @@ def run_pipeline(
         wiring = wire_cross_cutting(cwd, layers, materialized_files)
     except CrossCuttingError as exc:
         elapsed = time.monotonic() - start
+        # PR #41 cycle 7 #5: pass through any cross-cutting files written
+        # before the collision so the recovery record names them. Otherwise
+        # a rerun would collide again on the orphans (lefthook.yml succeeds
+        # before pnpm-workspace.yaml fails, etc.).
+        partial_cross_cutting = getattr(exc, "cross_cutting_files_written", []) or []
         return _record_partial_failure(
             repo_root=repo_root,
             decision_path=decision_path,
@@ -469,6 +474,7 @@ def run_pipeline(
             elapsed=elapsed,
             install_seconds=install_seconds,
             write_telemetry_flag=write_telemetry_flag,
+            cross_cutting_files=list(partial_cross_cutting) or None,
             recovery_action=(
                 "Cross-cutting wiring (pnpm-workspace.yaml / turbo.json / "
                 "lefthook.yml) collided with existing files. Resolve the "

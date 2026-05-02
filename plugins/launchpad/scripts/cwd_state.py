@@ -71,8 +71,19 @@ def cwd_state(cwd: Path) -> Literal["empty", "brownfield", "ambiguous"]:
     if not extras:
         return "empty"
     if len(extras) == 1 and "README.md" in names:
+        # README + 1 extra (e.g., .editorconfig, a stub LICENSE.txt). Per PR
+        # #41 cycle 7 #3 closure: the extra file ALSO has to be small —
+        # previously only README was sized, so a 50-byte README next to a
+        # 100KB stray file would still classify "empty" and let the user
+        # accidentally scaffold over it.
         readme = cwd / "README.md"
-        if readme.stat().st_size < 500:
+        extra_name = next(iter(extras))
+        extra_path = cwd / extra_name
+        readme_ok = readme.stat().st_size < 500
+        extra_ok = (
+            extra_path.is_file() and extra_path.stat().st_size <= 100
+        )
+        if readme_ok and extra_ok:
             return "empty"
     # Generic safeguard: any unrecognized file > 100 bytes triggers ambiguous
     # so unknown ecosystems fail safe rather than greenfield-by-omission.
@@ -111,3 +122,39 @@ __all__ = [
     "cwd_state",
     "refuse_if_not_greenfield",
 ]
+
+
+def _main(argv: list[str] | None = None) -> int:
+    """CLI shim: print classification of <cwd> (default: cwd) to stdout.
+
+    Per PR #41 cycle 7 #6 closure: lp-brainstorm.md documents
+    `python3 plugins/launchpad/scripts/cwd_state.py` as a way to compute
+    cwd_state from a shell. Without this shim the script was importable
+    only — running it directly was a no-op. The CLI prints exactly one
+    line: `empty`, `brownfield`, or `ambiguous`. Exits 0 on success;
+    non-zero on bad input path.
+    """
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(
+        description="Classify a working directory as empty/brownfield/ambiguous.",
+    )
+    parser.add_argument(
+        "cwd",
+        nargs="?",
+        default=".",
+        help="Path to classify (default: current directory).",
+    )
+    args = parser.parse_args(argv)
+    try:
+        state = cwd_state(Path(args.cwd))
+    except NotADirectoryError as exc:
+        print(f"cwd_state: {exc}", file=sys.stderr)
+        return 2
+    print(state)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())

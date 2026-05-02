@@ -412,17 +412,39 @@ def _walk_bak_window(repo_root: Path, *, now_epoch: float) -> list[Path]:
 
 
 def _read_nonces_from(path: Path) -> set[str]:
+    """Parse a ledger file's nonce records.
+
+    Per HANDSHAKE §4 rule 10 (PR #41 cycle 7 #2 closure): a non-empty,
+    non-comment line that isn't a 32-char UUID-hex is treated as corruption
+    and raises `NonceLedgerError("nonce_ledger_corrupt")`. The previous
+    shape silently dropped such lines, which let truncation, partial-line
+    EIO, or manual-edit corruption pass through `is_nonce_seen()` as "not
+    seen" — opening a replay window. The `_ensure_format_header()` branch
+    only inspects line 0; mid-file corruption needs its own gate.
+    """
     out: set[str] = set()
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            for line in f:
-                s = line.strip()
-                if not s or s.startswith("#"):
-                    continue
-                if _UUID_HEX_RE.fullmatch(s):
-                    out.add(s)
+        f = open(path, "r", encoding="utf-8")
     except OSError:
-        pass
+        # File may have been deleted between listing and reading (.bak
+        # retention, race with rotation). Tolerate missing-file; corruption
+        # detection only applies to files we successfully opened.
+        return out
+    try:
+        for lineno, line in enumerate(f, start=1):
+            s = line.strip()
+            if not s or s.startswith("#"):
+                continue
+            if _UUID_HEX_RE.fullmatch(s):
+                out.add(s)
+                continue
+            raise NonceLedgerError(
+                f"corrupt record at {path.name}:{lineno}: "
+                f"line is neither comment nor 32-char UUID hex",
+                reason="nonce_ledger_corrupt",
+            )
+    finally:
+        f.close()
     return out
 
 
