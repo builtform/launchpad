@@ -25,6 +25,16 @@ on:
   push:
     tags:
       - "v*.*.*"
+  # Manual re-run lane for the OPERATIONS §7.1 documented recovery flow.
+  # When verify-v2-ship hits transient propagation lag (≤120s eventual
+  # consistency) the maintainer runs `gh workflow run v2-release.yml --ref
+  # <tag>` to retry. Three consecutive failures → §7.1 yank procedure.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to verify (e.g. v2.0.0)"
+        required: true
+        type: string
 
 permissions: {}
 
@@ -55,16 +65,24 @@ jobs:
           python -m pip install "psutil==${PSUTIL_PIN}" "pyyaml==${PYYAML_PIN}"
 
       - name: 0) Strict semver shape (in-job validation)
+        env:
+          DISPATCH_TAG: ${{ inputs.tag }}
         run: |
           # GitHub tag filters are glob-only; in-job regex enforces the strict
           # `vMAJOR.MINOR.PATCH` shape. Suffix patterns (-yanked / -recalled /
           # -rc* / -dryrun) are intentionally rejected here, NOT at the trigger.
-          TAG="${GITHUB_REF#refs/tags/}"
+          # Source: GITHUB_REF for push events, inputs.tag for workflow_dispatch.
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            TAG="${DISPATCH_TAG}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
           if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::Tag $TAG is not strict semver (vMAJOR.MINOR.PATCH); refusing"
             exit 1
           fi
           echo "Tag $TAG passes strict semver gate"
+          echo "RESOLVED_TAG=${TAG}" >> "$GITHUB_ENV"
 
       - name: 1) Tag SHA matches squash-merge HEAD on main
         run: |
@@ -76,7 +94,7 @@ jobs:
           # maintainer waits 2 minutes and re-runs via
           # `gh workflow run v2-release.yml --ref <tag>` per OPERATIONS
           # §7.1 documented fallback.
-          TAG_SHA=$(git rev-list -n 1 "${GITHUB_REF#refs/tags/}")
+          TAG_SHA=$(git rev-list -n 1 "${RESOLVED_TAG}")
           MAIN_SHA=$(git rev-parse origin/main 2>/dev/null \
                        || git rev-parse main)
           if [ "$TAG_SHA" != "$MAIN_SHA" ]; then
@@ -89,7 +107,7 @@ jobs:
 
       - name: 2) plugin.json version matches tag
         run: |
-          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          TAG_VERSION="${RESOLVED_TAG#v}"
           PLUGIN_VERSION=$(python -c "import json; print(json.load(open('plugins/launchpad/.claude-plugin/plugin.json'))['version'])")
           if [ "$TAG_VERSION" != "$PLUGIN_VERSION" ]; then
             echo "::error::tag version $TAG_VERSION != plugin.json version $PLUGIN_VERSION"

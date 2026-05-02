@@ -107,20 +107,19 @@ stacks:
 
   django:
     pillar: "Backend Python"
-    type: "orchestrate"
-    flavor: "pure-headless"
-    command: "django-admin startproject"
-    # django-admin startproject REQUIRES a project name; auto-derivation from
-    # cwd basename is deferred to v2.1 BL-238. v2.0 leaves destination_argv
-    # empty — orchestrated scaffold will fail with a usage error until the
-    # user supplies the name interactively.
-    destination_argv: []
-    headless_flags: []
+    # type: curate (NOT orchestrate) at v2.0 — django-admin startproject
+    # requires a positional project name (Python identifier) for which cwd-
+    # basename auto-derivation + identifier sanitization is BL-238 v2.2 work.
+    # Until BL-238 ships, the user follows the pattern doc to run django-admin
+    # manually. Matches the eleventy + fastapi shape (curate scaffolders that
+    # ship a knowledge_anchor + options_schema only).
+    type: "curate"
+    flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/django-pattern.md"
     knowledge_anchor_sha256: "4d1a7272f7f74c793be08991b5b88fdfc2a76bc03270a4b730ac57b31eb16021"
     options_schema:
       database: "string"
-    last_validated: "2026-04-30"
+    last_validated: "2026-05-02"
 
   rails:
     pillar: "Backend MVC (Ruby)"

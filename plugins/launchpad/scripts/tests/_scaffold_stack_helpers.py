@@ -199,10 +199,13 @@ def fake_run_invoker_creating(out_files: dict[str, list[str]]):
 
     Lookup key: the first argv element (e.g., "npm" → out_files["npm"]).
     Fallback: the union of all values when no key matches.
+
+    Accepts arbitrary kwargs (e.g., `timeout=`) to mirror `safe_run`'s
+    signature without exercising them in tests.
     """
     import subprocess
 
-    def _invoker(argv, cwd):
+    def _invoker(argv, cwd, **_kwargs):
         files = out_files.get(argv[0], [])
         if not files:
             for v in out_files.values():
@@ -218,12 +221,13 @@ def fake_run_invoker_creating(out_files: dict[str, list[str]]):
 
 def fake_run_invoker_failing_at(failure_layer_index: int):
     """Build a run_invoker that succeeds for first N layers and fails on the
-    (N+1)th. Counts via a closure-state list."""
+    (N+1)th. Counts via a closure-state list. Accepts arbitrary kwargs to
+    mirror `safe_run`'s signature."""
     import subprocess
 
     state = {"calls": 0}
 
-    def _invoker(argv, cwd):
+    def _invoker(argv, cwd, **_kwargs):
         state["calls"] += 1
         if state["calls"] - 1 == failure_layer_index:
             raise subprocess.CalledProcessError(

@@ -42,7 +42,7 @@ VALID_COMBINATIONS = frozenset({
     # Backend (single-purpose)
     ("hono", "backend"),
     ("fastapi", "backend"),
-    ("supabase", "backend"),
+    ("supabase", "backend-managed"),
     # Backend or fullstack (server-rendered frameworks with API-only mode)
     ("django", "backend"),
     ("django", "fullstack"),

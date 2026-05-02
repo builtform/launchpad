@@ -48,7 +48,20 @@ if str(SCRIPT_DIR) not in sys.path:
 
 import jinja2  # noqa: E402
 
-from plugin_stack_adapters import generic, go_cli, polyglot, python_django, ts_monorepo, secret_scanner  # noqa: E402
+from plugin_stack_adapters import (  # noqa: E402
+    astro_adapter,
+    eleventy_adapter,
+    expo_adapter,
+    fastapi_adapter,
+    generic,
+    go_cli,
+    hugo_adapter,
+    polyglot,
+    python_django,
+    rails_adapter,
+    secret_scanner,
+    ts_monorepo,
+)
 
 # manifest_stripper is intentionally NOT imported here. The stripper exists
 # as a defense-in-depth layer for a flow that does not currently happen:
@@ -144,6 +157,12 @@ def _single_adapter(stack_id: str):
         "python_django": python_django,
         "go_cli": go_cli,
         "generic": generic,
+        "astro": astro_adapter,
+        "fastapi": fastapi_adapter,
+        "rails": rails_adapter,
+        "hugo": hugo_adapter,
+        "eleventy": eleventy_adapter,
+        "expo": expo_adapter,
     }
     return mapping.get(stack_id, generic)
 

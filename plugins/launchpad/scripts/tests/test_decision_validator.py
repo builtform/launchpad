@@ -327,6 +327,36 @@ def test_rule_9_generated_at_expired(tmp_path: Path):
     assert verdict.reason == "generated_at_expired"
 
 
+def test_rule_9_generated_at_future_beyond_skew_rejected(tmp_path: Path):
+    """A forged future-dated decision must NOT bypass the replay window.
+
+    Closes the bypass where the original validator only checked age > MAX_AGE
+    and silently accepted negative ages (timestamps in the future).
+    """
+    decision = _make_valid_decision(tmp_path)
+    far_future = (datetime.now(timezone.utc) + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    decision["generated_at"] = far_future
+    decision["sha256"] = canonical_hash({k: v for k, v in decision.items() if k != "sha256"})
+    verdict = validate_decision(decision, tmp_path,
+                                scaffolders=SCAFFOLDERS, category_ids=CATEGORY_IDS)
+    assert isinstance(verdict, Rejected)
+    assert verdict.reason == "generated_at_in_future"
+
+
+def test_rule_9_generated_at_small_future_skew_accepted(tmp_path: Path):
+    """Within the 5-minute clock-skew tolerance, future timestamps pass."""
+    decision = _make_valid_decision(tmp_path)
+    near_future = (datetime.now(timezone.utc) + timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    decision["generated_at"] = near_future
+    decision["sha256"] = canonical_hash({k: v for k, v in decision.items() if k != "sha256"})
+    verdict = validate_decision(decision, tmp_path,
+                                scaffolders=SCAFFOLDERS, category_ids=CATEGORY_IDS)
+    if isinstance(verdict, Rejected):
+        assert verdict.reason != "generated_at_in_future", (
+            "small clock-skew within tolerance should not be rejected as future"
+        )
+
+
 # --- Rule 10: nonce ---
 
 

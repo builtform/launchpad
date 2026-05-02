@@ -38,6 +38,14 @@ from safe_run import UnsafeArgvError, safe_run  # noqa: E402
 # scripts/lp_scaffold_stack/ → scripts/ → launchpad/ → plugins/ → repo).
 DEFAULT_PLUGINS_ROOT = Path(__file__).resolve().parents[3]
 
+# Default scaffolder wall-clock budget. Most modern CLIs (create-next-app,
+# rails new, etc.) finish in under 2 minutes on a healthy network; the
+# 5-minute ceiling catches infinite hangs (notably `mixed-prompts` flavors
+# like supabase that can stall on stdin if a flag drifts) without false-
+# tripping on slow networks. Per-scaffolder overrides are deferred to v2.1
+# (would require a `headless_timeout_seconds` field on scaffolders.yml).
+DEFAULT_SCAFFOLDER_TIMEOUT_SEC = 300.0
+
 
 class LayerMaterializationError(RuntimeError):
     """Raised when a single layer fails to materialize. Carries `reason`."""
@@ -158,10 +166,16 @@ def _materialize_orchestrate(
     argv = _build_orchestrate_argv(scaffolder, layer)
     invoker = run_invoker if run_invoker is not None else safe_run
     try:
-        invoker(argv, layer_target)
+        invoker(argv, layer_target, timeout=DEFAULT_SCAFFOLDER_TIMEOUT_SEC)
     except UnsafeArgvError as exc:
         raise LayerMaterializationError(
             f"argv allowlist rejected scaffolder argv: {exc}",
+            reason="layer_materialization_failed",
+        ) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise LayerMaterializationError(
+            f"scaffolder timed out after {DEFAULT_SCAFFOLDER_TIMEOUT_SEC}s "
+            f"(likely interactive prompt or infinite hang): argv[0]={argv[0]!r}",
             reason="layer_materialization_failed",
         ) from exc
     except subprocess.CalledProcessError as exc:

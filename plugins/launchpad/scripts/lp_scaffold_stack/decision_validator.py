@@ -46,6 +46,11 @@ _ISO_Z_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 # Replay window per HANDSHAKE §4 rule 9: 4 hours.
 GENERATED_AT_MAX_AGE = timedelta(hours=4)
 
+# Clock-skew tolerance for future-dated decisions: small writer/validator
+# clock drift (NTP-stale, container time skew) is allowed; anything beyond is
+# treated as a forged timestamp attempting to bypass the replay window.
+GENERATED_AT_MAX_FUTURE_SKEW = timedelta(minutes=5)
+
 # Required top-level fields. brainstorm_session_id intentionally OMITTED per
 # Layer 7 strip-back (BL-235).
 _REQUIRED_FIELDS = (
@@ -407,6 +412,18 @@ def validate_decision(
             ),
             field_name="generated_at",
         )
+    # Future-dated decisions beyond clock-skew tolerance bypass the replay
+    # window until that future time passes. Reject so a forged timestamp
+    # cannot extend the window arbitrarily.
+    if age < -GENERATED_AT_MAX_FUTURE_SKEW:
+        return Rejected(
+            reason="generated_at_in_future",
+            message=(
+                f"generated_at is {-age} in the future (>5min clock-skew "
+                "tolerance); refusing as forged or clock-drifted"
+            ),
+            field_name="generated_at",
+        )
 
     # --- Rule 10 (partial — replay): nonce shape + replay ---
     nonce = decision["nonce"]
@@ -569,6 +586,7 @@ __all__ = [
     "ALLOWED_ROLES",
     "Accepted",
     "GENERATED_AT_MAX_AGE",
+    "GENERATED_AT_MAX_FUTURE_SKEW",
     "MANUAL_OVERRIDE_ID",
     "Rejected",
     "validate_decision",

@@ -24,8 +24,12 @@ from lp_scaffold_stack.layer_materializer import (
 
 
 def _fake_run_success(out_files: list[str]):
-    """Return a run_invoker that creates the listed files in cwd then returns."""
-    def _invoker(argv, cwd):
+    """Return a run_invoker that creates the listed files in cwd then returns.
+
+    Accepts arbitrary kwargs (e.g., `timeout=`) to mirror `safe_run`'s
+    signature without exercising them in tests.
+    """
+    def _invoker(argv, cwd, **_kwargs):
         for f in out_files:
             target = cwd / f
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -35,7 +39,7 @@ def _fake_run_success(out_files: list[str]):
     return _invoker
 
 
-def _fake_run_failure(argv, cwd):
+def _fake_run_failure(argv, cwd, **_kwargs):
     raise subprocess.CalledProcessError(returncode=1, cmd=list(argv),
                                         output=b"", stderr=b"sim-fail")
 

@@ -17,7 +17,18 @@ happens at the /lp-define layer.
 """
 from __future__ import annotations
 
-from . import generic, go_cli, python_django, ts_monorepo
+from . import (
+    astro_adapter,
+    eleventy_adapter,
+    expo_adapter,
+    fastapi_adapter,
+    generic,
+    go_cli,
+    hugo_adapter,
+    python_django,
+    rails_adapter,
+    ts_monorepo,
+)
 from .contracts import (
     AdapterOutput,
     AppFlowInfo,
@@ -30,14 +41,37 @@ from .contracts import (
     TechStackInfo,
 )
 
-# Precedence order for conflicting scalar values. Earlier wins.
-STACK_PRECEDENCE: tuple[StackId, ...] = ("ts_monorepo", "python_django", "go_cli", "generic")
+# Precedence order for conflicting scalar values. Earlier wins. v2.0 ordering:
+# (1) full-stack TypeScript (ts_monorepo) wins on shared scalars; (2) framework
+# fullstack/orchestrate stacks next (next, rails, django); (3) framework
+# orchestrate single-purpose (astro, hono, hugo, expo, fastapi, eleventy);
+# (4) the legacy go_cli + generic baselines absorb anything unmatched. The
+# precedence drives which adapter "owns" conflicting scalar values like
+# `commands.dev` when the user composes a polyglot project.
+STACK_PRECEDENCE: tuple[StackId, ...] = (
+    "ts_monorepo",
+    "python_django",
+    "rails",
+    "astro",
+    "hugo",
+    "expo",
+    "fastapi",
+    "eleventy",
+    "go_cli",
+    "generic",
+)
 
 ADAPTERS = {
     "ts_monorepo": ts_monorepo,
     "python_django": python_django,
     "go_cli": go_cli,
     "generic": generic,
+    "astro": astro_adapter,
+    "fastapi": fastapi_adapter,
+    "rails": rails_adapter,
+    "hugo": hugo_adapter,
+    "eleventy": eleventy_adapter,
+    "expo": expo_adapter,
 }
 
 

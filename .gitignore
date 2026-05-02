@@ -47,6 +47,10 @@ settings.local.json
 # Claude Code worktrees (isolated parallel development sessions)
 .claude/worktrees/
 
+# Claude Code scheduled-tasks lock (per-session runtime state — pid + start
+# time + lock acquisition timestamp; never load-bearing in version control)
+.claude/scheduled_tasks.lock
+
 # Deprecated files (kept for reference during migration)
 *.deprecated
 

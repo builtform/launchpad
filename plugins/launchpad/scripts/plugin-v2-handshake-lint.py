@@ -652,9 +652,13 @@ def check_scaffolders_catalog(failures: list[str], today: _dt.date | None = None
             else:
                 # The command may legitimately contain spaces (`hugo new site`,
                 # `rails new`, `npx create-next-app@latest`). Validate each
-                # space-separated token against ARGV_SAFE_RE.
+                # space-separated token against ARGV_SAFE_RE. Use fullmatch
+                # (not match) so a safe-prefix + unsafe-suffix token cannot
+                # pass CI but fail at runtime — runtime safe_run uses
+                # fullmatch, and the lint MUST mirror the runtime check
+                # to avoid drift (Codex review #7 on PR #41).
                 for token in cmd.split():
-                    if not ARGV_SAFE_RE.match(token):
+                    if not ARGV_SAFE_RE.fullmatch(token):
                         failures.append(
                             f"[{rule}] entry {stack_id!r} command token "
                             f"{token!r} fails argv-safe allowlist"
@@ -666,7 +670,7 @@ def check_scaffolders_catalog(failures: list[str], today: _dt.date | None = None
                 )
             else:
                 for f in flags:
-                    if not isinstance(f, str) or not ARGV_SAFE_RE.match(f):
+                    if not isinstance(f, str) or not ARGV_SAFE_RE.fullmatch(f):
                         failures.append(
                             f"[{rule}] entry {stack_id!r} headless flag {f!r} "
                             f"fails argv-safe allowlist"
