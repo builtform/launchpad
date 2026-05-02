@@ -1,0 +1,101 @@
+# verify-v2-ship — post-tag release verification (HANDSHAKE §12 + OPERATIONS
+# §0 strip-back-aware Layer 7).
+#
+# v2.0 ships the SIMPLIFIED 4-check single-shot battery per HANDSHAKE §1.5
+# strip-back. The Layer 5 8-check battery (marketplace.json schema, automated
+# reviews green, tag-protection content, pre-existing recall-tag 404 gate,
+# exponential-backoff polling, `${{ github.run_id }}` self-loop break) is
+# DEFERRED to v2.2 under BL-226 / BL-227 / BL-232. The 4 checks below are
+# load-bearing for v2.0 ship; the deferred 4 are load-bearing for v2.2.
+#
+# Trigger: tag push matching `v[0-9]+.[0-9]+.[0-9]+` (strict semver; the
+# `-yanked` / `-recalled` / `-rc*` / `-dryrun` suffix patterns intentionally
+# do NOT trigger this workflow per HANDSHAKE §10 + §12).
+#
+# All 4 checks must pass for the tag to be considered "verified-shipped".
+# Failure → §7.1 inline rollback procedure (delete tag from origin, ship a
+# fresh patch on next ship attempt).
+name: verify-v2-ship
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install vendored deps
+        run: |
+          PIN=$(cat plugins/launchpad/scripts/_vendor/PSUTIL_VERSION)
+          python -m pip install --upgrade pip
+          python -m pip install "psutil==${PIN}"
+
+      - name: 1) Tag SHA matches squash-merge HEAD on main
+        run: |
+          # The tag MUST point at a commit that is the current main HEAD
+          # (or an ancestor reachable as the most recent squash-merge).
+          # v2.0 simplification per HANDSHAKE §1.5: single-shot, no
+          # exponential-backoff polling (BL-232 deferred). If the GitHub
+          # API has propagation lag (≤120s eventual consistency), the
+          # maintainer waits 2 minutes and re-runs via
+          # `gh workflow run v2-release.yml --ref <tag>` per OPERATIONS
+          # §7.1 documented fallback.
+          TAG_SHA=$(git rev-list -n 1 "${GITHUB_REF#refs/tags/}")
+          MAIN_SHA=$(git rev-parse origin/main 2>/dev/null \
+                       || git rev-parse main)
+          if [ "$TAG_SHA" != "$MAIN_SHA" ]; then
+            echo "::error::tag SHA $TAG_SHA does not match main HEAD $MAIN_SHA"
+            echo "::error::see OPERATIONS §7.1 — wait 2 minutes and re-run"
+            echo "::error::if three consecutive re-runs fail, escalate to yank"
+            exit 1
+          fi
+          echo "tag SHA matches main HEAD: $TAG_SHA"
+
+      - name: 2) plugin.json version matches tag
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          PLUGIN_VERSION=$(python -c "import json; print(json.load(open('plugins/launchpad/.claude-plugin/plugin.json'))['version'])")
+          if [ "$TAG_VERSION" != "$PLUGIN_VERSION" ]; then
+            echo "::error::tag version $TAG_VERSION != plugin.json version $PLUGIN_VERSION"
+            exit 1
+          fi
+          echo "plugin.json version matches tag: $PLUGIN_VERSION"
+
+      - name: 3) No pre-ship version residual in plugin-shipped tree
+        run: |
+          # Asserts the §10 post-bump invariant: the pre-ship version literal
+          # must not appear in plugin-shipped trees. The HANDSHAKE.md + this
+          # lint script + plan/handoff/release-notes docs are allowlisted
+          # (they document the lifecycle string itself). User-tree carve-out
+          # applies — user-generated .launchpad/scaffold-*.json files are
+          # out of scope.
+          python plugins/launchpad/scripts/plugin-v2-handshake-lint.py \
+            --check-version-coherence --phase=post-tag
+
+      - name: 4) No private-origin leakage regex match
+        run: |
+          # Patterns from PRIVATE_ORIGIN_PATTERNS + the
+          # `# private-origin:` section of .launchpad/secret-patterns.txt.
+          # Per Option A: marketplace.json + immutable v1.x history are
+          # allowlisted via LEAKAGE_FILE_ALLOWLIST.
+          python plugins/launchpad/scripts/plugin-v2-handshake-lint.py \
+            --check-leakage

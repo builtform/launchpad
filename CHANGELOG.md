@@ -6,7 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Tracked in [ROADMAP.md](ROADMAP.md). Future minor releases will continue with the Codex CLI overlay generator and polyglot stack-detection refinements.
+Tracked in [ROADMAP.md](ROADMAP.md). v2.1 is documentation-only (METHODOLOGY/HOW_IT_WORKS refresh); v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks.
+
+## [2.0.0] — 2026-05-01
+
+Major release. Greenfield project scaffolding pipeline ships: `/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`. Chain-of-custody-bound (SHA-256 envelopes + UUID4 nonces + bound_cwd triple), brownfield-aware (refuses to scaffold over existing projects), 10-stack catalog. Brownfield path unchanged from v1.x.
+
+Full release notes in [docs/releases/v2.0.0.md](docs/releases/v2.0.0.md).
+
+### Added
+
+- Four-command greenfield pipeline (brainstorm → pick-stack → scaffold-stack → define) with structured `rationale_summary` defense-in-depth so consumers never read raw rationale.md
+- 10-stack catalog: `astro`, `next`, `eleventy`, `hugo`, `hono`, `fastapi`, `django`, `rails`, `supabase`, `expo`
+- 6 new `/lp-define` adapters: `astro`, `fastapi`, `rails`, `hugo`, `eleventy`, `expo`
+- 18-category routing catalog with 5 ambiguity clusters (`category-patterns.yml`)
+- Forensic primitives: `decision_integrity.canonical_hash`, `path_validator`, `cwd_state`, `safe_run`, NFKC-aware sanitizer, 1MB-rollover nonce ledger, `bound_cwd` triple, `pid_identity` cross-platform
+- 11 OPERATIONS §6 acceptance gates + 8 joint-pipeline integration tests + 100-iteration nonce concurrency race loop + adversarial corpus (10 mutations, 100% reason-match coverage)
+- `.github/workflows/v2-handshake-lint.yml` (PR-triggered) + `.github/workflows/v2-release.yml` (tag-triggered single-shot 4-check verify-v2-ship battery)
+- Python-wired `lefthook` commit-msg hook with subject-line injection-defense (`\n` / `\r\n` / lone `\r` rejection)
+
+### Deferred
+
+- v2.1: METHODOLOGY/HOW_IT_WORKS/governance documentation refresh
+- v2.2: 15 operational/security infrastructure surfaces (BL-215 + BL-220–BL-235) plus 10 deferred stacks (sveltekit, elysia, phoenix-liveview, convex, flutter, tauri, cloudflare-workers, nestjs, laravel, vite)
 
 ## [1.1.0] — 2026-04-27
 
@@ -109,7 +131,8 @@ Carried forward into v1.1:
 
 Full v1.1 scope in [ROADMAP.md](ROADMAP.md).
 
-[Unreleased]: https://github.com/builtform/launchpad/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/builtform/launchpad/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/builtform/launchpad/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/builtform/launchpad/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/builtform/launchpad/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/builtform/launchpad/releases/tag/v1.0.0

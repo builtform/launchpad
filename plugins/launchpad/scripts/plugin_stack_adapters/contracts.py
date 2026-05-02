@@ -14,7 +14,11 @@ from __future__ import annotations
 from typing import Literal, NotRequired, TypedDict
 
 
-StackId = Literal["ts_monorepo", "python_django", "go_cli", "generic"]
+StackId = Literal[
+    "ts_monorepo", "python_django", "go_cli", "generic",
+    "astro", "fastapi", "rails", "hugo",
+    "eleventy", "expo",
+]
 
 
 class TechStackInfo(TypedDict):

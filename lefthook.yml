@@ -1,3 +1,12 @@
+commit-msg:
+  commands:
+    # Per OPERATIONS §0 strip-back-aware Layer 9 P3-2 closure: the commit-msg
+    # hook is wired to a Python script (NOT shell) so subject-line injection
+    # defenses (\\n / \\r\\n rejection) are enforceable. Appends a
+    # restamp-history.jsonl entry on accept.
+    restamp-history:
+      run: python3 plugins/launchpad/scripts/plugin-restamp-history-hook.py {1}
+
 pre-commit:
   commands:
     # ---- Auto-fixers (run first, fix and re-stage) ----

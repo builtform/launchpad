@@ -1,0 +1,63 @@
+# Test fixtures manifest
+#
+# Per HANDSHAKE §12 + Layer 3 data-migration P2-D + Layer 5 P2-DM5-2: every
+# fixture file under plugins/launchpad/scripts/tests/fixtures/ MUST be listed
+# here with its target schema version + purpose. The
+# plugin-v2-handshake-lint.py --regenerate-fixtures pass-1 (validate) hard-
+# rejects manifests with unknown schema_version (reason:
+# manifest_schema_unsupported).
+#
+# Per HANDSHAKE §10 lifecycle bump list: manifest schema_version is registered
+# at v2.0 in stubbed form; full schema-bridge spec for v1.1+ is BL-219 deferred
+# to v2.2.
+#
+# Per HANDSHAKE §1.5 strip-back: brainstorm_session_id (BL-235),
+# .first-run-marker integrity binding (BL-235), forensic_writer.py (BL-223),
+# security-events.jsonl (BL-220), and recovery_commands runtime enforcement
+# (BL-231) all defer to v2.2. Fixtures for those surfaces are intentionally
+# absent at v2.0.
+
+schema_version: "1.0"
+target_decision_version: "1.0"
+target_receipt_version: "1.0"
+
+fixtures:
+  - path: "scaffold_decision_valid_minimal.json"
+    purpose: "Minimal valid v1.0 scaffold-decision.json for §4 schema gate (gate #1 in OPERATIONS §6 — accepts when sha256 + nonce + bound_cwd + generated_at + path validator + stack-id resolution all pass against an empty nonce ledger + a matching cwd)."
+    target_decision_version: "1.0"
+
+  - path: "scaffold_receipt_valid_minimal.json"
+    purpose: "Minimal valid v1.0 scaffold-receipt.json for §5 schema test (consumed by /lp-define adapter dispatch + Tier 1 reveal panel rendering)."
+    target_receipt_version: "1.0"
+
+  - path: "scaffold_decision_tampered_sha256.json"
+    purpose: "Same shape as valid_minimal but with sha256 field overwritten with `deadbeef…` so canonical_hash recomputation fails. Drives the §4 rule 13 sha256_mismatch rejection path (gate #4 in OPERATIONS §6 tamper gate)."
+    target_decision_version: "1.0"
+
+  - path: "scaffold_decision_expired_generated_at.json"
+    purpose: "Same shape as valid_minimal with generated_at set to 2024-01-01T00:00:00Z (>>4h old). Sha256 is freshly computed against the expired payload, so the §4 rule 9 generated_at_expired rejection fires before sha256_mismatch. Drives the §4 rule 9 expired-replay defense."
+    target_decision_version: "1.0"
+
+  - path: "scaffold_decision_replayed_nonce.json"
+    purpose: "Same shape as valid_minimal but with nonce 9999…9999 (32 hex 9s). Tests pre-populate the .scaffold-nonces.log with this nonce so consumption hits the replay gate (gate #2 in OPERATIONS §6 + §4 rule 10)."
+    target_decision_version: "1.0"
+
+  - path: "scaffold_decision_bound_cwd_realpath_mismatch.json"
+    purpose: "Same shape as valid_minimal but with bound_cwd.realpath pointing at /var/empty/never-exists. Drives the §4 rule 11 bound_cwd_realpath_mismatch / bound_cwd_inode_mismatch rejection (closes confused-deputy + symlink-swap-after-pick-stack)."
+    target_decision_version: "1.0"
+
+  - path: "scaffold_decision_path_traversal.json"
+    purpose: "Same shape as valid_minimal but with layer.path = `../escape`. Drives the §4 rule 2 + §6 path validator path_traversal rejection (gate #6 path-traversal gate in OPERATIONS §6)."
+    target_decision_version: "1.0"
+
+  - path: "scaffold_decision_rationale_summary_empty.json"
+    purpose: "Same shape as valid_minimal but every rationale_summary section has empty bullets array. Drives the §4 rule 7 rationale_summary_empty rejection (gate #5 sanitization gate in OPERATIONS §6)."
+    target_decision_version: "1.0"
+
+  - path: "scaffold_decision_forbidden_bullet_token.json"
+    purpose: "Same shape as valid_minimal but matched-category bullet contains an http:// URL. Drives the §9.1 + §4 rule 7 forbidden_bullet_token rejection (gate #5 sanitization gate in OPERATIONS §6)."
+    target_decision_version: "1.0"
+
+  - path: "scaffold_decision_manual_override.json"
+    purpose: "Valid scaffold-decision with matched_category_id == `manual-override` (the reserved id from category-patterns.yml). Exercises the §4 rule 4 manual-override branch + the VALID_COMBINATIONS frozenset gate in lp_pick_stack/__init__.py. fastapi backend layer chosen so the (stack, role) pair is ('fastapi', 'backend') — present in VALID_COMBINATIONS."
+    target_decision_version: "1.0"

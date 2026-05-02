@@ -1,0 +1,245 @@
+# LaunchPad v2.0 category-pattern catalog (~18 entries)
+#
+# Per pick-stack plan §1.2 + HANDSHAKE §4 rule 7 ambiguity-cluster discipline.
+# Each category id maps a recognizable project shape to a canonical_stack
+# selection from scaffolders.yml. The Phase 2 /lp-pick-stack engine matches
+# user Q1-Q5 answers + project description against `fits_when` predicates.
+#
+# Per HANDSHAKE §1.5 strip-back: stacks deferred to v2.2 (cf-workers, tauri,
+# nestjs, laravel, vite, sveltekit, elysia, phoenix-liveview, convex, flutter)
+# MUST NOT appear here. Categories that would have referenced them (realtime-
+# collab, sveltekit-app, flutter-mobile, etc.) are intentionally absent at v2.0.
+#
+# CODEOWNERS-gated per OPERATIONS §2 — a malicious PR adding/altering a
+# category could pivot recommended stacks at user-decision time.
+#
+# Cross-reference: every `canonical_stack[].stack` MUST resolve to an entry in
+# plugins/launchpad/scaffolders.yml. plugin-v2-handshake-lint.py enforces.
+
+schema_version: "1.0"
+
+# Ambiguity clusters per HANDSHAKE §4 rule 7 — when an engine match falls
+# inside a cluster, /lp-pick-stack surfaces the alternatives and requires the
+# user to disambiguate. Documenting the cluster + differentiator at v2.0 even
+# for clusters whose members are partially deferred (Phoenix, Convex, Flutter
+# at v2.2) so the v2.2 restoration lands cleanly without rewiring.
+ambiguity_clusters:
+  - name: "static-blog-trio"
+    members: ["static-blog-astro", "static-blog-eleventy", "static-blog-hugo"]
+    differentiator: "team familiarity (TypeScript/JSX vs ESM-only JS vs Go) + build-speed priority"
+
+  - name: "marketing-site-pair"
+    members: ["marketing-astro", "marketing-next"]
+    differentiator: "static-mostly (astro) vs needs interactive auth/dashboard later (next)"
+
+  - name: "saas-fullstack-pair"
+    members: ["saas-next-supabase", "saas-django-postgres"]
+    differentiator: "Q4 — TypeScript-first team (next+supabase) vs Python-first team (django)"
+
+  - name: "api-only-quartet"
+    members: ["api-only-fastapi", "api-only-hono", "api-only-django-drf", "api-only-rails"]
+    differentiator: "Q4 — Python (fastapi), TypeScript-edge (hono), Python+admin (django-drf), Ruby (rails)"
+
+  - name: "polyglot-frontend-pair"
+    members: ["polyglot-next-fastapi", "polyglot-next-hono"]
+    differentiator: "backend language preference (Python ML/data) vs (TypeScript edge)"
+
+categories:
+  # Static blogs (3 — known ambiguity cluster)
+  - id: "static-blog-astro"
+    name: "Static blog (Astro)"
+    fits_when: "Q1=static-site-or-blog AND Q2=static-content-only AND describe contains 'TypeScript|TSX|JSX|island|interactive bits'"
+    canonical_stack:
+      - stack: "astro"
+        role: "frontend"
+        path: "."
+    explanation: "Markdown-driven blog with TypeScript-first islands when interactive bits matter."
+    last_validated: "2026-04-30"
+
+  - id: "static-blog-eleventy"
+    name: "Static blog (Eleventy)"
+    fits_when: "Q1=static-site-or-blog AND Q2=static-content-only AND describe contains 'eleventy|11ty|minimal|no JS framework|ESM'"
+    canonical_stack:
+      - stack: "eleventy"
+        role: "frontend"
+        path: "."
+    explanation: "Pure-Markdown site with minimal JS surface; no npm-create scaffolder."
+    last_validated: "2026-04-30"
+
+  - id: "static-blog-hugo"
+    name: "Static blog (Hugo)"
+    fits_when: "Q1=static-site-or-blog AND Q2=static-content-only AND describe contains 'hugo|go|build speed|thousands of pages'"
+    canonical_stack:
+      - stack: "hugo"
+        role: "frontend"
+        path: "."
+    explanation: "Markdown blog with Go-built max-speed builds; theme ecosystem."
+    last_validated: "2026-04-30"
+
+  # Marketing sites (2)
+  - id: "marketing-astro"
+    name: "Marketing site (Astro)"
+    fits_when: "Q1=static-site-or-blog AND Q2=static-content-only AND describe contains 'marketing|landing|company site'"
+    canonical_stack:
+      - stack: "astro"
+        role: "frontend"
+        path: "."
+    explanation: "Static marketing site optimized for Lighthouse + content updates via Markdown."
+    last_validated: "2026-04-30"
+
+  - id: "marketing-next"
+    name: "Marketing site with future interactivity (Next.js)"
+    fits_when: "Q1=static-site-or-blog AND describe contains 'auth later|dashboard later|will need interactive'"
+    canonical_stack:
+      - stack: "next"
+        role: "fullstack"
+        path: "."
+    explanation: "Marketing site that anticipates auth/dashboard expansion — Next absorbs both phases."
+    last_validated: "2026-04-30"
+
+  # App SaaS (2)
+  - id: "saas-next-supabase"
+    name: "TypeScript SaaS (Next + Supabase)"
+    fits_when: "Q1=web-app AND Q2=yes-needed AND Q4=typescript-javascript AND describe contains 'CRUD|auth|managed backend|supabase'"
+    canonical_stack:
+      - stack: "supabase"
+        role: "backend-managed"
+        path: "supabase/"
+      - stack: "next"
+        role: "frontend"
+        path: "apps/web"
+    explanation: "Next frontend backed by Supabase managed Postgres + Auth + Storage."
+    last_validated: "2026-04-30"
+
+  - id: "saas-django-postgres"
+    name: "Python SaaS (Django monolith)"
+    fits_when: "Q1=web-app AND Q2=yes-needed AND Q4=python AND Q3 IN [no, feature-not-core]"
+    canonical_stack:
+      - stack: "django"
+        role: "fullstack"
+        path: "."
+    explanation: "Battery-packed Django monolith for Python teams; admin + ORM + auth out of the box."
+    last_validated: "2026-04-30"
+
+  # Backend-only (4 — api-only-quartet ambiguity cluster)
+  - id: "api-only-fastapi"
+    name: "Python API (FastAPI)"
+    fits_when: "Q1=api-only AND Q4=python AND describe contains 'async|ML|RAG|data pipeline|type-safe'"
+    canonical_stack:
+      - stack: "fastapi"
+        role: "backend"
+        path: "."
+    explanation: "Async Python API with Pydantic v2 type validation + SQLAlchemy 2 async ORM."
+    last_validated: "2026-04-30"
+
+  - id: "api-only-hono"
+    name: "Edge-native TypeScript API (Hono)"
+    fits_when: "Q1=api-only AND Q4 IN [typescript-javascript, mixed-no-strong-preference] AND describe contains 'edge|cloudflare|workers|serverless|low latency'"
+    canonical_stack:
+      - stack: "hono"
+        role: "backend"
+        path: "."
+    explanation: "Edge-deployable TypeScript API; runs on Cloudflare Workers, Deno Deploy, Vercel Edge."
+    last_validated: "2026-04-30"
+
+  - id: "api-only-django-drf"
+    name: "Python API with admin (Django + DRF)"
+    fits_when: "Q1=api-only AND Q4=python AND describe contains 'admin|CRUD admin|django|REST framework'"
+    canonical_stack:
+      - stack: "django"
+        role: "backend"
+        path: "."
+    explanation: "Django + Django REST Framework when admin UI + ORM + auth out-of-the-box matter more than async."
+    last_validated: "2026-04-30"
+
+  - id: "api-only-rails"
+    name: "Ruby API (Rails 8 API mode)"
+    fits_when: "Q1=api-only AND Q4=ruby-fast-MVP"
+    canonical_stack:
+      - stack: "rails"
+        role: "backend"
+        path: "."
+    explanation: "Rails 8 API mode for Ruby teams; ActiveRecord + ActiveJob with Solid Queue."
+    last_validated: "2026-04-30"
+
+  # Polyglot (2)
+  - id: "polyglot-next-fastapi"
+    name: "Polyglot (Next frontend + FastAPI backend)"
+    fits_when: "Q1=web-app AND Q2=yes-needed AND Q3=core-AI-or-LLM AND describe contains 'RAG|vector DB|Python ML|machine learning'"
+    canonical_stack:
+      - stack: "next"
+        role: "frontend"
+        path: "apps/web"
+      - stack: "fastapi"
+        role: "backend"
+        path: "services/api"
+    explanation: "Next frontend with Python ML backend — common for AI/ML SaaS with RAG pipelines."
+    last_validated: "2026-04-30"
+
+  - id: "polyglot-next-hono"
+    name: "Polyglot (Next frontend + Hono backend)"
+    fits_when: "Q1=web-app AND Q2=yes-needed AND Q4=typescript-javascript AND describe contains 'edge|TypeScript end-to-end|RPC|monorepo'"
+    canonical_stack:
+      - stack: "next"
+        role: "frontend"
+        path: "apps/web"
+      - stack: "hono"
+        role: "backend"
+        path: "apps/api"
+    explanation: "Next + Hono polyglot with end-to-end TypeScript + RPC type-inference between layers."
+    last_validated: "2026-04-30"
+
+  # Mobile (1)
+  - id: "mobile-app-expo"
+    name: "Cross-platform mobile (Expo)"
+    fits_when: "Q1=mobile-app"
+    canonical_stack:
+      - stack: "expo"
+        role: "mobile"
+        path: "."
+    explanation: "Cross-platform iOS + Android via React Native; EAS Build for cloud-built artifacts."
+    last_validated: "2026-04-30"
+
+  # Backend managed (1)
+  - id: "managed-supabase"
+    name: "Managed backend only (Supabase)"
+    fits_when: "Q1=backend-managed AND describe contains 'supabase|managed postgres|auth as a service'"
+    canonical_stack:
+      - stack: "supabase"
+        role: "backend-managed"
+        path: "supabase/"
+    explanation: "Supabase-only project (no frontend yet) — schema + auth + storage with deferred UI choice."
+    last_validated: "2026-04-30"
+
+  # Realtime (1 — Phoenix deferred per BL-212; only Django Channels lands at v2.0)
+  - id: "realtime-django-channels"
+    name: "Realtime Python (Django Channels)"
+    fits_when: "Q1=web-app AND Q4=python AND describe contains 'realtime|websocket|channels|live updates'"
+    canonical_stack:
+      - stack: "django"
+        role: "fullstack"
+        path: "."
+    explanation: "Django Channels for realtime Python apps; ASGI under the hood."
+    last_validated: "2026-04-30"
+
+  # Multi-frontend hybrid (1 — exercises the multi-layer composer)
+  - id: "multi-frontend-astro-next"
+    name: "Multi-frontend hybrid (Astro site + Next dashboard)"
+    fits_when: "Q1=web-app AND describe contains 'mostly content|with dashboard|admin area|two frontends'"
+    canonical_stack:
+      - stack: "astro"
+        role: "frontend-main"
+        path: "apps/site"
+      - stack: "next"
+        role: "frontend-dashboard"
+        path: "apps/dashboard"
+    explanation: "Content-heavy Astro site fronting a Next dashboard for the interactive admin area."
+    last_validated: "2026-04-30"
+
+  # Manual override (1) — reserved per HANDSHAKE §4 rule 4
+  - id: "manual-override"
+    name: "Manual override (user picks layers from catalog)"
+    fits_when: "user_explicit_override"
+    canonical_stack: []
+    explanation: "Reserved id for the [m]anual override branch in /lp-pick-stack §3.1. Layers materialize from user catalog selections, validated against the VALID_COMBINATIONS frozenset in lp_pick_stack/__init__.py."
+    last_validated: "2026-04-30"

@@ -390,6 +390,7 @@ docs/skills-catalog/skills-usage.json
 docs/skills-catalog/skills-index.md
 docs/architecture/DESIGN_SYSTEM.md
 docs/tasks/sections/.gitkeep
+docs/tasks/BACKLOG.md
 # --- Files moved/deleted by init (original paths) ---
 scripts/setup/init-project.sh
 docs/guides/METHODOLOGY.md

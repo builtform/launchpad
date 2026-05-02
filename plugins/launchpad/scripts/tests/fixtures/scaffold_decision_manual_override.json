@@ -1,0 +1,52 @@
+{
+  "bound_cwd": {
+    "realpath": "/tmp/lp-fixture",
+    "st_dev": 16777220,
+    "st_ino": 1234567
+  },
+  "generated_at": "2026-04-30T12:00:00Z",
+  "generated_by": "/lp-pick-stack",
+  "layers": [
+    {
+      "options": {
+        "database": "postgres"
+      },
+      "path": ".",
+      "role": "backend",
+      "stack": "fastapi"
+    }
+  ],
+  "matched_category_id": "manual-override",
+  "monorepo": false,
+  "nonce": "22222222222222222222222222222222",
+  "rationale_path": ".launchpad/rationale.md",
+  "rationale_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "rationale_summary": [
+    {
+      "bullets": ["User chose stack manually via [m]anual override."],
+      "section": "project-understanding"
+    },
+    {
+      "bullets": ["manual-override: user-selected stack from catalog."],
+      "section": "matched-category"
+    },
+    {
+      "bullets": ["fastapi as backend at ."],
+      "section": "stack"
+    },
+    {
+      "bullets": ["User has explicit preference; no engine match required."],
+      "section": "why-this-fits"
+    },
+    {
+      "bullets": ["n/a \u2014 manual override."],
+      "section": "alternatives"
+    },
+    {
+      "bullets": ["VALID_COMBINATIONS validated upstream."],
+      "section": "notes"
+    }
+  ],
+  "sha256": "693c8b470c96416dd7cadd3dc3eb7bcb7eca1622c0d83120c69b248235cce974",
+  "version": "1.0"
+}

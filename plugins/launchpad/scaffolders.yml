@@ -1,0 +1,146 @@
+# LaunchPad v2.0 stack catalog (10 entries)
+#
+# Per HANDSHAKE §11 (10-entry v2.0 catalog) + HANDSHAKE §10 (schema_version
+# field registered in lifecycle bump list). Each entry pairs a stack-id with
+# its scaffolder command, knowledge-anchor doc + sha256, options schema, and
+# the date its flag set + version pin was last verified.
+#
+# Per HANDSHAKE §1.5 strip-back: 10 stacks are deferred to v2.2 (BL-100/101/
+# 102/103/104 + BL-212). DO NOT add cf-workers, tauri, nestjs, laravel, vite,
+# sveltekit, elysia, phoenix-liveview, convex, flutter at v2.0.
+#
+# CODEOWNERS-gated per OPERATIONS §2 — this file requires the v2-handshake-
+# approvers set (the BROWNFIELD_MANIFESTS analog: a malicious PR adding a
+# stack entry could pivot the scaffolder to run an attacker-chosen command).
+#
+# Schema (per-entry):
+#   pillar:                 string from HANDSHAKE §11 pillar column
+#   type:                   "orchestrate" | "curate"
+#   flavor:                 "pure-headless" | "mixed-prompts" | "n/a"
+#   command:                scaffolder command (omit for curate)
+#   headless_flags:         array of flags appended for non-interactive mode
+#   knowledge_anchor:       relative path to <stack>-pattern.md
+#   knowledge_anchor_sha256: sha256 hex of the anchor file's bytes
+#   options_schema:         allowlisted option keys per HANDSHAKE §4 rule 2
+#   last_validated:         YYYY-MM-DD; ≤30 days from today per OPERATIONS §4
+schema_version: "1.0"
+
+stacks:
+  astro:
+    pillar: "Frontend Content/Performance"
+    type: "orchestrate"
+    flavor: "pure-headless"
+    command: "npm create astro@latest"
+    headless_flags: ["--", "--yes", "--template"]
+    knowledge_anchor: "plugins/launchpad/scaffolders/astro-pattern.md"
+    knowledge_anchor_sha256: "f8631d16c290a805eb58927efdb6c6c3e253842c471e1f4de04395b573f77121"
+    options_schema:
+      template: "string"
+    last_validated: "2026-04-30"
+
+  next:
+    pillar: "Frontend App"
+    type: "orchestrate"
+    flavor: "pure-headless"
+    command: "npx create-next-app@latest"
+    headless_flags: ["--yes", "--typescript", "--eslint", "--tailwind", "--app", "--turbopack"]
+    knowledge_anchor: "plugins/launchpad/scaffolders/next-pattern.md"
+    knowledge_anchor_sha256: "de5c9cfabec3649c87d7dacb0ee0b40b24dc21ab3e69575d26be9415966fd157"
+    options_schema:
+      src_dir: "boolean"
+      app_router: "boolean"
+    last_validated: "2026-04-30"
+
+  eleventy:
+    pillar: "Frontend Content"
+    type: "curate"
+    flavor: "n/a"
+    knowledge_anchor: "plugins/launchpad/scaffolders/eleventy-pattern.md"
+    knowledge_anchor_sha256: "4fe63c5fdf5066b465313f21b5e8d73cb5811a699cb8a25260a719db7a9550e5"
+    options_schema:
+      template_engine: "string"
+    last_validated: "2026-04-30"
+
+  hugo:
+    pillar: "Frontend Content (Go)"
+    type: "orchestrate"
+    flavor: "pure-headless"
+    command: "hugo new site"
+    headless_flags: ["--force"]
+    knowledge_anchor: "plugins/launchpad/scaffolders/hugo-pattern.md"
+    knowledge_anchor_sha256: "f2bfa556b1ecd19f6f4d455ae7779c76a65a405984bcec10d3e3b4bbb3ec62a5"
+    options_schema:
+      theme: "string"
+    last_validated: "2026-04-30"
+
+  hono:
+    pillar: "Backend Edge-native TS"
+    type: "orchestrate"
+    flavor: "pure-headless"
+    command: "npm create hono@latest"
+    headless_flags: ["--", "--yes", "--template"]
+    knowledge_anchor: "plugins/launchpad/scaffolders/hono-pattern.md"
+    knowledge_anchor_sha256: "c03656e1ce87ece9ffa9667c54f032828a1c962090f35475e3730a24369723f5"
+    options_schema:
+      template: "string"
+    last_validated: "2026-04-30"
+
+  fastapi:
+    pillar: "Backend Python"
+    type: "curate"
+    flavor: "n/a"
+    knowledge_anchor: "plugins/launchpad/scaffolders/fastapi-pattern.md"
+    knowledge_anchor_sha256: "afa453a1ffd3d663082bb76905cde42d8321ad01b1d3be6dea8b68ac5d3c1c06"
+    options_schema:
+      database: "string"
+    last_validated: "2026-04-30"
+
+  django:
+    pillar: "Backend Python"
+    type: "orchestrate"
+    flavor: "pure-headless"
+    command: "django-admin startproject"
+    headless_flags: []
+    knowledge_anchor: "plugins/launchpad/scaffolders/django-pattern.md"
+    knowledge_anchor_sha256: "4d1a7272f7f74c793be08991b5b88fdfc2a76bc03270a4b730ac57b31eb16021"
+    options_schema:
+      database: "string"
+    last_validated: "2026-04-30"
+
+  rails:
+    pillar: "Backend MVC (Ruby)"
+    type: "orchestrate"
+    flavor: "pure-headless"
+    command: "rails new"
+    headless_flags: ["--skip-bundle", "--skip-git"]
+    knowledge_anchor: "plugins/launchpad/scaffolders/rails-pattern.md"
+    knowledge_anchor_sha256: "a1768b9e08ce47cc0a62543ab3b9f3f39a57b1bf001dea9831c67d842a0e17ef"
+    options_schema:
+      database: "string"
+      javascript: "string"
+    last_validated: "2026-04-30"
+
+  supabase:
+    pillar: "Backend Managed"
+    type: "orchestrate"
+    flavor: "mixed-prompts"
+    command: "supabase init"
+    headless_flags: []
+    knowledge_anchor: "plugins/launchpad/scaffolders/supabase-pattern.md"
+    knowledge_anchor_sha256: "38c6c5170c7347ba588f10bdd44259e0fbf593dd68bfeeebb2b2347d6a8c9ef3"
+    options_schema:
+      vscode_deno_settings: "boolean"
+      intellij_deno_settings: "boolean"
+    last_validated: "2026-04-30"
+
+  expo:
+    pillar: "Frontend Mobile (RN)"
+    type: "orchestrate"
+    flavor: "pure-headless"
+    command: "npx create-expo-app@latest"
+    headless_flags: ["--yes", "--template"]
+    knowledge_anchor: "plugins/launchpad/scaffolders/expo-pattern.md"
+    knowledge_anchor_sha256: "41ab885607443c6cad34750e79bda13aa7207165f1e78178e9a616535fd89bfe"
+    options_schema:
+      template: "string"
+    last_validated: "2026-04-30"
