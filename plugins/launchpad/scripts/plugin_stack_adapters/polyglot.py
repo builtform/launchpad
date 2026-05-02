@@ -258,3 +258,104 @@ def compose(stack_ids: list[StackId]) -> AdapterOutput:
         commands=_merge_commands(outputs),
         pipeline_overrides=_merge_pipeline_overrides(outputs),
     )
+
+
+# Roles that legitimately own the BackendInfo slot in /lp-define-rendered
+# architecture docs. Layered in priority order — fullstack wins over backend
+# wins over backend-managed (managed = Supabase/Firebase, present alongside a
+# regular backend in some categories).
+_BACKEND_ROLES = ("fullstack", "backend", "backend-managed")
+# Roles that legitimately own the FrontendInfo slot. frontend-main wins over
+# frontend (default) wins over frontend-dashboard (the secondary surface in
+# multi-frontend categories).
+_FRONTEND_ROLES = ("frontend-main", "frontend", "frontend-dashboard")
+
+
+def _select_by_role(
+    layer_outputs: list[tuple[dict, AdapterOutput]],
+    priority_roles: tuple[str, ...],
+) -> AdapterOutput | None:
+    """Return the first (layer, adapter_out) pair whose role is in
+    priority_roles, walking priorities first then layer order."""
+    for role in priority_roles:
+        for layer, out in layer_outputs:
+            if str(layer.get("role", "")) == role:
+                return out
+    return None
+
+
+def compose_with_layers(layers: list[dict]) -> AdapterOutput:
+    """Role-aware multi-stack composer (PR #41 cycle 11 #1 closure — Codex
+    P1).
+
+    Same merge semantics as `compose()` for the stack-precedence-driven
+    fields (tech stack, commands, pipeline overrides), but the
+    role-bearing fields are sourced from the role-matched layer:
+
+    - `backend`: layer with role ∈ (`fullstack`, `backend`, `backend-managed`)
+    - `frontend`: layer with role ∈ (`frontend-main`, `frontend`, `frontend-dashboard`)
+    - `app_flow`: same priority as frontend (frontend layer's app flow)
+
+    Falls back to the precedence-based selection from `compose()` if no
+    role-matched layer is present (e.g., legacy receipts without `role`
+    field, or all-backend / all-frontend topologies).
+
+    Each layer is also responsible for path-rewriting via the
+    `_rewrite_adapter_paths` post-processor in plugin-doc-generator.py;
+    this composer doesn't do path rewrites itself (the caller is the
+    receipt loader, which has the cwd context).
+
+    `layers` entries must have `stack` (str). `role` and `path` are
+    optional — when absent, falls back to precedence-based selection.
+    """
+    if not layers:
+        raise ValueError("layers must contain at least one entry")
+
+    stack_ids: list[StackId] = []
+    for layer in layers:
+        sid = str(layer.get("stack", ""))
+        if sid:
+            stack_ids.append(sid)  # type: ignore[arg-type]
+
+    # Run each adapter once; layer_outputs preserves the receipt's original
+    # layer ordering so role lookups can disambiguate primary/secondary.
+    layer_outputs: list[tuple[dict, AdapterOutput]] = [
+        (layer, ADAPTERS.get(str(layer.get("stack", "")), generic).run())
+        for layer in layers
+    ]
+
+    # Stack-precedence-driven merges still operate on a deduplicated, sorted
+    # set so the existing _merge_* helpers behave identically.
+    ordered_unique = [s for s in STACK_PRECEDENCE if s in stack_ids]
+    if not ordered_unique:
+        ordered_unique = ["generic"]
+    precedence_outputs = [ADAPTERS[s].run() for s in ordered_unique]
+
+    if len(layer_outputs) == 1:
+        return layer_outputs[0][1]
+
+    backend_out = _select_by_role(layer_outputs, _BACKEND_ROLES)
+    frontend_out = _select_by_role(layer_outputs, _FRONTEND_ROLES)
+
+    backend = backend_out["backend"] if backend_out else _merge_backend(precedence_outputs)
+    frontend = (
+        frontend_out["frontend"]
+        if frontend_out and frontend_out["frontend"] is not None
+        else _merge_frontend(precedence_outputs)
+    )
+    app_flow = (
+        frontend_out["app_flow"]
+        if frontend_out and frontend_out["app_flow"] is not None
+        else _merge_app_flow(precedence_outputs)
+    )
+
+    return AdapterOutput(
+        stack_id=ordered_unique[0],
+        tech_stack=_merge_tech_stack(precedence_outputs),
+        backend=backend,
+        frontend=frontend,
+        app_flow=app_flow,
+        product_context=_merge_product_context(precedence_outputs),
+        commands=_merge_commands(precedence_outputs),
+        pipeline_overrides=_merge_pipeline_overrides(precedence_outputs),
+    )

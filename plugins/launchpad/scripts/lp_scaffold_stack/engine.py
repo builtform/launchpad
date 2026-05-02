@@ -511,9 +511,10 @@ def run_pipeline(
                 {
                     "stack": mr.stack,
                     "path": mr.path,
+                    "role": str(layers[i].get("role", "")),
                     "scaffolder_used": mr.scaffolder_used,
                     "files_created": mr.files_created,
-                } for mr in materialized
+                } for i, mr in enumerate(materialized)
             ],
             cross_cutting_files=wiring.cross_cutting_files,
             toolchains_detected=wiring.toolchains_detected,

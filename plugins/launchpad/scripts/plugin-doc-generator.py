@@ -203,34 +203,43 @@ def _rewrite_adapter_paths(
     actually used by the scaffolder (read from the receipt's
     `layers_materialized[].path`).
 
-    Only single-stack scaffolds rewrite; polyglot composers already merge
-    per-stack paths via their own logic. The rewrite is conservative: it
-    only swaps the adapter's documented default prefix; user-customized
-    paths (anything not starting with the default prefix) pass through
-    unchanged.
+    For both single-stack AND multi-stack scaffolds: walks every layer's
+    stack→path mapping and rewrites that stack's documented default prefix
+    in the merged AdapterOutput's backend/frontend fields. The rewrite is
+    conservative — it only swaps the adapter's documented default prefix;
+    user-customized paths (anything not starting with the default prefix)
+    pass through unchanged.
+
+    Multi-stack handling (PR #41 cycle 11 #1 closure — Codex P1): without
+    this loop, polyglot composers picked the first STACK_PRECEDENCE adapter
+    for backend/frontend output, but the actual scaffolded paths could be
+    elsewhere (e.g., polyglot-next-fastapi puts FastAPI at `services/api`
+    while next is at `apps/web`). The composer-side `compose_with_layers()`
+    selects the correct adapter by role; this rewriter ensures its path
+    fields point at the correct on-disk location.
     """
-    if len(stacks) != 1:
-        return adapter_out
-    stack_id = stacks[0]
-    actual_path = layer_paths.get(stack_id)
-    if not actual_path:
-        return adapter_out
-    default_prefix = _ADAPTER_DEFAULT_PATH_PREFIXES.get(stack_id, "")
-    if not default_prefix or default_prefix == actual_path.rstrip("/"):
+    if not stacks or not layer_paths:
         return adapter_out
     backend = dict(adapter_out["backend"])
-    backend["routes_dir"] = _rewrite_path(
-        backend.get("routes_dir"), default_prefix, actual_path,
-    )
-    backend["models_dir"] = _rewrite_path(
-        backend.get("models_dir"), default_prefix, actual_path,
-    )
     front = adapter_out.get("frontend")
     if isinstance(front, dict):
         front = dict(front)
-        front["component_dir"] = _rewrite_path(
-            front.get("component_dir"), default_prefix, actual_path,
+    for stack_id, actual_path in layer_paths.items():
+        if not actual_path:
+            continue
+        default_prefix = _ADAPTER_DEFAULT_PATH_PREFIXES.get(stack_id, "")
+        if not default_prefix or default_prefix == actual_path.rstrip("/"):
+            continue
+        backend["routes_dir"] = _rewrite_path(
+            backend.get("routes_dir"), default_prefix, actual_path,
         )
+        backend["models_dir"] = _rewrite_path(
+            backend.get("models_dir"), default_prefix, actual_path,
+        )
+        if isinstance(front, dict):
+            front["component_dir"] = _rewrite_path(
+                front.get("component_dir"), default_prefix, actual_path,
+            )
     rewritten = dict(adapter_out)
     rewritten["backend"] = backend
     if front is not None:
@@ -414,6 +423,7 @@ def generate(repo_root: Path, *, dry_run: bool = False, force: bool = False, onl
     receipt_path = repo_root / ".launchpad" / "scaffold-receipt.json"
     receipt_stacks: list[str] = []
     receipt_layer_paths: dict[str, str] = {}  # stack_id → materialized path
+    receipt_layers: list[dict] = []  # full {stack, role, path} entries for compose_with_layers
     if receipt_path.is_file():
         try:
             from plugin_scaffold_receipt_loader import load_receipt  # type: ignore[import-not-found]
@@ -443,12 +453,29 @@ def generate(repo_root: Path, *, dry_run: bool = False, force: bool = False, onl
                     # be rewritten to match the actual scaffolded location.
                     if "path" in layer:
                         receipt_layer_paths[stack_id] = str(layer["path"])
+                    receipt_layers.append({
+                        "stack": stack_id,
+                        "role": str(layer.get("role", "")),
+                        "path": str(layer.get("path", "")),
+                    })
             except Exception:
                 # Receipt malformed/expired: fall back to manifest detection.
                 receipt_stacks = []
                 receipt_layer_paths = {}
+                receipt_layers = []
     stacks = receipt_stacks or report.get("stacks", ["generic"])
-    adapter_out = compose_adapter_output(stacks)
+    # PR #41 cycle 11 #1 closure (Codex P1): for receipt-driven multi-stack
+    # scaffolds with role data, use the role-aware composer so backend docs
+    # reflect the layer with role=backend/backend-managed/fullstack rather
+    # than the STACK_PRECEDENCE winner. Falls back to compose_adapter_output
+    # for single-stack receipts and for legacy receipts missing role data.
+    has_role_data = bool(receipt_layers) and any(
+        layer.get("role") for layer in receipt_layers
+    )
+    if has_role_data and len(receipt_layers) > 1:
+        adapter_out = polyglot.compose_with_layers(receipt_layers)
+    else:
+        adapter_out = compose_adapter_output(stacks)
     if receipt_layer_paths:
         adapter_out = _rewrite_adapter_paths(adapter_out, receipt_layer_paths, stacks)
 

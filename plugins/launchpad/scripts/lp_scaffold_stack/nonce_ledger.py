@@ -475,6 +475,11 @@ def is_nonce_seen(
     try:
         fcntl.flock(lock_fd, fcntl.LOCK_EX)
         _ensure_format_header(repo_root)
+        # PR #41 cycle 11 #3 closure: recover any orphan rollover-tmp from
+        # a crashed mid-rotation so its consumed nonces are visible to
+        # `_walk_bak_window`. Without this, a crash between rename(src→tmp)
+        # and rename(tmp→.bak) hides committed nonces, reopening replay.
+        _recover_orphan_rollover_tmps(repo_root)
         live = _read_nonces_from(ledger_path(repo_root))
         if nonce in live:
             return True
@@ -514,6 +519,12 @@ def append_nonce(
     try:
         fcntl.flock(lock_fd, fcntl.LOCK_EX)
         _ensure_format_header(repo_root)
+        # PR #41 cycle 11 #3 closure: recover orphan rollover-tmps before
+        # writing new nonces; otherwise a fresh append on a sub-1MB ledger
+        # never triggers _rotate_at_threshold's recovery path and the
+        # orphan persists until the next rotation (or forever, on a small
+        # ledger that never rotates).
+        _recover_orphan_rollover_tmps(repo_root)
 
         try:
             fd = os.open(str(src), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
@@ -622,6 +633,56 @@ def append_nonce(
             os.close(lock_fd)
 
 
+def _recover_orphan_rollover_tmps(repo_root: Path) -> None:
+    """Recover orphan `.rollover-tmp.*` files as legitimate `.bak.<ts>` files
+    so consumed nonces survive a crash mid-rotation.
+
+    Per PR #41 cycle 11 #3 closure (Codex P1): the previous shape
+    unlinked own-pid rollover-tmp files at the start of rotation,
+    discarding the entire prior nonce ledger if rotation crashed between
+    `rename(src, rollover_tmp)` (line 642) and `rename(rollover_tmp,
+    .bak.<ts>)` (line 662). With PID reuse, even own-pid unlink could
+    destroy a sibling-process orphan from a different invocation.
+
+    Recovery: rename every `.rollover-tmp.*` to a unique
+    `.bak.<derived-ts>.recovered.<pid-suffix>` using the file's mtime as
+    the derived ts. The new shape participates in the standard `.bak`
+    retention + replay-window walk, so consumed nonces remain in scope.
+
+    Caller MUST already hold the lock.
+    """
+    lp = _launchpad_dir(repo_root)
+    if not lp.exists():
+        return
+    prefix = ".scaffold-nonces.log.rollover-tmp."
+    for entry in lp.iterdir():
+        name = entry.name
+        if not name.startswith(prefix):
+            continue
+        pid_suffix = name[len(prefix):]
+        try:
+            st = entry.stat()
+        except OSError:
+            continue
+        ts = datetime.fromtimestamp(
+            st.st_mtime, tz=timezone.utc,
+        ).strftime("%Y-%m-%dT%H-%M-%SZ")
+        target = lp / f".scaffold-nonces.log.bak.{ts}.recovered.{pid_suffix}"
+        if target.exists():
+            # Append microsecond suffix for uniqueness if a same-second
+            # recovery already happened.
+            target = lp / (
+                f".scaffold-nonces.log.bak.{ts}.recovered."
+                f"{pid_suffix}.{int(time.time() * 1e6)}"
+            )
+        try:
+            os.rename(str(entry), str(target))
+        except OSError:
+            # Best-effort: if rename fails, leave the orphan in place.
+            # Next invocation retries; we still don't unlink.
+            pass
+
+
 def _rotate_at_threshold(repo_root: Path) -> None:
     """Rotate the ledger to `.bak.<iso-ts>` under the held lock.
 
@@ -630,12 +691,13 @@ def _rotate_at_threshold(repo_root: Path) -> None:
     """
     src = ledger_path(repo_root)
     rollover_tmp = _rollover_tmp(repo_root)
-    # Clean any orphan rollover tmp from prior crash.
-    if rollover_tmp.exists():
-        try:
-            rollover_tmp.unlink()
-        except OSError:
-            pass
+    # Recover any orphan rollover tmp from prior crash AS A `.bak` rather
+    # than unlinking it. The previous shape's unlink at this point could
+    # discard the only copy of consumed nonces (PR #41 cycle 11 #3 closure).
+    # Recovery handles both own-pid orphans (recover-then-recreate is safe
+    # because the `.bak` shape is the canonical archive form) and any
+    # cross-pid orphans that survived a sibling-process crash.
+    _recover_orphan_rollover_tmps(repo_root)
 
     # Move current src to rollover tmp first (atomic on POSIX).
     try:

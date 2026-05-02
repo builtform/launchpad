@@ -1195,13 +1195,22 @@ def main() -> int:
         dest="check_legacy_removal",
         help="Gate v2.1.0 removal of _legacy_yaml_canonical_hash (BL-210).",
     )
+    # TODO (BL-238 — Codex PR #41 cycle 11 P2 #1): the `-cve` suffix
+    # overstates what these checks do. Today they validate the pin's
+    # semver shape only — there is NO active CVE database cross-reference
+    # at v2.0. Either rename to `--check-psutil-pin` / `--check-pyyaml-pin`
+    # (truthful) and document the missing CVE-DB integration as v2.1+
+    # work, OR wire to a real CVE feed (osv.dev, GitHub advisory) before
+    # the next public release. NOT addressed in cycle 11 to keep scope
+    # tight on the three P1 correctness fixes; tracked for v2.1.
     parser.add_argument(
         "--check-psutil-cve", action="store_true",
-        help="Phase -1 acceptance gate: psutil pin + CVE cross-reference.",
+        help="Phase -1 acceptance gate: psutil pin shape check "
+             "(BL-238 — does NOT yet cross-reference a CVE DB).",
     )
     parser.add_argument(
         "--check-pyyaml-cve", action="store_true",
-        help="PyYAML pin + CVE cross-reference.",
+        help="PyYAML pin shape check (BL-238 — does NOT yet cross-reference a CVE DB).",
     )
     parser.add_argument(
         "--check-leakage", action="store_true",
