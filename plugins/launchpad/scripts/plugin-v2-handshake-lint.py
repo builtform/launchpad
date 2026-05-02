@@ -930,8 +930,16 @@ def check_scaffold_receipt_schema(failures: list[str]) -> None:
     fixtures = PLUGINS_SCRIPTS / "tests" / "fixtures"
     if not fixtures.exists():
         return
-    import hashlib
     import json
+
+    # Import canonical_hash for sha256 self-verification (PR #41 cycle 6 #4
+    # — the previous shape only checked required-field presence, so a
+    # corrupted fixture with a wrong sha256 passed silently).
+    import sys as _sys
+    if str(PLUGINS_SCRIPTS) not in _sys.path:
+        _sys.path.insert(0, str(PLUGINS_SCRIPTS))
+    from decision_integrity import canonical_hash  # type: ignore[import-not-found]
+
     required = (
         "version", "scaffolded_at", "decision_sha256", "decision_nonce",
         "layers_materialized", "cross_cutting_files", "toolchains_detected",
@@ -954,6 +962,21 @@ def check_scaffold_receipt_schema(failures: list[str]) -> None:
         tier1 = payload.get("tier1_governance_summary") or {}
         if "architecture_docs_rendered" not in tier1:
             bad.append(f"{f.name}: tier1_governance_summary.architecture_docs_rendered missing")
+        # sha256 self-hash verification (closes silent-corruption gap).
+        # Skip if `sha256` key is missing — already flagged by required-fields check.
+        declared_sha = payload.get("sha256")
+        if isinstance(declared_sha, str):
+            payload_minus_sha = {k: v for k, v in payload.items() if k != "sha256"}
+            try:
+                actual_sha = canonical_hash(payload_minus_sha)
+            except Exception as exc:  # pragma: no cover
+                bad.append(f"{f.name}: canonical_hash failed: {exc}")
+                continue
+            if actual_sha != declared_sha:
+                bad.append(
+                    f"{f.name}: sha256 mismatch: declared={declared_sha!r} "
+                    f"computed={actual_sha!r}"
+                )
     _emit(failures, "scaffold-receipt-schema", bad)
 
 

@@ -67,7 +67,11 @@ def extract_summary(rationale_path: Path) -> list[dict]:
         if _has_dangerous_unicode(body):
             continue
         if len(body) > MAX_BULLET_CHARS:
-            body = body[:MAX_BULLET_CHARS] + "…"
+            # Truncate to MAX-1 then add "…" so total length is exactly MAX,
+            # matching scaffold-stack's decision_validator strict ≤ MAX
+            # rejection bound. Previous shape used `[:MAX] + "…"` producing
+            # MAX+1 chars, which the validator rejected (PR #41 cycle 6 #3).
+            body = body[: MAX_BULLET_CHARS - 1] + "…"
         if len(sections[current]) < MAX_BULLETS_PER_SECTION:
             sections[current].append(body)
 

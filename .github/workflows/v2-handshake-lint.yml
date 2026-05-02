@@ -42,14 +42,18 @@ jobs:
         run: python plugins/launchpad/scripts/plugin-v2-handshake-lint.py
 
       - name: Run full v2 test suite
-        # Run the FULL pytest suite under plugins/launchpad/scripts/tests/
-        # so default-args invocation paths get exercised. The previous narrow
-        # subset masked the parents[3]→plugins/ default-paths bug because
-        # every test passed explicit override paths (PR #41 cycle 4 #5
-        # closure). If the full suite cost grows beyond 60s, partition with
-        # pytest-xdist instead of returning to a subset.
+        # Run the FULL pytest suite under plugins/launchpad/scripts/. The
+        # configured testpaths in pytest.ini cover both `tests/` and
+        # `plugin_stack_adapters/tests/` — invoking pytest with no
+        # positional path picks up both (PR #41 cycle 6 #2 closure: the
+        # previous `tests/` argument silently excluded the StackId widening
+        # acceptance test). The previous narrow subset also masked the
+        # parents[3]→plugins/ default-paths bug because every test passed
+        # explicit override paths (cycle 4 #5 closure). If the full suite
+        # cost grows beyond 60s, partition with pytest-xdist instead of
+        # returning to a subset.
         working-directory: plugins/launchpad/scripts
-        run: python -m pytest tests/ -q
+        run: python -m pytest -q
 
       - name: Default catalog paths smoke check
         # Direct assertion that DEFAULT_SCAFFOLDERS_YML +

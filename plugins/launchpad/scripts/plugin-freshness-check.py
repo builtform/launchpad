@@ -61,8 +61,22 @@ def _today_utc() -> date:
 
 
 def _extract_last_validated(text: str) -> str | None:
-    m = LAST_VALIDATED_RE.search(text)
-    return m.group(1) if m else None
+    """Return the OLDEST `last_validated:` date in `text` (oldest = most stale).
+
+    Catalogs like `scaffolders.yml` and `category-patterns.yml` carry a
+    top-level entry plus one per stack/category; OPERATIONS §4 requires
+    every entry within the freshness window, so we gate on the oldest.
+    Previously the function used re.search which returned only the first
+    match, letting stale later entries pass silently (PR #41 cycle 6 #5).
+
+    Frontmatter-only docs (HANDSHAKE.md, OPERATIONS.md, *-pattern.md) have
+    a single match; the oldest-of-one returns the same result as before.
+    """
+    matches = LAST_VALIDATED_RE.findall(text)
+    if not matches:
+        return None
+    # Lexicographic order on YYYY-MM-DD == chronological order.
+    return min(matches)
 
 
 def _enumerate_targets() -> list[Path]:

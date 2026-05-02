@@ -93,12 +93,16 @@ def test_max_bullets_per_section_enforced(tmp_path: Path):
 
 
 def test_max_bullet_chars_truncates(tmp_path: Path):
+    """Long bullets are truncated to exactly MAX_BULLET_CHARS chars total
+    (MAX-1 of the original body + the "…" ellipsis), so the result fits
+    decision_validator's strict ≤ MAX rejection bound (PR #41 cycle 6 #3
+    closure — previous shape produced MAX+1 and the validator rejected)."""
     long = "x" * (MAX_BULLET_CHARS + 50)
     md = f"## Notes\n\n- {long}\n"
     out = {e["section"]: e["bullets"] for e in extract_summary(_write(tmp_path, md))}
     assert len(out["notes"]) == 1
     assert out["notes"][0].endswith("…")
-    assert len(out["notes"][0]) == MAX_BULLET_CHARS + 1  # +1 for the "…"
+    assert len(out["notes"][0]) == MAX_BULLET_CHARS  # MAX-1 chars + 1 ellipsis
 
 
 def test_at_max_bullet_chars_not_truncated(tmp_path: Path):
