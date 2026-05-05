@@ -455,11 +455,11 @@ Low risk; pure refactor with no functional change.
 
 <!-- Layer 3 + Layer 4 absorption (Paths γ + δ, 2026-04-30) — v2.1 deferred items below -->
 
-#### BL-210 - Remove `_legacy_yaml_canonical_hash` at v2.1.0
+#### BL-210 - Remove `_legacy_yaml_canonical_hash` at v2.2.0
 
-**Driver**: Layer 3 data-migration P1-A re-hardening review. The legacy YAML-canonicalization hash function is kept under `DeprecationWarning(stacklevel=2)` for the v2.0.x line to support `LP_CONFIG_REVIEWED` migration UX (HANDSHAKE §3) AND the OPERATIONS §7 rollback path. Removed in v2.1.0.
+**Driver**: Layer 3 data-migration P1-A re-hardening review. The legacy YAML-canonicalization hash function is kept under `DeprecationWarning(stacklevel=2)` for the v2.0.x line to support `LP_CONFIG_REVIEWED` migration UX (HANDSHAKE §3) AND the OPERATIONS §7 rollback path. **v2.2 retarget rationale** (was v2.1): post-v2.0 ship review reframed v2.0.1 as docs+hotfixes only and v2.1 as BL-236-only (lefthook Python coverage). The `_legacy_yaml_canonical_hash` cleanup pairs naturally with the v2.2 operational/security infrastructure bundle and gives the v1.x→v2.0 migration path two minor releases of soak time before removal.
 
-**Concrete steps at v2.1.0 ship**:
+**Concrete steps at v2.2.0 ship**:
 
 1. Delete `_legacy_yaml_canonical_hash` function from `plugins/launchpad/scripts/plugin-config-hash.py`
 2. Delete the soft-warn migration code path from `plugin-config-hash.py` (HANDSHAKE §3 5-branch truth table)
@@ -566,33 +566,37 @@ Low risk; pure refactor with no functional change.
 
 ---
 
-#### BL-216 - `fsync_durable()` shared helper universalization at v2.1
+#### BL-216 - `fsync_durable()` shared helper universalization at v2.2
 
 **Driver**: Layer 4 pattern-finder F-3 + performance + testing. v2.0 applies F_FULLFSYNC on macOS only to nonce-ledger writes. Telemetry, receipt, recovery JSON, freshness report, first-run-marker all do plain `os.fsync` without F_FULLFSYNC. Inconsistent macOS durability.
 
-**At v2.1 design time**:
+**v2.2 retarget rationale** (was v2.1): post-v2.0 ship review (2026-05-02) reframed v2.0.1 as docs+hotfixes only and v2.1 as BL-236-only (lefthook Python coverage). The fsync universalization touches multiple writer modules and pairs naturally with the v2.2 operational/security infrastructure bundle. Internal refactor with no user-visible benefit at this scale.
+
+**At v2.2 design time**:
 
 1. Add `fsync_durable(fd)` shared helper to `safe_run.py` (or new `durability.py` module) that wraps `os.fsync(fd)` + conditional `F_FULLFSYNC` on `sys.platform == 'darwin'`
 2. Apply consistently in: HANDSHAKE §4 rule 10 (nonce ledger — already has it), §5 receipt write spec, OPERATIONS §5 telemetry pruning, §6 gate #11 recovery JSON write, §4 rule 10 first-run-marker write
 3. Effort estimate: ~30 min helper + ~1-2h applying across sites + ~1h tests = ~2-3h
 
-**Default decision**: ship narrow F_FULLFSYNC at v2.0 (nonce ledger is the most security-critical durability path); broaden at v2.1.
+**Default decision**: ship narrow F_FULLFSYNC at v2.0 (nonce ledger is the most security-critical durability path); broaden at v2.2.
 
 ---
 
-#### BL-217 - Tier 1 reveal panel `n_docs` constant single-source at v2.1
+#### BL-217 - Tier 1 reveal panel `n_docs` constant single-source at v2.2
 
 **Driver**: Layer 4 architecture P3-6. The literal `8` for "architecture docs rendered" appears in HANDSHAKE §5 receipt schema + OPERATIONS §5 greenfield panel + brownfield panel. No shared constant.
 
-**At v2.1 design time**:
+**v2.2 retarget rationale** (was v2.1): the literal value was already corrected from `8` to `4` in PR #41 cycle 8 #2 (Codex P1) — the hardcoded mismatch is closed at v2.0. The remaining single-source refactor is trivial polish and pairs naturally with the v2.2 bundle. No reason to ship it standalone in v2.1.
+
+**At v2.2 design time**:
 
 1. Define `TIER1_ARCHITECTURE_DOCS = ("PRD.md", "TECH_STACK.md", ...)` constant in shared module
 2. Receipt's `architecture_docs_rendered` computed as `len(TIER1_ARCHITECTURE_DOCS)`
-3. Panel templates substitute `{n_docs}` rather than hard-coding `8`
+3. Panel templates substitute `{n_docs}` rather than hard-coding `4`
 4. CI lint: assert `git grep -nE '"?architecture_docs_rendered"?:?\s*[0-9]'` returns ≤1 hit
 5. Effort estimate: ~30 min total
 
-**Default decision**: ship hardcoded `8` at v2.0 (3 sites all consistent post-Layer 4 sweep); single-source at v2.1 when Tier 1 evolves.
+**Default decision**: ship hardcoded `4` at v2.0 (mismatch corrected per PR #41 cycle 8 #2); single-source at v2.2 alongside the rest of the bundle.
 
 #### BL-106 - v2.2: Native sub-app workflow (`/lp-add-subapp`) for brownfield monorepos
 
@@ -678,10 +682,20 @@ Low risk; pure refactor with no functional change.
 
 **Default decision**: defer. Re-audit after BL-223 ships.
 
-<!-- Layer 7 strip-back (2026-04-30) — operational/security infrastructure deferred to v2.2 per user direction.
-v2.1 is documentation-focused (METHODOLOGY/HOW_IT_WORKS/governance updates); v2.2 absorbs the heavyweight
-operational/security infrastructure that didn't earn its place at v2.0 against the stated threat model
-(single-maintainer plugin used by ~3-4 downstream projects). -->
+<!-- Post-v2.0.0 ship rebalance (2026-05-02): v2.0.1 absorbs the documentation refresh
+(README/HOW_IT_WORKS/METHODOLOGY/REPOSITORY_STRUCTURE — BL-240/241/242/243), the
+PR #41 cycle-12 hotfix bundle (BL-244), and the path:"." conflict (BL-239). v2.1
+ships three ergonomics entries: BL-236 (lefthook Python coverage: ruff + pytest +
+pyright + pre-push lint), BL-237 (V2_MODULES scope tightening), and BL-246
+(/lp-release command — automate the manual ship ceremony for versioned-artifact
+projects).
+v2.2 absorbs the heavyweight operational/security infrastructure that didn't earn
+its place at v2.0 against the stated threat model (single-maintainer plugin used
+by ~3-4 downstream projects), plus deferred-stack restorations (BL-100..104,
+BL-106), the forward-compat matrix (BL-211), and v2.1-conditional items now
+retargeted (BL-210 legacy YAML hash removal, BL-216 fsync_durable, BL-217 n_docs
+constant). Conditional-on-signal items (BL-213 freshness tiers, BL-214 GPG tags,
+BL-218 LP_ALLOW_NONLOCAL_FS) stay parked until telemetry surfaces real demand. -->
 
 ### v2.2 strip-back bundle overview (Layer 8 — closes code-simplicity P3 readability)
 
@@ -912,7 +926,7 @@ Trade-off: grep can be bypassed via `fromJSON(toJSON())` / bracket-notation / ex
 
 **Driver**: v2.0 ships ~25+ new Python modules (`lp_pick_stack/`, `lp_scaffold_stack/`, primitives, CLIs, hooks) with zero project-wide Python style/lint enforcement and zero pre-commit pytest gate. Today's lefthook covers the TypeScript side comprehensively (prettier-fix + `eslint-fix` + `typecheck` + structure-check + large-file/whitespace/EOL guards) but the Python side is essentially uncovered: (1) no style/lint, (2) no static type-check, (3) no test execution pre-commit, (4) no v2.0 contract validation pre-push. CI catches all four on PR push, but a contributor who breaks any of them locally only learns at PR time. The asymmetry was deliberately accepted at v2.0 (the v2.0 ship surface itself was the hot path); now that v2.0 has shipped, closing the symmetry is the natural v2.1 move.
 
-**Why v2.1 (not v2.2)**: BL-237 already established the precedent — small lefthook/CI-lint configuration tweaks count as "configuration adjustments, not implementation work" and fit within v2.1's documentation-focused framing without crossing the docs-only boundary. The lefthook expansion here is the same shape (config wiring + `pyproject.toml` authoring + auto-fix baseline commit). Unlike the v2.2 operational/security infrastructure (forensic_writer split, AST PR-target check, multi-signal CI detection), this BL doesn't add a new module, schema, runtime, or threat-model surface — it wires existing tools (`ruff`, `pytest`, `pyright`, the already-shipped `plugin-v2-handshake-lint.py`) into the local hook chain.
+**Why v2.1 (not v2.2)**: post-v2.0.0 ship rebalance (2026-05-02) reframed v2.1 around contributor-experience improvements — BL-236 (lefthook Python coverage) + BL-237 (V2_MODULES scope tightening) are the two entries. Both are small configuration tweaks, not new threat-model surfaces; both directly improve the experience for outside contributors who'd otherwise hit silent style/lint failures only at PR time. Unlike the v2.2 operational/security infrastructure (forensic_writer split, AST PR-target check, multi-signal CI detection), this BL doesn't add a new module, schema, runtime, or threat-model surface — it wires existing tools (`ruff`, `pytest`, `pyright`, the already-shipped `plugin-v2-handshake-lint.py`) into the local hook chain.
 
 **Trade-off**: v2.0 ships without these gates because (a) adding `ruff` now would surface hundreds of pre-existing style warnings, blocking ship for cosmetic-only fixes; (b) `pytest` in pre-commit on a 546-test suite (33s wall) would slow the inner loop materially; (c) `pyright` requires a pyproject + annotation pass that's better done deliberately, not mid-ship; (d) `v2-handshake-lint` runs on every PR via CI already. The v2.0 Python gates of record were `pytest` correctness + the custom schema/grep checks — both adequate for ship, neither adequate as the inner-loop developer feedback path post-ship.
 
@@ -966,7 +980,7 @@ Trade-off: grep can be bypassed via `fromJSON(toJSON())` / bracket-notation / ex
 
 These are the polish/hardening items the agent surfaced; ruff itself catches a subset (D9 naming, D10 broad-except, D13 redundant computation), the rest are spec-vs-code drift fixed during the v2.1 implementation pass.
 
-**Default decision**: defer to v2.1. v2.0 ships with `pytest` + custom lint as the Python gates; the lefthook expansion (ruff + pytest + pyright + v2-handshake-lint pre-push) lands alongside the v2.1 documentation refresh as a small configuration adjustment, not implementation work — same precedent as BL-237.
+**Default decision**: defer to v2.1. v2.0 ships with `pytest` + custom lint as the Python gates; the lefthook expansion (ruff + pytest + pyright + v2-handshake-lint pre-push) lands as part of the v2.1 contributor-experience bundle alongside BL-237. The v2.0.1 documentation refresh (BL-240/241/242/243) ships earlier as docs+hotfixes only.
 
 #### BL-237 - v2.1: Tighten `V2_MODULES` scope to package-aware path-prefix matching
 
@@ -974,7 +988,7 @@ These are the polish/hardening items the agent surfaced; ruff itself catches a s
 
 **Concrete instance the gap masks today**: `lp_scaffold_stack/nonce_ledger.py:152-184` (`_detect_filesystem_type` macOS branch) calls `subprocess.run(["/sbin/mount"], …)` directly. The module docstring documents this as a deliberate exception. Practically low-risk (fixed argv, no shell, no user-controlled input), but the call (a) bypasses `safe_run`'s env-allowlist (inherits ambient `PATH`/`TMPDIR`), and (b) is missed by the v2 lint per the scope hole above.
 
-**Trade-off**: v2.0 ships without the fix because (a) the actual `subprocess.run` call is benign in shape, (b) the lint passes today (silently — that's the bug), and (c) tightening the scope mid-flight in Phase 7.5 was out of the strip-back-aware ship surface. v2.1 is documentation-only per Layer 7 strip-back, but a lint-config tweak counts as a small configuration adjustment, not implementation work — it fits within v2.1's framing without crossing the docs-only boundary.
+**Trade-off**: v2.0 ships without the fix because (a) the actual `subprocess.run` call is benign in shape, (b) the lint passes today (silently — that's the bug), and (c) tightening the scope mid-flight in Phase 7.5 was out of the strip-back-aware ship surface. Per the post-v2.0.0 ship rebalance (2026-05-02), this lint-config tweak ships in v2.1 as part of the contributor-experience bundle alongside BL-236 (lefthook Python coverage); the two share the same "small lint/CI config tweaks improving outside-contributor inner loop" framing.
 
 **At v2.1 design time**:
 
@@ -985,6 +999,56 @@ These are the polish/hardening items the agent surfaced; ruff itself catches a s
 5. Closes: silent CI-lint coverage hole that would mask future regressions; the broad-scope `safe_run` mandate from HANDSHAKE §6 is now actually enforced everywhere it claims to be.
 
 **Default decision**: defer to v2.1. The v2.0 ship is clean (the fixed-argv mount call is not exploitable at single-maintainer scale); the lint-tightening is the correct fix and lands as a small configuration adjustment in v2.1.
+
+#### BL-246 - v2.1: `/lp-release [version]` command — automate the manual ship ceremony
+
+**Driver**: v2.0.0 ship was a manual 3-step ceremony (tag → push → wait for `verify-v2-ship` → `gh release create --notes-file`). Documented as a runbook in v2.0.1 (BL-241 §6); v2.1 promotes the runbook to an executable command so LaunchPad and growth-toolkit (and any downstream LaunchPad-managed plugin/CLI/library/spec project) ship versioned releases with a single command instead of running the runbook by hand each time.
+
+**Applicability — refuse-unless-applicable detection**: the command refuses cleanly if the project doesn't ship versioned releases. Detection: BOTH of the following must be present:
+
+1. `docs/releases/` directory containing at least one `vX.Y.Z.md` file (per the LaunchPad/Keep-a-Changelog convention)
+2. Either `.github/workflows/verify-*-ship.yml` OR `.github/workflows/release-notes-check.yml` (the post-tag verification gate)
+
+If neither is present, exits with: `"this project doesn't ship versioned releases; /lp-release isn't applicable here. If you intend to start shipping releases, see HOW_IT_WORKS.md §Releasing a versioned artifact."`
+
+The command is **NOT a fit for branch-triggered automation projects** (e.g., `ulcspec/ULC` uses `release/vX.Y.Z` branch + auto-tag-on-merge via goreleaser). Detection: if `release/*` branches exist in the project's recent history AND the project has a `release.yml` workflow that runs on `push: branches: [main]` with goreleaser invocation, surface a hint: `"this project appears to use the branch-triggered release pattern (release/vX.Y.Z branch → workflow auto-tags). /lp-release targets the manual ceremony pattern; you don't need it here."`
+
+**Why v2.1 (not v2.2)**: post-v2.0 ship rebalance (2026-05-02) expanded v2.1 scope from "BL-236 + BL-237 contributor-experience pair" to include this maintainer-experience entry. Rationale: v2.0.1 ships in days; v2.1 ships within ~1 month after v2.0.0+24h soak; v2.2 is months out. Shipping `/lp-release` in v2.1 means LaunchPad benefits from the automation on every v2.x release after v2.1 lands (v2.2, v2.3, etc.). The command is bounded scope (~3-4h impl + ~2h tests + ~1h docs) and shares the v2.1 ergonomics theme alongside BL-236/BL-237.
+
+**At v2.1 design time**:
+
+1. Add `/lp-release [version]` slash command (or skill if Tier 2 fits better — evaluate during impl). Args:
+   - `[version]` — optional; if omitted, derived from `CHANGELOG.md`'s `## [Unreleased]` section per semver rules (major if "Breaking changes" present; minor if "Added"; patch otherwise). User confirms before tagging.
+   - `--signed` — optional; passes `-s` to `git tag` for GPG-signed annotated tags (off by default; BL-214 conditional).
+   - `--dry-run` — optional; prints what would happen without executing tag/push/release.
+2. Pre-flight checks:
+   - Refuse-unless-applicable detection (above).
+   - Verify HEAD is on `main` (or configured `release_branch` from `.launchpad/config.yml`).
+   - Verify `git status` is clean (no uncommitted changes).
+   - Verify CI is green on HEAD via `gh run list --branch main --status success --limit 1` (compare commit SHA to HEAD).
+   - Verify `docs/releases/v<VERSION>.md` exists; if missing, exit with: `"docs/releases/v<VERSION>.md is required before tagging. Author the release notes file and re-run /lp-release."`.
+   - Verify the version isn't already tagged: `git rev-parse v<VERSION>` returns nothing.
+3. Execute (only after explicit user confirmation showing the planned actions):
+   - `git tag -a v<VERSION> <merge-commit-sha> -m "v<VERSION>"` (annotated; signed if `--signed`)
+   - `git push origin v<VERSION>` — triggers the verify workflow
+4. Watch the verify workflow:
+   - Poll `gh run list --workflow=verify-*-ship.yml --branch v<VERSION> --limit 1` every 10s up to 5min total.
+   - On success: proceed to step 5.
+   - On failure: print failure reason + recovery hint citing OPERATIONS §7.1 yank procedure (delete tag from origin, ship a fresh patch on next attempt). Do NOT attempt automatic rollback.
+5. Create the release: `gh release create v<VERSION> --notes-file docs/releases/v<VERSION>.md --title "v<VERSION>"`. Print the release URL.
+6. Closes: manual ceremony cost on every ship. v2.0.0 ship took ~5min of careful sequenced commands; v2.1+ ships should take ~30 seconds of `/lp-release` invocation + user confirmation.
+
+**Out of scope** (intentional non-goals):
+
+- **Auto-invoke from `/lp-build` or similar pipeline commands** — version bumps are an editorial decision, not a deterministic one. The command is user-driven only.
+- **Auto-detect when to ship** — the command requires `[version]` arg (or unambiguous derivation from CHANGELOG). Doesn't try to be release-please / semantic-release.
+- **Multi-tag ceremonies** (e.g., shipping v2.1.0 + v2.1.0-rc1 simultaneously) — out of scope for v2.1; revisit if real demand surfaces.
+- **Branch-triggered automation pattern** (ULC-style) — `/lp-release` doesn't compete with goreleaser-on-merge workflows. The detection refuses cleanly with a hint.
+- **Tag amendment / re-release** — if the verify workflow fails, the user follows OPERATIONS §7.1 manually. No automatic retry/rollback semantics in v2.1.
+
+**Effort estimate**: ~3-4h command + ~2h tests + ~1h docs (HOW_IT_WORKS.md cross-reference + command frontmatter) = ~6-7h total.
+
+**Default decision**: ship in v2.1 alongside BL-236/237 as the v2.1 maintainer-experience entry. v2.0.1 ships the runbook (BL-241 §6); v2.1 ships the automation wrapper.
 
 #### BL-238 - v2.2: Promote django from curate → orchestrate-headless via auto-name derivation
 
@@ -1005,19 +1069,101 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.2. v2.0 ships django as `curate` so the orchestrate path can't fail; v2.2 promotes it back to orchestrate-headless via the template-based destination_argv shape.
 
-#### BL-239 - v2.1: Resolve `path: "."` scaffolder vs `.launchpad/` state conflict
+#### BL-239 - v2.0.1: Resolve `path: "."` scaffolder vs `.launchpad/` state conflict
 
 **Driver**: PR #41 Codex review cycle 5 (P1 finding #1) flagged that orchestrate-type scaffolders with `layer.path == "."` run in cwd, but `/lp-pick-stack` already wrote `.launchpad/scaffold-decision.json` + `rationale.md` there. CLIs like `npx create-next-app@latest .`, `rails new .`, `npm create astro@latest .`, etc. are invoked against a non-empty directory.
 
 **Practical impact varies by stack**: modern CLIs differ — some ignore hidden directories (`.launchpad/` is hidden, so `create-next-app` typically tolerates it), others refuse outright on any pre-existing files. v2.0 ships with the limitation documented in `lp-scaffold-stack.md` ("if the orchestrate scaffolder refuses to run in a directory containing `.launchpad/`, run `/lp-scaffold-stack` from the parent directory or a fresh subdir").
 
-**v2.1 retarget rationale**: the correct fix is non-trivial — needs either (a) move-aside-and-restore semantics for `.launchpad/` around the scaffolder invocation (with proper cleanup on failure), OR (b) run the scaffolder in a temp empty directory and merge results into cwd minus conflicts. Both approaches require careful design + test coverage that doesn't fit the strip-back-aware ship surface for v2.0. v2.1 is the right home alongside the rest of the integration polish.
+**v2.0.1 retarget rationale** (was v2.1): post-v2.0.0 ship review re-classified this as a user-visible scaffold regression on Astro/Rails greenfield paths (the most common v2.0 use cases). Fits the v2.0.1 patch-class scope alongside the Codex cycle-12 hotfixes (BL-244) and the documentation refresh (BL-240/241/242/243). The implementation work is bounded enough to ship as a patch.
 
-**At v2.1 design time**:
+**At v2.0.1 design time**:
 
 1. Decide between (a) move-aside vs (b) temp-dir-merge approach. Recommend (b) — it's more invasive but cleaner: scaffolder runs against a known-empty FS, merge step is auditable, no atomic-move dance for `.launchpad/`.
 2. If (b): wrap orchestrate invocation in a `tempfile.TemporaryDirectory()` block, pass that as the `cwd` argument to safe_run, then walk the temp tree and copy each entry into the real cwd via `shutil.move()` (or a structured "merge" helper that detects collisions with `.launchpad/` files and refuses, since the user shouldn't have any conflicts at scaffold time anyway).
 3. Add tests: (i) astro/next/rails scaffolder runs cleanly with `.launchpad/scaffold-decision.json` + `rationale.md` present; (ii) collision between scaffolder output and `.launchpad/` files is rejected (real ones never overlap, but the safety check matters); (iii) failure during merge cleans up the temp dir.
 4. Update `lp-scaffold-stack.md` to remove the v2.0 documented limitation once shipped.
 
-**Default decision**: defer to v2.1. v2.0 ships with the documented limitation; the move-aside vs temp-dir-merge design call needs deliberate scoping that doesn't fit the v2.0 ship surface.
+**Default decision**: ship in v2.0.1. v2.0 shipped with the documented limitation; the move-aside vs temp-dir-merge design call is now scoped + bounded enough for the patch release.
+
+#### BL-240 - v2.0.1: README.md — lead with Tier 1 governance differentiator pitch
+
+**Driver**: post-v2.0.0 ship review (2026-05-02). The README currently leads with a generic plugin pitch and never names what makes LaunchPad structurally different from agent-orchestration plugins like Compound Engineering. v2.0 shipped the **Tier 1 governance kernel** — `REPOSITORY_STRUCTURE.md` whitelisting + structure-drift detector + lefthook pre-commit gates + `.launchpad/config.yml` slash-command wiring + `.harness/` runtime directory + 4 architecture docs scaffolded by `/lp-define`. Other plugins focus on agent recipes; LaunchPad's differentiator is the **structural foundation** that makes agent work productive across sessions. This story is the v2.0 user-facing pitch and currently absent.
+
+**At v2.0.1 design time**:
+
+1. Restructure README.md "Why LaunchPad" / opening section to lead with the Tier 1 governance kernel pitch.
+2. Cite each kernel component with a one-line "what it prevents" outcome:
+   - `REPOSITORY_STRUCTURE.md` whitelist — blocks structure-drift PRs before reviewer time is wasted
+   - lefthook pre-commit gates (secret-scan, structure-drift, typecheck, lint) — catches `.env.local` leaks and broken types before push
+   - `.launchpad/config.yml` — drives consistent `/lp-build`/`/lp-define`/`/lp-commit` behavior across sessions
+   - `.harness/` — captures observations + todos so past mistakes inform future review agents
+   - 4 architecture docs (PRD/TECH_STACK/BACKEND_STRUCTURE/APP_FLOW) — kept current via `/lp-define` re-runs
+3. Position vs. agent-orchestration plugins: "LaunchPad is the structural foundation that makes agent recipes productive across sessions, not a competitor to them."
+4. Cross-reference `docs/guides/HOW_IT_WORKS.md` for the full v2.0 pipeline narrative + diagram.
+
+**Closes**: gap surfaced in `project_v2_governance_doc_followup.md` memory (2026-04-30 user decision: fold v2.0 governance benefits into user-facing docs in v2.1+; v2.0.1 retarget per post-ship plan).
+
+#### BL-241 - v2.0.1: HOW_IT_WORKS.md — v2.0 pipeline narrative + Greptile sequence diagram
+
+**Driver**: HOW_IT_WORKS.md currently describes the v1.x pipeline only. v2.0 introduced the four-command greenfield pipeline (`/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`) plus the **Tier 1 reveal panel** rendered post-scaffold by `/lp-define`. Greptile's review of PR #41 produced a Mermaid sequence diagram that captures the full happy path, including chain-of-custody ordering (decision-sealed → materialized → receipt-sealed → nonce-appended → tier1-rendered). The diagram was verified against the merged code and is accurate to the v2.0.0 ship.
+
+**At v2.0.1 design time**:
+
+1. Add a new "v2.0 greenfield pipeline" section to HOW_IT_WORKS.md.
+2. Embed the Greptile-derived Mermaid sequence diagram (5 participants: User, /lp-brainstorm, /lp-pick-stack, /lp-scaffold-stack, /lp-define). Suggested clarification on rule count: change `validate_decision() — 12 of 13 rules` to `validate_decision() — 12 active rules (rule 12 deferred to v2.2 per BL-235)` for unambiguous reading.
+3. Below the diagram, add a short paragraph describing the failure-path artifacts (`scaffold-rejection-<ts>.jsonl` for validator/integrity failures, `scaffold-failed-<ts>.json` for partial materialization) and that both land under `.harness/observations/`. Don't try to draw failure paths into the diagram — it would become unreadable.
+4. Add a "Tier 1 reveal panel" subsection describing the post-scaffold message rendered by `/lp-define`: its three variants (greenfield / brownfield / telemetry-disabled) and what each conveys to the user. Cross-reference OPERATIONS §5 as the canonical spec.
+5. Keep the existing v1.x brownfield narrative — `/lp-brainstorm` → `/lp-define` over an existing repo continues to work unchanged.
+6. Add a "Releasing a versioned artifact" subsection at the end of HOW_IT_WORKS.md. Documents two patterns:
+   - **Manual ceremony pattern** (LaunchPad, growth-toolkit): tag → push → wait for verify-\*-ship → `gh release create`. Runbook for the 3-step ceremony with screenshots/cmd snippets. v2.1 ships `/lp-release` (BL-246) to automate this pattern.
+   - **Branch-triggered automation pattern** (e.g., ulcspec/ULC): maintainer opens a `release/vX.Y.Z` branch with CHANGELOG section update; merge triggers a `release.yml` workflow that auto-tags + auto-publishes via goreleaser. No manual ceremony; the workflow IS the automation.
+     Note that this section applies only to plugins/CLIs/libraries/specs with editorial release cadence — NOT to SaaS-shape projects scaffolded by `/lp-pick-stack`. Cross-reference `docs/releases/` + Keep-a-Changelog convention. Mention that v2.1 ships `/lp-release` for the manual ceremony pattern; projects using the branch-triggered pattern don't need it (their workflow already does the work).
+
+**Closes**: the user-visible pipeline narrative gap; makes the Tier 1 reveal panel discoverable for users who don't read OPERATIONS §5; documents the release-ceremony runbook as the source of truth for `/lp-release` (BL-246).
+
+#### BL-242 - v2.0.1: METHODOLOGY.md — governance kernel as compound-learning substrate
+
+**Driver**: METHODOLOGY.md describes the v1.x harness architecture layers but doesn't connect the v2.0 governance kernel to its compound-learning purpose. The `.harness/` directory + structure whitelisting + Tier 1 panel together form the substrate that makes review agents progressively smarter across sessions — past observations inform future agent dispatch, drift detection prevents accumulated technical debt, and the Tier 1 panel makes the kernel's presence visible (so users understand what they're getting).
+
+**At v2.0.1 design time**:
+
+1. Add a "v2.0 governance kernel" section to METHODOLOGY.md.
+2. Describe the four kernel components and how they enable compound learning:
+   - `.harness/observations/*.jsonl` — past review findings, telemetry, freshness checks → input to future agent runs
+   - `.harness/todos/` — review-cycle outputs that downstream commands consume
+   - `REPOSITORY_STRUCTURE.md` whitelist — prevents drift that would otherwise dilute structural assumptions
+   - `.launchpad/config.yml` — shared command behavior so cross-session decisions are consistent
+3. Describe how the v2.0 pipeline materializes this kernel into greenfield projects (vs. v1.x brownfield retrofitting): `/lp-define` is the gate that lays down the kernel; `/lp-brainstorm` + `/lp-pick-stack` + `/lp-scaffold-stack` is the new four-command path that produces a project ready for the kernel.
+4. Cross-reference `docs/architecture/SCAFFOLD_HANDSHAKE.md` (binding contract; maintainer-facing) but do not duplicate its content — guides are user-narrative; handshake is implementer-spec.
+
+**Closes**: the gap between "we have these governance files" and "here's why they matter for compound learning."
+
+#### BL-243 - v2.0.1: REPOSITORY_STRUCTURE.md — v2.0 module additions to the whitelist
+
+**Driver**: v2.0 added ~25+ new Python modules (`lp_pick_stack/`, `lp_scaffold_stack/`, `plugin_stack_adapters/`, primitives like `cwd_state.py`, `path_validator.py`, `safe_run.py`, `decision_integrity.py`, `pid_identity.py`, plus the new pattern docs under `plugins/launchpad/scaffolders/`). REPOSITORY_STRUCTURE.md currently describes the v1.x layout. The structure-drift CI gate runs against this whitelist; if v2.0 paths aren't enumerated, future PRs touching those paths could trip false-positive drift warnings or (worse) silently legitimize drift in adjacent paths.
+
+**At v2.0.1 design time**:
+
+1. Audit current REPOSITORY_STRUCTURE.md against the v2.0 codebase. List paths NOT yet whitelisted that should be.
+2. Add the new module directories with one-line descriptions:
+   - `plugins/launchpad/scripts/lp_pick_stack/` — pick-stack consumer (5-question funnel, category match, rationale generation, decision write)
+   - `plugins/launchpad/scripts/lp_scaffold_stack/` — scaffold-stack consumer (decision validation, marker consumption, layer materialization, receipt write, nonce ledger)
+   - `plugins/launchpad/scripts/plugin_stack_adapters/` — per-stack `/lp-define` adapters (10 v2.0 stacks: `astro`, `next`, `python_django`, `fastapi`, `rails`, `hugo`, `eleventy`, `expo`, `hono`, `supabase`, `generic` + `polyglot` composer)
+   - `plugins/launchpad/scaffolders/` — per-stack pattern docs with knowledge-anchor `last_validated:` + sha256 pins
+3. Verify `scripts/hooks/audit-skills.sh` (or whichever script enforces the whitelist) treats the new paths as in-scope.
+4. Decision-tree section 6 ("before creating, moving, or deleting any file") should reference the new directories so contributors know where v2.0 work lands.
+
+**Closes**: drift between the v2.0 codebase and the structure whitelist; prevents false-positive drift warnings on future v2.0 work.
+
+#### BL-244 - v2.0.1: Codex PR #41 cycle-12 hotfix bundle
+
+**Driver**: PR #41 cycle 12 surfaced 3 P1 findings post-merge that we deferred to v2.0.1 (per the merge-approval discussion 2026-05-02). All three are real but corner cases — they don't affect day-1 greenfield users, which is the v2.0 target audience. Patch-class fixes.
+
+**At v2.0.1 design time**:
+
+1. **`LP_CONFIG_REVIEWED` v1→v2 migration unwired** (Codex cycle 12 P1 #1). `plugin-config-hash.py:140`/`:149` introduce legacy YAML hash acceptance, but `plugin-build-runner.py:112`/`:159` doesn't call `--resolve-review-state`, so existing v1.x users with a valid `LP_CONFIG_REVIEWED` hash will still be refused on upgrade. Fix: update `check_ci_override()` in `plugin-build-runner.py` to call `plugin-config-hash.py --resolve-review-state` and interpret `ACCEPTED`/`REPROMPT`, OR port the legacy-hash branch directly into the runner. Add a regression test for the v1→v2 hash migration path.
+2. **scaffolders.yml Next options flag spelling** (Codex cycle 12 P1 #2). `scaffolders.yml:60` defines Next options as `src_dir` and `app_router`, but `lp_scaffold_stack/layer_materializer.py:147` blindly emits option keys as CLI flags (`--src_dir`, `--app_router`). These aren't the spellings `create-next-app` expects (it uses kebab-case `--src-dir`), and `app_router` is also already forced via `--app` in `headless_flags`. Fix: add an explicit option-to-argv mapping per scaffolder, or change the schema keys to actual flag names and remove options that are already hardcoded. Add tests for the flag-spelling round trip.
+3. **lp-pick-stack.md frontmatter validation drift** (Codex cycle 12 P2). `lp-pick-stack.md:47` requires validating `.launchpad/brainstorm-summary.md` frontmatter and refusing on invalid or `greenfield: false`, but `lp_pick_stack/engine.py:190` only runs the cwd greenfield gate and never reads that file. Fix: implement the documented frontmatter validation in `lp_pick_stack/engine.py`'s Step 0, OR amend the command doc to make it explicit that this is caller-side work and add coverage for the wrapper path.
+
+**Closes**: cycle-12 P1 findings deferred at PR #41 merge per shipping-velocity tradeoff (Greptile 5/5 + corner-case scope). Unblocks v1.x→v2.0 upgraders with stale `LP_CONFIG_REVIEWED` hashes; closes the Next-options flag-spelling silent-failure path; resolves the doc/impl drift on brainstorm-summary frontmatter.

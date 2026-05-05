@@ -144,35 +144,35 @@ def _build_orchestrate_argv(
     flags = scaffolder.get("headless_flags") or []
     for flag in flags:
         argv.append(str(flag))
+    # Per PR #41 cycle-12 #2 closure (v2.0.1 BL-244 #2): option keys can carry
+    # an explicit CLI flag-name override via the scaffolder's `option_flags`
+    # mapping. Without the mapping, the flag falls back to `--{key}`. This
+    # closes the silent-failure path where snake_case option keys (like
+    # `src_dir`) emitted invalid kebab-case-expecting flags (`create-next-app`
+    # uses `--src-dir`). The override mapping is per-scaffolder so each CLI's
+    # spelling convention can be encoded once in scaffolders.yml.
+    option_flags = scaffolder.get("option_flags") or {}
     options = layer.get("options") or {}
     for k, v in options.items():
+        flag = str(option_flags.get(k, f"--{k}"))
         if isinstance(v, bool):
             if v:
-                argv.append(f"--{k}")
+                argv.append(flag)
         else:
-            argv.append(f"--{k}={v}")
+            argv.append(f"{flag}={v}")
     return argv
 
 
-def _materialize_orchestrate(
-    layer: Mapping[str, Any],
-    scaffolder: Mapping[str, Any],
-    cwd: Path,
-    *,
-    run_invoker: RunInvoker | None = None,
-) -> MaterializationResult:
-    """Run the scaffolder's headless command via `safe_run` from layer.path.
-
-    Captures `files_created` as the diff between pre-snapshot and post-state
-    of the layer-target directory.
-    """
-    layer_target = _resolve_layer_target(str(layer["path"]), cwd)
-    pre_snap = _snapshot_files(layer_target)
-
-    argv = _build_orchestrate_argv(scaffolder, layer)
-    invoker = run_invoker if run_invoker is not None else safe_run
+def _invoke_scaffolder(
+    argv: list[str],
+    target: Path,
+    invoker: RunInvoker,
+) -> None:
+    """Run the scaffolder argv at `target` via `invoker`. Translates
+    subprocess exceptions into LayerMaterializationError with the
+    canonical reason."""
     try:
-        invoker(argv, layer_target, timeout=DEFAULT_SCAFFOLDER_TIMEOUT_SEC)
+        invoker(argv, target, timeout=DEFAULT_SCAFFOLDER_TIMEOUT_SEC)
     except UnsafeArgvError as exc:
         raise LayerMaterializationError(
             f"argv allowlist rejected scaffolder argv: {exc}",
@@ -189,17 +189,117 @@ def _materialize_orchestrate(
             f"scaffolder exited non-zero: {exc.returncode}; stderr={exc.stderr!r}",
             reason="layer_materialization_failed",
         ) from exc
-    except (OSError, subprocess.TimeoutExpired) as exc:
+    except OSError as exc:
         raise LayerMaterializationError(
             f"scaffolder process error: {exc}",
             reason="layer_materialization_failed",
         ) from exc
 
+
+def _merge_temp_into_cwd(tmp: Path, cwd: Path) -> None:
+    """Two-pass merge of `tmp` contents into `cwd`.
+
+    Pass 1: walk `tmp` and refuse if ANY entry collides with an existing
+    path in cwd (including `.launchpad/` files). The refusal happens BEFORE
+    any move, so partial-state cwd is impossible from a collision.
+
+    Pass 2: shutil.move every top-level entry from `tmp` into `cwd`.
+    `tempfile.TemporaryDirectory(dir=cwd.parent)` is created same-filesystem
+    so individual moves are atomic POSIX renames; on a cross-filesystem
+    fallback (cwd.parent unwritable) shutil.move degrades to copy+delete,
+    which is non-atomic but the temp dir's auto-cleanup still preserves
+    the scaffolder output for forensic recovery if a partial move occurs.
+    """
+    # Pass 1: collision check — recursive walk of tmp.
+    collisions: list[str] = []
+    for entry in sorted(tmp.rglob("*")):
+        rel = entry.relative_to(tmp)
+        dest = cwd / rel
+        if dest.exists():
+            collisions.append(str(rel))
+    if collisions:
+        raise LayerMaterializationError(
+            f"scaffolder output collides with {len(collisions)} pre-existing "
+            f"path(s) in cwd: {collisions[:5]}{'...' if len(collisions) > 5 else ''}. "
+            f"Most commonly this means the cwd already contains scaffolder "
+            f"output (re-run after `/lp-pick-stack` reset) OR .launchpad/ "
+            f"files were unexpectedly written by the scaffolder.",
+            reason="layer_materialization_failed",
+        )
+
+    # Pass 2: move top-level entries.
+    import shutil
+    for entry in tmp.iterdir():
+        shutil.move(str(entry), str(cwd / entry.name))
+
+
+def _materialize_orchestrate(
+    layer: Mapping[str, Any],
+    scaffolder: Mapping[str, Any],
+    cwd: Path,
+    *,
+    run_invoker: RunInvoker | None = None,
+) -> MaterializationResult:
+    """Run the scaffolder's headless command via `safe_run` from layer.path.
+
+    Captures `files_created` as the diff between pre-snapshot and post-state
+    of the layer-target directory.
+
+    Per v2.0.1 BL-239 closure (PR #41 cycle-5 #1): when `layer.path == "."`,
+    the scaffolder runs in a clean temp dir and its output is then merged
+    into cwd. This avoids scaffolder refusal on cwd's pre-existing
+    `.launchpad/` contents (e.g., `create-next-app .` refuses on non-empty
+    dirs). The collision check before merging guarantees that a scaffolder
+    that legitimately ran in an empty temp dir cannot clobber any existing
+    cwd file.
+    """
+    layer_path = str(layer["path"])
+    is_dot_path = layer_path.rstrip("/") == "." or layer_path == ""
+
+    invoker = run_invoker if run_invoker is not None else safe_run
+    argv = _build_orchestrate_argv(scaffolder, layer)
+
+    if is_dot_path:
+        # Temp-dir-merge path: run scaffolder in a clean temp dir, then
+        # collision-check + move into cwd. Snapshot cwd BEFORE the run so
+        # files_created can be computed via post-merge diff.
+        pre_snap = _snapshot_files(cwd)
+        # Prefer cwd.parent as the temp parent so move is same-filesystem
+        # atomic; fall back to OS default if cwd.parent is unwritable
+        # (rare: requires user invoking from a read-only parent).
+        import tempfile
+        tmp_parent: Path | None = cwd.parent
+        try:
+            tmp_parent.mkdir(parents=True, exist_ok=True)
+            (tmp_parent / ".lp-write-test").touch()
+            (tmp_parent / ".lp-write-test").unlink()
+        except OSError:
+            tmp_parent = None  # fall back to OS default tmp
+
+        with tempfile.TemporaryDirectory(prefix="lp-scaffold-", dir=tmp_parent) as tmp_str:
+            tmp = Path(tmp_str)
+            _invoke_scaffolder(argv, tmp, invoker)
+            _merge_temp_into_cwd(tmp, cwd)
+
+        post = _walk_files_under(cwd, since_set=pre_snap)
+        rel_files = sorted(str(p.relative_to(cwd)) for p in post)
+        return MaterializationResult(
+            stack=str(layer["stack"]),
+            path=layer_path,
+            scaffolder_used="orchestrate",
+            files_created=rel_files,
+        )
+
+    # Non-"." path: run scaffolder directly in the layer target (existing
+    # behavior — no merge dance needed because the layer target is empty).
+    layer_target = _resolve_layer_target(layer_path, cwd)
+    pre_snap = _snapshot_files(layer_target)
+    _invoke_scaffolder(argv, layer_target, invoker)
     post = _walk_files_under(layer_target, since_set=pre_snap)
     rel_files = sorted(str(p.relative_to(cwd)) for p in post)
     return MaterializationResult(
         stack=str(layer["stack"]),
-        path=str(layer["path"]),
+        path=layer_path,
         scaffolder_used="orchestrate",
         files_created=rel_files,
     )

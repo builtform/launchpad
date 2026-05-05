@@ -38,6 +38,10 @@ if str(_SCRIPTS) not in sys.path:
 from cwd_state import refuse_if_not_greenfield  # noqa: E402
 from telemetry_writer import write_telemetry_entry  # noqa: E402
 
+from lp_pick_stack.brainstorm_summary_validator import (  # noqa: E402
+    BrainstormSummaryError,
+    validate_brainstorm_summary,
+)
 from lp_pick_stack.decision_writer import (  # noqa: E402
     DecisionWriteError,
     EMPTY_FILE_SHA256,
@@ -187,7 +191,16 @@ def run_pipeline(
     start = time.monotonic()
     cwd = Path(cwd)
 
-    # --- Step 0: greenfield gate ---
+    # --- Step 0: greenfield gate + brainstorm-summary frontmatter validation ---
+    # Per v2.0.1 BL-244 #3 closure (PR #41 cycle-12 #3): the lp-pick-stack.md
+    # spec requires both the cwd greenfield check AND brainstorm-summary.md
+    # frontmatter validation. The pre-fix engine only ran the cwd check, so a
+    # stale or malformed brainstorm-summary was silently ignored.
+    #
+    # The two checks are independent: skip_greenfield_gate is a test hook
+    # for cwd_state bypass (used by unit tests on non-greenfield tmp dirs),
+    # but it must NOT bypass the brainstorm-summary validation since that
+    # check is about the user-supplied summary's shape, not the cwd's state.
     if not skip_greenfield_gate:
         try:
             refuse_if_not_greenfield(cwd, COMMAND_NAME)
@@ -203,6 +216,21 @@ def run_pipeline(
             if write_telemetry:
                 _emit_telemetry(cwd, result, cwd_state_value=None)
             return result
+
+    try:
+        validate_brainstorm_summary(cwd)
+    except BrainstormSummaryError as exc:
+        elapsed = time.monotonic() - start
+        result = PipelineResult(
+            success=False,
+            outcome=Outcome.ABORTED,
+            reason=exc.reason,
+            message=str(exc),
+            elapsed_seconds=elapsed,
+        )
+        if write_telemetry:
+            _emit_telemetry(cwd, result, cwd_state_value=None)
+        return result
 
     # --- Step 2: validate answers (defensive re-validation) ---
     try:

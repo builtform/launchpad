@@ -30,6 +30,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -123,58 +124,100 @@ def _compute_hash(repo_root: Path) -> str:
     return result.stdout.strip()
 
 
+def _resolve_review_state(repo_root: Path) -> tuple[str, str, int]:
+    """Invoke plugin-config-hash.py --resolve-review-state and return
+    (outcome, new_hash, returncode).
+
+    Outcomes per HANDSHAKE §3 5-branch truth table:
+      ACCEPTED — current scheme matches OR legacy YAML matches (soft-warn)
+      REPROMPT — neither matches; config genuinely changed
+      REPROMPT_FIRST_TIME — env var unset entirely
+      REPROMPT_AUTO_REVIEW_OUTSIDE_CI — auto-review opt-in outside CI
+
+    Returns ("", "", code) on subprocess error so caller can fail closed.
+    """
+    script = SCRIPT_DIR / "plugin-config-hash.py"
+    result = subprocess.run(
+        [
+            sys.executable, str(script),
+            f"--repo-root={repo_root}",
+            "--resolve-review-state",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 1:
+        # plugin-config-hash.py prints to stdout/stderr already; surface as
+        # error state.
+        return "", "", result.returncode
+    try:
+        payload = json.loads(result.stdout.strip())
+    except (json.JSONDecodeError, ValueError):
+        return "", "", result.returncode
+    return (
+        str(payload.get("outcome", "")),
+        str(payload.get("hash", "")),
+        result.returncode,
+    )
+
+
 def check_ci_override(repo_root: Path) -> int:
-    """Validate LP_CONFIG_REVIEWED if set.
+    """Validate LP_CONFIG_REVIEWED if set, honoring the v1.x→v2.0
+    legacy-hash migration path.
+
+    Per PR #41 cycle-12 #1 closure (v2.0.1 BL-244 #1): delegates to
+    plugin-config-hash.py's resolve_review_state() so the v1.x legacy
+    YAML hash is honored through the v2.0.x soak window. Previously this
+    function did its own raw-string compare against `_compute_hash`,
+    which silently rejected the v1.x legacy hash even though
+    plugin-config-hash.py had a documented migration path for it.
+    Result: v1.x users upgrading to v2.0 with a valid `LP_CONFIG_REVIEWED`
+    pin would be refused on first run despite the documented soft-warn
+    semantics.
 
     Returns:
-      0 — env not set OR matches current hash (ok to proceed)
-      2 — env set but mismatches current hash (refuse)
+      0 — env not set OR matches new hash OR matches legacy hash (ok)
+      2 — env set but neither new nor legacy matches (refuse)
     """
+    outcome, new_hash, rc = _resolve_review_state(repo_root)
+
+    # Subprocess failure (rc != 0 with no parsed outcome) — fail closed.
+    if rc not in (0, 2) or not outcome:
+        print(
+            "REFUSE: LP_CONFIG_REVIEWED could not be resolved "
+            "(plugin-config-hash.py --resolve-review-state failed). "
+            "Restore .launchpad/config.yml and retry, or unset "
+            "LP_CONFIG_REVIEWED for unpinned interactive runs.",
+            file=sys.stderr,
+        )
+        return 2
+
+    # Allowed-to-proceed outcomes per the 5-branch truth table.
+    if outcome in ("ACCEPTED", "REPROMPT_FIRST_TIME"):
+        return 0
+
+    # REPROMPT or REPROMPT_AUTO_REVIEW_OUTSIDE_CI — refuse with the same
+    # diagnostic the previous shape produced. Keep the 16-char prefix
+    # acceptance hint for users running locally.
     env_val = os.environ.get("LP_CONFIG_REVIEWED", "").strip()
-    if not env_val:
-        return 0
-
-    current = _compute_hash(repo_root)
-    if not current:
-        # Can't compute — fail closed. The user explicitly opted into the
-        # pin by setting LP_CONFIG_REVIEWED, so an inability to verify
-        # the current hash (missing config.yml, unreadable, malformed) is
-        # a hard refuse. Otherwise an attacker who deletes config.yml
-        # would silently bypass the gate.
-        print(
-            "REFUSE: LP_CONFIG_REVIEWED is set but the current commands hash "
-            "cannot be computed (missing/unreadable .launchpad/config.yml). "
-            "Restore config.yml and re-pin LP_CONFIG_REVIEWED to the new hash, "
-            "or unset LP_CONFIG_REVIEWED for unpinned interactive runs.",
-            file=sys.stderr,
-        )
-        return 2
-
-    # Accept a 16-char hex prefix as a convenience — matches what .launchpad/audit.log
-    # displays as commands_sha=... . Collision resistance at 64 bits (16 hex chars)
-    # is still ~1.8×10^19 combinations, sufficient for CI hash pinning.
-    if _is_hex(env_val) and len(env_val) == 16 and current.startswith(env_val):
-        return 0
-
-    if env_val != current:
-        print(
-            "REFUSE: LP_CONFIG_REVIEWED does not match current commands section.\n"
-            f"  expected: {current}\n"
-            f"  got:      {env_val}\n"
-            "This CI env var pins the exact commands block that was reviewed. "
-            "A mismatch means config.yml changed since the ack — re-review, "
-            "update the env var to the new hash, and retry.\n"
-            "\n"
-            "Note: .launchpad/audit.log records commands_sha truncated to 16 chars\n"
-            "for readability. LP_CONFIG_REVIEWED accepts either the full 64-char\n"
-            "hash (preferred) or the 16-char prefix. Run\n"
-            "${CLAUDE_PLUGIN_ROOT}/scripts/plugin-config-hash.py\n"
-            "to print the full current hash.",
-            file=sys.stderr,
-        )
-        return 2
-
-    return 0
+    print(
+        "REFUSE: LP_CONFIG_REVIEWED does not match current commands section "
+        "(neither the v2.0 hash nor the v1.x legacy hash matched).\n"
+        f"  expected (v2.0):  {new_hash}\n"
+        f"  got:              {env_val}\n"
+        "This env var pins the exact commands block that was reviewed. "
+        "A mismatch means config.yml changed since the ack — re-review, "
+        "update the env var to the new hash, and retry.\n"
+        "\n"
+        "Note: .launchpad/audit.log records commands_sha truncated to 16 chars\n"
+        "for readability. LP_CONFIG_REVIEWED accepts either the full 64-char\n"
+        "hash (preferred) or the 16-char prefix. Run\n"
+        "${CLAUDE_PLUGIN_ROOT}/scripts/plugin-config-hash.py\n"
+        "to print the full current hash.",
+        file=sys.stderr,
+    )
+    return 2
 
 
 def _is_hex(s: str) -> bool:

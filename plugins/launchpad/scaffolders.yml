@@ -57,10 +57,19 @@ stacks:
     headless_flags: ["--yes", "--typescript", "--eslint", "--tailwind", "--app", "--turbopack"]
     knowledge_anchor: "plugins/launchpad/scaffolders/next-pattern.md"
     knowledge_anchor_sha256: "de5c9cfabec3649c87d7dacb0ee0b40b24dc21ab3e69575d26be9415966fd157"
+    # Per v2.0.1 BL-244 #2 (PR #41 cycle-12 #2 closure): `src_dir` requires
+    # the `--src-dir` kebab-case spelling that `create-next-app` expects;
+    # without the option_flags override, layer_materializer would emit
+    # `--src_dir` and create-next-app would error on the unknown flag.
+    # `app_router` was previously listed here too but the App Router is
+    # already forced via `--app` in headless_flags above; the option was
+    # unreachable AND produced invalid argv when set. Dropped from the
+    # schema entirely.
+    option_flags:
+      src_dir: "--src-dir"
     options_schema:
       src_dir: "boolean"
-      app_router: "boolean"
-    last_validated: "2026-04-30"
+    last_validated: "2026-05-02"
 
   eleventy:
     pillar: "Frontend Content"
