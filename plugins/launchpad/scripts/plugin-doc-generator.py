@@ -49,7 +49,7 @@ if str(SCRIPT_DIR) not in sys.path:
 import jinja2  # noqa: E402
 
 from plugin_stack_adapters import (  # noqa: E402
-    astro_adapter,
+    astro,
     eleventy_adapter,
     expo_adapter,
     fastapi_adapter,
@@ -253,7 +253,7 @@ def _single_adapter(stack_id: str):
         "python_django": python_django,
         "go_cli": go_cli,
         "generic": generic,
-        "astro": astro_adapter,
+        "astro": astro,
         "fastapi": fastapi_adapter,
         "rails": rails_adapter,
         "hugo": hugo_adapter,

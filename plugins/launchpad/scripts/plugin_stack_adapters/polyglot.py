@@ -18,7 +18,7 @@ happens at the /lp-define layer.
 from __future__ import annotations
 
 from . import (
-    astro_adapter,
+    astro,
     eleventy_adapter,
     expo_adapter,
     fastapi_adapter,
@@ -70,7 +70,7 @@ ADAPTERS = {
     "python_django": python_django,
     "go_cli": go_cli,
     "generic": generic,
-    "astro": astro_adapter,
+    "astro": astro,
     "fastapi": fastapi_adapter,
     "rails": rails_adapter,
     "hugo": hugo_adapter,

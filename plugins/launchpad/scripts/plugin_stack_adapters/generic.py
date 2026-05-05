@@ -8,17 +8,78 @@ Output is deliberately sparse. `/lp-define` treats the generic path as a
 prompt-the-user flow: it asks the user for language, framework, and test
 command, then writes those into config.yml manually. This adapter provides
 the empty scaffold the prompt fills.
+
+v2.1 refactor (Phase 4 plan §2.1): adds `Adapter` Protocol surface alongside
+the legacy `run()` function. `upstream=None` (no upstream template;
+typed-fallback only). Hidden from the user-facing pick-stack menu; reachable
+only via v2.2-candidate fallback routing per §3.12 verbatim INFO log
+("<stack-id> detected; v2.2 ships dedicated adapter; using generic
+fallback.").
 """
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+from typing import Callable
+
 from .contracts import (
+    Adapter,
     AdapterOutput,
+    AdapterScaffoldError,
     AppFlowInfo,
     BackendInfo,
     CommandsConfig,
+    CompositionRule,
     FrontendInfo,
     PipelineOverrides,
     ProductContextInfo,
+    StackIdActive,
     TechStackInfo,
+    UnwrapStrategy,
+    UpstreamTemplate,
 )
+
+LOG = logging.getLogger("plugin_stack_adapters.generic")
+
+
+# Generic is HIDDEN from the user-facing pick-stack menu. lp_pick_stack must
+# read this constant to filter generic out of the rendered options.
+HIDDEN_FROM_PICK_STACK_MENU: bool = True
+
+
+def log_v22_candidate_routing(detected_stack_id: str) -> None:
+    """Phase 4 §3.12 verbatim INFO log for v2.2-candidate detector routing.
+
+    Used by lp_pick_stack when the detector reports a stack id that v2.1
+    does not have a dedicated adapter for; the message is part of the
+    user-facing surface so it MUST match §3.12 verbatim.
+    """
+    LOG.info(
+        "%s detected; v2.2 ships dedicated adapter; using generic fallback.",
+        detected_stack_id,
+    )
+
+
+_COMPOSES_WITH: dict[StackIdActive, CompositionRule] = {
+    "nextjs_standalone": {
+        "workspace_name": "app",
+        "conflict_policy": {
+            "package.json": "merge-keys",
+        },
+    },
+    "nextjs_fastapi": {
+        "workspace_name": "app",
+        "conflict_policy": {
+            "package.json": "merge-keys",
+        },
+    },
+    "astro": {
+        "workspace_name": "content",
+        "conflict_policy": {
+            "package.json": "merge-keys",
+        },
+    },
+}
 
 
 def describe_tech_stack() -> TechStackInfo:
@@ -89,3 +150,51 @@ def run() -> AdapterOutput:
         commands=default_commands(),
         pipeline_overrides=default_pipeline_overrides(),
     )
+
+
+class GenericAdapter:
+    """Adapter Protocol implementation for the typed-fallback adapter.
+
+    No upstream; scaffold_into and apply_overlay are no-ops (the user fills
+    config.yml manually via /lp-define). Composes with the three real v2.1
+    adapters; rejected when paired with itself or with ts_monorepo.
+    """
+
+    stack_id: StackIdActive = "generic"
+    upstream: UpstreamTemplate | None = None
+    manifest_schema_version: str = "1.0"
+    workspace_name: str | None = "extra"
+    unwrap_strategy: UnwrapStrategy = "none"
+    composes_with: dict[StackIdActive, CompositionRule] = _COMPOSES_WITH
+
+    def __init__(
+        self, *, fetcher: Callable[[Path], None] | None = None
+    ) -> None:
+        # Generic has no upstream so the fetcher kwarg is accepted for
+        # interface symmetry with the other adapters but never invoked.
+        self._fetcher_override = fetcher
+
+    def scaffold_into(self, tempdir: Path) -> None:
+        tempdir.mkdir(parents=True, exist_ok=True)
+        return None
+
+    def apply_overlay(self, tempdir: Path) -> None:
+        return None
+
+
+ADAPTER = GenericAdapter()
+
+
+def assert_adapter_protocol_conformance() -> None:
+    if not isinstance(ADAPTER, Adapter):
+        raise AdapterScaffoldError(
+            reason="adapter_protocol_drift",
+            path=None,
+            remediation=(
+                "GenericAdapter no longer satisfies the `Adapter` Protocol; "
+                "check contracts.py for shape changes."
+            ),
+        )
+
+
+assert_adapter_protocol_conformance()
