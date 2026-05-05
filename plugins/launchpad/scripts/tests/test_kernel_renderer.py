@@ -27,11 +27,8 @@ import pytest
 _SCRIPTS = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
-_GENERATORS = _SCRIPTS / "plugin-default-generators"
-if str(_GENERATORS) not in sys.path:
-    sys.path.insert(0, str(_GENERATORS))
 
-from kernel_renderer import KERNEL_FILES, KernelRenderer  # noqa: E402
+from plugin_default_generators.kernel_renderer import KERNEL_FILES, KernelRenderer  # noqa: E402
 
 
 def _real_identity(**overrides):

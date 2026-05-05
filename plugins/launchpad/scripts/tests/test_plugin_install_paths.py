@@ -27,7 +27,7 @@ PLUGIN_DIR = Path(__file__).resolve().parent.parent.parent
 
 # Patterns that would break after install if not prefixed with ${CLAUDE_PLUGIN_ROOT}
 BARE_SCRIPT_RE = re.compile(
-    r"(?<![\w\${/])scripts/(plugin-[\w\-]+\.(py|sh)|plugin_stack_adapters|plugin-default-generators)"
+    r"(?<![\w\${/])scripts/(plugin-[\w\-]+\.(py|sh)|plugin_stack_adapters|plugin_default_generators)"
 )
 
 

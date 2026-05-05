@@ -118,7 +118,7 @@ def make_jinja_env() -> jinja2.Environment:
     rather than silently emitting empty strings.
     """
     return jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(SCRIPT_DIR / "plugin-default-generators")),
+        loader=jinja2.FileSystemLoader(str(SCRIPT_DIR / "plugin_default_generators")),
         autoescape=jinja2.select_autoescape(
             enabled_extensions=("html", "htm", "xml"),
             default=False,

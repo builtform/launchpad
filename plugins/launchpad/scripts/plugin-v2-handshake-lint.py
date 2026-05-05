@@ -209,7 +209,7 @@ LEAKAGE_FILE_ALLOWLIST = (
     ".github/ISSUE_TEMPLATE/plugin_install_issue.yml",
     # Carve-out 2: v1.x legacy code references — v2.1+ scrub candidates
     "plugins/launchpad/scripts/tests/test_define.py",
-    "plugins/launchpad/scripts/plugin-default-generators/agents.yml.j2",
+    "plugins/launchpad/scripts/plugin_default_generators/agents.yml.j2",
     "plugins/launchpad/scripts/plugin_stack_adapters/ts_monorepo.py",
     "plugins/launchpad/commands/lp-define.md",
     "plugins/launchpad/commands/lp-copy.md",

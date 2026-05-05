@@ -621,7 +621,7 @@ if [ ! -f ".launchpad/agents.yml" ]; then
 # ${CLAUDE_PLUGIN_ROOT}/agents/** and .claude/agents/**, so values here MUST
 # match the on-disk filenames (e.g. lp-pattern-finder.md, lp-security-auditor.md).
 # Re-running /lp-define against this file regenerates from
-# plugin-default-generators/agents.yml.j2; keep the two in sync.
+# plugin_default_generators/agents.yml.j2; keep the two in sync.
 
 # Code review agents — dispatched by /lp-review
 review_agents:

@@ -514,35 +514,9 @@ def run_pipeline(
     if accepted.payload.get("schema_version") == "1.1":
         identity = accepted.payload.get("identity")
         if isinstance(identity, dict):
-            try:
-                from plugin_default_generators.kernel_renderer import (  # noqa: PLC0415
-                    KernelRenderer,
-                )
-            except ImportError:
-                # Fall back to direct path-based import; the package import
-                # only works once Phase 8 installs an __init__.py shim.
-                # plugin-default-generators uses a hyphenated dirname so
-                # native Python imports cannot find it without help.
-                import importlib.util  # noqa: PLC0415
-                kr_path = (
-                    Path(__file__).resolve().parents[1]
-                    / "plugin-default-generators" / "kernel_renderer.py"
-                )
-                _spec = importlib.util.spec_from_file_location(
-                    "kernel_renderer", kr_path
-                )
-                _mod = importlib.util.module_from_spec(_spec)
-                # Ensure plugin-default-generators is on sys.path so the
-                # `from _renderer_base import RendererBase` inside
-                # kernel_renderer resolves.
-                _gen_root = (
-                    Path(__file__).resolve().parents[1]
-                    / "plugin-default-generators"
-                )
-                if str(_gen_root) not in sys.path:
-                    sys.path.insert(0, str(_gen_root))
-                _spec.loader.exec_module(_mod)
-                KernelRenderer = _mod.KernelRenderer
+            from plugin_default_generators.kernel_renderer import (  # noqa: PLC0415
+                KernelRenderer,
+            )
             try:
                 KernelRenderer().render_all(cwd, identity)
             except Exception as exc:  # noqa: BLE001

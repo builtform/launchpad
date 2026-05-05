@@ -25,7 +25,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from _renderer_base import RendererBase
+from ._renderer_base import RendererBase
 
 
 # Inventory: (template name relative to TEMPLATE_SUBDIR, output relpath)

@@ -29,13 +29,10 @@ import pytest
 _SCRIPTS = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
-_GENERATORS = _SCRIPTS / "plugin-default-generators"
-if str(_GENERATORS) not in sys.path:
-    sys.path.insert(0, str(_GENERATORS))
 
 import jinja2  # noqa: E402
 
-from _renderer_base import (  # noqa: E402
+from plugin_default_generators._renderer_base import (  # noqa: E402
     RendererBase,
     identity_inject,
     make_jinja_env,
