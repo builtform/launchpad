@@ -53,4 +53,6 @@
 /plugins/launchpad/scripts/lp_pick_stack/__init__.py        @builtform/core
 /plugins/launchpad/scripts/lp_pick_stack/decision_writer.py @builtform/core
 /plugins/launchpad/scripts/plugin-config-loader.py          @builtform/core
+/plugins/launchpad/scripts/lp_bootstrap/                    @builtform/core
 /docs/architecture/SCAFFOLD_HANDSHAKE.md                    @builtform/core
+/docs/architecture/SCAFFOLD_OPERATIONS.md                   @builtform/core

@@ -683,6 +683,62 @@ When implementation reveals a contract bug or scope-evolution forces a change to
 - v2.2 deferred stacks: [`ROADMAP.md` v2.2 section](../../ROADMAP.md#v22)
 - BL-100 through BL-104: `docs/tasks/BACKLOG.md` (v2.2 deferred-stack restorations)
 
+## 10. `/lp-bootstrap` operations matrix entry (v2.1 Phase 3)
+
+`/lp-bootstrap` is the v2.1 entry point for the 30-path infrastructure overlay. The command is invoked in three contexts:
+
+- Greenfield: invoked AFTER `/lp-scaffold-stack` Step 4.5 kernel render, in-process (`lp_scaffold_stack/engine.py` Step 4.6 wiring) with `mode="greenfield"`. Failure routes through the existing `_record_partial_failure` envelope with `reason="bootstrap_failed"`.
+- Brownfield-auto: invoked from `/lp-define` (Step 1.5 in lp-define.md) after the doc generator returns, when `cwd_state.infrastructure_present(cwd)` returns one of: `PARTIAL_MISSING`, `PARTIAL_STALE`, `ABSENT`. A consent prompt MUST be surfaced before any write fires; `--accept-bootstrap` non-interactively satisfies the gate for CI / scripted contexts.
+- Direct: end users invoke `/lp-bootstrap` directly to refresh, recover, or accept plugin-version drift. Always serializes on `.launchpad/.bootstrap.lock`.
+
+### 10.1 Flag semantics
+
+| Flag                            | Behavior                                                                                                                                                                                                                     |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)                          | Full bootstrap. Per-file policy decides each file. Fast-path skips paths whose on-disk sha matches the manifest sha and the rendered sha.                                                                                    |
+| `--refresh <path>`              | Re-render a single infrastructure path with `overwrite-with-backup`. Repeatable. Path must be in the v2.1 30-path inventory; kernel paths rejected.                                                                          |
+| `--refresh-all`                 | Re-render every infrastructure path with `overwrite-with-backup`. If no manifest exists, silently degrades to full bootstrap with INFO `no_manifest_to_refresh`.                                                             |
+| `--accept-plugin-version-drift` | Override the plugin-version pin abort. Records the drift in `scaffold-decision.json` `version_drift_log[]`. Auto-triggers `--refresh-all` to align manifest shas with the new plugin's templates. Sealed identity preserved. |
+| `--recover`                     | Inspect sentinel snapshot. Auto-completes an interrupted run if state is consistent; fails with structured guidance if state diverges.                                                                                       |
+| `--accept-bootstrap`            | Non-interactive consent flag for brownfield auto-invocation. Required by `/lp-define` brownfield dispatch in CI / scripted contexts.                                                                                         |
+
+Glob in `--refresh <path>`, `--refresh-paths` comma-sep variant, and `--prune-backups-older-than <N>d` are v2.2 backlog.
+
+### 10.2 Brownfield consent gate
+
+Before any write fires, the brownfield path surfaces:
+
+```
+LaunchPad will create N files in your project, including 7 executable
+bash scripts that run on git commit. Files: [list].
+Proceed? [Y/n]
+```
+
+Default Y so the happy path is single-keystroke. CI / scripted contexts must pass `--accept-bootstrap` to satisfy the gate without a TTY. Refusal leaves the project unmodified and records an INFO log; re-running `/lp-define` retries the prompt.
+
+### 10.3 Failure recovery
+
+Two recovery surfaces:
+
+- `/lp-bootstrap --recover`: inspects sentinel snapshot (`.launchpad/.bootstrap-in-progress`), confirms PID liveness via `os.kill(pid, 0)`, and either auto-completes the interrupted run OR fails with structured guidance.
+- Manual `rm .launchpad/.bootstrap-in-progress` after confirming no `/lp-bootstrap` PID is alive (last resort; `--recover` should handle most cases).
+
+### 10.4 Backup directory accumulation
+
+`.launchpad/backups/<ts>-<PID>-<rand4>/` is created on every `--refresh` or `--refresh-all` invocation. After 100 invocations, 100 subdirs. v2.1 does NOT auto-prune (user-owned data). `--prune-backups-older-than <N>d` is v2.2 backlog if user feedback demands.
+
+### 10.5 Telemetry instrumentation
+
+Every `/lp-bootstrap` invocation emits a `.harness/observations/v2-pipeline-*.jsonl` event via `write_telemetry_entry`. Honors `.launchpad/config.yml` `telemetry: off` opt-out. Payload fields:
+
+- `command: "lp-bootstrap"`
+- `mode`: `greenfield` | `brownfield-auto` | `refresh` | `refresh-all` | `recover`
+- `outcome`: canonical (`completed` | `aborted` | `failed`) per OPERATIONS section 5
+- `bootstrap_outcome`: fine-grained code (`success`, `sentinel_blocked`, `manifest_tampered`, `manifest_corrupt`, `plugin_version_mismatch`, `policy_collision`, `brownfield_auto_rendered`, `render_failed`)
+- `files_processed`, `files_written`, `files_skipped`, `files_kept_user_edits`
+
+Cross-references: HANDSHAKE §14 (manifest contract), Phase 3 implementation plan sections 3.4, 3.5, 3.7.
+
 ---
 
-**Status**: This document is the operations layer for v2.0 implementation as of 2026-04-30. The companion `SCAFFOLD_HANDSHAKE.md` covers the contracts layer. Both v2.0 plans reduce to references against these two documents. Plan Hardening Notes appendices must not contradict them; if they do, the contracts doc wins.
+**Status**: This document is the operations layer for v2.0 implementation as of 2026-04-30, extended by §10 for v2.1 Phase 3. The companion `SCAFFOLD_HANDSHAKE.md` covers the contracts layer. Both v2.0 plans reduce to references against these two documents. Plan Hardening Notes appendices must not contradict them; if they do, the contracts doc wins.

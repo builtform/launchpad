@@ -1200,6 +1200,87 @@ Tests for each module live in `plugins/launchpad/scripts/tests/`. Test discovery
 - Path C state (memory): `~/.claude/projects/.../memory/project_v2_0_path_c_state.md`
 - v2.2 deferred stacks: [`ROADMAP.md` v2.2 section](../../ROADMAP.md#v22)
 
+## 14. Bootstrap manifest contract (v2.1 Phase 3)
+
+`/lp-bootstrap` (v2.1) materializes the 30-path infrastructure overlay
+into a project root and writes `.launchpad/bootstrap-manifest.json` as
+the audit trail that makes idempotency, refresh, and tampering detection
+possible. This section pins the contract that every consumer of the
+manifest, including Phase 4 adapters and Phase 10 `/lp-update-identity`,
+must honor.
+
+### 14.1 Envelope (schema 1.0)
+
+```json
+{
+  "manifest_schema_version": "1.0",
+  "plugin_version": "<semver from plugin.json>",
+  "last_render_timestamp": "<UTC ISO-8601, second precision, Z suffix>",
+  "files": [
+    {
+      "path": "<POSIX-relative-to-project-root>",
+      "source_template_sha256": "<hex>",
+      "rendered_content_sha256": "<hex>",
+      "policy": "overwrite-if-unchanged | merge-keys | append-only",
+      "mode": 420
+    }
+  ],
+  "security_fields": []
+}
+```
+
+Fields:
+
+- `manifest_schema_version` is the v2.1 reader indicator. The Phase 1 canonical reader (`plugin-config-loader.read_bootstrap_manifest`) routes via the 4-rule ladder: missing or `1.0` -> full read, `1.x where x > 0` -> forward-compat with INFO on unknown fields, major >= 2 -> fail-closed.
+- `plugin_version` matches `plugins/launchpad/.claude-plugin/plugin.json` `version` at render time. The engine's plugin-version pin check (Phase 3 §3.4) compares the running plugin's version against this field; mismatches abort with `plugin_version_mismatch` unless `--accept-plugin-version-drift` is passed.
+- `last_render_timestamp` round-trips through git diffs as a human-readable signal of when the manifest was last rebuilt.
+- `files[]` is a stable-sorted list of per-target entries. The path inventory MUST equal `lp_bootstrap.INFRASTRUCTURE_TARGETS`; missing entries trigger `manifest_tampered`.
+- `mode` is stored as an integer (octal-style, e.g. `420` for `0o644`) so JSON round-trips cleanly.
+- `security_fields` is reserved for forward-compat security extensions in v2.2 (e.g., signed-template attestations). The v2.1 reader treats a non-empty `security_fields` as `unsupported_security_extension` abort, pre-empting the v2.2 signature-field downgrade attack at zero v2.1 cost (harden B9).
+
+Adding a new infrastructure file is additive (a new entry in `files[]` plus extending `INFRASTRUCTURE_FILES`); no `manifest_schema_version` bump. Removing or renaming an entry IS a schema change (bumps to 1.1 + canonical reader migration rule per the §10 ladder).
+
+### 14.2 Per-file conflict policies
+
+v2.1 ships three active policies plus one `--refresh`-mode variant. The two policies named in the original V3 contract (`skip-if-exists`, `overwrite-always`) are NOT shipped in v2.1; they defer to Phase 4 if an adapter overlay demands them, else to v2.2.
+
+| Policy                   | Behavior                                                                                                                                                                                                                                                                                          | Used by                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `overwrite-if-unchanged` | Compare on-disk sha to manifest's `rendered_content_sha256`. Match -> write new content. Mismatch -> skip with `kept-user-edits` action message.                                                                                                                                                  | 26 of 30 paths                                                       |
+| `merge-keys`             | YAML / JSON / CODEOWNERS only. Plugin can ADD top-level keys; CANNOT delete user keys. Conflict on duplicate-key value-type -> user wins, structured warning to `bootstrap-warnings.json`. Within an existing user-defined list, plugin appends new items but never deletes user-defined entries. | `lefthook.yml`, `scripts/compound/config.json`, `.github/CODEOWNERS` |
+| `append-only`            | Read existing content; append plugin-required entries that aren't already present. NEVER reorders, deduplicates, or removes user entries. Symlink target rejected fail-closed.                                                                                                                    | `.gitignore`                                                         |
+| `overwrite-with-backup`  | Reserved for `--refresh` and `--refresh-all`. Writes pre-edit content to `.launchpad/backups/<ts>-<PID>-<rand4>/<relpath>` before atomic-write. Backup contents must be byte-equal pre-edit; symlink rejected.                                                                                    | (refresh-only)                                                       |
+
+### 14.3 Tampering check
+
+The engine performs two distinct integrity validations on every run:
+
+- **(a) Plugin-shipped template integrity** (mandatory): compares each manifest entry's `source_template_sha256` against a module-load cached map of plugin-shipped `.j2` shas. Mismatch -> `manifest_tampered` abort with structured remediation pointing at `--accept-plugin-version-drift` or manifest deletion.
+- **(b) On-disk content fidelity** (advisory): recompute the on-disk sha against `rendered_content_sha256`. The manifest's `rendered_content_sha256` is updated at the END of every successful `/lp-bootstrap` run; partial-failure runs do NOT write the manifest, preserving the prior shas for the next attempt (harden B16).
+
+`manifest_corrupt` (malformed JSON / wrong envelope shape) is distinct from `manifest_tampered` (sha mismatch). Both abort the run, but the remediation differs: `manifest_corrupt` is "delete and rebuild"; `manifest_tampered` is "accept plugin-version drift OR delete + rebuild".
+
+### 14.4 Plugin-version pin + `--accept-plugin-version-drift`
+
+`/lp-bootstrap` aborts when the recorded `plugin_version` in `scaffold-decision.json` does not match the running plugin's `plugin.json` version. Override path: `/lp-bootstrap --accept-plugin-version-drift` accepts the drift, records a `(from_version, to_version, accepted_at)` tuple in scaffold-decision's `version_drift_log[]` array, auto-triggers `--refresh-all` so manifest shas align with the new plugin's templates, and preserves the originally sealed `plugin_version` field (overwrite would erase the audit trail).
+
+The original "re-run /lp-pick-stack" remediation is REMOVED; sealed identity precludes that path.
+
+### 14.5 `--refresh` semantics
+
+- `--refresh <path>` accepts ONE OR MORE infrastructure paths from the `lp_bootstrap.INFRASTRUCTURE_TARGETS` set (repeatable flag). Path validation rejects `..`, absolute paths, and off-inventory entries via `path_traversal_rejected` and `unknown_refresh_path` codes.
+- Kernel paths (LICENSE, CONTRIBUTING.md, CODE_OF_CONDUCT.md, README.md, etc.) are NOT accepted; kernel refresh goes through `KernelRenderer.refresh()` directly via `/lp-update-identity` (Day 1 decision D2).
+- `--refresh-all` re-renders every infrastructure path with `overwrite-with-backup`. If no manifest exists, silently degrades to full bootstrap with INFO `no_manifest_to_refresh`.
+- `--refresh-paths` comma-separated form is v2.2 backlog; glob support in `--refresh <path>` is v2.2 backlog.
+
+### 14.6 What the manifest does and does not prove
+
+- PROVES: on-disk files match what was rendered. `rendered_content_sha256` is recomputed at the END of every `/lp-bootstrap` run and compared against pre-write content via the per-file policy applicator.
+- DOES NOT PROVE: the rendering plugin was authentic. v2.1 trusts the plugin-shipped template bytes; v2.2-backlog `gh attestation verify` work would close that surface.
+- DOES NOT PROVE: the templates rendered were the templates the user expected. A `/plugin update` between bootstraps changes the `source_template_sha256` for every entry; the manifest catches this via `manifest_tampered` only when the next bootstrap runs (the user must explicitly accept via `--accept-plugin-version-drift`).
+
+Cross-references: §4 (envelope contract), §10 (atomic writes), Phase 3 implementation plan sections 3.1, 3.2, 3.5, 3.7, 3.8, 6.1, 6.2.
+
 ---
 
-**Status**: This document is the binding contract layer for v2.0 implementation as of 2026-04-30. The companion `SCAFFOLD_OPERATIONS.md` covers the operations layer. Both v2.0 plans reduce to references against these documents. Plan Hardening Notes appendices must not contradict them; if they do, these documents win.
+**Status**: This document is the binding contract layer for v2.0 implementation as of 2026-04-30, extended by §14 for v2.1 Phase 3. The companion `SCAFFOLD_OPERATIONS.md` covers the operations layer. Both v2.0 plans reduce to references against these documents. Plan Hardening Notes appendices must not contradict them; if they do, these documents win.

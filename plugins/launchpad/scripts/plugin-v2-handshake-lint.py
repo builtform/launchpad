@@ -563,10 +563,12 @@ SCHEMA_SOURCE_FILES = (
     "plugins/launchpad/scripts/lp_pick_stack/__init__.py",  # SCHEMA_VERSION_V2_1, identity regexes
     "plugins/launchpad/scripts/lp_pick_stack/decision_writer.py",  # build_decision_payload, validate_identity
     "plugins/launchpad/scripts/plugin-config-loader.py",  # read_scaffold_decision, read_bootstrap_manifest
-    # bootstrap-manifest schema sources (Phase 3+)
-    "plugins/launchpad/scripts/plugin_bootstrap_manifest_writer.py",  # not yet present at Phase 1
+    # bootstrap-manifest schema sources (Phase 3+ live)
+    "plugins/launchpad/scripts/lp_bootstrap/__init__.py",  # BootstrapErrorCode + INFRASTRUCTURE_FILES + envelope constants
+    "plugins/launchpad/scripts/lp_bootstrap/manifest_writer.py",  # build_manifest, write_manifest, security_fields contract
 )
 SCHEMA_DOC = "docs/architecture/SCAFFOLD_HANDSHAKE.md"
+BOOTSTRAP_MANIFEST_DOC = "docs/architecture/SCAFFOLD_HANDSHAKE.md"
 
 
 def check_schema_codeowners_gate(
