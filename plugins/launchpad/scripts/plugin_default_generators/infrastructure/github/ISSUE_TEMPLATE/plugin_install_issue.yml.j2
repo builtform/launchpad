@@ -1,0 +1,64 @@
+name: Plugin Install Issue
+description: Report a problem installing or running a Claude Code plugin in {{ identity.project_name }}.
+title: "[Plugin Install]: "
+labels: ["plugin", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when the issue is plugin-install or plugin-runtime
+        related (failure to clone, missing scripts, slash command not found,
+        permission errors, etc.). For project-level bugs, use the **Bug
+        Report** template instead.
+
+  - type: input
+    id: plugin
+    attributes:
+      label: Plugin name
+      placeholder: "launchpad / other"
+    validations:
+      required: true
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: From `/plugin info <name>` or the plugin's package manifest.
+      placeholder: "x.y.z"
+    validations:
+      required: true
+
+  - type: input
+    id: cc-version
+    attributes:
+      label: Claude Code version
+      description: Output of `claude --version`.
+      placeholder: "x.y.z"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-path
+    attributes:
+      label: Install path
+      options:
+        - Plugin install ("/plugin install ...")
+        - Local-path plugin ("/plugin marketplace add ...")
+        - Other / unsure
+    validations:
+      required: true
+
+  - type: textarea
+    id: failure
+    attributes:
+      label: What failed
+      description: Exact error or unexpected behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true

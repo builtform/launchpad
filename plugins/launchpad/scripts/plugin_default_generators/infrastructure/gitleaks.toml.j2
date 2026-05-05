@@ -1,0 +1,43 @@
+# gitleaks configuration for {{ identity.project_name }}.
+# Compensating control for projects without paid GitHub Advanced Security.
+# Run via: gitleaks detect --config=.gitleaks.toml
+title = "{{ identity.project_name }} gitleaks rules"
+
+[allowlist]
+description = "Repo-wide allowlist"
+paths = [
+    '''node_modules/''',
+    '''\.next/''',
+    '''dist/''',
+    '''\.turbo/''',
+    '''pnpm-lock\.yaml''',
+    '''package-lock\.json''',
+    '''yarn\.lock''',
+    '''\.launchpad/''',
+    '''\.harness/''',
+    '''docs/(?:plans|reports)/''',
+]
+
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API key"
+regex = '''sk-ant-[A-Za-z0-9-]{32,}'''
+tags = ["api-key", "anthropic"]
+
+[[rules]]
+id = "github-pat"
+description = "GitHub personal access token"
+regex = '''gh[pousr]_[A-Za-z0-9]{36,255}'''
+tags = ["api-key", "github"]
+
+[[rules]]
+id = "stripe-live-key"
+description = "Stripe live API key"
+regex = '''(?:sk|rk)_live_[A-Za-z0-9]{24,99}'''
+tags = ["api-key", "stripe"]
+
+[[rules]]
+id = "aws-access-key"
+description = "AWS access key id"
+regex = '''(?:AKIA|ASIA)[0-9A-Z]{16}'''
+tags = ["api-key", "aws"]

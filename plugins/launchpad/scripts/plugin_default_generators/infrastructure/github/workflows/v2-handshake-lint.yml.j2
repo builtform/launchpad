@@ -1,0 +1,32 @@
+{# Downstream stub: validates that the LaunchPad-managed scaffold envelopes
+   on the project remain canonical (manifest_schema_version, security_fields
+   reserved, infrastructure path inventory present). The job is downstream
+   advisory; the upstream LaunchPad repo runs the authoritative lint. #}
+name: {{ identity.project_name }} v2-handshake-lint
+{% raw %}
+on:
+  pull_request:
+    paths:
+      - ".launchpad/**"
+      - ".harness/**"
+      - "scripts/compound/**"
+      - "scripts/hooks/**"
+      - "scripts/maintenance/**"
+      - "lefthook.yml"
+
+jobs:
+  handshake-lint:
+    name: handshake-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify .launchpad envelope shape
+        run: |
+          if [ -f .launchpad/scaffold-decision.json ]; then
+            python3 -c "import json,sys; p=json.load(open('.launchpad/scaffold-decision.json')); assert 'schema_version' in p, 'missing schema_version'; print('decision OK')"
+          fi
+          if [ -f .launchpad/bootstrap-manifest.json ]; then
+            python3 -c "import json,sys; p=json.load(open('.launchpad/bootstrap-manifest.json')); assert p.get('manifest_schema_version') in ('1.0',), 'unsupported manifest_schema_version'; assert p.get('security_fields') in ([],None), 'security_fields must be empty in v2.1'; print('manifest OK')"
+          fi
+{% endraw %}

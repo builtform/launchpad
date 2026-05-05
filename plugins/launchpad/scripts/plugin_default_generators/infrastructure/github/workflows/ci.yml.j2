@@ -1,0 +1,45 @@
+{# GitHub Actions uses `${{ ... }}` for interpolation; wrap the entire body
+   in {% raw %} so Jinja does not consume the `{{` markers. The renderer
+   substitutes the project_name on the surrounding `name:` line via a
+   separate Jinja substitution outside the raw block. #}
+name: {{ identity.project_name }} CI
+{% raw %}
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+{% endraw %}
