@@ -120,8 +120,91 @@ __all__ = [
     "GREENFIELD_OK_FILES",
     "GREENFIELD_OK_DIRS",
     "cwd_state",
+    "infrastructure_present",
     "refuse_if_not_greenfield",
 ]
+
+
+# --- v2.1 Phase 3 §3.9: 5-state infrastructure classifier ----------------
+#
+# Folded forward from Phase 6 (V3 §13.4) since Phase 3 owns the
+# `infrastructure/` directory contents. Returns a 5-state enum so
+# brownfield `/lp-define` can dispatch on richer state than tuple-of-bool.
+#
+# Path inventory is a module-const computed once at import; the function
+# itself is uncached because 30 stat calls (~150us) is faster than any
+# cache-invalidation logic per harden B5.
+
+def infrastructure_present(cwd: Path):
+    """Classify the `cwd` infrastructure overlay state per Phase 3 §3.9.
+
+    Returns `(state, missing_or_stale_paths)` where `state` is a
+    `BootstrapState` enum and `missing_or_stale_paths` is the list of
+    target relpaths that drove the non-FULL classification (empty when
+    state is FULL or ABSENT-but-no-paths-on-disk).
+
+    Lazy import of `lp_bootstrap` so cwd_state.py stays free of v2.1
+    package coupling for v2.0 readers (cwd_state was added in v2.0; the
+    v2.1 helper is additive).
+    """
+    from lp_bootstrap import (  # noqa: PLC0415
+        BootstrapState,
+        INFRASTRUCTURE_TARGETS,
+    )
+    import importlib.util  # noqa: PLC0415
+    import sys  # noqa: PLC0415
+
+    targets: list[str] = sorted(INFRASTRUCTURE_TARGETS)
+    present: list[str] = []
+    missing: list[str] = []
+    for t in targets:
+        if (cwd / t).is_file():
+            present.append(t)
+        else:
+            missing.append(t)
+
+    if not present:
+        return BootstrapState.ABSENT, missing
+
+    # Read the manifest via the canonical reader; if absent, the paths
+    # exist on disk but aren't tracked.
+    loader_path = Path(__file__).resolve().parent / "plugin-config-loader.py"
+    spec = importlib.util.spec_from_file_location("plugin_config_loader_for_cwdstate", loader_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    manifest = mod.read_bootstrap_manifest(cwd)
+
+    if not manifest.present:
+        if missing:
+            # Paths partially present, no manifest -> partial-missing
+            # (refresh-all on degraded path -> full bootstrap).
+            return BootstrapState.PARTIAL_MISSING, missing
+        return BootstrapState.PRESENT_UNMANAGED, []
+
+    # Compare on-disk shas to manifest's rendered_content_sha256.
+    from plugin_default_generators._renderer_base import sha256_file  # noqa: PLC0415
+    by_path: dict[str, str] = {
+        e["path"]: e.get("rendered_content_sha256", "")
+        for e in manifest.payload.get("files", [])
+        if isinstance(e, dict) and "path" in e
+    }
+    stale: list[str] = []
+    for t in targets:
+        path = cwd / t
+        if not path.is_file():
+            continue
+        recorded = by_path.get(t)
+        if recorded is None:
+            continue
+        on_disk = sha256_file(path)
+        if on_disk != recorded:
+            stale.append(t)
+
+    if missing:
+        return BootstrapState.PARTIAL_MISSING, missing + stale
+    if stale:
+        return BootstrapState.PARTIAL_STALE, stale
+    return BootstrapState.FULL, []
 
 
 def _main(argv: list[str] | None = None) -> int:

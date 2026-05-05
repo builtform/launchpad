@@ -90,6 +90,41 @@ The generator is non-interactive-safe: if stdin isn't a TTY and `--force`
 isn't passed, it defaults every existing-file prompt to `keep`. This makes
 re-runs in CI safe by default.
 
+## Step 1.5: Brownfield infrastructure auto-invoke (v2.1 Phase 3 §3.9)
+
+**Brownfield only.** After the generator returns, classify the
+infrastructure overlay state via `cwd_state.infrastructure_present(cwd)`.
+The 5-state enum dispatches as follows:
+
+| State               | Action                                                            |
+| ------------------- | ----------------------------------------------------------------- |
+| `FULL`              | skip `/lp-bootstrap`                                              |
+| `PARTIAL_MISSING`   | auto-invoke `/lp-bootstrap` to fill (with consent prompt)         |
+| `PARTIAL_STALE`     | auto-invoke `/lp-bootstrap --refresh-all` (with consent prompt)   |
+| `PRESENT_UNMANAGED` | adopt: write manifest from current disk shas without re-rendering |
+| `ABSENT`            | auto-invoke `/lp-bootstrap` (with consent prompt)                 |
+
+Before any write fires, surface the consent prompt:
+
+```
+LaunchPad will create N files in your project, including 7 executable bash
+scripts that run on git commit. Files: [list].
+Proceed? [Y/n]
+```
+
+Default Y. CI / scripted contexts must pass `--accept-bootstrap` so the
+non-interactive flow honors the consent gate without a TTY (per harden
+A11). Refusing the prompt leaves the project in its current state and
+records an INFO log; `/lp-define` may be re-run to retry the consent.
+
+The bootstrap call is in-process: `lp_bootstrap.engine.run_bootstrap(cwd,
+mode="brownfield-auto", refresh_paths=...)`. Failure surfaces a
+structured `BootstrapResult` with `outcome != "success"`; the prompt
+echoes the remediation field of the first error so the user knows the
+next step.
+
+---
+
 ## Step 2: Verify + Transition
 
 Check the generator's JSON summary (`written` / `kept` / `skipped` lists).

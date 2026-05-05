@@ -538,6 +538,53 @@ def run_pipeline(
                     ),
                 )
 
+            # --- Step 4.6: Bootstrap (Phase 3 §2.3 wiring) ---
+            # Materialize the v2.1 30-path infrastructure overlay via
+            # `/lp-bootstrap` engine. Greenfield mode renders all 30 paths;
+            # the bootstrap-manifest is written atomically at the end of
+            # the loop and seeds Phase 4 adapter overlays + Phase 10
+            # /lp-update-identity refresh paths.
+            from lp_bootstrap.engine import run_bootstrap  # noqa: PLC0415
+            from lp_bootstrap import (  # noqa: PLC0415
+                BootstrapError,
+                BootstrapErrorCode,
+            )
+            bootstrap_result = run_bootstrap(
+                cwd, mode="greenfield", identity=identity,
+            )
+            if bootstrap_result.outcome != "success":
+                elapsed = time.monotonic() - start
+                err = (
+                    bootstrap_result.errors[0]
+                    if bootstrap_result.errors
+                    else BootstrapError(
+                        code=BootstrapErrorCode.TEMPLATE_RENDER_FAILED,
+                        path=None,
+                        remediation="see /lp-bootstrap output above",
+                    )
+                )
+                return _record_partial_failure(
+                    repo_root=repo_root,
+                    decision_path=decision_path,
+                    materialized=materialized,
+                    failed_layer_index=None,
+                    reason="bootstrap_failed",
+                    message=(
+                        f"infrastructure bootstrap failed "
+                        f"(outcome={bootstrap_result.outcome}, "
+                        f"code={err.code.value}): {err.remediation}"
+                    ),
+                    elapsed=elapsed,
+                    install_seconds=install_seconds,
+                    write_telemetry_flag=write_telemetry_flag,
+                    cross_cutting_files=list(wiring.cross_cutting_files),
+                    recovery_action=(
+                        "Infrastructure bootstrap failed. Inspect the error "
+                        "above and re-run /lp-scaffold-stack after the "
+                        "underlying cause is fixed."
+                    ),
+                )
+
     # --- Step 5a: receipt write ---
     decision_bytes_sha = _decision_sha256_from_file(decision_path)
     try:

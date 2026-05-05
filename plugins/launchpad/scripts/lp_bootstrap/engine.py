@@ -991,6 +991,18 @@ def _outcome_for(exc: Exception) -> BootstrapOutcome:
     return "render_failed"
 
 
+_CANONICAL_OUTCOME_MAP: dict[BootstrapOutcome, str] = {
+    "success": "completed",
+    "brownfield_auto_rendered": "completed",
+    "sentinel_blocked": "aborted",
+    "plugin_version_mismatch": "aborted",
+    "manifest_tampered": "aborted",
+    "manifest_corrupt": "aborted",
+    "policy_collision": "failed",
+    "render_failed": "failed",
+}
+
+
 def _emit_telemetry(
     repo_root: Path,
     outcome: BootstrapOutcome,
@@ -1003,12 +1015,18 @@ def _emit_telemetry(
 ) -> None:
     """Append a structured event to `.harness/observations/v2-pipeline-*.jsonl`.
 
-    Honors `telemetry: off` opt-out via the writer.
+    Honors `telemetry: off` opt-out via the writer. Maps the engine's
+    fine-grained `BootstrapOutcome` onto OPERATIONS section 5's canonical
+    outcome enum (`completed`, `aborted`, `failed`, `accepted`, `rejected`)
+    so cross-command analytics queries do not have to know the
+    bootstrap-specific dialect; the original code rides through the
+    `bootstrap_outcome` field for forensic detail.
     """
     payload = {
         "command": "lp-bootstrap",
         "mode": mode,
-        "outcome": outcome,
+        "outcome": _CANONICAL_OUTCOME_MAP.get(outcome, "failed"),
+        "bootstrap_outcome": outcome,
         "files_processed": files_processed,
         "files_written": files_written,
         "files_skipped": files_skipped,
