@@ -598,19 +598,13 @@ Low risk; pure refactor with no functional change.
 
 **Default decision**: ship hardcoded `4` at v2.0 (mismatch corrected per PR #41 cycle 8 #2); single-source at v2.2 alongside the rest of the bundle.
 
-#### BL-106 - v2.2: Native sub-app workflow (`/lp-add-subapp`) for brownfield monorepos
+#### BL-106 - CLOSED: Native sub-app workflow (`/lp-add-subapp`) — won't ship
 
-**Driver**: HANDSHAKE §8 references this BL number for the brownfield sub-app escape hatch. v2.0 documents only the workaround (`cd` to fresh subdir, scaffold, manually copy in). A user wanting to add a new sub-app inside an existing brownfield monorepo has no in-pipeline path in v2.0. Layer 7 strip-back made v2.1 documentation-only; introducing a new command is code work and lands at v2.2 alongside the operational/security infrastructure deferrals and the deferred-stacks restorations (BL-100 through BL-104).
+**Originally proposed**: a dedicated `/lp-add-subapp <path>` command for adding a sub-app inside a brownfield monorepo, re-using `/lp-pick-stack` + `/lp-scaffold-stack` scoped to a subpath, with `/lp-define` updating parent manifests.
 
-**At v2.2 design time**:
+**Closed 2026-05-03**. The chain-of-custody value of `/lp-pick-stack` peaks at greenfield, where the first stack decision is load-bearing and there are no precedents to match. For brownfield sub-app addition, existing-monorepo conventions dominate (shared `@repo/*` packages, ESLint inheritance, tsconfig path aliases, lefthook config) and the catalog scaffolder cannot read those — it would produce stock output that requires immediate agentic cleanup. A live Claude Code session reads-and-matches existing context in one pass and is structurally better suited to the task. Adding parent-manifest mutation to `/lp-define` would also stretch its bounded responsibility (architecture docs + agents.yml + config.yml + Tier 1 reveal panel) beyond its locked scope.
 
-1. New command `/lp-add-subapp <path>` with explicit user attestation ("yes I understand this writes into existing brownfield context")
-2. Skips `cwd_state` brownfield check at the named subpath if subpath is empty
-3. Validates subpath against §6 path validator; rejects if subpath traverses upward or escapes cwd
-4. Re-uses pick-stack + scaffold-stack pipeline scoped to the subpath
-5. Re-uses `/lp-define` to update parent monorepo manifests (`pnpm-workspace.yaml`, etc.) to include new sub-app
-
-**Default decision**: defer to v2.2. The "redo pipeline in fresh dir + manual copy" workaround documented in HANDSHAKE §8 is acceptable at v2.0 single-maintainer scale.
+**Replacement**: SCAFFOLD_HANDSHAKE §8 now documents the canonical brownfield sub-app workflow as "use a live Claude Code session to scaffold the new sub-app, matching existing monorepo conventions." LaunchPad's value-add stays in the workflow harness around live agentic work (review, learn, plan, build, design), not in re-implementing scaffolding capabilities a live session does better.
 
 #### BL-218 - v2.1: `LP_ALLOW_NONLOCAL_FS=1` env-var override (if downstream demand surfaces)
 
@@ -691,8 +685,8 @@ pyright + pre-push lint), BL-237 (V2_MODULES scope tightening), and BL-246
 projects).
 v2.2 absorbs the heavyweight operational/security infrastructure that didn't earn
 its place at v2.0 against the stated threat model (single-maintainer plugin used
-by ~3-4 downstream projects), plus deferred-stack restorations (BL-100..104,
-BL-106), the forward-compat matrix (BL-211), and v2.1-conditional items now
+by ~3-4 downstream projects), plus deferred-stack restorations (BL-100..104),
+the forward-compat matrix (BL-211), and v2.1-conditional items now
 retargeted (BL-210 legacy YAML hash removal, BL-216 fsync_durable, BL-217 n_docs
 constant). Conditional-on-signal items (BL-213 freshness tiers, BL-214 GPG tags,
 BL-218 LP_ALLOW_NONLOCAL_FS) stay parked until telemetry surfaces real demand. -->
@@ -1000,6 +994,41 @@ These are the polish/hardening items the agent surfaced; ruff itself catches a s
 
 **Default decision**: defer to v2.1. The v2.0 ship is clean (the fixed-argv mount call is not exploitable at single-maintainer scale); the lint-tightening is the correct fix and lands as a small configuration adjustment in v2.1.
 
+#### BL-245 - v2.1: Stack-aware `lefthook.yml` generation by `/lp-define` per-stack adapters
+
+**Driver**: At v2.0, every project gets the same `lefthook.yml` whose hooks (`prettier-fix`, `eslint-fix`, `typecheck`, `structure-check`) are TS-monorepo-specific. v2.0 pipeline projects on Astro, Django, FastAPI, Rails, Hugo, Eleventy, Expo, Hono, Supabase, generic, and polyglot stacks inherit this TS-flavored `lefthook.yml` even though the hooks reference tools that aren't installed in those stacks (`prettier`, `eslint`, `tsc`). The kernel concept "every project ships a `lefthook.yml`" is sound, but its contents need to be stack-tuned for the gates to actually run.
+
+**Relationship to BL-236**: BL-236 expands LaunchPad's OWN self-host `lefthook.yml` to gate Python plugin code (ruff + pytest + pyright + v2-handshake-lint pre-push). BL-245 makes `/lp-define`'s per-stack adapters generate stack-appropriate `lefthook.yml` for DOWNSTREAM v2.0 pipeline projects. They're complementary, not duplicative: BL-236 fixes the upstream side; BL-245 fixes the downstream side.
+
+**Relationship to v2.0.1 docs**: README, HOW_IT_WORKS, and METHODOLOGY (after the v2.0.1 doc refresh) describe `lefthook.yml` as part of the universal kernel that ships with every project. The claim is conceptually true at v2.0 (the file exists), but until BL-245 ships, the contents are TS-tuned. Post-BL-245, the universal claim is structurally honest: every project gets a `lefthook.yml` whose contents match the stack's actual toolchain.
+
+**At v2.1 design time**:
+
+1. Each `plugin_stack_adapters/<stack>_adapter.py` emits a stack-appropriate `lefthook.yml` during `/lp-define` execution. Hook contents per stack:
+   - `python_django` and `fastapi`: `ruff format`, `ruff check`, `pytest`, optional `pyright` or `mypy`
+   - `next` and other TS-stacks: current `prettier-fix`, `eslint-fix`, `typecheck`, `structure-check` (no change)
+   - `rails`: `rubocop`, `rspec`, optional `brakeman` security check
+   - `hugo` and `eleventy`: `prettier-fix`, link-check, build dry-run
+   - `astro`: `prettier-fix`, `eslint-fix`, `astro check`
+   - `expo`: TS hooks plus `eas-cli` integrity checks
+   - `hono`: TS hooks (smaller subset since Hono is server-only)
+   - `supabase`: SQL formatter, migration validators
+   - `generic`: minimal floor only, `trailing-whitespace` and `end-of-file-newline`
+   - `polyglot`: composed by merging each layer's adapter output (de-duplicate identical hooks; namespace stack-specific hooks under `<stack>-` prefix when collisions arise)
+2. Add a fixture-based test suite at `plugins/launchpad/scripts/tests/test_lefthook_generation_per_stack.py` validating each adapter emits a syntactically-valid `lefthook.yml` (parses via `yaml.safe_load`) that references the right tools per stack and contains no TS-only hook unless the stack is TS-based.
+3. Verify the generated `lefthook.yml` aligns with the stack's `.launchpad/config.yml` `commands.test` / `typecheck` / `lint` arrays. The two artifacts should be derived from the same per-stack truth (likely a shared `<stack>_toolchain.yml` data file referenced by both the adapter and the lefthook generator) so they don't drift.
+4. Update the structure-check script (`scripts/maintenance/check-repo-structure.sh`) to be stack-aware: `pnpm-workspace.yaml` and `turbo.json` are required-at-root for TS-monorepo only; `manage.py` is required-at-root for Django; etc. Currently the whitelist is TS-monorepo-shaped. Per-stack root whitelists pair naturally with per-stack lefthook.
+
+**Out of scope** (intentional non-goals):
+
+- **Migration of existing v2.0 projects**: BL-245 affects new projects only. Existing v2.0 projects continue with the TS-flavored `lefthook.yml` until the user manually re-runs `/lp-define` (which would prompt before overwriting).
+- **Custom hook injection per project**: stack-aware generation produces a sensible default; users can hand-edit `lefthook.yml` after generation and `/lp-define` re-runs respect that (asks before overwriting per the existing overwrite menu).
+- **Cross-stack hook sharing**: each stack's adapter is self-contained; we don't try to extract a common base across all 10 stacks. Polyglot composition handles the multi-stack case.
+
+**Effort estimate**: ~6-8h adapter changes + ~3-4h test fixtures + ~1-2h structure-check stack-awareness + ~1h docs = ~12-15h total.
+
+**Default decision**: ship in v2.1 alongside BL-236 (LaunchPad-side lefthook expansion) and BL-237 (V2_MODULES scope tightening). Shared theme: contributor-experience and stack-fidelity improvements. The v2.0.1 docs' "kernel applies universally" framing is structurally honest after BL-245 lands, since the universal claim is about file presence (true at v2.0) and stack-tuned contents (true after v2.1). Until then, the claim is conceptually accurate and operationally TS-only.
+
 #### BL-246 - v2.1: `/lp-release [version]` command — automate the manual ship ceremony
 
 **Driver**: v2.0.0 ship was a manual 3-step ceremony (tag → push → wait for `verify-v2-ship` → `gh release create --notes-file`). Documented as a runbook in v2.0.1 (BL-241 §6); v2.1 promotes the runbook to an executable command so LaunchPad and growth-toolkit (and any downstream LaunchPad-managed plugin/CLI/library/spec project) ship versioned releases with a single command instead of running the runbook by hand each time.
@@ -1049,6 +1078,72 @@ The command is **NOT a fit for branch-triggered automation projects** (e.g., `ul
 **Effort estimate**: ~3-4h command + ~2h tests + ~1h docs (HOW_IT_WORKS.md cross-reference + command frontmatter) = ~6-7h total.
 
 **Default decision**: ship in v2.1 alongside BL-236/237 as the v2.1 maintainer-experience entry. v2.0.1 ships the runbook (BL-241 §6); v2.1 ships the automation wrapper.
+
+#### BL-247 - v2.1: Remove deprecated template-clone infrastructure
+
+**Driver**: v2.0 introduced the four-command greenfield pipeline (`/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`) that supersedes the pre-v2.0 template-clone flow (`git clone github.com/builtform/launchpad my-project` + `./scripts/setup/init-project.sh`). v2.0.1 deprecates the template-clone flow in user-facing docs. v2.1 removes the supporting infrastructure now that BL-248 ships the plugin-owns-everything implementation that replaces it.
+
+**Architectural decision context**: locked 2026-05-03 in [docs/plans/launchpad_plans/2026-05-03-v2.1-plugin-owns-everything-architecture.md](../plans/launchpad_plans/2026-05-03-v2.1-plugin-owns-everything-architecture.md). Per that plan, the LaunchPad repo stops doubling as plugin source AND user-cloneable template. Removing the infrastructure that supported the dual-purpose model is the structural enforcement of that decision; without removal, the template-clone flow remains accessible and the two-narrative problem persists.
+
+**Sequencing constraint**: BL-247 must ship in the SAME release as BL-248 (Option 2 implementation). Deleting `init-project.sh` before the plugin can render kernel files would break greenfield setup mid-release. Build BL-248 first, then delete in BL-247, all within v2.1.
+
+**At v2.1 design time**:
+
+1. **Files to delete:**
+   - `scripts/setup/init-project.sh` (1163 lines — wizard; reusable utilities extracted into `install-kernel-utils.sh` per BL-248 Group A solution)
+   - `scripts/setup/pull-upstream.launchpad.sh` (delta-patch sync for template-cloned downstreams; obsolete with plugin-only flow)
+   - `plugins/launchpad/commands/lp-pull-launchpad.md` (slash command wrapping the sync script; obsolete)
+   - 8 root template files: `README.template.md`, `LICENSE.template`, `CONTRIBUTING.template.md`, `CODE_OF_CONDUCT.template.md`, `CHANGELOG.template.md`, `ROADMAP.template.md`, `SECURITY.template.md`, `greptile.template.json` (all absorbed into `plugins/launchpad/scripts/plugin-default-generators/<name>.j2` per BL-248)
+   - `plugins/launchpad/scripts/tests/test_init_agents_yml.py` (tests the deleted wizard; becomes dead test)
+
+2. **Files to update:**
+   - `docs/architecture/REPOSITORY_STRUCTURE.md` §1: drop the 8 `.template.*` rows from the root whitelist; drop `init-project.sh` reference. §2 directory tree: drop `scripts/setup/init-project.sh` line. §6 decision tree: drop routing references for the deleted scripts.
+   - `CLAUDE.md` codebase map: remove `scripts/setup/init-project.sh` reference.
+   - `AGENTS.md`: same, plus any flow diagrams that mentioned the template path.
+   - `.github/workflows/marketplace-lint.yml`: verify if still needed without template-clone; possibly delete or scope-narrow (separate decision).
+
+3. **Migration documentation** in `docs/releases/v2.1.0.md`:
+   - "Breaking change" callout: `init-project.sh` removed; template-clone replaced by plugin install + `/lp-brainstorm` pipeline
+   - Migration section for v1.x template-clone users (their canonical files keep working; `/lp-pull-launchpad` no longer exists; `git fetch launchpad && git merge` for manual scaffold updates if desired; manual copy from the plugin's bundled template directory for individual kernel-file refresh)
+
+4. **Verification commands** (run after deletion to spot-check completeness):
+   ```
+   rg -n "init-project\.sh|pull-upstream\.launchpad\.sh|/lp-pull-launchpad" -g '!docs/releases/' -g '!CHANGELOG.md'
+   ls *.template.* LICENSE.template 2>/dev/null  # should be empty
+   ls scripts/setup/init-project.sh scripts/setup/pull-upstream.launchpad.sh plugins/launchpad/commands/lp-pull-launchpad.md 2>/dev/null  # should be empty
+   ```
+
+**Effort estimate**: ~4h (deletion + REPOSITORY_STRUCTURE/CLAUDE/AGENTS updates + verification). Migration docs absorbed into Phase 9 release notes. See v2.1 implementation plan §17 Phase 8 + §20 for current scope.
+
+**Cross-link**: full v2.1 implementation plan at [docs/plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md](../plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md) (V3, post-Round-3-hardening). Phase 8 is the BL-247 execution phase.
+
+**Default decision**: ship in v2.1 alongside BL-248 (mandatory same-release coupling). v2.0.1 has been folded into v2.1 per Decision 24; no v2.0.1 release.
+
+#### BL-248 - v2.1: Implement plugin-owns-everything architecture (Option 2)
+
+**Driver**: v2.0 shipped the four-command greenfield pipeline. v2.0.1 deprecated the legacy template-clone flow in docs. v2.1 implements the plugin-owns-everything architecture that makes the deprecation real: all canonical kernel files (README, LICENSE, CONTRIBUTING, CODE_OF_CONDUCT, CHANGELOG, ROADMAP, SECURITY, REPOSITORY_STRUCTURE) plus all architecture docs are rendered by plugin commands using Jinja2 templates bundled inside the plugin. No `init-project.sh`, no `.template.md` files at root, no dual-purpose repo.
+
+**Architectural decision context**: locked 2026-05-03 in [docs/plans/launchpad_plans/2026-05-03-v2.1-plugin-owns-everything-architecture.md](../plans/launchpad_plans/2026-05-03-v2.1-plugin-owns-everything-architecture.md). Read that document end-to-end before authoring the implementation plan. It captures: full evaluation of Option 2 vs. Option 3 (hybrid) with cons + solutions grouped, responsibility split across pick-stack/scaffold-stack/define, template format conversion strategy, identity value flow with chain-of-custody integration, orchestrated-init bash utility extraction, decommissioning plan (BL-247), migration guidance, and 6 open questions to resolve at design time.
+
+**Responsibility split** (locked):
+
+- `/lp-pick-stack` adds 5 identity questions (project name, description, license type, copyright holder, contact email) sealed into `scaffold-decision.json`'s new `identity` block. Existing 5-question stack funnel preserved.
+- `/lp-scaffold-stack` adds canonical kernel file rendering (8 templates) using sealed identity values via Jinja2. Existing layer materialization, `lefthook.yml` emission, receipt sealing all preserved.
+- `/lp-define` adds one new responsibility: render `REPOSITORY_STRUCTURE.md` for brownfield projects when missing (load-bearing for the structure-drift gate). Reuses the same `.j2` template `/lp-scaffold-stack` uses; identity values prompted directly in brownfield (no sealed envelope). The other 7 user-customized kernel files (README/LICENSE/CONTRIBUTING/CODE_OF_CONDUCT/CHANGELOG/ROADMAP/SECURITY) stay user-owned in brownfield. Existing `/lp-define` scope (architecture docs + agents.yml + config.yml + Tier 1 reveal panel) preserved.
+
+**Scope evolved through 3 hardening rounds + 24 locked decisions**. Final v2.1 scope per [docs/plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md](../plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md):
+
+- **5-command-surface**: 4 main pipeline commands (`/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`) plus 2 utility commands (`/lp-bootstrap`, `/lp-update-identity`). 33 paths / ~45 files rendered across 3 categories: kernel (greenfield-only via `/lp-scaffold-stack`), infrastructure (greenfield + brownfield via `/lp-bootstrap`), workflow-config (both via `/lp-define`).
+- **5 adapters + composition wrapper**: `ts_monorepo`, `nextjs_standalone` (wrap-and-overlay over `vercel/next-forge`), `nextjs_fastapi` (wrap-and-overlay over `vintasoftware/nextjs-fastapi-template`), `astro` (wrap-and-overlay over 3 sub-templates), `generic` (typed fallback). Composition wrapper supports N=2 adapter compositions in a Turborepo (e.g., `astro + nextjs_standalone` for ulc.spec.org).
+- **Schema bump 1.0 → 1.1** with sealed identity block + canonical reader + CODEOWNERS gate.
+- **Bootstrap manifest** at `.launchpad/bootstrap-manifest.json` with sha256-based idempotency + manifest-tampering integrity check + per-file conflict policy + atomic writes + backup-with-PID.
+- **Trust model + supply-chain pinning** + plugin pinning recommendation + CVE rotation policy + upstream abandonment fallback.
+
+**Coordination**: BL-247 must ship in same release (BL-248 builds replacement, BL-247 deletes legacy). BL-245/236/237/246 ship independently.
+
+**Effort estimate**: 127-159h structured / 159-199h with buffer. 12 phases (Phase 0 + Phase 1-11). Two phase-boundary kill checkpoints at end of Phase 3 and after first non-reference adapter. v2.0.1 has been folded into v2.1 per Decision 24; no v2.0.1 release.
+
+**Default decision**: ship in v2.1 as the architecture-defining entry. Read [V3 implementation plan](../plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md) for full design + 24 locked decisions + 12-phase sequencing + test strategy.
 
 #### BL-238 - v2.2: Promote django from curate → orchestrate-headless via auto-name derivation
 
@@ -1167,3 +1262,20 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 3. **lp-pick-stack.md frontmatter validation drift** (Codex cycle 12 P2). `lp-pick-stack.md:47` requires validating `.launchpad/brainstorm-summary.md` frontmatter and refusing on invalid or `greenfield: false`, but `lp_pick_stack/engine.py:190` only runs the cwd greenfield gate and never reads that file. Fix: implement the documented frontmatter validation in `lp_pick_stack/engine.py`'s Step 0, OR amend the command doc to make it explicit that this is caller-side work and add coverage for the wrapper path.
 
 **Closes**: cycle-12 P1 findings deferred at PR #41 merge per shipping-velocity tradeoff (Greptile 5/5 + corner-case scope). Unblocks v1.x→v2.0 upgraders with stale `LP_CONFIG_REVIEWED` hashes; closes the Next-options flag-spelling silent-failure path; resolves the doc/impl drift on brainstorm-summary frontmatter.
+
+#### BL-250 - v2.2: Bring-your-own scaffolder mode (cookiecutter / degit / npm-create URL acceptance)
+
+**Driver**: v2.1 ships 4 curated wrap-and-overlay adapters (`ts_monorepo`, `nextjs_standalone` over `vercel/next-forge`, `nextjs_fastapi` over `vintasoftware/nextjs-fastapi-template`, `astro` over 3 sub-templates). Once the wrap-and-overlay PATTERN is validated in v2.1, expanding adapter coverage from 4 hand-picked upstreams to "any cookiecutter / degit / npm-create URL the user provides" is structurally cheap. v2.2 unlocks the long tail of community templates without per-adapter LaunchPad maintenance burden. Builds directly on v2.1's wrap-and-overlay pattern.
+
+**At v2.2 design time**:
+
+1. **Curated registry** of vetted cookiecutter URLs covering v2.2 candidate stacks: `cookiecutter-django` (Django full-stack; replaces v2.1's `python_django` route-to-generic), `cookiecutter-fastapi` variants (`python_generic` route-to-generic). Registry lives at `plugins/launchpad/scripts/plugin_stack_adapters/_byo_registry.py` with sha-pinned entries.
+2. **Generic URL acceptance** for power users: `/lp-pick-stack` accepts `--scaffolder-url <url>` flag; LaunchPad invokes (a) `cookiecutter <url>`, (b) `degit <github-shorthand>`, or (c) `npm create <package>` based on URL detection.
+3. **Overlay-config inferred or prompted-for**: registered URLs come with pre-authored OverlayConfig (per v2.1 §13.1); generic URLs prompt user for overlay decisions or fall back to default `OverlayConfig` (skip-if-exists for everything user-side, render LaunchPad infrastructure overlay only).
+4. **Trust model**: BYO mode requires user explicit `--i-trust-this-url` flag (or interactive confirmation) since URL is user-supplied; cache hardening (sha256 verification, atomic writes) reused from v2.1 §7.7.
+
+**Coverage estimate at v2.2**: 5 v2.1 adapters + 5+ BYO-registered cookiecutter adapters (django, fastapi-flavors, rails via cookiecutter-rails-hotwire, etc.) + power-user generic URL = ~85-92% of niche projects.
+
+**Cross-link**: builds on v2.1 wrap-and-overlay pattern locked in [docs/plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md](../plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md) §7. v2.2 design plan to be authored when this entry is picked up.
+
+**Default decision**: ship in v2.2. Cheap relative to authoring per-adapter from scratch (estimated ~15-25h vs 8-12h per non-BYO adapter). Prerequisite: v2.1 ships and wrap-and-overlay pattern proves stable in production (the `ulc.spec.org` Tier-2 dogfood is the validation gate).

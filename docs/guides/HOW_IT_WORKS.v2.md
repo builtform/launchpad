@@ -59,7 +59,7 @@ After restart, type `/lp-` and Claude Code should autocomplete with LaunchPad co
 - `--scope project`: scoped to the project; if you're on a team, others can install the same plugin
 - `--scope user`: enabled globally for all projects
 
-When `scripts/setup/init-project.sh` auto-installs the plugin during a fresh repo init, it uses `--scope project` so the plugin travels with the repo for teammates.
+Greenfield setup uses `--scope project` so the plugin travels with the repo for teammates. The greenfield path is the four-command pipeline (`/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`); there is no template-clone alternative.
 
 ### Updating
 
@@ -421,7 +421,6 @@ Collaborative idea exploration. Loads brainstorming skill, dispatches research a
 | `/lp-update-spec`         | Scans all spec files for gaps, TBDs, cross-file inconsistencies                                                    |
 | `/lp-hydrate`             | Session bootstrapping with minimal context                                                                         |
 | `/lp-research-codebase`   | Two-wave research → `docs/reports/` (input for `/lp-inf`)                                                          |
-| `/lp-pull-launchpad`      | Pull upstream LaunchPad scaffold updates (self-host only, refuses on plugin-only installs)                         |
 | `/lp-create-agent`        | Create a new agent or convert an existing skill into an agent                                                      |
 | `/lp-memory-report`       | Update session memory files and create a detailed session report                                                   |
 | `/lp-design-onboard`      | Design onboarding flows, empty states, first-time user experiences (invoked from `/lp-plan` Step 2b when relevant) |
@@ -510,15 +509,15 @@ These are the files that define how the project behaves, the control plane every
 
 **Pipeline and build config:**
 
-| File                             | Purpose                                                                                                                                            |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.launchpad/config.yml`          | Harness config: `commands`, `paths`, `pipeline`, `audit`                                                                                           |
-| `.launchpad/agents.yml`          | Agent roster (7 keys: review, review_db, review_design, review_copy, harden_plan, harden_plan_conditional, harden_document) + `protected_branches` |
-| `scripts/compound/config.json`   | Pipeline settings: max iterations, branch prefix, quality checks, AI tool (self-host only)                                                         |
-| `turbo.json`                     | Turborepo task pipeline: build, dev, lint, test, typecheck (self-host only)                                                                        |
-| `lefthook.yml`                   | Pre-commit hooks                                                                                                                                   |
-| `.github/codex-review-prompt.md` | Codex review instructions with P0–P3 severity format (self-host only)                                                                              |
-| `.env.example`                   | Template for environment variables (copy to `.env.local`)                                                                                          |
+| File                             | Purpose                                                                                                                                               |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.launchpad/config.yml`          | Harness config: `commands`, `paths`, `pipeline`, `audit`                                                                                              |
+| `.launchpad/agents.yml`          | Agent roster (7 keys: review, review_db, review_design, review_copy, harden_plan, harden_plan_conditional, harden_document) + `protected_branches`    |
+| `scripts/compound/config.json`   | Pipeline settings: max iterations, branch prefix, quality checks, AI tool (rendered by `/lp-bootstrap` in v2.1+ via plugin-bundled overlay)           |
+| `turbo.json`                     | Turborepo task pipeline: build, dev, lint, test, typecheck (LaunchPad self-host repo only; v2.1 emits per-stack equivalents via `/lp-scaffold-stack`) |
+| `lefthook.yml`                   | Pre-commit hooks                                                                                                                                      |
+| `.github/codex-review-prompt.md` | Codex review instructions with P0–P3 severity format (LaunchPad self-host repo only)                                                                  |
+| `.env.example`                   | Template for environment variables (copy to `.env.local`)                                                                                             |
 
 ---
 
@@ -541,7 +540,7 @@ Two tracking files in `docs/skills-catalog/` provide visibility: `skills-index.m
 Every change passes through:
 
 1. **Pre-commit hooks (Lefthook)**: formatting, linting, type checking, structure validation, large file guard.
-2. **CI pipeline (GitHub Actions, self-host only)**: lint, typecheck, test, build, structure check.
+2. **CI pipeline (GitHub Actions)**: lint, typecheck, test, build, structure check.
 3. **AI review**: multi-agent confidence-scored review (P1/P2/P3 severity).
 
 ### Pre-commit hooks (Lefthook)
@@ -602,7 +601,7 @@ Greptile is a GitHub App, not a GitHub Action, there's no workflow to author. Se
 3. **Enable indexing** in the Greptile dashboard: Repositories → Manage Repos → enable your repo. Initial index takes 3–5 minutes for a small repo, up to 1–2 hours for a large monorepo.
 4. **Verify on the next PR**: Greptile should post a "Greptile Summary" comment within ~5 minutes. If not, check the App's repository scope at `github.com/settings/installations`.
 
-Configuration lives in `greptile.json` at the repo root (already templated by `init-project.sh`). Tune `commentTypes`, `strictness`, and `ignorePatterns` to taste. See [docs/architecture/CI_CD.md](../architecture/CI_CD.md) for the field-by-field reference.
+Configuration lives in `greptile.json` at the repo root. v2.1 emits a project-tailored `greptile.json` via `/lp-scaffold-stack`; until then, hand-author or copy from the LaunchPad self-host template. Tune `commentTypes`, `strictness`, and `ignorePatterns` to taste. See [docs/architecture/CI_CD.md](../architecture/CI_CD.md) for the field-by-field reference.
 
 Other CI-relevant env vars live in the [Environment variables](#environment-variables) table below, `LP_CONFIG_REVIEWED` is specifically the CI-side pin that unblocks autonomous `/lp-build` runs under the content-hash audit.
 
@@ -624,7 +623,7 @@ Other CI-relevant env vars live in the [Environment variables](#environment-vari
 
 1. **PRs, not direct merges.** All autonomous changes go through pull requests.
 2. **Pre-commit hooks**, linting, formatting, structure validation run before every commit.
-3. **Codex AI review** (self-host only), independent AI reviewer flags P0/P1 issues on every PR before merge.
+3. **Codex AI review**: independent AI reviewer flags P0/P1 issues on every PR before merge (CI workflow lives in the LaunchPad self-host repo; downstream projects can copy the workflow file).
 4. **Quality gates**: configurable checks (tests, type-checking, build) at each iteration boundary.
 5. **Max iterations**: the compound loop stops after N iterations (default 25) to prevent runaway execution.
 6. **Structure validation**, `check-repo-structure.sh` enforces file placement.
@@ -750,24 +749,6 @@ Print the current canonical hash with `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-conf
 
 Restart Claude Code after updating.
 
-### Pulling upstream LaunchPad scaffold updates (self-host only)
-
-If you cloned the LaunchPad repository directly (the self-host flow used by plugin developers and contributors) and ran `git remote rename origin launchpad`, you can pull future LaunchPad scaffold updates (compound scripts, CI workflows, init wizard) into your project without touching application code:
-
-```
-/lp-pull-launchpad
-```
-
-Or from a shell:
-
-```bash
-bash scripts/setup/pull-upstream.launchpad.sh
-```
-
-This is scaffold-only, plugin content (commands, agents, skills) updates separately via the plugin-update flow above. If you run `/lp-pull-launchpad` on a plugin-only install (no template scaffold present), it refuses with a pointer to the plugin-update flow.
-
-If you disconnected from upstream (chose the "fresh start" option during init), compare against the [latest release](https://github.com/builtform/launchpad/releases) manually or re-clone.
-
 ### Refreshing a stale plugin cache
 
 The plugin cache at `~/.claude/plugins/cache/builtform/launchpad/<version>/` is a snapshot taken at install time. After updating LaunchPad, always refresh via the uninstall + marketplace-update + reinstall flow above, the cache does not update in place.
@@ -787,7 +768,7 @@ Used by LaunchPad itself and by [growth-toolkit](https://github.com/builtform/gr
 The ceremony assumes:
 
 - The PR has merged to `main` with all CI green
-- `docs/releases/v<MAJOR>.<MINOR>.<PATCH>.md` exists at the merge commit (see [release-notes file required feedback](../tasks/BACKLOG.md#release-process))
+- `docs/releases/v<MAJOR>.<MINOR>.<PATCH>.md` exists at the merge commit (the release-notes gate enforces this; the tag push will fail otherwise)
 - A post-tag verification workflow (`verify-v2-ship.yml` for LaunchPad) runs on tag push and validates the released state
 
 **Steps:**
@@ -884,8 +865,6 @@ For the canonical post-tag verification flow and the rollback procedure if `veri
 **L2 commands (`/lp-commit`, `/lp-review`, `/lp-ship`, `/lp-harden-plan`) halt at Step 0 Lite with "run /lp-define."** `.launchpad/agents.yml` is missing, run `/lp-define` to seed it. `/lp-define` is the authoritative seeder for that file.
 
 **Plugin commands aren't available after install.** Restart Claude Code. If still missing, verify install: `claude plugin list`. If installed but commands aren't registering, the cache may be stale, uninstall + marketplace-update + reinstall.
-
-**`/lp-pull-launchpad` refuses with "plugin-only install detected."** This is expected, the command only updates self-host scaffold. For plugin content updates, use the plugin-update flow (`/plugin marketplace update builtform` + uninstall + reinstall).
 
 ---
 

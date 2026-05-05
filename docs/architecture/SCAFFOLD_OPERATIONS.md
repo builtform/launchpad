@@ -681,7 +681,7 @@ When implementation reveals a contract bug or scope-evolution forces a change to
 - `plugins/launchpad/scripts/plugin_stack_adapters/contracts.py` — `StackId` Literal widened in HANDSHAKE §12
 - `plugins/launchpad/scripts/plugin-stack-detector.py` — shares `BROWNFIELD_MANIFESTS` per HANDSHAKE §8
 - v2.2 deferred stacks: [`ROADMAP.md` v2.2 section](../../ROADMAP.md#v22)
-- BL-100 through BL-106: `docs/tasks/BACKLOG.md` (v2.1 deferred work)
+- BL-100 through BL-104: `docs/tasks/BACKLOG.md` (v2.2 deferred-stack restorations)
 
 ---
 

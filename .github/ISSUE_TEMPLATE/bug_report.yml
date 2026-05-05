@@ -35,7 +35,6 @@ body:
       description: How was LaunchPad installed in the affected project?
       options:
         - Plugin only (`/plugin install launchpad@builtform`)
-        - Template (`./scripts/setup/init-project.sh`)
         - Local-path plugin (`/plugin marketplace add /path/to/clone`)
         - Other / unsure
     validations:

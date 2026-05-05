@@ -1,6 +1,6 @@
 # Repository Structure & File Placement
 
-**Last Updated**: 2026-04-07
+**Last Updated**: 2026-05-02
 **Status**: Active
 **Version**: 2.0
 
@@ -203,6 +203,29 @@ docs/                                        # See Decision Tree (Section 6.1) f
 ├── observations/                            # Deferred observations for backlog (ephemeral)
 ├── screenshots/                             # Browser test / feature-video screenshots (ephemeral)
 └── todos/                                   # Review findings to triage (ephemeral)
+
+plugins/launchpad/                           # The LaunchPad plugin source
+├── .claude-plugin/plugin.json               # Plugin manifest (name, version, marketplace metadata)
+├── commands/                                # /lp-* slash command markdown definitions
+├── agents/                                  # Sub-agents (research/, review/, resolve/, design/, skills/, document-review/)
+├── skills/                                  # Plugin skills (lp-*/SKILL.md + references/ + evals/)
+├── scaffolders/                             # v2.0 per-stack pattern docs with knowledge-anchor `last_validated:` + sha256 pins
+│                                            #   (astro/django/eleventy/expo/fastapi/hono/hugo/next/rails/supabase)
+└── scripts/                                 # Plugin runtime — Python helpers + adapters + tests
+    ├── plugin-*.py / plugin-*.sh            # Top-level plugin entry points (build runner, config hash, doc generator,
+    │                                        #   prereq check, scaffold receipt loader, stack detector, v2 handshake lint, ...)
+    ├── lp_pick_stack/                       # v2.0 pick-stack consumer — 5-question funnel, category match,
+    │                                        #   rationale generation, brainstorm-summary frontmatter validation,
+    │                                        #   sealed scaffold-decision.json write
+    ├── lp_scaffold_stack/                   # v2.0 scaffold-stack consumer — decision validation (12 rules),
+    │                                        #   marker consumption, layer materialization, receipt write,
+    │                                        #   nonce ledger, rejection logger
+    ├── plugin_stack_adapters/               # v2.0 per-stack /lp-define adapters (10 stacks: astro, next,
+    │                                        #   python_django, fastapi, rails, hugo, eleventy, expo, hono,
+    │                                        #   supabase + generic + polyglot composer)
+    ├── _vendor/                             # Vendored Python deps (pinned, no network at runtime)
+    └── tests/                               # pytest suites — adapter coverage, joint pipeline smoke,
+                                             #   handshake invariants, layer materializer, build runner
 ```
 
 ---
@@ -407,6 +430,21 @@ Create `packages/<name>/` with `package.json` (`@repo/<name>`), `tsconfig.json`,
 - Skill evals → `plugins/launchpad/skills/<skill-name>/evals/`
 - Prompt template → `.claude/Prompts/` (project-local, not plugin content)
 - Profile → `.claude/profiles/` (project-local, not plugin content)
+
+### 6.14 v2.0 pipeline modules (plugin-internal Python)
+
+The v2.0 greenfield pipeline (`/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`) is implemented as Python modules under `plugins/launchpad/scripts/`. New runtime code for the pipeline goes here, not at root, not in `apps/`, not in `packages/`.
+
+- Pick-stack consumer logic (5-question funnel, category match, rationale rendering, brainstorm-summary validation, sealed `scaffold-decision.json` write) → `plugins/launchpad/scripts/lp_pick_stack/`
+- Scaffold-stack consumer logic (decision validation, marker consumption, layer materialization, receipt write, nonce ledger, rejection logger) → `plugins/launchpad/scripts/lp_scaffold_stack/`
+- Per-stack `/lp-define` adapter (one of: `astro`, `next`, `python_django`, `fastapi`, `rails`, `hugo`, `eleventy`, `expo`, `hono`, `supabase`) → `plugins/launchpad/scripts/plugin_stack_adapters/<stack>_adapter.py` (or `<stack>.py` for the generic/polyglot composers)
+- Pipeline-wide primitives shared across consumers (`cwd_state.py`, `path_validator.py`, `safe_run.py`, `decision_integrity.py`, `pid_identity.py`, `telemetry_writer.py`, `knowledge_anchor_loader.py`) → `plugins/launchpad/scripts/` top level
+- Per-stack pattern doc with `last_validated:` knowledge anchor and sha256 pins → `plugins/launchpad/scaffolders/<stack>-pattern.md`
+- Pytest suite for any of the above → `plugins/launchpad/scripts/tests/test_<area>.py`
+
+**Bind-via-receipt rule.** Cross-cutting wiring between layers happens through `scaffold-receipt.json` and the bound_cwd triple, NOT through inter-module imports across the consumer boundary. `lp_pick_stack/` writes the sealed decision; `lp_scaffold_stack/` reads it via `plugin-scaffold-receipt-loader.py`. Adding a direct import from `lp_scaffold_stack` into `lp_pick_stack` (or vice-versa) breaks the chain-of-custody invariant — route through the receipt instead.
+
+**Vendoring boundary.** Python dependencies for plugin runtime live under `plugins/launchpad/scripts/_vendor/` (pinned, no network at install time). `plugin_stack_adapters/_vendor/` is permitted for adapter-specific vendored deps. Never `pip install` at runtime.
 
 ### If none match:
 

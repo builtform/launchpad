@@ -814,13 +814,13 @@ def refuse_if_not_greenfield(cwd: Path, command_name: str) -> None:
 | `brownfield` | Write summary `greenfield: false`; suggest `/lp-define`    | **Refuse before asking questions** with structured error pointing at `/lp-define` | Refuse: "cwd is brownfield; pick-stack not applicable" |
 | `ambiguous`  | Prompt user; default to brownfield path on no-answer       | Prompt user (proceed at user's confirmation)                                      | Refuse and ask user to clean cwd                       |
 
-### Brownfield sub-app workflow (no v2.0 escape hatch)
+### Brownfield sub-app workflow
 
-A user wanting to add a sub-app inside an existing brownfield monorepo has no in-pipeline path in v2.0. The "refuse before asking questions" is correct behavior — `/lp-pick-stack`'s contract is "scaffold a fresh project," not "extend an existing one."
+A user wanting to add a sub-app inside an existing brownfield monorepo (e.g., adding `apps/admin` next to an existing `apps/web`) does not use the four-command pipeline. The "refuse before asking questions" behavior of `/lp-pick-stack` is correct — its contract is "scaffold a fresh project," not "extend an existing one."
 
-**Documented workaround for v2.0**: `cd` into a fresh empty subdirectory (outside the monorepo or in a temp dir), run `/lp-pick-stack` there to scaffold the new sub-app, then manually copy the scaffolded layer into the monorepo (verify path, update root manifests, run lefthook to confirm structure-drift is happy).
+**Canonical workflow**: use a live Claude Code session. Have a regular conversation about whether you need a separate sub-app or just a route in the existing app. When you've decided, ask Claude to scaffold the new sub-app, matching existing monorepo conventions read live from the parent (shared `@repo/*` packages, ESLint inheritance, tsconfig path aliases, lefthook config, `pnpm-workspace.yaml`, `turbo.json`). LaunchPad's value-add for this task is the workflow harness around live agentic work (`/lp-review`, `/lp-learn`, `/lp-plan`, `/lp-build`, `/lp-design-review`), not the file-creation step itself — the catalog scaffolder cannot read parent-monorepo conventions, so a live Claude session is structurally better suited to producing output that integrates cleanly.
 
-**Native sub-app workflow** is a v2.1 candidate tracked at `docs/tasks/BACKLOG.md` (BL-106; would introduce `/lp-add-subapp` with explicit user attestation). No `--allow-brownfield` flag is added to v2.0 because that pattern normalizes "edit safety check locally."
+No `--allow-brownfield` flag is added to the four-command pipeline because that pattern normalizes "edit safety check locally."
 
 ## 9. `rationale.md` summary extractor + knowledge-anchor read-and-verify
 
@@ -989,6 +989,52 @@ The full forward-compat matrix (consumer-superset rule, producer-floor rule, per
 **Tag immutability** (Layer 3 deployment P1-B + Layer 4 deployment N2 + adversarial P2-RT4-G + Layer 5 adversarial P1-A1 + security-lens P2-S3 hardened): GitHub repo settings MUST enable Tag protection rules matching the **broadened pattern** `v[0-9]+.[0-9]+.[0-9]+(-(yanked|recalled|rc[0-9]+|dryrun))?` (Layer 5 adversarial P1-A1: extended from `v[0-9]+.[0-9]+.[0-9]+` to also cover `-recalled`/`-yanked`/`-rc*`/`-dryrun` suffixes — closes namespace-squatting attack where a hostile contributor pre-creates `vX.Y.Z-recalled` BEFORE the maintainer needs to use that name in §7.0 procedure). Forbids deletion + force-push by anyone except admins. Tag protection rule creation is a **Phase -1 manual step** documented in `docs/runbooks/branch-protection-token.md` (so the rule is in place during the entire 22-34-week dev window, not just at ship). **Phase -1 acceptance gate verifies rule CONTENT, not just existence** (Layer 5 security-lens P2-S3 — closes admin-misclick gap where rule exists but force-push exception is enabled): `gh api repos/:owner/:repo/tags/protection --jq '.[] | select(.pattern == "v[0-9]+.[0-9]+.[0-9]+(-(yanked|recalled|rc[0-9]+|dryrun))?") | {pattern, allow_deletions, ...}'` MUST assert `allow_deletions: false`, no force-push exceptions, admins-only override. Phase 7.5 verification battery asserts the rule exists + content; the nightly `branch-protection-watchdog.yml` workflow extends to also assert tag-protection-rule existence + content daily. On endpoint deprecation: the watchdog probes `repos/:owner/:repo/rulesets` first (current GitHub standard) and falls back to legacy `tags/protection` for backward compat. **Yanked releases get a NEW `-yanked` suffix tag (per OPERATIONS §7); v2.0.0 is never reused against a different SHA. The §7.0 pre-launch tag-deletion exception was REMOVED in Layer 4 — see OPERATIONS §7.0.**
 
 **Tag GPG signing — DEFERRED to v2.1** (Layer 4 simplicity P3 + scope P2-1 + deployment N1 + security-lens P2-S3 + feasibility P2-4 — collectively concluded the GPG signing infrastructure is over-spec for v2.0 single-maintainer + low-fork-PR threat model; tag protection rule alone suffices). Tracked at BACKLOG entry **BL-214**. v2.0 ships without GPG-signed tags; `verify-v2-ship` does NOT run `git verify-tag`. v2.1 reintroduces GPG signing only if external-contributor / fork-PR volume creates a real tag-impersonation threat. Drops: SIGNING.md doc, GPG-key-on-laptop maintainer overhead, `git verify-tag` step in verify-v2-ship (Layer 7 strip-back: v2.0 verify-v2-ship ships 4 checks per §1.5 — tag SHA / plugin.json / `0.x-test` residual / leakage regex; the Layer 5 8-check battery defers to v2.2 per BL-226/BL-227/BL-232; the Layer 4 "7 checks, not 8" phrase referenced an intermediate state and is moot under strip-back), key-rotation runbook, lost-key recovery procedure.
+
+### 10.v2.1 — v2.1 schema acceptance rules + design-time decisions (Phase 0.3 lock)
+
+**Canonical source**: [docs/plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md](../plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md) §11.3 + §11.7 + §17 Phase 0.3 + §22.
+
+**`scaffold-decision.json` schema acceptance rules** (v2.1 reader; canonical at `plugin-config-loader.py:read_scaffold_decision()`):
+
+| `schema_version`    | Behavior                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------ |
+| absent OR `"1.0"`   | Treat as 1.0; identity defaults to UNSET sentinels; stacks defaults to [detected]; emit WARN           |
+| `"1.1"`             | Full read; identity required if present MUST validate against allowlist regex; stacks required (array) |
+| `"1.x"` where x > 1 | Forward-compat: read known fields, ignore unknown, emit INFO                                           |
+| Major `>= 2`        | Fail closed: `"scaffold-decision.json schema 2.0+ requires plugin v3+"`                                |
+| Malformed           | Fail closed with clear error                                                                           |
+
+**`bootstrap-manifest.json` schema acceptance rules** (v2.1 reader; canonical at `plugin-config-loader.py:read_bootstrap_manifest()`):
+
+| `manifest_schema_version` | Behavior                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| absent OR `"1.0"`         | Full read; required fields: `plugin_version`, `last_render_timestamp`, `files[]` |
+| `"1.1+"`                  | Read known fields, ignore unknown, emit INFO                                     |
+| Major `>= 2`              | Fail closed                                                                      |
+| Malformed                 | Fail closed with clear error                                                     |
+
+**v2.0 reader behavior on schema 1.1** (Round 3 closure of adversarial P3-8): v2.0 reader does NOT recognize `schema_version: "1.1"`. If a v2.0-era tool encounters a 1.1 envelope, the v2.0 reader's strict-equality `EXPECTED_DECISION_VERSION = frozenset({"1.0"})` check rejects with `version_unsupported`. The user-facing remediation: `"your plugin is too old; update via /plugin update"`.
+
+**License enum starter set** (Phase 0.3 lock; canonical for v2.1 `/lp-pick-stack` identity questions):
+
+```
+MIT, Apache-2.0, GPL-3.0, BSD-3-Clause, ISC, MPL-2.0, Other
+```
+
+Future additions require schema 1.x bump + HANDSHAKE update in same PR (CODEOWNERS gate).
+
+**"Other" license body sanitization** (Phase 0.3 lock): max 10 KB; printable ASCII only; reject Jinja delimiters (`{{`, `{%`, `{#`); reject HTML tags; reject control characters except `\n` + `\t`. Implemented in `/lp-pick-stack` Step 0.3 input validation.
+
+**Identity input allowlist regex** (canonical for v2.1 + Round 2 #16 supply-chain hardening):
+
+- `project_name`: `^[A-Za-z0-9_.-]{1,64}$`
+- `email`: RFC5322-lite (no whitespace, no quotes, must contain `@` + valid domain)
+- `copyright_holder`: printable-ASCII; no backticks, quotes, dollar-signs, semicolons, newlines; max 200 chars
+- `repo_url`: `^https?://[\w./%-]{1,512}$`
+
+**Plugin version pin in scaffold-decision 1.1** (Round 3 P1 closure for `/plugin update` mid-pipeline): `/lp-pick-stack` records running plugin version into scaffold-decision.json `plugin_version` field. `/lp-scaffold-stack` and `/lp-bootstrap` ABORT with structured error if running plugin version differs from recorded version (prevents the §10.7 manifest-tampering check from rejecting freshly-sealed manifest because templates changed mid-flow). `/lp-update-identity` updates the field forward to running plugin version on each invocation.
+
+**CODEOWNERS gate operationalization** (canonical at `.github/CODEOWNERS` + `plugin-v2-handshake-lint.py`): PRs that change `scaffold-decision.json` schema OR `bootstrap-manifest.json` schema OR `AdapterManifest` TypedDict definitions FAIL CI lint unless this `SCAFFOLD_HANDSHAKE.md` §10 / §10.v2.1 is also touched in the SAME PR. Single-developer caveat: gate enforces self-discipline at the commit boundary; even when the user is the only reviewer, schema changes + handshake doc updates ride together.
 
 ## 11. Stack catalog (v2.0 — 10 entries)
 

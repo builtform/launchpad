@@ -16,7 +16,6 @@ body:
       options:
         - Marketplace + plugin install (`/plugin install launchpad@builtform`)
         - Local-path marketplace (`/plugin marketplace add /absolute/path`)
-        - Template clone (`./scripts/setup/init-project.sh`)
         - Other
     validations:
       required: true
