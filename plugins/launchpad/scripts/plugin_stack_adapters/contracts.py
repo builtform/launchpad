@@ -8,10 +8,28 @@ adapter output against the contracts before the Jinja2 generator consumes it.
 Without these contracts, adapters drift and StrictUndefined only catches the
 drift at render time (per-stack, in production). The contracts push the check
 to the static layer.
+
+v2.1 additions
+==============
+
+The v2.1 dispatch surface adds an `Adapter` Protocol (runtime-checkable) and a
+narrower `StackIdActive` Literal covering the 5 stacks the v2.1 pick-stack +
+scaffold flow understands. The pre-existing TypedDicts model adapter *data*
+output (consumed by the Jinja2 generator); the Protocol models adapter
+*behavior* (consumed by `lp_scaffold_stack/engine.py` Step 4.5 + the
+composition wrapper). They coexist by design: TypedDicts and Protocol have
+disjoint concerns, and ABC was rejected to avoid forcing inheritance on
+adapters that have no upstream (e.g., `ts_monorepo`).
+
+`_UPSTREAM_SHA` constants for adapter wrap-and-overlay live in
+`plugin_stack_adapters/pin_registry.py`. Adapters import via
+`pin_registry.get_pin(adapter_id, sub_template_id)` only; per-adapter SHA
+constants are forbidden (enforced by `tests/test_no_floating_tag_pins.py`).
 """
 from __future__ import annotations
 
-from typing import Literal, NotRequired, TypedDict
+from pathlib import Path
+from typing import Literal, NotRequired, Protocol, TypedDict, runtime_checkable
 
 
 StackId = Literal[
@@ -23,6 +41,129 @@ StackId = Literal[
     # generic until dedicated adapters land in v2.1+.
     "next", "django", "hono", "supabase",
 ]
+
+# v2.1 active dispatch enum: the closed set of stack ids the v2.1 pick-stack +
+# scaffold flow understands. `StackId` (above) remains the v2.0 detection
+# catalog; `StackIdActive` is a narrower Literal used by `Adapter` and by
+# `lp_pick_stack`. Detector v2.2-candidate routing (rails, python_django, etc.)
+# falls back to `generic` per Phase 4 plan §3.10 + §3.12.
+StackIdActive = Literal[
+    "ts_monorepo",
+    "nextjs_standalone",
+    "nextjs_fastapi",
+    "astro",
+    "generic",
+]
+
+# 4-policy enum (DA7 LOCKED) shared between bootstrap policy resolution and the
+# Phase 4 OverlayConfig.conflict_policy field. Values match
+# `lp_bootstrap.BootstrapPolicy` exactly; the duplication-by-Literal here keeps
+# the contracts module free of an upward import into `lp_bootstrap`.
+ConflictPolicy = Literal[
+    "overwrite-if-unchanged",
+    "merge-keys",
+    "append-only",
+    "overwrite-with-backup",
+]
+
+UnwrapStrategy = Literal["none", "nested_turborepo"]
+
+
+class UpstreamTemplate(TypedDict):
+    """Pointer to a pinned upstream template (resolved via pin_registry)."""
+
+    adapter_id: StackIdActive
+    sub_template_id: NotRequired[str | None]
+
+
+class CompositionRule(TypedDict):
+    """How adapter X composes with adapter Y in the composition wrapper.
+
+    `workspace_name` is the directory under `apps/` the secondary adapter
+    occupies. `conflict_policy` per top-level path lets adapters override the
+    default `overwrite-if-unchanged` for files where merge / append makes
+    sense (e.g., lefthook.yml -> merge-keys).
+    """
+
+    workspace_name: str
+    conflict_policy: dict[str, ConflictPolicy]
+
+
+class OverlayConfig(TypedDict):
+    """Per-Phase-4 plan §3.3. The composition wrapper applies these to the
+    upstream-scaffolded tree before workspace placement."""
+
+    add: list[str]
+    replace: list[str]
+    remove: list[str]
+    conflict_policy: dict[str, ConflictPolicy]
+
+
+@runtime_checkable
+class Adapter(Protocol):
+    """v2.1 adapter behavior surface. See Phase 4 plan §3.3.
+
+    Runtime-checkable so `isinstance(obj, Adapter)` works in tests and
+    composition. ABC was rejected: ts_monorepo has no upstream and would carry
+    abstract-method overrides for empty bodies.
+    """
+
+    stack_id: StackIdActive
+    upstream: UpstreamTemplate | None
+    manifest_schema_version: str
+    workspace_name: str | None
+    unwrap_strategy: UnwrapStrategy
+    composes_with: dict[StackIdActive, CompositionRule]
+
+    def scaffold_into(self, tempdir: Path) -> None: ...
+    def apply_overlay(self, tempdir: Path) -> None: ...
+
+
+# Per-Phase-4 plan §3.11.5(b): per-module error bridging.
+class AdapterScaffoldError(RuntimeError):
+    """Base class for adapter-level scaffold failures.
+
+    Per-adapter modules subclass for module-specific failure modes; the engine
+    bridge in `bridge_to_scaffold_error` preserves `.reason / .path /
+    .remediation` while normalizing the exception class to
+    `ScaffoldStepFailedError`.
+    """
+
+    def __init__(self, *, reason: str, path: Path | None, remediation: str) -> None:
+        super().__init__(remediation)
+        self.reason = reason
+        self.path = path
+        self.remediation = remediation
+
+
+class ScaffoldStepFailedError(RuntimeError):
+    """Engine-boundary normalized error used by `lp_scaffold_stack/engine.py`
+    Step 4.5 to surface failures from any per-module exception class while
+    preserving the structured triple."""
+
+    def __init__(self, *, reason: str, path: Path | None, remediation: str) -> None:
+        super().__init__(remediation)
+        self.reason = reason
+        self.path = path
+        self.remediation = remediation
+
+
+def bridge_to_scaffold_error(exc: BaseException) -> ScaffoldStepFailedError:
+    """Bridge any per-module error (Adapter / Composition / TemplateCache) into
+    a single engine-boundary exception that preserves the structured triple
+    (`reason`, `path`, `remediation`).
+
+    Phase 3 surfaced the need for this pattern when a typed exception raised
+    inside a sub-module wasn't caught by the outer `except RuntimeError`
+    branch unless the engine bridged it explicitly. See Phase 3 closure record
+    `manifest_writer` -> engine bridging fix.
+    """
+    reason = getattr(exc, "reason", type(exc).__name__)
+    path = getattr(exc, "path", None)
+    remediation = getattr(exc, "remediation", str(exc) or type(exc).__name__)
+    return ScaffoldStepFailedError(
+        reason=reason, path=path, remediation=remediation
+    )
 
 
 class TechStackInfo(TypedDict):
@@ -119,6 +260,16 @@ class AdapterOutput(TypedDict):
 # Exported for adapter implementations
 __all__ = [
     "StackId",
+    "StackIdActive",
+    "ConflictPolicy",
+    "UnwrapStrategy",
+    "UpstreamTemplate",
+    "CompositionRule",
+    "OverlayConfig",
+    "Adapter",
+    "AdapterScaffoldError",
+    "ScaffoldStepFailedError",
+    "bridge_to_scaffold_error",
     "TechStackInfo",
     "BackendInfo",
     "FrontendInfo",

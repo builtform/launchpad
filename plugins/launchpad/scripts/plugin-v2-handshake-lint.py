@@ -566,7 +566,18 @@ SCHEMA_SOURCE_FILES = (
     # bootstrap-manifest schema sources (Phase 3+ live)
     "plugins/launchpad/scripts/lp_bootstrap/__init__.py",  # BootstrapErrorCode + INFRASTRUCTURE_FILES + envelope constants
     "plugins/launchpad/scripts/lp_bootstrap/manifest_writer.py",  # build_manifest, write_manifest, security_fields contract
+    # Phase 4 v2.1 adapter Protocol + composition + cache (Slice A+) sources
+    "plugins/launchpad/scripts/plugin_stack_adapters/contracts.py",  # Adapter Protocol, OverlayConfig, ConflictPolicy
+    "plugins/launchpad/scripts/plugin_stack_adapters/pin_registry.py",  # _UPSTREAM_SHA registry; rotation-detected
 )
+
+# Phase 4 v2.1: pin-registry rotation-detector. Every modification of a
+# `sha` value in pin_registry.py requires a same-commit append-only entry in
+# `docs/maintainers/upstream-pin-rotations.md` (Phase 4 plan §3.9).
+PIN_REGISTRY_FILE = (
+    "plugins/launchpad/scripts/plugin_stack_adapters/pin_registry.py"
+)
+PIN_ROTATION_AUDIT_LOG = "docs/maintainers/upstream-pin-rotations.md"
 SCHEMA_DOC = "docs/architecture/SCAFFOLD_HANDSHAKE.md"
 BOOTSTRAP_MANIFEST_DOC = "docs/architecture/SCAFFOLD_HANDSHAKE.md"
 
@@ -645,6 +656,81 @@ def run_check_schema_codeowners_gate() -> int:
             print(f, file=sys.stderr)
         return 1
     print("schema-codeowners-gate: PASS")
+    return 0
+
+
+_PIN_SHA_LINE_RE = re.compile(r'^\+\s*"sha":\s*"([0-9a-f]{40})"', re.MULTILINE)
+
+
+def check_pin_registry_rotation_audit_log(
+    failures: list[str], base_ref: str = "origin/main"
+) -> None:
+    """Phase 4 v2.1 rotation-detector (Phase 4 plan §3.9).
+
+    If the diff between `<base>...HEAD` adds any new `"sha": "<40-hex>"` line
+    inside pin_registry.py, the audit log at
+    `docs/maintainers/upstream-pin-rotations.md` MUST also be touched in the
+    same diff. The check intentionally inspects the diff (not the working
+    tree): the goal is to gate the *act of rotation* at PR time, not to
+    re-validate already-merged history.
+
+    Strategy:
+      1. `git diff <base>...HEAD -- <pin_registry>` to get the textual diff.
+      2. Extract added (+) `"sha": "<hex>"` lines via regex.
+      3. If any such line exists, assert the audit log path is in the
+         changed-files set.
+      4. Skip silently when pin_registry is not in the diff.
+    """
+    rule = "pin-registry-rotation-audit-log"
+
+    rc, names_out = _run(
+        ["git", "diff", "--name-only", f"{base_ref}...HEAD"]
+    )
+    if rc != 0:
+        failures.append(
+            f"[{rule}] git diff against {base_ref} failed (rc={rc}); set "
+            f"LP_BASE_REF or fetch the base ref before running this check."
+        )
+        return
+    changed = {line.strip() for line in names_out.splitlines() if line.strip()}
+    if PIN_REGISTRY_FILE not in changed:
+        return  # pin_registry untouched; gate trivially satisfied
+
+    rc, diff_out = _run(
+        ["git", "diff", f"{base_ref}...HEAD", "--", PIN_REGISTRY_FILE]
+    )
+    if rc != 0:
+        failures.append(
+            f"[{rule}] git diff for {PIN_REGISTRY_FILE} failed (rc={rc})."
+        )
+        return
+
+    added_shas = _PIN_SHA_LINE_RE.findall(diff_out)
+    if not added_shas:
+        return  # pin_registry diff contains no new SHA lines
+
+    if PIN_ROTATION_AUDIT_LOG not in changed:
+        failures.append(
+            f"[{rule}] pin_registry.py adds new SHA value(s) without a same-"
+            f"commit entry in {PIN_ROTATION_AUDIT_LOG}.\n  added SHAs:\n  "
+            + "\n  ".join(sorted(added_shas))
+            + f"\n\nPhase 4 plan §3.9: every _UPSTREAM_SHA rotation requires "
+            f"an append-only audit-log entry with non-empty Reason + Reviewer "
+            f"in the same commit."
+        )
+
+
+def run_check_pin_registry_rotation_audit_log() -> int:
+    """Standalone entry point for the rotation-detector lint rule."""
+    failures: list[str] = []
+    base_ref = os.environ.get("LP_BASE_REF", "origin/main")
+    check_pin_registry_rotation_audit_log(failures, base_ref=base_ref)
+    if failures:
+        print("pin-registry-rotation-audit-log: FAIL", file=sys.stderr)
+        for f in failures:
+            print(f, file=sys.stderr)
+        return 1
+    print("pin-registry-rotation-audit-log: PASS")
     return 0
 
 
@@ -1320,6 +1406,14 @@ def main() -> int:
              "LP_BASE_REF (default origin/main) for the diff base.",
     )
     parser.add_argument(
+        "--check-pin-registry-rotation-audit-log", action="store_true",
+        dest="check_pin_registry_rotation_audit_log",
+        help="Phase 4 v2.1: fail PRs that rotate an _UPSTREAM_SHA value in "
+             "pin_registry.py without a same-commit append-only entry in "
+             "docs/maintainers/upstream-pin-rotations.md. Reads LP_BASE_REF "
+             "(default origin/main) for the diff base.",
+    )
+    parser.add_argument(
         "--regenerate-fixtures", action="store_true",
         help="WRITE-MUTATING: regenerate test fixtures from manifest.yml. "
              "Permitted ONLY in v2-release.yml.",
@@ -1359,6 +1453,8 @@ def main() -> int:
         return run_check_leakage()
     if args.check_schema_codeowners_gate:
         return run_check_schema_codeowners_gate()
+    if args.check_pin_registry_rotation_audit_log:
+        return run_check_pin_registry_rotation_audit_log()
     if args.regenerate_fixtures:
         return run_regenerate_fixtures(args.max_fixtures)
 

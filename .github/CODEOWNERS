@@ -56,3 +56,20 @@
 /plugins/launchpad/scripts/lp_bootstrap/                    @builtform/core
 /docs/architecture/SCAFFOLD_HANDSHAKE.md                    @builtform/core
 /docs/architecture/SCAFFOLD_OPERATIONS.md                   @builtform/core
+
+# Phase 4 v2.1 schema-source files (Adapter Protocol + pin registry +
+# composition wrapper + template cache). Same gate as the schema-CODEOWNERS
+# block above: every modification of an `_UPSTREAM_SHA` value in
+# pin_registry.py also requires a same-commit append-only entry in the audit
+# log at docs/maintainers/upstream-pin-rotations.md (enforced by the
+# rotation-detector lint rule in plugin-v2-handshake-lint.py).
+/plugins/launchpad/scripts/plugin_stack_adapters/contracts.py        @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/pin_registry.py     @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/composition.py      @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/ts_monorepo.py      @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/nextjs_standalone.py @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/nextjs_fastapi.py   @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/astro.py            @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/generic.py          @builtform/core
+/plugins/launchpad/scripts/template_cache/                           @builtform/core
+/docs/maintainers/upstream-pin-rotations.md                          @builtform/core
