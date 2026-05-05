@@ -402,3 +402,57 @@ Per `SCAFFOLD_OPERATIONS.md` §5:
   `VALID_COMBINATIONS` frozenset (HANDSHAKE §12) + cross-layer rules in
   `manual_override_resolver`
 - Telemetry honors `telemetry: off` opt-out per OPERATIONS §5
+
+---
+
+## v2.1 Trust-model banner (Phase 4 §3.12 verbatim)
+
+When the user picks a stack that fetches an upstream template, /lp-pick-stack
+prints the trust-model banner before any cache fetch happens. The banner
+text is (exact substitution glossary: `<repo>` = upstream repo URL,
+`<sha-prefix>` = first 8 chars of the dual-resolved commit SHA, attestation
+state is `verified` when `gh attestation verify` returns ≥1 attestation
+otherwise `unsigned`):
+
+```
+This project will fetch the following pinned upstream templates:
+  - <repo>@<sha-prefix> (license: MIT, attestation: <verified|unsigned>)
+  - <repo>@<sha-prefix> (license: MIT, attestation: <verified|unsigned>)
+  ...
+SHAs are dual-resolved (git ls-remote + GitHub REST). Audit log: docs/maintainers/upstream-pin-rotations.md.
+```
+
+### v2.1 multi-stack picker (composition mode)
+
+After the primary stack is selected, the picker asks:
+
+```
+Add a second stack? [y/N]
+```
+
+If `y`, the follow-up prompt enumerates valid second-stack candidates (any
+v2.1 active stack id except the primary AND `ts_monorepo`):
+
+```
+Pick a second stack: [<list>]
+```
+
+The N=2 cap is enforced upstream by `composition.validate_pair`. Any
+attempt to add a third stack returns the verbatim:
+
+> LaunchPad v2.1 supports up to 2 stacks per project. To request 3-stack
+> composition, open an issue with label v2.2-composition.
+
+`ts_monorepo` paired with any other adapter is rejected with the verbatim:
+
+> ts_monorepo is itself a monorepo; it cannot be combined with another stack.
+> Pick one of: ts_monorepo (alone) OR nextjs_standalone/nextjs_fastapi/astro/generic with a second stack.
+
+Duplicate-stack rejections (`astro + astro`, `generic + generic`) emit:
+
+> Duplicate stacks are not allowed. Pick two different stacks.
+
+Pair-rejection recovery: re-prompt once with the rejection reason printed
+first; on a second invalid selection the picker aborts with:
+
+> Multiple invalid pair selections; aborting. Run /lp-pick-stack again.

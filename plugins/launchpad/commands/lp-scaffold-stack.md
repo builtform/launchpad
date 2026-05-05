@@ -295,3 +295,61 @@ succeeds.
   load-bearing for partial-cleanup recovery.
 - The user can re-run after a partial failure once the cause is fixed —
   the unconsumed nonce remains valid for the 4h replay window.
+
+---
+
+## v2.1 Trust-model banner + cold-cache progress (Phase 4 §3.12 verbatim)
+
+When the scaffold step is about to fetch an upstream template,
+`/lp-scaffold-stack` prints the trust-model banner BEFORE any cache fetch
+runs. Banner text matches `/lp-pick-stack` verbatim (substitution glossary
+identical). The banner gives the user a final read on what is about to be
+fetched so they can abort cleanly before any disk activity.
+
+```
+This project will fetch the following pinned upstream templates:
+  - <repo>@<sha-prefix> (license: MIT, attestation: <verified|unsigned>)
+  - <repo>@<sha-prefix> (license: MIT, attestation: <verified|unsigned>)
+  ...
+SHAs are dual-resolved (git ls-remote + GitHub REST). Audit log: docs/maintainers/upstream-pin-rotations.md.
+```
+
+### Cold-cache progress lines
+
+When the template_cache reports a miss, `/lp-scaffold-stack` emits the
+following progress lines (heartbeat cadence is one `.` every 5 seconds via
+carriage-return repaint, single newline at completion):
+
+```
+Fetching <repo>@<sha-prefix> (cold cache, ~30s)…
+```
+
+then 5-second `.` heartbeats appended to the same line, then a newline at
+completion. Subsequent stages emit:
+
+```
+Verifying sha256…
+Rendering overlay…
+```
+
+### Network-bound failure exit codes
+
+- Cache miss + offline: exit 75 (`EX_TEMPFAIL`) with the verbatim message
+  "Cannot fetch upstream <repo>@<sha-prefix> (network unreachable). Connect
+  to network and re-run, or pick a different stack."
+- TMPDIR cross-FS: exit 1 with "TMPDIR is on a different filesystem than
+  your project. Set TMPDIR to a path under <project_root> and re-run."
+- Disk-full during cache write: exit 28 (`ENOSPC`) with "Out of disk space
+  while caching <repo>@<sha-prefix>. Free space and re-run, or set
+  LAUNCHPAD_CACHE_DIR to a different volume."
+- SIGINT received: exit 130 with "Aborted by user; cleaning up partial
+  scaffold..." then "Cleanup complete." after the SIGINT/SIGTERM/SIGKILL
+  ladder finishes per `safe_run.safe_run_long`.
+
+### What the trust banner does and does not prove
+
+The banner proves the SHA was dual-resolved at Slice A0b time AND that the
+audit log records the dual-resolution evidence. It does NOT prove the
+upstream is malware-free; users who require additional supply-chain
+assurance should pin LaunchPad to a known-good version and review
+`docs/maintainers/upstream-pin-rotations.md` before re-running.

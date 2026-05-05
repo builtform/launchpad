@@ -16,3 +16,17 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+
+  # Phase 4 v2.1 (Slice G): plugin runtime Python deps. Hash-pinned per
+  # plugins/launchpad/scripts/requirements.txt; Dependabot proposes
+  # version bumps weekly. _UPSTREAM_SHA rotations in pin_registry.py are
+  # NOT covered by Dependabot (it does not understand bare hex constants);
+  # tag-drift-detector in cve-watch.yml fills that gap.
+  - package-ecosystem: "pip"
+    directory: "/plugins/launchpad/scripts"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "python"
