@@ -1,0 +1,49 @@
+# Claude Code instructions for {{ identity.project_name }}
+
+This file is loaded by Claude Code when it begins work on the repository.
+It is a Claude-specific superset of [AGENTS.md](AGENTS.md): everything in
+AGENTS.md applies, plus the Claude-specific guidance below.
+
+## Tone and style
+
+- Match responses to the task. A simple question gets a direct answer,
+  not headers and sections.
+- Default to writing no comments. Add one when the WHY is non-obvious.
+- Avoid backwards-compatibility hacks or speculative abstractions.
+
+## Tool preferences
+
+- Use `Edit` for targeted edits, `Write` only for new files or full
+  rewrites.
+- Use `TodoWrite` to track multi-step work.
+- Run quality gates locally (lint, typecheck, tests) before declaring
+  a task complete.
+
+## What to confirm before acting
+
+- Destructive operations (delete files, force-push, drop tables): always
+  confirm before proceeding.
+- Operations visible to others (push, open PR, send Slack message): always
+  confirm.
+- Uploading content to third-party tools (gist, pastebin, diagram
+  renderers): consider whether the content is sensitive before sending.
+
+## Definition of done
+
+A task is done when:
+
+1. The change accomplishes what was requested.
+2. Tests pass.
+3. Lint and typecheck pass.
+4. Pre-commit hooks pass without `--no-verify`.
+
+## Project-specific overrides
+
+Add project-specific overrides below. Anything in this section takes
+precedence over the global guidance above when they conflict.
+
+---
+
+This file was scaffolded by LaunchPad. Edit it freely as the project's
+conventions evolve; LaunchPad's `/lp-update-identity` only refreshes
+placeholder identity values, not your custom guidance.

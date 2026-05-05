@@ -1,0 +1,38 @@
+# Security Policy
+
+## Reporting a vulnerability
+
+Security issues in {{ identity.project_name }} should be reported privately
+to {{ identity.email }} so the maintainer can triage and patch before any
+public disclosure.
+
+When reporting, please include:
+
+- A description of the vulnerability and its impact.
+- Steps to reproduce, or a proof-of-concept if applicable.
+- Whether you intend to disclose publicly, and on what timeline.
+
+The maintainer will acknowledge receipt within 7 days and follow up with
+a triage assessment, a planned patch timeline, and any coordination needs.
+
+## Public disclosure
+
+After a fix has shipped, the security advisory and CVE (if assigned) will
+be published at {{ identity.repo_url }}/security/advisories. Reporters
+who follow responsible-disclosure practice are credited in the advisory.
+
+## Out of scope
+
+The following are considered out of scope for security reports:
+
+- Issues in third-party dependencies that already have public disclosures.
+  File an issue with the upstream project instead.
+- Theoretical attacks without a concrete exploitation path against this
+  project's actual deployment surface.
+- Self-inflicted issues (e.g., a user committing their own credentials).
+
+## Supported versions
+
+Security fixes ship to the latest released minor version. Older versions
+do not receive backports unless coordinated explicitly with the
+maintainer.

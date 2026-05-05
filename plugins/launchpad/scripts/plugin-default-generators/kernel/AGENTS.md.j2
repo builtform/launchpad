@@ -1,0 +1,53 @@
+# Agent context for {{ identity.project_name }}
+
+This file is loaded by AI coding assistants (Claude, Cursor, Aider, etc.)
+when they begin work on the repository. It is the agent-facing counterpart
+to README.md (which is human-facing).
+
+## What this project is
+
+Replace this paragraph with a 2-3 sentence description of the project's
+purpose, primary audience, and current state. The more concrete the
+description, the better the agent's first contribution.
+
+## Repository at a glance
+
+- Source of truth: {{ identity.repo_url }}
+- License: {{ identity.license }}
+- Maintainer contact: {{ identity.email }}
+
+## What an agent should and should not change
+
+- DO read existing code before proposing edits.
+- DO follow the established naming conventions, test patterns, and
+  module organization.
+- DO add tests alongside any behavior change.
+- DO NOT introduce new top-level dependencies without checking with the
+  maintainer.
+- DO NOT commit on the default branch directly. Use a topic branch.
+- DO NOT bypass pre-commit hooks with `--no-verify`.
+
+## Build and test commands
+
+Document the canonical commands here so an agent can verify its work
+without guessing. Suggested fields once the project is past initial
+scaffold:
+
+```
+install:    <command>
+build:      <command>
+test:       <command>
+lint:       <command>
+typecheck:  <command>
+```
+
+## Architecture notes
+
+Architecture, design system, and project-specific conventions live under
+`docs/architecture/`. Read those before any non-trivial change.
+
+---
+
+This file was scaffolded by LaunchPad. Edit it freely as the project grows;
+LaunchPad's `/lp-update-identity` only refreshes placeholder identity
+values, not your custom guidance.

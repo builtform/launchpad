@@ -501,6 +501,69 @@ def run_pipeline(
             ),
         )
 
+    # --- Step 4.5: Kernel render (v1.1 envelopes only) ---
+    # V3 plan §17.1 Phase 2: render the 7 stack-agnostic identity-bearing
+    # kernel files (LICENSE, CONTRIBUTING, CODE_OF_CONDUCT, README,
+    # SECURITY, AGENTS, CLAUDE) into the project root using the sealed
+    # identity from scaffold-decision.json. Silent no-op for legacy v1.0
+    # envelopes (no identity field; would render placeholder-only files
+    # for no benefit).
+    #
+    # Lazy-import so engine consumers that never reach this step do not
+    # pull jinja2 in transitively.
+    if accepted.payload.get("schema_version") == "1.1":
+        identity = accepted.payload.get("identity")
+        if isinstance(identity, dict):
+            try:
+                from plugin_default_generators.kernel_renderer import (  # noqa: PLC0415
+                    KernelRenderer,
+                )
+            except ImportError:
+                # Fall back to direct path-based import; the package import
+                # only works once Phase 8 installs an __init__.py shim.
+                # plugin-default-generators uses a hyphenated dirname so
+                # native Python imports cannot find it without help.
+                import importlib.util  # noqa: PLC0415
+                kr_path = (
+                    Path(__file__).resolve().parents[1]
+                    / "plugin-default-generators" / "kernel_renderer.py"
+                )
+                _spec = importlib.util.spec_from_file_location(
+                    "kernel_renderer", kr_path
+                )
+                _mod = importlib.util.module_from_spec(_spec)
+                # Ensure plugin-default-generators is on sys.path so the
+                # `from _renderer_base import RendererBase` inside
+                # kernel_renderer resolves.
+                _gen_root = (
+                    Path(__file__).resolve().parents[1]
+                    / "plugin-default-generators"
+                )
+                if str(_gen_root) not in sys.path:
+                    sys.path.insert(0, str(_gen_root))
+                _spec.loader.exec_module(_mod)
+                KernelRenderer = _mod.KernelRenderer
+            try:
+                KernelRenderer().render_all(cwd, identity)
+            except Exception as exc:  # noqa: BLE001
+                elapsed = time.monotonic() - start
+                return _record_partial_failure(
+                    repo_root=repo_root,
+                    decision_path=decision_path,
+                    materialized=materialized,
+                    failed_layer_index=None,
+                    reason="kernel_render_failed",
+                    message=f"kernel render failed: {exc}",
+                    elapsed=elapsed,
+                    install_seconds=install_seconds,
+                    write_telemetry_flag=write_telemetry_flag,
+                    cross_cutting_files=list(wiring.cross_cutting_files),
+                    recovery_action=(
+                        "Kernel render (LICENSE / CONTRIBUTING / etc.) failed. "
+                        "Inspect the error, fix the underlying cause, and re-run."
+                    ),
+                )
+
     # --- Step 5a: receipt write ---
     decision_bytes_sha = _decision_sha256_from_file(decision_path)
     try:

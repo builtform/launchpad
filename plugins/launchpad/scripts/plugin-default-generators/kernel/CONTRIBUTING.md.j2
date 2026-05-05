@@ -1,0 +1,45 @@
+# Contributing to {{ identity.project_name }}
+
+Thanks for your interest in contributing. This document covers the basics
+of how to propose changes, run the test suite, and get a pull request
+through review.
+
+## Getting started
+
+1. Fork the repository at {{ identity.repo_url }} and clone your fork.
+2. Create a topic branch with one of the conventional prefixes:
+   `feat/`, `fix/`, `chore/`, `docs/`, `refactor/`, `test/`, `style/`,
+   `perf/`, or `ci/`.
+3. Make your changes. Keep commits focused and self-contained.
+4. Run the project test suite locally before opening a pull request.
+5. Open a pull request against `main` with a description of the change.
+
+## Code review
+
+All non-trivial changes go through code review. Reviewers look for:
+
+- Tests that exercise the new behavior, including edge cases.
+- Documentation updates for any user-facing change.
+- No introduction of secrets, credentials, or hardcoded keys.
+- Adherence to the project's existing code style.
+
+## Reporting issues
+
+For bug reports and feature requests, open an issue at
+{{ identity.repo_url }}/issues. Include reproduction steps, expected
+behavior, and observed behavior.
+
+## Security disclosures
+
+Security issues should NOT be reported through public issues. See
+[SECURITY.md](SECURITY.md) for the responsible-disclosure process.
+
+## Contact
+
+Questions that don't fit an issue or PR can go to {{ identity.email }}.
+
+---
+
+This contributing guide was scaffolded by LaunchPad. It is safe to edit
+freely; LaunchPad's `/lp-update-identity` only refreshes the placeholder
+identity values, not your custom prose.
