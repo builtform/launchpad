@@ -522,6 +522,39 @@ def read_bootstrap_manifest(cwd: Path) -> BootstrapManifestRead:
 
 # --- CLI entry ---
 
+# --- Phase 4 v2.1 (Slice D) minimal stacks-array lift -----------------------
+
+
+_STACK_TO_STACKS_WARN = (
+    "config.yml uses legacy 'stack:' scalar; auto-promoted to "
+    "'stacks: [%s]'. Update config.yml to silence this warning."
+)
+
+
+def auto_promote_stack_to_stacks(
+    config: dict[str, Any],
+) -> tuple[dict[str, Any], list[str]]:
+    """Phase 4 plan section 3.12 minimal lift.
+
+    If `config.yml` carries a legacy `stack:` scalar, copy it into a
+    single-element `stacks: [<value>]` list (without removing the original
+    so older callers still find their key). Returns the mutated config plus
+    a list of WARN strings for the caller to surface to the user.
+    """
+    if not isinstance(config, dict):
+        return config, []
+    warnings: list[str] = []
+    legacy = config.get("stack")
+    has_stacks = isinstance(config.get("stacks"), list)
+    if legacy is not None and not has_stacks:
+        if isinstance(legacy, list):
+            config["stacks"] = list(legacy)
+        else:
+            config["stacks"] = [legacy]
+        warnings.append(_STACK_TO_STACKS_WARN % (legacy,))
+    return config, warnings
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--repo-root", default=os.environ.get("LP_REPO_ROOT", os.getcwd()))
