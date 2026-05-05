@@ -1,0 +1,5 @@
+# lefthook fragment for adapter `nextjs_standalone`
+pre-commit:
+  commands:
+    nextjs_standalone-noop:
+      run: 'true'

@@ -1,0 +1,4 @@
+{% raw %}
+# detect-structure-drift fragment for ts_monorepo
+echo "adapter=ts_monorepo drift-check ok"
+{% endraw %}

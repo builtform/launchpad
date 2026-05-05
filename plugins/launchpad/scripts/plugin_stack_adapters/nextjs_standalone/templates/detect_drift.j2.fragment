@@ -1,0 +1,4 @@
+{% raw %}
+# detect-structure-drift fragment for nextjs_standalone
+echo "adapter=nextjs_standalone drift-check ok"
+{% endraw %}

@@ -1,0 +1,3 @@
+#### ts_monorepo backend
+
+- Adapter `ts_monorepo` (TypeScript monorepo (Next.js 15 + Hono + Prisma + Turborepo + pnpm))

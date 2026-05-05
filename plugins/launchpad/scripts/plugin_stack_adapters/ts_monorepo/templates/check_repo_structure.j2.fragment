@@ -1,0 +1,4 @@
+{% raw %}
+# check-repo-structure fragment for ts_monorepo
+echo "adapter=ts_monorepo"
+{% endraw %}

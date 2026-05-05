@@ -1,0 +1,4 @@
+{% raw %}
+# check-repo-structure fragment for generic
+echo "adapter=generic"
+{% endraw %}

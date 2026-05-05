@@ -1,0 +1,5 @@
+# lefthook fragment for adapter `astro`
+pre-commit:
+  commands:
+    astro-noop:
+      run: 'true'

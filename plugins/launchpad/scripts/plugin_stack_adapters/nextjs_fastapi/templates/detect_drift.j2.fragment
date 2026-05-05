@@ -1,0 +1,4 @@
+{% raw %}
+# detect-structure-drift fragment for nextjs_fastapi
+echo "adapter=nextjs_fastapi drift-check ok"
+{% endraw %}

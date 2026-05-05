@@ -56,6 +56,44 @@ from atomic_io import atomic_write_replace  # noqa: E402
 # accepts a subdirectory name so each subclass binds to its template root.
 GENERATORS_ROOT = Path(__file__).resolve().parent
 
+# Phase 4 v2.1 (Slice F): per-adapter fragment root for stack-aware
+# rendering. Outer templates live at `plugin_default_generators/stack_aware/`
+# and `{% include %}` per-adapter fragments at
+# `plugin_stack_adapters/<adapter>/templates/<name>.j2.fragment`.
+STACK_FRAGMENTS_ROOT = _SCRIPTS_DIR / "plugin_stack_adapters"
+
+# v2.1 active stack id closed enum (5 values). Stack-aware renderers MUST
+# validate the incoming stack_id against this set BEFORE building the
+# Environment so a bad value raises StackIdInvalidError instead of silently
+# rendering a missing-fragment template error or, worse, looking up an
+# attacker-controlled path traversal.
+STACK_ID_ACTIVE_ENUM: frozenset[str] = frozenset({
+    "ts_monorepo",
+    "nextjs_standalone",
+    "nextjs_fastapi",
+    "astro",
+    "generic",
+})
+
+
+class StackIdInvalidError(ValueError):
+    """Raised when a stack_id outside `STACK_ID_ACTIVE_ENUM` reaches the
+    stack-aware renderer. Phase 4 plan section 3.11 closed-enum guarantee."""
+
+
+def validate_stack_id(stack_id: str) -> str:
+    """Phase 4 plan section 3.11 closed-enum gate. Raise on miss.
+
+    Returns the stack_id unchanged on accept so callers can use this as a
+    pass-through validator inline.
+    """
+    if stack_id not in STACK_ID_ACTIVE_ENUM:
+        raise StackIdInvalidError(
+            f"stack_id {stack_id!r} not in v2.1 active enum "
+            f"{sorted(STACK_ID_ACTIVE_ENUM)!r}"
+        )
+    return stack_id
+
 
 def make_jinja_env(template_subdir: str) -> jinja2.Environment:
     """Build the Jinja2 Environment for a renderer subdirectory.
@@ -87,6 +125,70 @@ def make_jinja_env(template_subdir: str) -> jinja2.Environment:
     template_root = GENERATORS_ROOT / template_subdir
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(str(template_root)),
+        autoescape=jinja2.select_autoescape(
+            enabled_extensions=("html", "htm", "xml"),
+            default_for_string=False,
+            default=False,
+        ),
+        undefined=jinja2.StrictUndefined,
+        keep_trailing_newline=True,
+    )
+    env.filters["shell_quote"] = lambda v: shlex.quote(str(v))
+    env.filters["to_yaml_safe"] = _to_yaml_safe
+    return env
+
+
+# Phase 4 v2.1 (Slice F) singleton stack-aware renderer environment. Reused
+# across renders so id(env) is stable; tests assert this. The loader scope
+# spans both `plugin_default_generators/stack_aware/` (outer templates) and
+# `plugin_stack_adapters/` (fragment templates) so `{% include %}` directives
+# can reach across via relative paths.
+_STACK_AWARE_ENV: jinja2.Environment | None = None
+
+
+def make_stack_aware_jinja_env() -> jinja2.Environment:
+    """Singleton-cached Jinja Environment for stack-aware renders.
+
+    Filter parity with `make_jinja_env` (shell_quote + to_yaml_safe + tojson)
+    plus the `select_autoescape` posture preserved verbatim.
+    """
+    global _STACK_AWARE_ENV
+    if _STACK_AWARE_ENV is not None:
+        return _STACK_AWARE_ENV
+
+    outer_root = GENERATORS_ROOT / "stack_aware"
+    fragments_root = STACK_FRAGMENTS_ROOT
+    env = jinja2.Environment(
+        loader=jinja2.ChoiceLoader([
+            jinja2.FileSystemLoader(str(outer_root)),
+            jinja2.FileSystemLoader(str(fragments_root)),
+        ]),
+        autoescape=jinja2.select_autoescape(
+            enabled_extensions=("html", "htm", "xml"),
+            default_for_string=False,
+            default=False,
+        ),
+        undefined=jinja2.StrictUndefined,
+        keep_trailing_newline=True,
+    )
+    env.filters["shell_quote"] = lambda v: shlex.quote(str(v))
+    env.filters["to_yaml_safe"] = _to_yaml_safe
+    _STACK_AWARE_ENV = env
+    return env
+
+
+def make_sandboxed_jinja_env() -> jinja2.SandboxedEnvironment:
+    """SandboxedEnvironment factory for `.sh.j2` templates.
+
+    Phase 4 plan section 3.11: shell-script templates run under
+    SandboxedEnvironment so a hostile identity value cannot reach
+    process-control attributes during render. Filter parity with
+    `make_jinja_env` (shell_quote / to_yaml_safe / tojson) so callers can
+    swap envs without code changes.
+    """
+    from jinja2.sandbox import SandboxedEnvironment
+
+    env = SandboxedEnvironment(
         autoescape=jinja2.select_autoescape(
             enabled_extensions=("html", "htm", "xml"),
             default_for_string=False,
@@ -223,9 +325,15 @@ class RendererBase:
 
 __all__ = [
     "GENERATORS_ROOT",
+    "STACK_FRAGMENTS_ROOT",
+    "STACK_ID_ACTIVE_ENUM",
+    "StackIdInvalidError",
     "RendererBase",
     "identity_inject",
     "make_jinja_env",
+    "make_sandboxed_jinja_env",
+    "make_stack_aware_jinja_env",
     "sha256_bytes",
     "sha256_file",
+    "validate_stack_id",
 ]
