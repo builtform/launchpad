@@ -19,21 +19,52 @@ mismatch.
 """
 from __future__ import annotations
 
-import fcntl
 import hashlib
+import json
 import os
-import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from atomic_io import atomic_write_excl
 from decision_integrity import canonical_hash
-from lp_pick_stack import WRITTEN_DECISION_VERSION
+from lp_pick_stack import (
+    IDENTITY_COPYRIGHT_FORBIDDEN_CHARS,
+    IDENTITY_COPYRIGHT_HOLDER_RE,
+    IDENTITY_EMAIL_RE,
+    IDENTITY_PLACEHOLDERS,
+    IDENTITY_PROJECT_NAME_RE,
+    IDENTITY_REPO_URL_RE,
+    LICENSE_ENUM,
+    LICENSE_OTHER_FORBIDDEN_SUBSTRINGS,
+    LICENSE_OTHER_MAX_BYTES,
+    SCHEMA_VERSION_V2_1,
+    WRITTEN_DECISION_VERSION,
+)
 
 # Constant filename per HANDSHAKE §4 schema.
 DECISION_FILENAME = "scaffold-decision.json"
 RATIONALE_FILENAME = "rationale.md"
+
+# Plugin manifest path used by `read_running_plugin_version()`. Resolved
+# relative to the scripts/ directory so the lookup works whether the plugin
+# is checked out as a workspace or installed via Claude marketplace.
+_PLUGIN_JSON = (
+    Path(__file__).resolve().parent.parent.parent / ".claude-plugin" / "plugin.json"
+)
+
+
+class IdentityValidationError(ValueError):
+    """Raised by validate_identity() when an identity field fails its allowlist.
+
+    Carries `field` so the caller can surface a structured error with the
+    exact field that needs correction (e.g., re-prompt only that field).
+    """
+
+    def __init__(self, message: str, field: str):
+        super().__init__(message)
+        self.field = field
 
 # rationale_sha256 sentinel for --no-rationale flag mode (per Phase 2 §4.1
 # Step 5: when --no-rationale skips rationale.md write, rationale_sha256 is
@@ -96,43 +127,182 @@ def write_rationale_atomic(
     (closes the L9 hash-mismatch footgun).
     """
     encoded = body.encode("utf-8")
-    launchpad = cwd / ".launchpad"
-    launchpad.mkdir(parents=True, exist_ok=True)
-    target = launchpad / RATIONALE_FILENAME
+    target = cwd / ".launchpad" / RATIONALE_FILENAME
 
     try:
-        fd = os.open(str(target), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        atomic_write_excl(target, encoded)
     except FileExistsError as exc:
         raise DecisionWriteError(
             f"{target} already exists; remove .launchpad/ and re-run /lp-pick-stack",
             reason="scaffold_decision_already_exists",
         ) from exc
 
-    try:
-        try:
-            os.fchmod(fd, 0o600)
-        except OSError:
-            pass
-        os.write(fd, encoded)
-        os.fsync(fd)
-        if sys.platform == "darwin":
-            try:
-                fcntl.fcntl(fd, fcntl.F_FULLFSYNC)
-            except (OSError, AttributeError):
-                pass
-    finally:
-        os.close(fd)
-
-    try:
-        dirfd = os.open(str(launchpad), os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            os.fsync(dirfd)
-        finally:
-            os.close(dirfd)
-    except OSError:
-        pass
-
     return target, hashlib.sha256(encoded).hexdigest()
+
+
+def read_running_plugin_version() -> str:
+    """Read the running plugin version from `plugins/launchpad/.claude-plugin/plugin.json`.
+
+    Used to seal the v2.1 envelope's `plugin_version` field at /lp-pick-stack
+    time. /lp-scaffold-stack and /lp-bootstrap (Phase 3+) compare against
+    this recorded value and abort on mismatch per V3 plan §11.1, preventing
+    a `/plugin update` between pipeline steps from silently invalidating the
+    sealed manifest.
+
+    Returns the literal `version` string from plugin.json. Raises
+    FileNotFoundError if the manifest is missing (a defect in the plugin
+    install, not a runtime user error).
+    """
+    text = _PLUGIN_JSON.read_text(encoding="utf-8")
+    return str(json.loads(text)["version"])
+
+
+def derive_stacks(layers: Sequence[Mapping[str, Any]]) -> list[str]:
+    """Derive the v2.1 envelope's flat `stacks` array from the layers list.
+
+    First-occurrence-preserved deduplication: a polyglot project with
+    `[{stack: astro, role: frontend-main}, {stack: astro, role:
+    frontend-dashboard}, {stack: nextjs_standalone, role: backend}]` collapses
+    to `["astro", "nextjs_standalone"]`. Order matches first appearance in
+    `layers` so /lp-scaffold-stack can iterate stacks deterministically.
+    """
+    seen: dict[str, None] = {}
+    for layer in layers:
+        stack = layer.get("stack")
+        if isinstance(stack, str) and stack and stack not in seen:
+            seen[stack] = None
+    return list(seen.keys())
+
+
+def default_unset_identity() -> dict[str, Any]:
+    """Build the all-placeholder identity block written when PII opt-in is False.
+
+    /lp-update-identity (Phase 10) detects placeholder values via
+    IDENTITY_PLACEHOLDER_PATTERN and re-asks the PII Y/N prompt. The
+    placeholder strings are documented in HANDSHAKE §10.v2.1 so downstream
+    consumers (LICENSE/CONTRIBUTING renderers) can render them verbatim
+    or substitute their own defaults.
+
+    Five identity fields (matching HANDSHAKE §10.v2.1 Phase 0.3 lock):
+    project_name, email, copyright_holder, repo_url, license. The
+    `license_other_body` sub-field is only meaningful when `license=Other`.
+    """
+    return {
+        "pii_opt_in": False,
+        "project_name": IDENTITY_PLACEHOLDERS["project_name"],
+        "email": IDENTITY_PLACEHOLDERS["email"],
+        "copyright_holder": IDENTITY_PLACEHOLDERS["copyright_holder"],
+        "repo_url": IDENTITY_PLACEHOLDERS["repo_url"],
+        "license": "Other",
+        "license_other_body": "",
+    }
+
+
+def validate_identity(identity: Mapping[str, Any]) -> None:
+    """Validate an identity dict against the V3 plan §10.v2.1 allowlists.
+
+    Placeholder values (matching `<lower-with-dashes>`) are accepted in any
+    field that allows them (author_name, author_email, copyright_holder,
+    repo_url) so the PII opt-out path round-trips through the validator.
+
+    Raises IdentityValidationError(field=...) on the first failure. The
+    caller wires `field` into a structured re-prompt or rejection message.
+    """
+    if not isinstance(identity, Mapping):
+        raise IdentityValidationError(
+            f"identity must be a mapping; got {type(identity).__name__}",
+            field="<root>",
+        )
+
+    pii_opt_in = identity.get("pii_opt_in")
+    if not isinstance(pii_opt_in, bool):
+        raise IdentityValidationError(
+            "identity.pii_opt_in must be a boolean", field="pii_opt_in"
+        )
+
+    def _placeholder_or(value: Any, regex, field: str) -> None:
+        if not isinstance(value, str):
+            raise IdentityValidationError(
+                f"identity.{field} must be a string", field=field
+            )
+        if value.startswith("<") and value.endswith(">"):
+            return  # placeholder; round-trip allowed
+        if not regex.fullmatch(value):
+            raise IdentityValidationError(
+                f"identity.{field}={value!r} fails allowlist regex",
+                field=field,
+            )
+
+    project_name = identity.get("project_name")
+    if not isinstance(project_name, str):
+        raise IdentityValidationError(
+            "identity.project_name must be a string", field="project_name"
+        )
+    if not (project_name.startswith("<") and project_name.endswith(">")):
+        if not IDENTITY_PROJECT_NAME_RE.fullmatch(project_name):
+            raise IdentityValidationError(
+                f"identity.project_name={project_name!r} fails allowlist regex",
+                field="project_name",
+            )
+
+    _placeholder_or(identity.get("email"), IDENTITY_EMAIL_RE, "email")
+
+    copyright_holder = identity.get("copyright_holder")
+    if not isinstance(copyright_holder, str):
+        raise IdentityValidationError(
+            "identity.copyright_holder must be a string", field="copyright_holder"
+        )
+    if not (copyright_holder.startswith("<") and copyright_holder.endswith(">")):
+        if not IDENTITY_COPYRIGHT_HOLDER_RE.fullmatch(copyright_holder):
+            raise IdentityValidationError(
+                f"identity.copyright_holder fails printable-ASCII allowlist",
+                field="copyright_holder",
+            )
+        bad = IDENTITY_COPYRIGHT_FORBIDDEN_CHARS.intersection(copyright_holder)
+        if bad:
+            raise IdentityValidationError(
+                f"identity.copyright_holder contains forbidden chars {sorted(bad)}",
+                field="copyright_holder",
+            )
+
+    _placeholder_or(identity.get("repo_url"), IDENTITY_REPO_URL_RE, "repo_url")
+
+    license_value = identity.get("license")
+    if license_value not in LICENSE_ENUM:
+        raise IdentityValidationError(
+            f"identity.license={license_value!r} not in {sorted(LICENSE_ENUM)}",
+            field="license",
+        )
+
+    license_other_body = identity.get("license_other_body", "")
+    if not isinstance(license_other_body, str):
+        raise IdentityValidationError(
+            "identity.license_other_body must be a string",
+            field="license_other_body",
+        )
+    if license_value == "Other":
+        body_bytes = license_other_body.encode("utf-8")
+        if len(body_bytes) > LICENSE_OTHER_MAX_BYTES:
+            raise IdentityValidationError(
+                f"identity.license_other_body exceeds {LICENSE_OTHER_MAX_BYTES}-byte cap",
+                field="license_other_body",
+            )
+        if not all(0x20 <= ord(c) <= 0x7E or c == "\n" for c in license_other_body):
+            raise IdentityValidationError(
+                "identity.license_other_body must be printable ASCII",
+                field="license_other_body",
+            )
+        for forbidden in LICENSE_OTHER_FORBIDDEN_SUBSTRINGS:
+            if forbidden in license_other_body:
+                raise IdentityValidationError(
+                    f"identity.license_other_body contains forbidden substring {forbidden!r}",
+                    field="license_other_body",
+                )
+    elif license_other_body:
+        raise IdentityValidationError(
+            f"identity.license_other_body must be empty when license={license_value!r}",
+            field="license_other_body",
+        )
 
 
 def build_decision_payload(
@@ -146,6 +316,8 @@ def build_decision_payload(
     nonce: str | None = None,
     generated_at: str | None = None,
     version: str | None = None,
+    identity: Mapping[str, Any] | None = None,
+    plugin_version: str | None = None,
 ) -> dict:
     """Construct the scaffold-decision.json payload (sans `sha256` field).
 
@@ -154,19 +326,42 @@ def build_decision_payload(
     assert the payload shape without the chicken-and-egg of the integrity
     envelope.
 
+    v2.1 envelope additions (§11.1, §10.v2.1 acceptance rules):
+      - `schema_version: "1.1"` — the v2.1 reader indicator. Legacy v2.0
+        readers that key off `version` continue to see "1.0".
+      - `plugin_version` — the running plugin version, sealed at writer
+        time. /lp-scaffold-stack and /lp-bootstrap abort on mismatch with
+        the runtime plugin version (§11.1 plugin-update-mid-pipeline guard).
+      - `stacks` — flat dedup'd array derived from layers[].stack.
+      - `identity` — sealed identity block. When the caller passes None,
+        we emit the all-placeholder default and the caller is responsible
+        for verifying that the project's intended PII posture matches.
+
     Per HANDSHAKE §4 + §1.5 strip-back: `brainstorm_session_id` is OMITTED.
     """
     if monorepo is None:
         monorepo = len(layers) > 1
 
+    if identity is None:
+        identity = default_unset_identity()
+    else:
+        validate_identity(identity)
+
+    if plugin_version is None:
+        plugin_version = read_running_plugin_version()
+
     payload: dict[str, Any] = {
         "version": version or WRITTEN_DECISION_VERSION,
+        "schema_version": SCHEMA_VERSION_V2_1,
+        "plugin_version": plugin_version,
         "layers": [dict(layer) for layer in layers],
+        "stacks": derive_stacks(layers),
         "monorepo": bool(monorepo),
         "matched_category_id": matched_category_id,
         "rationale_path": f".launchpad/{RATIONALE_FILENAME}",
         "rationale_sha256": rationale_sha256,
         "rationale_summary": [dict(s) for s in rationale_summary],
+        "identity": dict(identity),
         "generated_by": "/lp-pick-stack",
         "generated_at": generated_at or _utc_now_iso_sec(),
         "nonce": nonce or uuid.uuid4().hex,
@@ -213,42 +408,15 @@ def write_decision_atomic(
         allow_nan=False,
     )
     encoded = line.encode("utf-8")
-
-    launchpad = cwd / ".launchpad"
-    launchpad.mkdir(parents=True, exist_ok=True)
-    target = launchpad / DECISION_FILENAME
+    target = cwd / ".launchpad" / DECISION_FILENAME
 
     try:
-        fd = os.open(str(target), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        atomic_write_excl(target, encoded)
     except FileExistsError as exc:
         raise DecisionWriteError(
             f"{target} already exists; remove .launchpad/ and re-run /lp-pick-stack",
             reason="scaffold_decision_already_exists",
         ) from exc
-
-    try:
-        try:
-            os.fchmod(fd, 0o600)
-        except OSError:
-            pass
-        os.write(fd, encoded)
-        os.fsync(fd)
-        if sys.platform == "darwin":
-            try:
-                fcntl.fcntl(fd, fcntl.F_FULLFSYNC)
-            except (OSError, AttributeError):
-                pass
-    finally:
-        os.close(fd)
-
-    try:
-        dirfd = os.open(str(launchpad), os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            os.fsync(dirfd)
-        finally:
-            os.close(dirfd)
-    except OSError:
-        pass
 
     return target
 
@@ -264,11 +432,18 @@ def write_decision_file(
     nonce: str | None = None,
     generated_at: str | None = None,
     version: str | None = None,
+    identity: Mapping[str, Any] | None = None,
+    plugin_version: str | None = None,
 ) -> tuple[Path, dict]:
     """End-to-end build + seal + atomic write.
 
     Convenience wrapper around build_decision_payload + seal_decision_payload
     + write_decision_atomic. Returns (target_path, sealed_payload).
+
+    `identity` and `plugin_version` extend the v1.1 envelope per V3 plan
+    §11.1. Both default to safe placeholders when omitted: identity becomes
+    the all-placeholder block (PII opt-out posture) and plugin_version is
+    read from `plugins/launchpad/.claude-plugin/plugin.json` at write time.
     """
     payload = build_decision_payload(
         layers=layers,
@@ -280,6 +455,8 @@ def write_decision_file(
         nonce=nonce,
         generated_at=generated_at,
         version=version,
+        identity=identity,
+        plugin_version=plugin_version,
     )
     sealed = seal_decision_payload(payload)
     target = write_decision_atomic(sealed, cwd)
@@ -290,10 +467,15 @@ __all__ = [
     "DECISION_FILENAME",
     "DecisionWriteError",
     "EMPTY_FILE_SHA256",
+    "IdentityValidationError",
     "RATIONALE_FILENAME",
     "build_decision_payload",
     "compute_bound_cwd",
+    "default_unset_identity",
+    "derive_stacks",
+    "read_running_plugin_version",
     "seal_decision_payload",
+    "validate_identity",
     "write_decision_atomic",
     "write_decision_file",
     "write_rationale_atomic",

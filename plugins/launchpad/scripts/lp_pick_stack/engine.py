@@ -45,6 +45,8 @@ from lp_pick_stack.brainstorm_summary_validator import (  # noqa: E402
 from lp_pick_stack.decision_writer import (  # noqa: E402
     DecisionWriteError,
     EMPTY_FILE_SHA256,
+    IdentityValidationError,
+    validate_identity,
     write_decision_file,
     write_rationale_atomic,
 )
@@ -157,6 +159,7 @@ def run_pipeline(
     skip_greenfield_gate: bool = False,
     write_telemetry: bool = True,
     monorepo: bool | None = None,
+    identity: Mapping[str, Any] | None = None,
 ) -> PipelineResult:
     """Execute the 6-step pick-stack pipeline.
 
@@ -187,9 +190,29 @@ def run_pipeline(
       unit tests that exercise the engine on non-greenfield tmp dirs).
     - `write_telemetry`: emit the OPERATIONS §5 v2-pipeline-*.jsonl entry.
     - `monorepo`: override the monorepo bool (defaults to len(layers) > 1).
+    - `identity`: v2.1 envelope identity block (V3 plan §11.1). When None
+      the engine writes the default PII-opt-out placeholders per
+      `decision_writer.default_unset_identity()`. When supplied, it is
+      validated against the V3 plan §10.v2.1 allowlist regexes BEFORE any
+      Step-5/6 work runs; an invalid identity returns
+      PipelineResult(reason="identity_validation_failed").
     """
     start = time.monotonic()
     cwd = Path(cwd)
+
+    # --- Identity pre-validation (early failure before any I/O) ---
+    if identity is not None:
+        try:
+            validate_identity(identity)
+        except IdentityValidationError as exc:
+            elapsed = time.monotonic() - start
+            return PipelineResult(
+                success=False,
+                outcome=Outcome.ABORTED,
+                reason="identity_validation_failed",
+                message=f"identity.{exc.field}: {exc}",
+                elapsed_seconds=elapsed,
+            )
 
     # --- Step 0: greenfield gate + brainstorm-summary frontmatter validation ---
     # Per v2.0.1 BL-244 #3 closure (PR #41 cycle-12 #3): the lp-pick-stack.md
@@ -275,6 +298,7 @@ def run_pipeline(
             monorepo=monorepo,
             start=start,
             write_telemetry=write_telemetry,
+            identity=identity,
         )
 
     catalog = _load_category_patterns(category_patterns_path)
@@ -365,6 +389,7 @@ def run_pipeline(
         monorepo=monorepo,
         start=start,
         write_telemetry=write_telemetry,
+        identity=identity,
     )
 
 
@@ -381,6 +406,7 @@ def _run_manual_override_branch(
     monorepo: bool | None,
     start: float,
     write_telemetry: bool,
+    identity: Mapping[str, Any] | None = None,
 ) -> PipelineResult:
     """Execute Step 4 + Step 5 + Step 6 for the manual-override branch."""
     try:
@@ -423,6 +449,7 @@ def _run_manual_override_branch(
         monorepo=monorepo,
         start=start,
         write_telemetry=write_telemetry,
+        identity=identity,
     )
 
 
@@ -442,6 +469,7 @@ def _finalize_decision(
     monorepo: bool | None,
     start: float,
     write_telemetry: bool,
+    identity: Mapping[str, Any] | None = None,
 ) -> PipelineResult:
     """Run Step 5 (rationale + extract_summary) + Step 6 (integrity envelope
     + atomic write).
@@ -506,6 +534,7 @@ def _finalize_decision(
             rationale_sha256=rationale_sha256,
             cwd=cwd,
             monorepo=monorepo,
+            identity=identity,
         )
     except DecisionWriteError as exc:
         elapsed = time.monotonic() - start

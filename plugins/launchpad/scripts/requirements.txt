@@ -1,12 +1,55 @@
-# LaunchPad v2.0 plugin runtime dependencies.
-# Pin versions live alongside this file in `_vendor/` (PSUTIL_VERSION,
-# PYYAML_VERSION) so CI and downstream installs use the same pin source.
+# LaunchPad v2.1 plugin runtime dependencies (hash-pinned).
+#
+# Hash-pinning is enforced via `pip install -r ... --require-hashes` in CI.
+# Per V3 plan section 12.3 (supply-chain pinning), all direct and transitive
+# dependencies carry verified sha256 digests. Hashes resolved 2026-05-05 from
+# the canonical PyPI JSON metadata feed.
+#
+# Pin version constants live alongside this file in `_vendor/`:
+#   - PSUTIL_VERSION
+#   - PYYAML_VERSION
+#   - JINJA2_VERSION
+#   - MARKUPSAFE_VERSION
+#
+# CI workflow `ci.yml` and downstream installs reference the same pin source
+# so version drift between requirements.txt and lint checks is impossible.
+#
+# Required for:
+#   - psutil:     /lp-scaffold-stack runtime (pid_identity)
+#   - pyyaml:     config loading (engine.py, plugin-v2-handshake-lint.py)
+#   - jinja2:     /lp-bootstrap and /lp-scaffold-stack template rendering (Phase 2 plus)
+#   - markupsafe: transitive dependency of jinja2
+#
+# Hash-pin coverage targets the platforms LaunchPad actively supports:
+#   - macOS 11.0 plus arm64 (developer machines)
+#   - manylinux x86_64 (CI and Linux dev)
+#   - manylinux aarch64 (ARM Linux CI and ARM dev)
+#   - sdist (cross-platform fallback when no matching wheel exists)
 #
 # Install with:
-#   pip install -r plugins/launchpad/scripts/requirements.txt
+#   pip install -r plugins/launchpad/scripts/requirements.txt --require-hashes
 #
-# Required for: /lp-scaffold-stack runtime (psutil — pid_identity), config
-# loading (pyyaml — engine.py, plugin-v2-handshake-lint.py).
+# To refresh hashes (e.g., after a version bump), use the canonical resolver:
+#   curl -s https://pypi.org/pypi/<pkg>/<version>/json | jq '.urls[] | {filename, sha256: .digests.sha256}'
 
-psutil==7.2.2
-pyyaml==6.0.3
+psutil==7.2.2 \
+    --hash=sha256:1a7b04c10f32cc88ab39cbf606e117fd74721c831c98a27dc04578deb0c16979 \
+    --hash=sha256:076a2d2f923fd4821644f5ba89f059523da90dc9014e85f8e45a5774ca5bc6f9 \
+    --hash=sha256:b0726cecd84f9474419d67252add4ac0cd9811b04d61123054b9fb6f57df6e9e \
+    --hash=sha256:0746f5f8d406af344fd547f1c8daa5f5c33dbc293bb8d6a16d80b4bb88f59372
+
+pyyaml==6.0.3 \
+    --hash=sha256:2283a07e2c21a2aa78d9c4442724ec1eb15f5e42a723b99cb3d822d48f5f7ad1 \
+    --hash=sha256:0f29edc409a6392443abf94b9cf89ce99889a1dd5376d94316ae5145dfedd5d6 \
+    --hash=sha256:ee2922902c45ae8ccada2c5b501ab86c36525b883eff4255313a253a3160861c \
+    --hash=sha256:d76623373421df22fb4cf8817020cbb7ef15c725b9d5e45f17e189bfc384190f
+
+jinja2==3.1.6 \
+    --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67 \
+    --hash=sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d
+
+markupsafe==3.0.3 \
+    --hash=sha256:116bb52f642a37c115f517494ea5feb03889e04df47eeff5b130b1808ce7c219 \
+    --hash=sha256:ccfcd093f13f0f0b7fdd0f198b90053bf7b2f02a3927a30e63f3ccc9df56b676 \
+    --hash=sha256:133a43e73a802c5562be9bbcd03d090aa5a1fe899db609c29e8c8d815c5f6de6 \
+    --hash=sha256:722695808f4b6457b320fdc131280796bdceb04ab50fe1795cd540799ebe1698

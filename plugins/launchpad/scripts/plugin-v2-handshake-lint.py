@@ -552,6 +552,100 @@ def check_private_origin_leakage(failures: list[str]) -> None:
     _emit(failures, "private-origin-leakage", bad)
 
 
+# Schema-source files for the v2.1 schema-CODEOWNERS gate (V3 plan §11.6
+# + §11.7, locked in HANDSHAKE §10.v2.1). When ANY of these change in a PR
+# diff, the same PR MUST also touch HANDSHAKE.md so the schema contract and
+# its source-of-truth doc stay in sync. Bootstrap-manifest writers land in
+# Phase 3+; the gate covers the path even before the file exists so the
+# rule is in place when the writer arrives.
+SCHEMA_SOURCE_FILES = (
+    # scaffold-decision schema sources
+    "plugins/launchpad/scripts/lp_pick_stack/__init__.py",  # SCHEMA_VERSION_V2_1, identity regexes
+    "plugins/launchpad/scripts/lp_pick_stack/decision_writer.py",  # build_decision_payload, validate_identity
+    "plugins/launchpad/scripts/plugin-config-loader.py",  # read_scaffold_decision, read_bootstrap_manifest
+    # bootstrap-manifest schema sources (Phase 3+)
+    "plugins/launchpad/scripts/plugin_bootstrap_manifest_writer.py",  # not yet present at Phase 1
+)
+SCHEMA_DOC = "docs/architecture/SCAFFOLD_HANDSHAKE.md"
+
+
+def check_schema_codeowners_gate(
+    failures: list[str], base_ref: str = "origin/main"
+) -> None:
+    """Fail PRs that change schema-source files without touching HANDSHAKE.md.
+
+    V3 plan §11.6 + §11.7 + HANDSHAKE §10.v2.1 acceptance rules: the
+    scaffold-decision and bootstrap-manifest schemas are paired with
+    HANDSHAKE.md as their source of truth. Schema-source code changes
+    without a corresponding HANDSHAKE.md update silently drift the contract.
+    The gate enforces co-touched edits at PR time.
+
+    Strategy:
+      1. Compute the changed-file set via `git diff --name-only <base>...HEAD`.
+         Default base is `origin/main`; CI sets `LP_BASE_REF` to override.
+      2. If the changed set intersects SCHEMA_SOURCE_FILES, assert
+         HANDSHAKE.md is also in the changed set.
+      3. The gate is silent on PRs that touch neither schema sources nor
+         HANDSHAKE.md (most PRs).
+
+    The gate intentionally uses a static SCHEMA_SOURCE_FILES list, not
+    a glob: false positives on unrelated edits would train contributors
+    to bypass the gate. Adding new schema-source files requires updating
+    this list AND the HANDSHAKE.md schema docs in the same PR — the gate
+    catches itself.
+    """
+    rule = "schema-codeowners-gate"
+    rc, out = _run(["git", "diff", "--name-only", f"{base_ref}...HEAD"])
+    if rc != 0:
+        # Diff failed — most likely the base ref is unavailable (shallow
+        # clone, missing remote). Emit INFO and skip; CI is responsible
+        # for fetching the base ref before invoking this lint.
+        failures.append(
+            f"[{rule}] git diff against {base_ref} failed (rc={rc}); "
+            f"set LP_BASE_REF or fetch the base ref before running this "
+            f"check. Output: {out.strip()[:200]!r}"
+        )
+        return
+
+    changed = {line.strip() for line in out.splitlines() if line.strip()}
+    if not changed:
+        return  # empty diff; gate trivially satisfied
+
+    schema_changed = changed.intersection(SCHEMA_SOURCE_FILES)
+    if not schema_changed:
+        return  # no schema sources changed; gate satisfied
+
+    if SCHEMA_DOC in changed:
+        return  # both sides touched; gate satisfied
+
+    failures.append(
+        f"[{rule}] schema-source files changed without {SCHEMA_DOC} also "
+        f"being touched in the same diff:\n  "
+        + "\n  ".join(sorted(schema_changed))
+        + f"\n\nThe v2.1 schema contract (HANDSHAKE §10.v2.1) requires "
+        f"that any change to schema-source code be paired with an update "
+        f"to {SCHEMA_DOC}. If this PR genuinely needs to ship without a "
+        f"docs change (e.g., pure refactor), set commit footer "
+        f"`Schema-Refactor-Only: <reason>` and re-run; the bypass token "
+        f"is reviewed at merge time. (Token enforcement lands in Phase 7+; "
+        f"at v2.1 the gate is hard-fail.)"
+    )
+
+
+def run_check_schema_codeowners_gate() -> int:
+    """Standalone entry point for v2-handshake-lint.yml workflow."""
+    failures: list[str] = []
+    base_ref = os.environ.get("LP_BASE_REF", "origin/main")
+    check_schema_codeowners_gate(failures, base_ref=base_ref)
+    if failures:
+        print("schema-codeowners-gate: FAIL", file=sys.stderr)
+        for f in failures:
+            print(f, file=sys.stderr)
+        return 1
+    print("schema-codeowners-gate: PASS")
+    return 0
+
+
 def run_check_leakage() -> int:
     """Standalone leakage scan (verify-v2-ship #4 + Phase 7.5 §4.9 pre-push
     scrub). Same checker as the default-lint sub-rule, but isolated so the
@@ -1217,6 +1311,13 @@ def main() -> int:
         help="Standalone private-origin leakage scan (verify-v2-ship #4).",
     )
     parser.add_argument(
+        "--check-schema-codeowners-gate", action="store_true",
+        dest="check_schema_codeowners_gate",
+        help="v2.1+: fail PRs that change schema-source files without "
+             "touching SCAFFOLD_HANDSHAKE.md in the same diff. Reads "
+             "LP_BASE_REF (default origin/main) for the diff base.",
+    )
+    parser.add_argument(
         "--regenerate-fixtures", action="store_true",
         help="WRITE-MUTATING: regenerate test fixtures from manifest.yml. "
              "Permitted ONLY in v2-release.yml.",
@@ -1254,6 +1355,8 @@ def main() -> int:
         return rc
     if args.check_leakage:
         return run_check_leakage()
+    if args.check_schema_codeowners_gate:
+        return run_check_schema_codeowners_gate()
     if args.regenerate_fixtures:
         return run_regenerate_fixtures(args.max_fixtures)
 

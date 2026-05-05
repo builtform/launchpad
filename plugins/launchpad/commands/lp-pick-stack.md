@@ -85,6 +85,73 @@ Per `SCAFFOLD_HANDSHAKE.md` §2 user-facing privacy disclosure:
 
 ---
 
+## Step 1.5 — Identity capture (v2.1+)
+
+Per V3 plan §11.1 + HANDSHAKE §10.v2.1 acceptance rules. Five identity
+questions feed the v1.1 envelope's `identity` block sealed into
+`scaffold-decision.json`. The block is later consumed by `/lp-bootstrap`
+(Phase 3+) when rendering kernel artifacts (LICENSE, CONTRIBUTING,
+CODE_OF_CONDUCT, README) and by `/lp-update-identity` (Phase 10+) for
+in-place identity updates.
+
+1. **PII opt-in (default NO)**
+
+   > Include personal contact information (your email and copyright holder
+   > name) in `.launchpad/scaffold-decision.json`? This file is committed
+   > to git by default. [y/N]
+
+   If the user declines (default), the identity block is sealed with
+   placeholder values for email and copyright_holder; LICENSE and other
+   kernel artifacts will render with placeholder strings the user can
+   update later via `/lp-update-identity`.
+
+2. **Project name** (always asked; no placeholder)
+
+   Allowlist regex: `^[A-Za-z0-9_.-]{1,64}$`. Re-prompt on validation
+   failure with a one-line description of which characters are allowed.
+
+3. **Email** (skipped on PII opt-out → placeholder)
+
+   Allowlist regex: `^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$`.
+
+4. **Copyright holder** (skipped on PII opt-out → placeholder)
+
+   Printable-ASCII allowlist (`^[\x20-\x7E]{1,128}$`) with no backticks,
+   double-quotes, single-quotes, dollar signs, or semicolons (defense in
+   depth against template injection in LICENSE rendering).
+
+5. **Repository URL** (placeholder permitted on Enter)
+
+   Allowlist regex: `^https?://[\w./%-]{1,512}$`. Empty input keeps the
+   `<repo-url>` placeholder; the user can fill it in later via
+   `/lp-update-identity` after the repo is created on the host.
+
+6. **License** (always asked, default `MIT`)
+
+   Closed enum from V3 plan §10.v2.1 design lock:
+   `MIT | Apache-2.0 | GPL-3.0 | BSD-3-Clause | ISC | MPL-2.0 | Other`.
+
+   When `Other`, prompt for a free-text license body with the
+   sanitization rules:
+   - max 10 KB
+   - printable ASCII (and newlines)
+   - no Jinja delimiters: `{{`, `{%`, `{#`
+   - no HTML tags: `<`, `>`
+
+   Re-prompt on any failure.
+
+Pass the collected identity dict as the `identity=` keyword argument to
+`engine.run_pipeline()`. The engine validates the dict via
+`decision_writer.validate_identity()` BEFORE any I/O runs; an invalid
+identity returns `PipelineResult(reason="identity_validation_failed",
+field=...)` and `/lp-pick-stack` re-prompts the offending field.
+
+When the caller does NOT supply `identity=` (legacy v2.0 callers, unit
+tests), the engine writes the all-placeholder default with `pii_opt_in=
+False` per `decision_writer.default_unset_identity()`.
+
+---
+
 ## Step 2 — 5-question funnel
 
 Ask the 5 questions in order. Each answer is bounded to a closed enum
@@ -240,18 +307,32 @@ placeholder bullets.
 
 ## Step 6 — Integrity envelope + atomic decision-file write
 
-Per `SCAFFOLD_HANDSHAKE.md` §3 + §4:
+Per `SCAFFOLD_HANDSHAKE.md` §3 + §4 + §10.v2.1:
 
 1. Build the payload via `decision_writer.build_decision_payload()`:
-   - `version`: read from `lp_pick_stack.WRITTEN_DECISION_VERSION` constant
-     (the pre-ship provisional value during v2.0 dev; bumped to `"1.0"` in
-     the coordinated v2.0.0 ship commit per HANDSHAKE §10)
+   - `version`: read from `lp_pick_stack.WRITTEN_DECISION_VERSION`
+     constant (kept at `"1.0"` for v2.0-reader backward compat; the v1.1
+     envelope indicator is the new `schema_version` field below)
+   - `schema_version`: `"1.1"` from `lp_pick_stack.SCHEMA_VERSION_V2_1`
+     (v2.1 envelope indicator per V3 plan §11.1)
+   - `plugin_version`: read from
+     `plugins/launchpad/.claude-plugin/plugin.json` at write time;
+     /lp-scaffold-stack and /lp-bootstrap abort on mismatch with the
+     runtime plugin version (V3 plan §11.1 plugin-update-mid-pipeline
+     guard)
    - `layers`: from match or manual override
+   - `stacks`: flat dedup'd array derived from `layers[].stack`
+     (first-occurrence order preserved); fast-access summary so
+     /lp-scaffold-stack does not need to walk layers to enumerate stacks
    - `monorepo`: `len(layers) > 1` unless caller overrides
    - `matched_category_id`: from match or `"manual-override"`
    - `rationale_path`: `.launchpad/rationale.md`
    - `rationale_sha256`: from Step 5
    - `rationale_summary`: from Step 5's extract_summary
+   - `identity`: from Step 1.5 capture, or
+     `default_unset_identity()` placeholder block when caller did not
+     supply one. Validated via `decision_writer.validate_identity()`
+     before payload build.
    - `generated_by`: `"/lp-pick-stack"`
    - `generated_at`: ISO 8601 UTC sec-precision Z-suffix
    - `nonce`: `uuid.uuid4().hex` (32-char hex string)

@@ -371,9 +371,18 @@ Layer 4 introduced `.harness/observations/security-events.jsonl` as the audit tr
 
 `/lp-pick-stack` writes `.launchpad/scaffold-decision.json`. `/lp-scaffold-stack` reads it.
 
+The v1.1 envelope (v2.1+) is additive on top of the v1.0 envelope (v2.0):
+new fields (`schema_version`, `plugin_version`, `stacks`, `identity`,
+`identity_updated_at`) are added; legacy fields (`version`, `layers`,
+`monorepo`, etc.) are preserved verbatim. v2.0 readers ignore the new
+fields. v2.1+ readers key off `schema_version` per the §10.v2.1
+acceptance ladder. The canonical reader is
+`plugin-config-loader.py:read_scaffold_decision()`.
+
 ```json
 {
-  "version": "0.x-test",
+  // v1.0 envelope — unchanged from v2.0
+  "version": "1.0",
   "layers": [
     {
       "stack": "<id-from-scaffolders.yml>",
@@ -406,9 +415,50 @@ Layer 4 introduced `.harness/observations/security-events.jsonl` as the audit tr
     "st_dev":   <integer device id>,
     "st_ino":   <integer inode number>
   },
+
+  // v1.1 envelope additions (v2.1+) — see §10.v2.1 acceptance rules
+  "schema_version": "1.1",
+  "plugin_version": "2.1.0",
+  "stacks": ["<stack-id>", "..."],
+  "identity": {
+    "pii_opt_in": false,
+    "project_name": "<project-name-or-placeholder>",
+    "email": "<email-or-placeholder>",
+    "copyright_holder": "<copyright-holder-or-placeholder>",
+    "repo_url": "<repo-url-or-placeholder>",
+    "license": "<MIT|Apache-2.0|GPL-3.0|BSD-3-Clause|ISC|MPL-2.0|Other>",
+    "license_other_body": ""  // only populated when license=="Other"
+  },
+  // identity_updated_at present only after /lp-update-identity has run
+  "identity_updated_at": "<ISO 8601 UTC, optional>",
+
   "sha256": "<hex of canonical_hash over all fields above except sha256 itself>"
 }
 ```
+
+**v1.1 envelope field semantics**:
+
+- `schema_version`: indicator field for the §10.v2.1 acceptance ladder.
+  Absent or `"1.0"` reads as legacy 1.0 with UNSET identity sentinels;
+  `"1.1"` reads in full v2.1 mode.
+- `plugin_version`: the running plugin version captured at
+  `/lp-pick-stack`. `/lp-scaffold-stack` and `/lp-bootstrap` abort with
+  a structured error if the running plugin version differs from this
+  recorded value, preventing a `/plugin update` between pipeline steps
+  from invalidating the manifest's hash chain (V3 plan §11.1).
+- `stacks`: flat dedup'd array derived from `layers[].stack` with
+  first-occurrence order preserved. Fast-access summary so consumers do
+  not need to walk `layers` to enumerate stacks.
+- `identity`: sealed at `/lp-pick-stack` time per §10.v2.1 input
+  allowlist regexes; the `pii_opt_in: false` posture writes placeholders
+  for `email`, `copyright_holder`, and `repo_url` (always-placeholder
+  for `repo_url` until the user fills it in via `/lp-update-identity`).
+  License `"Other"` carries a free-form `license_other_body` constrained
+  by §10.v2.1 sanitization rules (max 10KB, printable ASCII, no Jinja
+  delimiters, no HTML tags).
+- `identity_updated_at`: ISO 8601 UTC timestamp written by
+  `/lp-update-identity` (Phase 10+) on each successful identity update.
+  Absent on the original `/lp-pick-stack` write.
 
 ### Validation rules (orchestration MUST enforce all of them before any subprocess executes)
 
@@ -973,6 +1023,7 @@ Lifecycle:
 - **In-flight test fixtures** (Layer 2 P1-1): any `scaffold-decision.json` / `scaffold-receipt.json` files written during testing with `version: "0.x-test"` are regenerated AND re-signed (SHA-256 envelopes recomputed against `"1.0"`) by `plugin-v2-handshake-lint.py --regenerate-fixtures` (folded into the lint CLI per Layer 3 simplicity P1-F + architecture P2-6 — was a separate `regenerate-fixtures.py` script in Layer 2 spec, consolidated into the existing lint CLI as a `--regenerate-fixtures` flag mode for SRP coherence — read-only verification + write-mutating regeneration both share the §10 bump-list awareness). The script is **2-pass atomic** (Layer 3 spec-flow P1-2): pass 1 (validate) parses every fixture in the manifest, computes target hashes in memory, exits non-zero if any fixture is malformed; pass 2 (atomic write) writes regenerated files via temp-file + atomic-rename. `--dry-run` flag runs pass 1 only.
 - **Working-tree advisory** (Layer 2 P1-1 case 3): pre-merge of the v2.0.0 ship commit, every contributor on `feat/v2-greenfield-pipeline` MUST verify `git status` is clean and `find . -name 'scaffold-*.json'` returns no untracked fixtures. OPERATIONS §3 branch-drift discipline carries this advisory.
 - **Post-ship breaking changes** (v2.1+): bump to `"1.1"` only if forward-compatible with `"1.0"`; bump to `"2.0"` for breaking changes.
+- **v2.1 envelope (additive minor)**: v2.1 keeps the legacy `version` field at `"1.0"` for v2.0-reader compat and adds a NEW `schema_version` field carrying `"1.1"` as the v2.1 reader indicator. Acceptance ladder lives in §10.v2.1 (next sub-section). The §4 schema documents both the v1.0 and v1.1 fields side by side. New v2.1 fields (`schema_version`, `plugin_version`, `stacks`, `identity`, `identity_updated_at`) are all additive; v2.0 readers ignore them. Bootstrap-manifest envelope uses an independent `manifest_schema_version` field (rename closes the cross-envelope name collision) — see §10.v2.1 acceptance rules.
 
 Both `scaffold-decision.json` and `scaffold-receipt.json` carry their own version field independently — they may diverge in future versions, subject to the receipt-version-≥-decision-version constraint (Layer 3 architecture P3-5): receipt cannot be older-versioned than the decision it acknowledges.
 

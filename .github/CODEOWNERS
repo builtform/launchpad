@@ -42,3 +42,15 @@
 /docs/architecture/                @builtform/core
 /docs/guides/                      @builtform/core
 /docs/releases/                    @builtform/core
+
+# Schema-source files for the v2.1 schema-CODEOWNERS gate (V3 plan §11.6 +
+# §11.7, locked in HANDSHAKE §10.v2.1). Changes here MUST be paired with
+# a SCAFFOLD_HANDSHAKE.md update in the same PR; the gate is enforced by
+# `plugin-v2-handshake-lint.py --check-schema-codeowners-gate` running in
+# v2-handshake-lint.yml. CODEOWNERS rules below ensure @builtform/core is
+# pulled into review on every schema-source change so the gate result
+# lands in front of an owner who can interpret it.
+/plugins/launchpad/scripts/lp_pick_stack/__init__.py        @builtform/core
+/plugins/launchpad/scripts/lp_pick_stack/decision_writer.py @builtform/core
+/plugins/launchpad/scripts/plugin-config-loader.py          @builtform/core
+/docs/architecture/SCAFFOLD_HANDSHAKE.md                    @builtform/core

@@ -18,6 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Fetch full history so the schema-codeowners gate can compute
+          # `git diff origin/main...HEAD`; default fetch-depth: 1 only
+          # contains HEAD which makes the gate report "diff failed".
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -40,6 +45,15 @@ jobs:
 
       - name: Run v2 handshake lint
         run: python plugins/launchpad/scripts/plugin-v2-handshake-lint.py
+
+      - name: Schema-CODEOWNERS gate (v2.1+)
+        # V3 plan §11.6 + §11.7 + HANDSHAKE §10.v2.1: schema-source code
+        # changes MUST be paired with a SCAFFOLD_HANDSHAKE.md update in
+        # the same PR. The gate uses `git diff origin/main...HEAD` so the
+        # `fetch-depth: 0` checkout above is required.
+        env:
+          LP_BASE_REF: origin/${{ github.base_ref || 'main' }}
+        run: python plugins/launchpad/scripts/plugin-v2-handshake-lint.py --check-schema-codeowners-gate
 
       - name: Run full v2 test suite
         # Run the FULL pytest suite under plugins/launchpad/scripts/. The
