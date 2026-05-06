@@ -174,3 +174,85 @@ def test_missing_entry_for_plugin_shipped_target_raises_manifest_tampered(tmp_pa
     _write_manifest(manifest_path, payload)
     result = run_bootstrap(tmp_path, mode="greenfield", identity=_identity())
     assert result.outcome == "manifest_tampered"
+
+
+# --- Phase 11 DA3 augment: SymlinkSubstitution ----------------------------
+
+
+def test_symlink_substitution_rejects_with_path_traversal(tmp_path):
+    """Phase 11 DA3 augment #1. A managed file is replaced with a symlink
+    pointing outside the repo; the next /lp-bootstrap run hits the
+    policy.py:228 symlink rejection (PATH_TRAVERSAL_REJECTED) and aborts
+    without writing through the symlink. Note: outcome falls into the
+    default `render_failed` bucket because PATH_TRAVERSAL_REJECTED is not
+    explicitly mapped in `_outcome_for`; the structured error code is the
+    authoritative signal."""
+    _bootstrap_clean(tmp_path)
+    target = tmp_path / "scripts" / "compound" / "build.sh"
+    assert target.is_file(), (
+        "expected scripts/compound/build.sh to be a managed manifest file; "
+        "manifest fixture changed?"
+    )
+
+    # Stage an attacker-writable file outside the repo and substitute a
+    # symlink in place of the managed file.
+    attacker = tmp_path.parent / f"attacker-{tmp_path.name}.sh"
+    attacker.write_text("# attacker-controlled content\n", encoding="utf-8")
+    target.unlink()
+    target.symlink_to(attacker)
+    assert target.is_symlink()
+
+    result = run_bootstrap(tmp_path, mode="greenfield", identity=_identity())
+    # The bootstrap aborts before any write through the symlink. The
+    # error code is the canonical signal regardless of which outcome
+    # bucket the engine routes to.
+    assert result.outcome != "success", (
+        f"expected non-success after symlink substitution; got {result.outcome!r}"
+    )
+    error_codes = {e.code for e in result.errors}
+    assert BootstrapErrorCode.PATH_TRAVERSAL_REJECTED in error_codes, (
+        f"expected PATH_TRAVERSAL_REJECTED in errors; got {error_codes!r}"
+    )
+    # Attacker content must not have been overwritten through the symlink.
+    assert attacker.read_text(encoding="utf-8") == "# attacker-controlled content\n"
+
+
+# --- Phase 11 DA3 augment: TOCTOU between sha verify and read ------------
+
+
+def test_toctou_between_sha_verify_and_read_raises_manifest_tampered(tmp_path):
+    """Phase 11 DA3 augment #2. Simulates a TOCTOU race where the
+    manifest passed integrity-verify in a prior run but a per-file
+    `source_template_sha256` is rewritten to a value that no longer
+    matches the cached plugin-shipped template. The re-run reaches
+    `_verify_manifest_integrity`, which calls
+    `verify_source_template_shas` (`manifest_writer.py:286-299`) and
+    detects the mismatch on consume -- raising MANIFEST_TAMPERED.
+
+    Distinct from `test_edited_source_template_sha_raises_manifest_tampered`:
+    that one mutates one entry; this scenario tampers a DIFFERENT entry
+    AND the rendered_content_sha256 simultaneously, simulating a swap-
+    after-verify attack where both the manifest hash field and the
+    rendered-content claim were rewritten between bootstrap runs."""
+    manifest_path = _bootstrap_clean(tmp_path)
+    payload = _read_manifest(manifest_path)
+    # Pick a different entry than test_edited_source_template_sha to keep
+    # the surface distinct: scripts/compound/build.sh (entry index 1).
+    target_entry = payload["files"][1]
+    target_path = tmp_path / target_entry["path"]
+    assert target_path.is_file()
+
+    # Simulate a swap-after-verify: tamper BOTH source and rendered shas
+    # simultaneously, mimicking an attacker who staged the file content
+    # change AND the manifest field rewrite.
+    target_entry["source_template_sha256"] = "1" * 64
+    target_entry["rendered_content_sha256"] = "2" * 64
+    _write_manifest(manifest_path, payload)
+
+    result = run_bootstrap(tmp_path, mode="greenfield", identity=_identity())
+    assert result.outcome == "manifest_tampered", (
+        f"expected manifest_tampered after TOCTOU-style double-tamper; "
+        f"got {result.outcome!r}"
+    )
+    # The structured error code carries the integrity verdict.
+    assert result.errors[0].code == BootstrapErrorCode.MANIFEST_TAMPERED
