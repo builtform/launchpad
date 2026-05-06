@@ -431,6 +431,27 @@ acceptance ladder. The canonical reader is
   },
   // identity_updated_at present only after /lp-update-identity has run
   "identity_updated_at": "<ISO 8601 UTC, optional>",
+  // kernel_render_state sealed by lp_scaffold_stack engine after a
+  // successful KernelRenderer.render_all (Phase 10 DA7-flipped). Updated
+  // by /lp-update-identity on each refresh per §3.7.
+  "kernel_render_state": [
+    {
+      "path": "<relpath e.g. LICENSE>",
+      "rendered_content_sha256": "<hex sha256 of the file as written>",
+      "source_template_sha256": "<hex sha256 of the .j2 template source>"
+    }
+  ],
+  // version_drift_log appended by /lp-update-identity on each successful
+  // identity update (DA8). Absent on the original /lp-pick-stack write.
+  "version_drift_log": [
+    {
+      "from": "<plugin_version before this update>",
+      "to":   "<plugin_version after this update>",
+      "via":  "/lp-update-identity",
+      "fields_changed": ["<identity field name>"],
+      "at":   "<ISO 8601 UTC>"
+    }
+  ],
 
   "sha256": "<hex of canonical_hash over all fields above except sha256 itself>"
 }
@@ -455,10 +476,33 @@ acceptance ladder. The canonical reader is
   for `repo_url` until the user fills it in via `/lp-update-identity`).
   License `"Other"` carries a free-form `license_other_body` constrained
   by §10.v2.1 sanitization rules (max 10KB, printable ASCII, no Jinja
-  delimiters, no HTML tags).
+  delimiters, no HTML tags). The canonical reader
+  (`plugin-config-loader.read_scaffold_decision()`) validates the
+  identity block on read against the §10.v2.1 allowlist regexes
+  (Phase 1+2 retroactive amendment A5), so a hand-edited or tampered
+  envelope is rejected before downstream renderers run.
 - `identity_updated_at`: ISO 8601 UTC timestamp written by
   `/lp-update-identity` (Phase 10+) on each successful identity update.
   Absent on the original `/lp-pick-stack` write.
+- `kernel_render_state`: per-file sha256 record of the last successful
+  kernel render. Sealed by `lp_scaffold_stack` engine (greenfield) and
+  re-sealed by `lp_update_identity` engine (refresh) so the renderer's
+  per-file sha is the single source of truth at refresh time
+  (architecture-strategist P2-A; eliminates asymmetric coupling).
+  `KernelRenderer.refresh()` reads this list from the caller, computes
+  on-disk sha for each kernel file, and refuses individual files whose
+  sha drifted from the recorded value (`USER_EDIT_BLOCKS_REFRESH` per
+  §3.7). Phase 1+2 retroactive amendment A7 made the seal a
+  caller-side responsibility to remove the renderer's prior dependency
+  on `lp_pick_stack.decision_writer`.
+- `version_drift_log`: append-only audit trail of plugin-version
+  transitions captured by `/lp-update-identity`. Each entry records the
+  `from`/`to` `plugin_version`, the calling command (`via`), the list
+  of identity field NAMES that changed (NOT the values, per Phase 10
+  DA8 PII rule), and the UTC timestamp. Empty/absent on the original
+  `/lp-pick-stack` write; `/lp-update-identity` appends one entry per
+  successful update (no-op fast-path skips the append per adversarial
+  P3).
 
 ### Validation rules (orchestration MUST enforce all of them before any subprocess executes)
 
@@ -1047,13 +1091,13 @@ The full forward-compat matrix (consumer-superset rule, producer-floor rule, per
 
 **`scaffold-decision.json` schema acceptance rules** (v2.1 reader; canonical at `plugin-config-loader.py:read_scaffold_decision()`):
 
-| `schema_version`    | Behavior                                                                                               |
-| ------------------- | ------------------------------------------------------------------------------------------------------ |
-| absent OR `"1.0"`   | Treat as 1.0; identity defaults to UNSET sentinels; stacks defaults to [detected]; emit WARN           |
-| `"1.1"`             | Full read; identity required if present MUST validate against allowlist regex; stacks required (array) |
-| `"1.x"` where x > 1 | Forward-compat: read known fields, ignore unknown, emit INFO                                           |
-| Major `>= 2`        | Fail closed: `"scaffold-decision.json schema 2.0+ requires plugin v3+"`                                |
-| Malformed           | Fail closed with clear error                                                                           |
+| `schema_version`    | Behavior                                                                                                                                                                                                                                                                                                                                            |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| absent OR `"1.0"`   | Treat as 1.0; identity defaults to UNSET sentinels; stacks defaults to [detected]; emit WARN. `/lp-update-identity` transparently migrates legacy 1.0 envelopes to 1.1 on first invocation (Phase 1+2 retroactive amendment A3) by seeding `default_unset_identity()` if absent and bumping `schema_version` to `"1.1"` in the same atomic re-seal. |
+| `"1.1"`             | Full read; identity required if present MUST validate against allowlist regex; stacks required (array). Known top-level fields include `kernel_render_state` and `version_drift_log` (Phase 10 + Phase 1+2 amendment A8).                                                                                                                           |
+| `"1.x"` where x > 1 | Forward-compat: read known fields, ignore unknown, emit INFO                                                                                                                                                                                                                                                                                        |
+| Major `>= 2`        | Fail closed: `"scaffold-decision.json schema 2.0+ requires plugin v3+"`                                                                                                                                                                                                                                                                             |
+| Malformed           | Fail closed with clear error                                                                                                                                                                                                                                                                                                                        |
 
 **`bootstrap-manifest.json` schema acceptance rules** (v2.1 reader; canonical at `plugin-config-loader.py:read_bootstrap_manifest()`):
 
@@ -1078,9 +1122,9 @@ Future additions require schema 1.x bump + HANDSHAKE update in same PR (CODEOWNE
 
 **Identity input allowlist regex** (canonical for v2.1 + Round 2 #16 supply-chain hardening):
 
-- `project_name`: `^[A-Za-z0-9_.-]{1,64}$`
+- `project_name`: `^[A-Za-z][A-Za-z0-9_.-]{0,63}$` (must start with ASCII letter; the literal strings `.` and `..` are also explicitly rejected at validate_identity as defense-in-depth against path-traversal injection — Phase 1+2 retroactive amendment A2)
 - `email`: RFC5322-lite (no whitespace, no quotes, must contain `@` + valid domain)
-- `copyright_holder`: printable-ASCII; no backticks, quotes, dollar-signs, semicolons, newlines; max 200 chars
+- `copyright_holder`: printable-ASCII; no backticks, quotes, dollar-signs, semicolons, newlines, Jinja delimiters (`{`, `}`), HTML angle brackets (`<`, `>`), or format-string `%`; max 200 chars (regex `^[\x20-\x7E]{1,200}$` plus a forbidden-chars deny list)
 - `repo_url`: `^https?://[\w./%-]{1,512}$`
 
 **Plugin version pin in scaffold-decision 1.1** (Round 3 P1 closure for `/plugin update` mid-pipeline): `/lp-pick-stack` records running plugin version into scaffold-decision.json `plugin_version` field. `/lp-scaffold-stack` and `/lp-bootstrap` ABORT with structured error if running plugin version differs from recorded version (prevents the §10.7 manifest-tampering check from rejecting freshly-sealed manifest because templates changed mid-flow). `/lp-update-identity` updates the field forward to running plugin version on each invocation.
