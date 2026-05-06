@@ -202,12 +202,12 @@ Once `/lp-define` has rendered the project's architecture docs and the four-comm
 
 The command detects which of five re-entry cases applies (A through E per the canonical matrix in [lp-update-identity command spec](../../plugins/launchpad/commands/lp-update-identity.md)). Migration of pre-v2.1 envelopes from `schema_version: "1.0"` to `"1.1"` happens transparently as in-memory preprocessing before case dispatch, so the legacy-migration path folds into Case B (seed-as-first-time). The command validates the new identity input against the documented regex constants, re-renders the 7 kernel templates atomically, and re-seals `scaffold-decision.json` with `generated_at` preserved byte-identical. After a successful run, `/lp-update-identity` prints a PII WARN noting that prior identity values persist in git history.
 
-| Flag                     | Effect                                                                                                    |
-| ------------------------ | --------------------------------------------------------------------------------------------------------- |
-| `--dry-run`              | preview the changes without writing                                                                       |
-| `--seed-brownfield`      | seed identity for projects scaffolded before v2.1 (triggers Case D email cross-check)                     |
-| `--allow-email-mismatch` | accept that the project email differs from `git config user.email` (Case D escape)                        |
-| `--quiet`                | suppress the PII WARN print + diff summary (informational only; does not change history-rewrite behavior) |
+| Flag                     | Effect                                                                                                                                                                                                                                   |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--dry-run`              | preview the changes without writing                                                                                                                                                                                                      |
+| `--seed-brownfield`      | seed identity for projects scaffolded before v2.1 (triggers Case D email cross-check)                                                                                                                                                    |
+| `--allow-email-mismatch` | accept that the project email differs from `git config user.email` (Case D escape)                                                                                                                                                       |
+| `--quiet`                | suppress the PII WARN print + diff summary (informational only; does NOT suppress the Case D `--seed-brownfield` banner, the brownfield Continue prompt, or the `--allow-email-mismatch` WARN; does not change history-rewrite behavior) |
 
 Stale-sentinel recovery is automatic: a dead-PID sentinel from an interrupted prior run is auto-cleared at preflight time with an INFO entry; no flag needed. Plugin-version drift is recorded automatically in `version_drift_log` whenever the running plugin version differs from the value sealed in `scaffold-decision.json`.
 
@@ -428,23 +428,24 @@ Collaborative idea exploration. Loads brainstorming skill, dispatches research a
 
 ### Other commands
 
-| Command                   | Purpose                                                                                                            |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `/lp-defer`               | Manually add a task to the backlog via `.harness/observations/`                                                    |
-| `/lp-regenerate-backlog`  | Regenerate `docs/tasks/BACKLOG.md` from deferred observations and section registry                                 |
-| `/lp-design-review`       | 8-design + 4-tech dimension quality audit with AI slop detection                                                   |
-| `/lp-design-polish`       | Pre-ship refinement pass for alignment, spacing, copy, interaction states                                          |
-| `/lp-copy`                | Reads copy brief from section spec, provides copy context for design builds                                        |
-| `/lp-copy-review`         | Dispatches copy review agents from `review_copy_agents`                                                            |
-| `/lp-feature-video`       | Records design walkthrough: screenshots → MP4+GIF via ffmpeg → upload via rclone/imgup                             |
-| `/lp-resolve-pr-comments` | Batch-resolves unresolved PR review comments with parallel agents                                                  |
-| `/lp-update-spec`         | Scans all spec files for gaps, TBDs, cross-file inconsistencies                                                    |
-| `/lp-hydrate`             | Session bootstrapping with minimal context                                                                         |
-| `/lp-research-codebase`   | Two-wave research → `docs/reports/` (input for `/lp-inf`)                                                          |
-| `/lp-pull-launchpad`      | Decommissioned in v2.1 (BL-247); use `claude /plugin update launchpad` instead                                     |
-| `/lp-create-agent`        | Create a new agent or convert an existing skill into an agent                                                      |
-| `/lp-memory-report`       | Update session memory files and create a detailed session report                                                   |
-| `/lp-design-onboard`      | Design onboarding flows, empty states, first-time user experiences (invoked from `/lp-plan` Step 2b when relevant) |
+| Command                   | Purpose                                                                                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/lp-update-identity`     | Update sealed identity (project rename, license, copyright holder, email, repo URL, PII opt-in) without re-scaffolding; see "Post-scaffold lifecycle" section above |
+| `/lp-defer`               | Manually add a task to the backlog via `.harness/observations/`                                                                                                     |
+| `/lp-regenerate-backlog`  | Regenerate `docs/tasks/BACKLOG.md` from deferred observations and section registry                                                                                  |
+| `/lp-design-review`       | 8-design + 4-tech dimension quality audit with AI slop detection                                                                                                    |
+| `/lp-design-polish`       | Pre-ship refinement pass for alignment, spacing, copy, interaction states                                                                                           |
+| `/lp-copy`                | Reads copy brief from section spec, provides copy context for design builds                                                                                         |
+| `/lp-copy-review`         | Dispatches copy review agents from `review_copy_agents`                                                                                                             |
+| `/lp-feature-video`       | Records design walkthrough: screenshots → MP4+GIF via ffmpeg → upload via rclone/imgup                                                                              |
+| `/lp-resolve-pr-comments` | Batch-resolves unresolved PR review comments with parallel agents                                                                                                   |
+| `/lp-update-spec`         | Scans all spec files for gaps, TBDs, cross-file inconsistencies                                                                                                     |
+| `/lp-hydrate`             | Session bootstrapping with minimal context                                                                                                                          |
+| `/lp-research-codebase`   | Two-wave research → `docs/reports/` (input for `/lp-inf`)                                                                                                           |
+| `/lp-pull-launchpad`      | Decommissioned in v2.1 (BL-247); use `claude /plugin update launchpad` instead                                                                                      |
+| `/lp-create-agent`        | Create a new agent or convert an existing skill into an agent                                                                                                       |
+| `/lp-memory-report`       | Update session memory files and create a detailed session report                                                                                                    |
+| `/lp-design-onboard`      | Design onboarding flows, empty states, first-time user experiences (invoked from `/lp-plan` Step 2b when relevant)                                                  |
 
 ---
 
