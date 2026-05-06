@@ -14,6 +14,7 @@ Plan reference: docs/plans/launchpad_plans/2026-05-05-v2.1-phase8.5-implementati
 """
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -355,6 +356,135 @@ def test_secret_allowlist_file_path_exempts_whole_file(tmp_path):
         allowlist_path=allowlist_path,
     )
     assert len(kept_other) == 1
+
+
+# ---------------------------------------------------------------------------
+# Slice F -- zero-reference + audit-log integrity
+# ---------------------------------------------------------------------------
+
+# Permitted artifact roots: docstring / comment / historical-doc references
+# to plugin-doc-generator are explicitly OK per HALT resolution table in
+# Phase 8.5 plan section 3.1.
+_PERMITTED_PATH_FRAGMENTS = (
+    "docs/plans/launchpad_plans/",
+    "docs/reports/",
+    "docs/handoffs/",
+    "docs/maintainers/decommission-history.md",
+    "docs/releases/v1.0.0.md",
+    "docs/releases/v1.0.1.md",
+    "docs/tasks/BACKLOG.md",
+    "/_vendor/",
+    "/__pycache__/",
+    "node_modules/",
+    "/template_cache/",
+    ".harness/",
+    ".git/",
+)
+
+
+def _is_permitted_path(path_str: str) -> bool:
+    return any(frag in path_str for frag in _PERMITTED_PATH_FRAGMENTS)
+
+
+def test_zero_static_imports_of_plugin_doc_generator():
+    """No active Python `import` / `from` statements reference
+    plugin_doc_generator across the codebase. Phase 8.5 plan section 3.1
+    Tier 2 (AST scan)."""
+    import ast as _ast
+
+    hits: list[str] = []
+    for py_path in REPO_ROOT.rglob("plugins/launchpad/scripts/**/*.py"):
+        rel = py_path.relative_to(REPO_ROOT).as_posix()
+        if _is_permitted_path(rel):
+            continue
+        try:
+            tree = _ast.parse(py_path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        for node in _ast.walk(tree):
+            if isinstance(node, _ast.ImportFrom) and (node.module or "").endswith(
+                "plugin_doc_generator"
+            ):
+                hits.append(f"{rel}:{node.lineno}: from {node.module}")
+            elif isinstance(node, _ast.Import):
+                for alias in node.names:
+                    if "plugin_doc_generator" in alias.name:
+                        hits.append(f"{rel}:{node.lineno}: import {alias.name}")
+    assert not hits, (
+        f"Phase 8.5 BL-247 deleted plugin-doc-generator.py; no active "
+        f"imports may remain. Hits:\n  " + "\n  ".join(hits)
+    )
+
+
+@pytest.mark.parametrize(
+    "needle",
+    [
+        # Tier 3 dynamic import / spec_from_file_location
+        "importlib.import_module(",
+        "spec_from_file_location",
+        # Tier 4 subprocess-invocation
+        'subprocess.run([',
+        'subprocess.Popen([',
+        # Tier 5 reflection
+        "pkgutil.iter_modules",
+        "importlib.metadata.entry_points",
+        "pydoc.locate",
+    ],
+)
+def test_zero_dynamic_subprocess_or_reflection_references(needle: str) -> None:
+    """No dynamic import / subprocess-invocation / reflection lookup of
+    plugin-doc-generator anywhere in the active code path. Phase 8.5
+    plan section 3.1 Tiers 3 + 4 + 5 combined."""
+    hits: list[str] = []
+    for py_path in REPO_ROOT.rglob("plugins/launchpad/scripts/**/*.py"):
+        rel = py_path.relative_to(REPO_ROOT).as_posix()
+        if _is_permitted_path(rel):
+            continue
+        try:
+            text = py_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for line_no, line in enumerate(text.splitlines(), start=1):
+            stripped = line.lstrip()
+            if stripped.startswith("#"):
+                continue
+            if needle not in line:
+                continue
+            if (
+                "plugin_doc_generator" in line
+                or "plugin-doc-generator" in line
+            ):
+                hits.append(f"{rel}:{line_no}: {line.strip()[:160]}")
+    assert not hits, (
+        f"Phase 8.5 BL-247: dynamic / subprocess / reflection reference "
+        f"to plugin-doc-generator via {needle!r}:\n  " + "\n  ".join(hits)
+    )
+
+
+def test_decommission_history_append_well_formed():
+    """The Phase 8.5 entry in docs/maintainers/decommission-history.md
+    is well-formed: file ends with newline; a row exists for
+    plugin-doc-generator.py with BL-247 / Round 2 P2-A + Phase 8.5;
+    pre-delete sha256 column populated."""
+    audit_log = REPO_ROOT / "docs" / "maintainers" / "decommission-history.md"
+    assert audit_log.is_file(), "decommission-history.md must exist"
+    body = audit_log.read_text(encoding="utf-8")
+    assert body.endswith("\n"), "audit log must end with a trailing newline"
+
+    # Row for plugin-doc-generator.py with Phase 8.5 + BL-247 + sha256.
+    pdg_pattern = re.compile(
+        r"\|\s*[0-9-]+\s*\|\s*`plugins/launchpad/scripts/plugin-doc-generator\.py`"
+        r".*?BL-247.*?8\.5.*?",
+        re.DOTALL,
+    )
+    assert pdg_pattern.search(body), (
+        "Phase 8.5 audit-log row for plugin-doc-generator.py is missing "
+        "or malformed"
+    )
+    # Pre-delete sha256 must appear somewhere in the audit log appended row.
+    assert "e13580b8dac3dc45521117c23db0d6ba50661ac66b2c363e7e93a2e198d89f30" in body, (
+        "pre-delete sha256 missing from Phase 8.5 audit-log row"
+    )
 
 
 # ---------------------------------------------------------------------------
