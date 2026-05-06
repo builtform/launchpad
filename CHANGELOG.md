@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 Tracked in [ROADMAP.md](ROADMAP.md). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` (BL-251 through BL-254) for v2.2-deferred items captured during v2.1 ship.
 
-## [2.1.0] -- 2026-05-XX
+## [2.1.0] -- 2026-05-06
 
 Architecture refresh: composition wrapper, sealed identity, brownfield-safe re-runs. v2.1 layers a per-stack composition wrapper, a sealed identity contract, and a brownfield-aware re-run path on top of the v2.0 four-command greenfield pipeline. Two new commands ship (`/lp-bootstrap`, `/lp-update-identity`) and the v2.0 four-command greenfield pipeline keeps its v2.0 behavior end-to-end.
 

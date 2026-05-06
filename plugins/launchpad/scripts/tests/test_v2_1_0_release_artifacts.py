@@ -6,9 +6,10 @@ silently regress them between Phase 9 ship and Phase 11 finalize.
 
 Tests cover:
 
-  1. Release notes file exists, has 6 H2 headings, carries the DRAFT
-     marker on first line, and honors the DA7 heading-collision invariant
-     (no `^## ` line inside any fenced code block).
+  1. Release notes file exists, has 6 H2 headings, has the DRAFT marker
+     ABSENT (removed by Phase 11 §11 ship ceremony), and honors the DA7
+     heading-collision invariant (no `^## ` line inside any fenced code
+     block).
   2. No `.v2.md` siblings remain anywhere under `docs/`.
   3. `.claude-plugin/marketplace.json` plugin description matches the
      DA0a-locked phrasing byte-for-byte AND contains the Unicode-arrow
@@ -106,15 +107,14 @@ def test_release_notes_v2_1_0_structure() -> None:
     for h in required_h2:
         assert h in content, f"missing H2: {h!r}"
 
-    # DRAFT marker: belt-and-suspenders form per cycle 3 Adversarial P1 #3.
-    draft_marker = "<!-- DRAFT: finalized in Phase 11 ship sequence -->"
-    assert content.lstrip().startswith(draft_marker), (
-        "release notes must start with DRAFT marker (after optional leading "
-        "whitespace); Phase 11 plan removes during finalize"
-    )
-    assert "<!-- DRAFT:" in content[:200], (
-        "DRAFT marker must appear in first 200 chars; substring-only check "
-        "without position would be ambiguous"
+    # DRAFT marker MUST be absent post-ship-ceremony per Phase 11 §11.
+    # Phase 9 required marker presence as ship invariant; ship ceremony
+    # removes it as part of finalization, and this assertion inverts to
+    # guard against accidental re-introduction.
+    assert "<!-- DRAFT:" not in content[:200], (
+        "DRAFT marker must be absent in shipped release notes; Phase 11 "
+        "ship ceremony removes the marker. If this fails, the marker was "
+        "re-introduced in error."
     )
 
     # DA7 heading-collision invariant (cycle 6 v7 P1-3 absorption):
