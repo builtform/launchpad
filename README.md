@@ -68,6 +68,8 @@ git checkout v2.0.x
 
 The `init-project.sh` script and 7 `*.template.*` swap files were decommissioned in v2.1 (BL-247). See `docs/maintainers/decommission-history.md` for the canonical audit log; see CHANGELOG.md (v2.1.0) for the user-facing migration note.
 
+**Upgrading from v2.0?** The v2.1 plugin auto-migrates v2.0 scaffold artifacts to `schema_version: "1.1"` on first contact. For the migration walkthrough, rollback policy, plugin-pinning recommendation, and trust-model summary, see [docs/releases/v2.1.0.md](docs/releases/v2.1.0.md).
+
 ---
 
 ## First 15 Minutes

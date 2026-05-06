@@ -38,6 +38,16 @@ cd plugins/launchpad/scripts
 python3 -m pytest
 ```
 
+For faster local feedback on Python changes, `python3 -m pytest -n auto` parallelizes across cores.
+
+Before pushing, run the full pre-commit gate locally:
+
+```bash
+lefthook run pre-commit
+```
+
+This is what CI runs and what blocks PR merge if any check fails.
+
 All test suites must stay green before a PR is mergeable. CI runs them automatically.
 
 ## Project structure

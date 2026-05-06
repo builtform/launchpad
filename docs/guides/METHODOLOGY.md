@@ -256,7 +256,7 @@ The compounding philosophy and structured learning capture system. All 29 agents
 
 **By:** Ryan Carson — [snarktank/compound-product](https://github.com/snarktank/compound-product)
 
-The core pipeline: report → analysis → PRD → tasks → autonomous loop → PR. Adapted into `scripts/compound/` (template path) with significant modifications.
+The core pipeline: report → analysis → PRD → tasks → autonomous loop → PR. Adapted into `scripts/compound/` (rendered into every project via `/lp-bootstrap`; delivery mechanism changes from template-clone to plugin-bundled in v2.1 per BL-247) with significant modifications.
 
 ### Ralph
 
@@ -282,5 +282,5 @@ The philosophy of "specify before building." LaunchPad's implementation produces
 
 - [README](../../README.md)
 - [How It Works](HOW_IT_WORKS.md) — day-to-day operator's manual
-- [Repository Structure](../architecture/REPOSITORY_STRUCTURE.md) — file-placement decision tree (template path)
+- [Repository Structure](../architecture/REPOSITORY_STRUCTURE.md) — file-placement decision tree
 - [Release notes](../releases/v1.0.0.md)

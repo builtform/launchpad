@@ -741,4 +741,183 @@ Cross-references: HANDSHAKE §14 (manifest contract), Phase 3 implementation pla
 
 ---
 
+## 11. v2.1 adapter dispatch + composition sequencing + cache lifecycle + SIGINT semantics
+
+### 11.1 Adapter dispatch entrypoints
+
+The v2.1 dispatch surface lives in
+`plugins/launchpad/scripts/lp_scaffold_stack/v21_adapter_dispatch.py`:
+
+- `resolve_adapter(stack_id) -> Adapter`: closed-enum lookup over the 5
+  active stack ids; raises `ScaffoldStepFailedError` for unknown ids with
+  the structured triple `reason / path / remediation`.
+- `dispatch_single_adapter(adapter, workspace_dir)`: invokes
+  `Adapter.scaffold_into(workspace_dir)` followed by
+  `Adapter.apply_overlay(workspace_dir)`. The `bridge_to_scaffold_error`
+  helper from `contracts.py` normalizes any per-module exception to
+  `ScaffoldStepFailedError` while preserving the structured triple per
+  Phase 3 §3.11.5(b) inheritance.
+- `dispatch_composition(adapters, composition_root)`: wraps
+  `composition.compose` with the §3.12 N=2 cap rejection surfaced verbatim
+  via `CompositionAbortError`.
+- `dispatch_by_stack_ids(stack_ids, workspace_dir)`: one-shot entrypoint
+  returning `Path` for single-id input or `CompositionResult` for multi-id.
+
+### 11.2 Composition sequencing
+
+`compose(adapters, composition_root)`:
+
+1. `validate_pair(adapters)` enforces N=2 cap, ts_monorepo + \* catch-all
+   rejection (collapses 4 of the 10 C(5,2) pairs), duplicate rejection,
+   and partner-missing-from-composes_with rejection.
+2. `resolve_workspace_allocation` builds the `workspace_dir -> adapter`
+   mapping with collision-suffix logic. The only v2.1 pair that triggers
+   the `app -> app-fe` rename is `nextjs_standalone + nextjs_fastapi`; the
+   verbatim §3.12 INFO log fires when the rename runs.
+3. Same-FS pre-flight via `st_dev` comparison between `composition_root`
+   and `composition_root/.tmp/`. Cross-FS aborts with the verbatim §3.12
+   message and exit 1.
+4. Per-adapter `scaffold_into + apply_overlay` runs into a tempdir under
+   `composition_root/.tmp/lp-<stack_id>-<uuid>/`.
+5. After all adapters complete, atomic `os.replace` into
+   `composition_root/apps/<workspace_name>/` for each.
+6. On any per-adapter failure, rollback runs `shutil.rmtree` on every
+   rendered tempdir. Errors during cleanup log the verbatim secrets-warning
+   recommendation per harden P0 ("manual cleanup required (may contain
+   secrets-shaped files like .env.example)").
+
+### 11.3 Template cache lifecycle
+
+`plugins/launchpad/scripts/template_cache/` (hoisted out of
+`plugin_stack_adapters/` per Slice B):
+
+- Cache root resolves to `~/.launchpad/template-cache/` by default;
+  override via `LAUNCHPAD_CACHE_DIR` (test + sandbox path; not user-facing
+  documented at v2.1 per plan §8).
+- Pre-flight: cache root must be a regular directory (not a symlink),
+  mode 0o700, owned by `os.getuid()`. Failures emit the verbatim §3.12
+  message and exit 1.
+- Validation-before-flock ordering: malformed inputs (sha regex, repo URL
+  shape) MUST raise BEFORE any lock file is created.
+- Per-entry lockfile at `.locks/<slug>-<sha>.lock` (mode 0o600). Lockfile
+  survives entry purge so concurrent fetchers race-safely against a
+  recently-evicted entry.
+- `MAX_CONCURRENT_FETCHES=3` process-local semaphore caps simultaneous
+  fetches.
+- 500MB LRU eviction is lazy on-fetch (NOT background-swept; per-rotation
+  rationale in plan §8 deferred items).
+- 90-day TTL re-validation triggers full-tree re-verify against
+  `pin_registry.py`; tag-replay defense lives in the nightly
+  tag-drift-detector workflow at `.github/workflows/cve-watch.yml`.
+- `.compromised` sentinel auto-purges on next verify; the verbatim §3.12
+  WARN message points the user at the GitHub Security Advisory and the
+  `--refresh-all` recovery path.
+
+### 11.4 SIGINT semantics
+
+`safe_run.safe_run_long(argv, cwd, sigint_timeout_s=2.0,
+sigterm_timeout_s=3.0)`:
+
+- `subprocess.Popen(argv, start_new_session=True, ...)` puts the child in
+  its own process group (`os.setsid`).
+- On `KeyboardInterrupt`: `os.killpg(child_pgid, SIGINT)`, then
+  `psutil.Process(pid).children(recursive=True)` SIGTERM sweep after
+  `sigint_timeout_s`, then SIGKILL after `sigterm_timeout_s`.
+- `LAUNCHPAD_SIGINT_TIMEOUT_S` env override (DA5 lock; opt-in 1s for fast
+  CI matrices).
+- Returns `CompletedProcess` on clean exit, raises `SafeRunInterrupted`
+  on user SIGINT after cleanup, raises `SafeRunTimedOut` if descendants
+  survive the SIGKILL ladder (rare).
+- Lint exemption: `plugin-v2-handshake-lint.py` allowlists the
+  `subprocess.Popen + start_new_session=True` pattern via the
+  path-prefix check on `safe_run.py`.
+- Cross-platform: macOS + Linux (POSIX-only). Windows is out of scope at
+  v2.1 per plan §8.
+
+### 11.5 Trust banner placement
+
+Both `/lp-pick-stack` and `/lp-scaffold-stack` print the verbatim §3.12
+trust-model banner BEFORE any cache fetch runs. The banner lists each
+upstream (`<repo>@<sha-prefix>`) plus license + attestation status. Cache
+miss + offline aborts with exit 75 (`EX_TEMPFAIL`) and the verbatim §3.12
+"Cannot fetch upstream ..." message.
+
+### 11.6 CVE rotation policy and tag-drift detector
+
+`docs/maintainers/upstream-pin-rotations.md` is the append-only audit log.
+Every modification of a `sha` value in `pin_registry.py` requires a
+same-commit entry; `plugin-v2-handshake-lint.py
+--check-pin-registry-rotation-audit-log` enforces.
+
+`.github/workflows/cve-watch.yml` runs nightly at 02:00 UTC (osv-scanner
+over `pin_registry.py` SHAs + tag-drift-detector). Manual
+`workflow_dispatch` is the documented test path; scheduled-run
+verification is post-ship monitoring per plan DoD.
+
+`.github/workflows/tier-2-nightly.yml` runs at 04:00 UTC (cron stagger).
+Real-network end-to-end of canonical compositions; failures auto-open a
+GitHub Issue with the `nightly-failure` label per §3.12. Non-blocking on
+PR merges per DA4 = c separate-fault-domain rationale.
+
+---
+
+## 12. `/lp-update-identity` re-entry case table (v2.1 Phase 10)
+
+`/lp-update-identity` and `/lp-bootstrap --refresh` both re-enter against an existing `.launchpad/scaffold-decision.json`. The engine detects which of five re-entry cases applies and routes accordingly. Case F covers the `schema_version: "1.0"` to `"1.1"` migration path absorbed during Phase 1+2 retroactive amendments.
+
+### 12.1 The 5-case re-entry detection
+
+| Case | Trigger                      | Identity state                             | Kernel files state                   | Action                                                                                                                |
+| ---- | ---------------------------- | ------------------------------------------ | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| A    | refresh-with-edits           | sealed values changed                      | kernel files present, unchanged      | re-render kernels with new values; atomic re-seal                                                                     |
+| B    | seed-as-first-time           | sealed values UNSET (placeholders)         | kernel files absent                  | seed identity from input; render kernels; seal                                                                        |
+| C    | no-op                        | sealed values match input                  | kernel files unchanged               | print sealed identity; exit `NO_OP`                                                                                   |
+| D    | brownfield email cross-check | sealed values absent + `--seed-brownfield` | kernel files absent                  | cross-check `git config user.email` against input email; fail-closed if mismatch and `--allow-email-mismatch` not set |
+| E    | user-edit-blocks-refresh     | sealed values present                      | one or more kernel files hand-edited | refuse with `USER_EDIT_BLOCKS_REFRESH`; user reviews diff and re-runs with `--force`                                  |
+
+Case F (legacy v1.0 migration) is detected before the A-E matrix runs. If the on-disk envelope has `schema_version: "1.0"` (or no `schema_version` key), the engine performs in-memory migration first, then routes to Case B (seed-as-first-time) so the resulting kernel render reflects placeholder identity values until `/lp-update-identity` runs against real input.
+
+### 12.2 Error-code map
+
+| Error code                    | Trigger                                                     | Remediation                                                                                                                     |
+| ----------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `IDENTITY_UPDATE_IN_PROGRESS` | sentinel detects concurrent `/lp-update-identity`           | wait for the other run, or run `/lp-update-identity --recover` after PID liveness check                                         |
+| `BOOTSTRAP_IN_PROGRESS`       | sentinel detects concurrent `/lp-bootstrap`                 | wait for the other run, or run `/lp-bootstrap --recover`                                                                        |
+| `SCAFFOLD_STACK_IN_PROGRESS`  | sentinel detects concurrent `/lp-scaffold-stack`            | wait for `/lp-scaffold-stack` to complete                                                                                       |
+| `USER_EDIT_BLOCKS_REFRESH`    | hand-edit detected on a kernel file                         | review the diff via `git diff`, then either revert the edit or re-run with `--force`                                            |
+| `EMAIL_MISMATCH`              | Case D email cross-check failed                             | re-run with `--allow-email-mismatch` after confirming the project email is intentionally different from `git config user.email` |
+| `MIGRATION_FAILED`            | Case F migration could not parse the v1.0 envelope          | restore `scaffold-decision.json` from git history and file an issue with the corrupted envelope shape                           |
+| `INVALID_IDENTITY`            | `validate_identity` rejected an input field                 | check that `email`, `copyright_holder`, `repo_url`, etc. match the documented patterns in `lp_pick_stack/__init__.py`           |
+| `VERSION_DRIFT_DETECTED`      | running plugin version differs from sealed `plugin_version` | re-run with `--accept-plugin-version-drift` to record the drift in `version_drift_log` and proceed                              |
+
+### 12.3 On-disk artifacts touched
+
+Every successful re-entry run touches:
+
+- `.launchpad/scaffold-decision.json` (atomic re-seal via `re_seal_decision_atomic`; `generated_at` preserved byte-identical; `identity_updated_at` and `version_drift_log` updated)
+- 0 to 7 of LICENSE, CONTRIBUTING.md, CODE_OF_CONDUCT.md, README.md, SECURITY.md, AGENTS.md, CLAUDE.md (whichever have a changed `rendered_content_sha256`)
+- `.launchpad/backups/<ts>-<PID>-<rand4>/` (per-invocation backup of touched files written before the atomic replace)
+- `.harness/observations/v2-pipeline-*.jsonl` (telemetry event; opt-out via `.launchpad/config.yml: telemetry: off`)
+
+Sentinel files (`.launchpad/.identity-update-in-progress`, `.launchpad/.bootstrap-in-progress`, `.launchpad/.scaffold-stack-in-progress`) are created with `O_CREAT|O_EXCL` at the start of their respective commands and cleared at the end.
+
+### 12.4 Failure modes and remediation
+
+| Failure mode                                                         | Detection                                                                         | Remediation                                                                  |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Crashed mid-render (sentinel left behind, no SIGTERM cleanup)        | next `/lp-update-identity` finds stale sentinel; PID-liveness check returns false | run `/lp-update-identity --recover`; sentinel cleared after liveness confirm |
+| Atomic re-seal write fails partway                                   | `re_seal_decision_atomic` raises; on-disk envelope unchanged                      | re-run; partial state was never committed                                    |
+| User-edit detected mid-run                                           | `KernelRenderer.refresh` compares prior + current `rendered_content_sha256`       | refuse with `USER_EDIT_BLOCKS_REFRESH`; user reviews diff                    |
+| Schema 1.0 to 1.1 migration triggers but legacy fields are malformed | `_migrate_legacy_envelope_in_memory` raises                                       | abort with `MIGRATION_FAILED`; restore from git history                      |
+
+### 12.5 Privilege model
+
+`/lp-update-identity` requires no elevated privileges beyond write access to `.launchpad/`, `.harness/`, and the 7 kernel paths under the project root. The engine never invokes `sudo`, never writes outside the `bound_cwd` realpath triple, and never performs network requests. Identity values are written to disk via `atomic_write_replace` with mode `0o644` for kernel files and `0o600` for `scaffold-decision.json`.
+
+The bidirectional sentinel cross-detect ensures that two concurrent `/lp-bootstrap` and `/lp-update-identity` runs cannot both believe they own the scaffold-decision atomic re-seal. The first to acquire its sentinel wins; the second halts cleanly with a structured error and exits without touching disk.
+
+Cross-references: HANDSHAKE §14 (manifest contract), Phase 10 implementation plan §3.4 to §3.6.
+
+---
+
 **Status**: This document is the operations layer for v2.0 implementation as of 2026-04-30, extended by §10 for v2.1 Phase 3. The companion `SCAFFOLD_HANDSHAKE.md` covers the contracts layer. Both v2.0 plans reduce to references against these two documents. Plan Hardening Notes appendices must not contradict them; if they do, the contracts doc wins.

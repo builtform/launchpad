@@ -12,6 +12,7 @@ This guide walks the full pipeline day-to-day. For the "why" behind the design, 
 
 - [Installing the plugin](#installing-the-plugin)
 - [The Greenfield Pipeline (v2.0)](#the-greenfield-pipeline-v20)
+- [Post-scaffold lifecycle: `/lp-update-identity`](#post-scaffold-lifecycle-lp-update-identity)
 - [The four meta-orchestrators](#the-four-meta-orchestrators)
 - [Phase 1: Kickoff](#phase-1-kickoff)
 - [Phase 2: Definition](#phase-2-definition)
@@ -192,6 +193,26 @@ Concrete numbers (path counts, last-run timestamps) come from `scaffold-receipt.
 **Telemetry-disabled variant**, when `.launchpad/config.yml` has `telemetry: off`, the two telemetry lines collapse to a single `Telemetry: disabled` line. Both greenfield and brownfield variants honor this.
 
 The panel's contents are spec'd in [SCAFFOLD_OPERATIONS.md §5](../architecture/SCAFFOLD_OPERATIONS.md#5-v20-health-signals-telemetry--tier-1-reveal-panels), that's the canonical source. This guide describes _why_ the panel exists; OPERATIONS describes _exactly what_ it prints.
+
+---
+
+## Post-scaffold lifecycle: `/lp-update-identity`
+
+Once `/lp-define` has rendered the project's architecture docs and the four-command pipeline has settled, the project's identity values (project name, email, copyright holder, repo URL, license) live sealed in `.launchpad/scaffold-decision.json` under `schema_version: "1.1"`. To update any of these values later without re-scaffolding, run `/lp-update-identity`.
+
+The command detects which of five re-entry cases applies (A through E, plus Case F for legacy v1.0 envelope migration), validates the new identity input against the documented regex constants, re-renders the 7 kernel templates atomically, and re-seals `scaffold-decision.json` with `generated_at` preserved byte-identical. After a successful run, `/lp-update-identity` prints a PII WARN noting that prior identity values persist in git history.
+
+| Flag                            | Effect                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------ |
+| `--dry-run`                     | preview the changes without writing                                                        |
+| `--force`                       | override `USER_EDIT_BLOCKS_REFRESH` after reviewing the kernel-file diff                   |
+| `--seed-brownfield`             | seed identity for projects scaffolded before v2.1 (triggers Case D email cross-check)      |
+| `--allow-email-mismatch`        | accept that the project email differs from `git config user.email` (Case D escape)         |
+| `--accept-plugin-version-drift` | record a `(from_version, to_version)` tuple in `version_drift_log` and proceed             |
+| `--quiet`                       | suppress the PII WARN print (informational only; does not change history-rewrite behavior) |
+| `--recover`                     | clear a stale sentinel after PID-liveness check                                            |
+
+For the canonical re-entry case table, error-code map, on-disk artifacts touched, and privilege model, see [SCAFFOLD_OPERATIONS.md §12](../architecture/SCAFFOLD_OPERATIONS.md#12-lp-update-identity-re-entry-case-table-v21-phase-10). For the PII removal recipe (`git filter-repo` over committed identity values), see [IDENTITY_AND_PII.md](IDENTITY_AND_PII.md).
 
 ---
 
