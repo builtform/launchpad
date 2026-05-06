@@ -8,11 +8,11 @@ APP_FLOW/BACKEND_STRUCTURE/SECTION_REGISTRY/config.yml/agents.yml render).
 Three single-purpose renderers (kernel_renderer, infrastructure_renderer,
 lp_define orchestrator) share:
 
-  * Jinja Environment matching the autoescape posture verbatim from the
-    superseded plugin-doc-generator -- HTML-extension-only via
-    `select_autoescape`. The test_renderer_base_jinja_autoescape regression
-    contract pins this so a future change cannot silently introduce SSTI
-    or HTML-escape Markdown text.
+  * Jinja Environment with HTML-extension-only autoescape via
+    `select_autoescape` (StrictUndefined; keep_trailing_newline). The
+    test_renderer_base_jinja_autoescape regression contract pins this
+    posture so a future change cannot silently introduce SSTI or
+    HTML-escape Markdown text.
   * StrictUndefined plus keep_trailing_newline so missing identity fields
     fail loudly at render time and trailing newlines round-trip cleanly.
   * Buffered-batch flow per Phase 8.5 plan section 3.11 (DA1' = a2):
@@ -34,8 +34,11 @@ lp_define orchestrator) share:
     `to_yaml_safe` via PyYAML's safe_dump for YAML value injection).
 
 Phase 8.5 plan section 3.11 also forbids subclasses from overriding
-`render_to_path` / `render_batch` / `scan_batch` / `write_batch`.
-test_no_renderer_subclass_overrides_protected_methods asserts.
+`render_to_path` / `render_batch` / `scan_batch` / `write_batch`. The
+v2.1 /lp-define orchestrator (`lp_define_runner.py`) supersedes
+`plugin-doc-generator.py` (deleted in Phase 8.5 Slice E) and is the only
+public entry point that builds an in-memory render batch outside the
+kernel + infrastructure renderers.
 """
 from __future__ import annotations
 

@@ -318,7 +318,7 @@ def prompt_overwrite(
 
 
 # ---------------------------------------------------------------------------
-# Helpers ported from plugin-doc-generator.py
+# Helpers (in-tree carry-over of the legacy plugin-doc-generator helpers)
 # ---------------------------------------------------------------------------
 
 def _read_config_overwrite(repo_root: Path) -> str:

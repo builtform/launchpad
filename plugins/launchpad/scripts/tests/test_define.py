@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Behavioral contract tests for /lp-define + plugin-doc-generator.py.
+"""Behavioral contract tests for /lp-define + lp_define_runner.py.
+
+Phase 8.5 Slice D: migrated from `plugin-doc-generator.py` (deleted in
+Slice E) to the v2.1 orchestrator at `lp_define_runner.py` which routes
+through `RendererBase.render_batch + scan_batch + write_batch` (DA1' = a2
+buffered batch + refuse-all). All assertion invariants preserved 1:1
+per the Slice A0a pre-migration manifest.
 
 Acceptance invariants:
   - Greenfield (empty repo): LaunchPad defaults; 4-doc scaffold + config.yml
@@ -29,7 +35,7 @@ import tempfile
 from pathlib import Path
 
 PLUGIN_SCRIPTS = Path(__file__).resolve().parent.parent
-GENERATOR = str(PLUGIN_SCRIPTS / "plugin-doc-generator.py")
+GENERATOR = str(PLUGIN_SCRIPTS / "lp_define_runner.py")
 LOADER = str(PLUGIN_SCRIPTS / "plugin-config-loader.py")
 
 # Load config loader as a module for programmatic checks
@@ -53,8 +59,11 @@ def cleanup(d: Path) -> None:
 
 
 def run_generator(repo: Path, *args: str) -> tuple[int, str, str]:
+    """Invoke the v2.1 /lp-define orchestrator. `--no-trust-banner`
+    suppresses the Phase 8.5 plan section 3.12 banner (asserted
+    separately in test_phase8_5_decommission)."""
     result = subprocess.run(
-        [sys.executable, GENERATOR, f"--repo-root={repo}", *args],
+        [sys.executable, GENERATOR, f"--repo-root={repo}", "--no-trust-banner", *args],
         capture_output=True,
         text=True,
     )

@@ -16,9 +16,10 @@ def test_package_imports():
     assert "1.0" in lp_scaffold_stack.EXPECTED_DECISION_VERSION
     assert lp_scaffold_stack.WRITTEN_RECEIPT_VERSION == "1.0"
     # PR #41 cycle 8 #2 closure (Codex P1): the constant was hardcoded
-    # to 8 but plugin-doc-generator.py emits only 4 docs/architecture/*
-    # outputs (PRD, TECH_STACK, BACKEND_STRUCTURE, APP_FLOW). Receipt and
-    # panel now reflect reality.
+    # to 8 but the v2.1 /lp-define orchestrator (lp_define_runner.py;
+    # superseded plugin-doc-generator in Phase 8.5) emits only 4
+    # docs/architecture/* outputs (PRD, TECH_STACK, BACKEND_STRUCTURE,
+    # APP_FLOW). Receipt and panel now reflect reality.
     assert lp_scaffold_stack.TIER1_ARCHITECTURE_DOCS_RENDERED == 4
 
 

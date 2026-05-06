@@ -270,6 +270,94 @@ def test_write_batch_perf_under_300ms_30file_scaffold(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Slice D -- secret_allowlist (DA4 per Phase 8.5 plan section 3.9)
+# ---------------------------------------------------------------------------
+
+
+def test_secret_allowlist_jinja_comment_exempts_section(tmp_path):
+    """A Jinja-comment marker `{# secret-allowlist: <reason> #}` exempts
+    the marked section from the secret-scanner gate. Per Phase 8.5 plan
+    section 3.9 DA4 mechanism 1."""
+    from plugin_default_generators.secret_allowlist import filter_allowlisted
+    from plugin_stack_adapters.secret_scanner import SecretMatch
+
+    template_source = (
+        "Heading\n"
+        "{# secret-allowlist: example AWS key in docs #}\n"
+        "Look at this: AKIAEXAMPLEKEYIDONLY\n"
+        "\n"
+        "Other line\n"
+    )
+    rendered_content = (
+        "Heading\n"
+        "Look at this: AKIAEXAMPLEKEYIDONLY\n"
+        "\n"
+        "Other line\n"
+    )
+    findings = [
+        SecretMatch(
+            pattern=r"AKIA[0-9A-Z]{16}",
+            line_no=2,
+            preview="Look at this: <REDACTED>",
+        )
+    ]
+    kept = filter_allowlisted(
+        findings,
+        target_path=tmp_path / "doc.md",
+        rendered_content=rendered_content,
+        template_source=template_source,
+    )
+    assert kept == [], (
+        "Jinja-comment marker should have suppressed the AKIA finding "
+        "in the marked section"
+    )
+
+
+def test_secret_allowlist_file_path_exempts_whole_file(tmp_path):
+    """An entry in `.launchpad/secret-allowlist.txt` exempts the matching
+    file from the secret-scanner gate. Per Phase 8.5 plan section 3.9
+    DA4 mechanism 2."""
+    from plugin_default_generators.secret_allowlist import filter_allowlisted
+    from plugin_stack_adapters.secret_scanner import SecretMatch
+
+    allowlist_path = tmp_path / "secret-allowlist.txt"
+    allowlist_path.write_text(
+        "# Phase 8.5 example allowlist\n"
+        "docs/examples/*.md\n",
+        encoding="utf-8",
+    )
+    target = tmp_path / "docs" / "examples" / "snippet.md"
+
+    findings = [
+        SecretMatch(
+            pattern=r"AKIA[0-9A-Z]{16}",
+            line_no=3,
+            preview="...",
+        )
+    ]
+    kept = filter_allowlisted(
+        findings,
+        target_path=target,
+        rendered_content="",
+        allowlist_path=allowlist_path,
+    )
+    assert kept == [], (
+        "File-path glob in .launchpad/secret-allowlist.txt should have "
+        "exempted the whole file"
+    )
+
+    # Negative case: a non-matching path keeps the finding.
+    target_other = tmp_path / "docs" / "real" / "guide.md"
+    kept_other = filter_allowlisted(
+        findings,
+        target_path=target_other,
+        rendered_content="",
+        allowlist_path=allowlist_path,
+    )
+    assert len(kept_other) == 1
+
+
+# ---------------------------------------------------------------------------
 # Slice C -- subclass-bypass guard (lint + runtime)
 # ---------------------------------------------------------------------------
 

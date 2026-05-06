@@ -125,12 +125,26 @@ def _load_file_allowlist(allowlist_path: Path | None) -> list[str]:
 
 
 def _path_matches_allowlist(target_path: Path, patterns: Iterable[str]) -> str | None:
-    """Return the matching glob pattern, or None if no match."""
-    target_str = str(target_path)
+    """Return the matching glob pattern, or None if no match.
+
+    Glob semantics: a pattern like `docs/examples/*.md` matches against the
+    tail of the rendered target path so absolute paths from a tmp-dir test
+    fixture and relative paths from a real `/lp-define` invocation behave
+    identically. Path.match is the canonical tail-glob in pathlib.
+    """
     target_name = target_path.name
     for pat in patterns:
-        if fnmatch.fnmatch(target_str, pat) or fnmatch.fnmatch(target_name, pat):
+        if target_path.match(pat):
             return pat
+        if fnmatch.fnmatch(target_name, pat):
+            return pat
+        # Fallback: tail-suffix substring + fnmatch on each progressively
+        # longer suffix so patterns rooted partway down the path also match.
+        parts = target_path.parts
+        for i in range(len(parts)):
+            suffix = "/".join(parts[i:])
+            if fnmatch.fnmatch(suffix, pat):
+                return pat
     return None
 
 
