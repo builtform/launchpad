@@ -55,6 +55,31 @@ StackIdActive = Literal[
     "generic",
 ]
 
+# Phase 7 v2.1 (DA2 LOCKED): forward-reference type for stack ids the detector
+# may emit but which lack an active `Adapter` Protocol implementation in v2.1.
+# The renderer accepts these via the closed-enum gate at
+# `plugin_default_generators/_renderer_base.py:STACK_ID_ACTIVE_ENUM`; adapter
+# dispatch routes ids without an active Protocol implementation via `generic`
+# per the existing v2.0 catalog-alias pattern (e.g. `polyglot.ADAPTERS["hono"]
+# = generic`). v2.2 BL covers Adapter Protocol promotion for `rails_adapter`
+# and ships concrete adapters for the remaining candidates.
+#
+# Intentional `StackId ∩ StackIdV22Candidate` overlap: `python_django` and
+# `rails` appear in BOTH the v2.0 14-id `StackId` detection catalog AND this
+# v2.1 candidate set. Catalog answers "may detector emit X?"; candidate
+# answers "does X have an active Adapter Protocol implementation in v2.1?".
+# The type-system surfaces are orthogonal in v2.1; v2.2 BL `StackId`
+# narrowing folds catalog membership into the union and resolves the overlap.
+# See Phase 7 plan §3.3 + tests/test_stack_coupling_refactors.py for the
+# guard against accidental drift.
+StackIdV22Candidate = Literal[
+    "python_django",
+    "python_generic",
+    "nextjs_hono_cloudflare",
+    "nextjs_trpc_prisma",
+    "rails",
+]
+
 # 4-policy enum (DA7 LOCKED) shared between bootstrap policy resolution and the
 # Phase 4 OverlayConfig.conflict_policy field. Values match
 # `lp_bootstrap.BootstrapPolicy` exactly; the duplication-by-Literal here keeps
@@ -261,6 +286,7 @@ class AdapterOutput(TypedDict):
 __all__ = [
     "StackId",
     "StackIdActive",
+    "StackIdV22Candidate",
     "ConflictPolicy",
     "UnwrapStrategy",
     "UpstreamTemplate",

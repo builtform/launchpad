@@ -16,15 +16,22 @@ from plugin_default_generators._renderer_base import (
 )
 
 
-def test_active_enum_contains_exactly_six_v21_stack_ids():
-    # Phase 6 v2.1: `rails` added as detector groundwork (no Rails-specific
-    # reviewer in v2.1; framework-axis + Rails reviewers arrive in v2.2 BL).
+def test_active_enum_contains_exactly_ten_v21_stack_ids():
+    # Phase 7 v2.1 (DA5): reconciled to V3 §8.1 union of StackIdActive (5) and
+    # StackIdV22Candidate (5). Renderer accepts the union; adapter dispatch
+    # routes candidate ids without an active Adapter Protocol implementation
+    # via `generic`. Companion partition guard lives in
+    # tests/test_stack_coupling_refactors.py.
     assert STACK_ID_ACTIVE_ENUM == frozenset({
         "ts_monorepo",
         "nextjs_standalone",
         "nextjs_fastapi",
         "astro",
         "generic",
+        "python_django",
+        "python_generic",
+        "nextjs_hono_cloudflare",
+        "nextjs_trpc_prisma",
         "rails",
     })
 

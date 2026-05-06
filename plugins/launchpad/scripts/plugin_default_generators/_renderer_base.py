@@ -75,18 +75,34 @@ STACK_FRAGMENTS_ROOT = _SCRIPTS_DIR / "plugin_stack_adapters"
 # v2.1 active stack id closed enum. Stack-aware renderers MUST validate the
 # incoming stack_id against this set BEFORE building the Environment so a
 # bad value raises StackIdInvalidError instead of silently rendering a
-# missing-fragment template error or, worse, looking up an attacker-
-# controlled path traversal.
+# missing-fragment template error or, worse, looking up an
+# attacker-controlled path traversal.
 #
 # Phase 6 v2.1: `rails` added as detector groundwork. No Rails-specific
 # reviewer ships in v2.1; framework-axis wire-through + Rails reviewers
 # arrive in v2.2 BL.
+#
+# Phase 7 v2.1 (DA5): reconciled to V3 §8.1
+# `frozenset(StackIdActive) | frozenset(StackIdV22Candidate)` (10 ids). The
+# renderer accepts the union; adapter dispatch routes ids without an
+# active `Adapter` Protocol implementation via `generic` per the existing
+# v2.0 catalog-alias pattern. The reconciliation+partition invariant is
+# guarded by `tests/test_stack_coupling_refactors.py::
+# test_stack_id_active_enum_partition_invariant` (drift OR silent
+# active↔candidate reclassification → fail).
 STACK_ID_ACTIVE_ENUM: frozenset[str] = frozenset({
+    # StackIdActive (v2.1 active dispatch)
     "ts_monorepo",
     "nextjs_standalone",
     "nextjs_fastapi",
     "astro",
     "generic",
+    # StackIdV22Candidate (detector may emit; adapter dispatch routes via
+    # `generic` for ids without an active Adapter Protocol implementation)
+    "python_django",
+    "python_generic",
+    "nextjs_hono_cloudflare",
+    "nextjs_trpc_prisma",
     "rails",
 })
 
