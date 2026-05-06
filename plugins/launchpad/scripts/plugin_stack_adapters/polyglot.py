@@ -301,9 +301,11 @@ def compose_with_layers(layers: list[dict]) -> AdapterOutput:
     field, or all-backend / all-frontend topologies).
 
     Each layer is also responsible for path-rewriting via the
-    `_rewrite_adapter_paths` post-processor in plugin-doc-generator.py;
-    this composer doesn't do path rewrites itself (the caller is the
-    receipt loader, which has the cwd context).
+    `_rewrite_adapter_paths` post-processor in
+    `plugin_stack_adapters.polyglot_path_rewriter` (standalone module per
+    Phase 8.5 plan section 3.5; receives AdapterOutput + layer_paths +
+    stacks). This composer doesn't do path rewrites itself (the caller is
+    the receipt loader, which has the cwd context).
 
     `layers` entries must have `stack` (str). `role` and `path` are
     optional — when absent, falls back to precedence-based selection.

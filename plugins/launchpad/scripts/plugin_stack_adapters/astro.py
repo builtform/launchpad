@@ -2,8 +2,9 @@
 
 Phase 4 plan section 2.1 + section 3.1 + section 3.3. Replaces the legacy
 `astro_adapter.py` from v2.0; the legacy `run() -> AdapterOutput` surface is
-preserved here for the polyglot composer + plugin-doc-generator. The new
-v2.1 surface is the `Adapter` Protocol + a sub-template selector.
+preserved here for the polyglot composer + the v2.1 /lp-define orchestrator
+(Phase 8.5; superseded plugin-doc-generator). The new v2.1 surface is the
+`Adapter` Protocol + a sub-template selector.
 
 Sub-templates (Phase 4 plan section 3.1):
   - docs       -> withastro/starlight@<sha>           (8.4k stars, MIT)
