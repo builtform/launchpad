@@ -102,6 +102,7 @@ class BootstrapErrorCode(StrEnum):
     SENTINEL_BLOCKING = "sentinel_blocking"
     STALE_SENTINEL_RECOVERED = "stale_sentinel_recovered"
     FLOCK_TIMEOUT = "flock_timeout"
+    IDENTITY_UPDATE_IN_PROGRESS = "identity_update_in_progress"  # Phase 10 DA3 bidirectional sentinel parity (security F2)
 
     # Render-class
     TEMPLATE_RENDER_FAILED = "template_render_failed"

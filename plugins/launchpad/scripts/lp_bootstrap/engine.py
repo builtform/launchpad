@@ -339,8 +339,35 @@ def _sentinel_preflight(cwd: Path) -> tuple[SentinelSnapshot | None, list[str]]:
 
     Returns `(snapshot_or_None, info_messages)`. Raises
     `BootstrapEngineError(SENTINEL_BLOCKING)` when a live PID owns the
-    sentinel.
+    `/lp-bootstrap` sentinel; raises `BootstrapEngineError(
+    IDENTITY_UPDATE_IN_PROGRESS)` when a live PID owns the
+    `/lp-update-identity` sentinel (Phase 10 DA3 bidirectional parity per
+    security F2 + frontend-races F1).
     """
+    # Phase 10 DA3: bidirectional cross-detect of identity-update sentinel
+    # BEFORE the bootstrap-own sentinel check. If a live /lp-update-identity
+    # is running, /lp-bootstrap must refuse so the two commands cannot
+    # interleave their atomic-replace windows on scaffold-decision.json.
+    try:
+        from lp_update_identity.sentinel import (
+            is_pid_alive as _id_is_pid_alive,
+            read_sentinel as _id_read_sentinel,
+        )
+    except ImportError:  # pragma: no cover - lp_update_identity ships in v2.1
+        _id_read_sentinel = None  # type: ignore[assignment]
+    if _id_read_sentinel is not None:
+        id_snap = _id_read_sentinel(cwd)
+        if id_snap is not None and _id_is_pid_alive(id_snap.command_pid):
+            raise BootstrapEngineError(
+                f"/lp-update-identity is running (sentinel pid={id_snap.command_pid})",
+                reason=BootstrapErrorCode.IDENTITY_UPDATE_IN_PROGRESS,
+                remediation=(
+                    f"wait for pid {id_snap.command_pid} to finish before "
+                    f"re-running /lp-bootstrap; the two commands cannot "
+                    f"interleave"
+                ),
+            )
+
     snap = read_sentinel(cwd)
     if snap is None:
         return None, []
