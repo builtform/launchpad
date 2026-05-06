@@ -59,7 +59,7 @@ After restart, type `/lp-` and Claude Code should autocomplete with LaunchPad co
 - `--scope project`: scoped to the project; if you're on a team, others can install the same plugin
 - `--scope user`: enabled globally for all projects
 
-When `scripts/setup/init-project.sh` auto-installs the plugin during a fresh repo init, it uses `--scope project` so the plugin travels with the repo for teammates.
+v2.x greenfield projects scaffolded via `/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define` install the plugin under `--scope project` so the plugin travels with the repo for teammates. (v2.1 BL-247 decommissioned the legacy `init-project.sh` auto-install; pin to v2.0.x for that flow.)
 
 ### Updating
 
@@ -421,7 +421,7 @@ Collaborative idea exploration. Loads brainstorming skill, dispatches research a
 | `/lp-update-spec`         | Scans all spec files for gaps, TBDs, cross-file inconsistencies                                                    |
 | `/lp-hydrate`             | Session bootstrapping with minimal context                                                                         |
 | `/lp-research-codebase`   | Two-wave research → `docs/reports/` (input for `/lp-inf`)                                                          |
-| `/lp-pull-launchpad`      | Pull upstream LaunchPad scaffold updates (self-host only, refuses on plugin-only installs)                         |
+| `/lp-pull-launchpad`      | Decommissioned in v2.1 (BL-247); use `claude /plugin update launchpad` instead                                     |
 | `/lp-create-agent`        | Create a new agent or convert an existing skill into an agent                                                      |
 | `/lp-memory-report`       | Update session memory files and create a detailed session report                                                   |
 | `/lp-design-onboard`      | Design onboarding flows, empty states, first-time user experiences (invoked from `/lp-plan` Step 2b when relevant) |
@@ -602,7 +602,7 @@ Greptile is a GitHub App, not a GitHub Action, there's no workflow to author. Se
 3. **Enable indexing** in the Greptile dashboard: Repositories → Manage Repos → enable your repo. Initial index takes 3–5 minutes for a small repo, up to 1–2 hours for a large monorepo.
 4. **Verify on the next PR**: Greptile should post a "Greptile Summary" comment within ~5 minutes. If not, check the App's repository scope at `github.com/settings/installations`.
 
-Configuration lives in `greptile.json` at the repo root (already templated by `init-project.sh`). Tune `commentTypes`, `strictness`, and `ignorePatterns` to taste. See [docs/architecture/CI_CD.md](../architecture/CI_CD.md) for the field-by-field reference.
+Configuration lives in `greptile.json` at the repo root. Tune `commentTypes`, `strictness`, and `ignorePatterns` to taste. See [docs/architecture/CI_CD.md](../architecture/CI_CD.md) for the field-by-field reference. (v2.1 BL-247 decommissioned the `greptile.template.json` swap file; downstream projects scaffolded via the v2.x kernel renderer author `greptile.json` manually post-scaffold until a kernel template lands in v2.2.)
 
 Other CI-relevant env vars live in the [Environment variables](#environment-variables) table below, `LP_CONFIG_REVIEWED` is specifically the CI-side pin that unblocks autonomous `/lp-build` runs under the content-hash audit.
 
@@ -750,23 +750,15 @@ Print the current canonical hash with `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-conf
 
 Restart Claude Code after updating.
 
-### Pulling upstream LaunchPad scaffold updates (self-host only)
+### Pulling upstream LaunchPad scaffold updates (decommissioned in v2.1)
 
-If you cloned the LaunchPad repository directly (the self-host flow used by plugin developers and contributors) and ran `git remote rename origin launchpad`, you can pull future LaunchPad scaffold updates (compound scripts, CI workflows, init wizard) into your project without touching application code:
+v0/v1 used `/lp-pull-launchpad` and `scripts/setup/pull-upstream.launchpad.sh` to delta-patch downstream template-cloned projects. v2.1 (BL-247) decommissioned both because v2.x kernel-renderer projects no longer carry a forked copy of the scaffold; all scaffold content is rendered by the plugin at scaffold time. To sync from upstream in v2.x:
 
 ```
-/lp-pull-launchpad
+claude /plugin update launchpad
 ```
 
-Or from a shell:
-
-```bash
-bash scripts/setup/pull-upstream.launchpad.sh
-```
-
-This is scaffold-only, plugin content (commands, agents, skills) updates separately via the plugin-update flow above. If you run `/lp-pull-launchpad` on a plugin-only install (no template scaffold present), it refuses with a pointer to the plugin-update flow.
-
-If you disconnected from upstream (chose the "fresh start" option during init), compare against the [latest release](https://github.com/builtform/launchpad/releases) manually or re-clone.
+If you need legacy v0/v1 scaffold-pull behavior, pin to v2.0.x: `git checkout v2.0.x`. See `docs/maintainers/decommission-history.md`.
 
 ### Refreshing a stale plugin cache
 
@@ -885,7 +877,7 @@ For the canonical post-tag verification flow and the rollback procedure if `veri
 
 **Plugin commands aren't available after install.** Restart Claude Code. If still missing, verify install: `claude plugin list`. If installed but commands aren't registering, the cache may be stale, uninstall + marketplace-update + reinstall.
 
-**`/lp-pull-launchpad` refuses with "plugin-only install detected."** This is expected, the command only updates self-host scaffold. For plugin content updates, use the plugin-update flow (`/plugin marketplace update builtform` + uninstall + reinstall).
+**`/lp-pull-launchpad` is decommissioned in v2.1.** Use `claude /plugin update launchpad` instead. Pin to v2.0.x for the legacy delta-patch flow. See `docs/maintainers/decommission-history.md`.
 
 ---
 

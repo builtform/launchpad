@@ -51,19 +51,19 @@ launchpad/
 │   ├── agents/             # 36 sub-agents in 6 namespaces
 │   ├── skills/             # 16 reusable skills
 │   └── scripts/            # runtime: stack detector, doc generator, audit log, etc.
-├── apps/                   # template-path: Next.js + Hono monorepo (greenfield scaffold)
-├── packages/               # template-path: shared workspace packages
+├── apps/                   # reference monorepo (Next.js + Hono) used by the kernel renderer
+├── packages/               # shared workspace packages
 ├── docs/                   # architecture docs, guides, releases
-├── scripts/setup/          # init-project.sh — the template-path scaffold wizard
+├── scripts/setup/          # v2.1 (BL-247) signpost stubs only; install via marketplace
 └── .github/                # CI, issue templates, dependabot, CODEOWNERS
 ```
 
 Two products ship from this repo:
 
 - The **plugin** (`/plugin install launchpad@builtform`) — works in any brownfield repo
-- The **template** (`git clone … && ./scripts/setup/init-project.sh`) — bootstraps a fresh monorepo with the plugin pre-installed
+- The **greenfield pipeline** (`/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`): scaffolds a fresh monorepo via the plugin's kernel renderer (v2.1+; v0/v1 used `git clone … && ./scripts/setup/init-project.sh`, decommissioned in BL-247)
 
-Most contributions touch only `plugins/launchpad/`. Template changes (under `apps/`, `packages/`, `scripts/setup/`) are reviewed for whether they degrade the plugin path.
+Most contributions touch only `plugins/launchpad/`. Reference-monorepo changes (under `apps/`, `packages/`) are reviewed for whether they degrade the plugin path.
 
 ## Pull request guidelines
 

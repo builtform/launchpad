@@ -16,38 +16,37 @@ The repo root is clean and predictable. Only whitelisted files and directories b
 
 ### Allowed Files at Root
 
-| File                                  | Purpose                                                                  |
-| ------------------------------------- | ------------------------------------------------------------------------ |
-| `README.md`, `README.template.md`     | Project overview (template for downstream)                               |
-| `CLAUDE.md`                           | AI agent operating rules for Claude Code                                 |
-| `AGENTS.md`                           | OpenAI Codex agent configuration                                         |
-| `CONTRIBUTING.md` / `.template.md`    | Contribution guidelines                                                  |
-| `CODE_OF_CONDUCT.md` / `.template.md` | Code of conduct                                                          |
-| `SECURITY.md` / `.template.md`        | Security policy                                                          |
-| `CHANGELOG.md` / `.template.md`       | Changelog                                                                |
-| `ROADMAP.md` / `.template.md`         | Roadmap of upcoming work                                                 |
-| `LICENSE` / `.template`               | MIT license (Thinking Hand Studio LLC)                                   |
-| `package.json`                        | Root workspace config, shared devDependencies                            |
-| `pnpm-workspace.yaml`                 | Workspace globs: `apps/*`, `packages/*`                                  |
-| `pnpm-lock.yaml`                      | Lockfile (auto-generated, never edit)                                    |
-| `turbo.json`                          | Turborepo task pipeline                                                  |
-| `prettier.config.js`                  | Root Prettier config (must be at root)                                   |
-| `lefthook.yml`                        | Git hook config (lint, format, structure)                                |
-| `vitest.config.ts`                    | Root Vitest config with project references                               |
-| `eslint.config.mjs`                   | Root ESLint 9 flat config                                                |
-| `.prettierignore`                     | Prettier exclusions                                                      |
-| `.env.example`                        | Template for `.env.local` — no real secrets                              |
-| `.env.local`                          | Real environment variables (gitignored)                                  |
-| `.env.consultant`                     | Consultant env reference (gitignored, read-only subset credentials only) |
-| `.editorconfig`                       | Cross-editor indent/line-ending baseline                                 |
-| `.nvmrc`                              | Pins Node.js version (22.x)                                              |
-| `.gitignore`                          | Standard ignore rules                                                    |
-| `.gitattributes`                      | Git attribute rules, line endings (optional — created when needed)       |
-| `.worktreeinclude`                    | Claude Code worktree env file declarations (which `.env*` files to copy) |
-| `greptile.json`                       | Greptile AI code-reviewer config (must be at root per Greptile's spec)   |
-| `greptile.template.json`              | Template version of `greptile.json`; init-project.sh swaps in            |
+| File                           | Purpose                                                                       |
+| ------------------------------ | ----------------------------------------------------------------------------- |
+| `README.md`                    | Project overview                                                              |
+| `CLAUDE.md`                    | AI agent operating rules for Claude Code                                      |
+| `AGENTS.md`                    | OpenAI Codex agent configuration                                              |
+| `CONTRIBUTING.md`              | Contribution guidelines                                                       |
+| `CODE_OF_CONDUCT.md`           | Code of conduct                                                               |
+| `SECURITY.md`                  | Security policy                                                               |
+| `CHANGELOG.md`                 | Changelog (user-authored)                                                     |
+| `ROADMAP.md`                   | Roadmap of upcoming work (user-authored)                                      |
+| `LICENSE` / `LICENSE.template` | MIT license (Thinking Hand Studio LLC); `.template` is kernel-renderer source |
+| `package.json`                 | Root workspace config, shared devDependencies                                 |
+| `pnpm-workspace.yaml`          | Workspace globs: `apps/*`, `packages/*`                                       |
+| `pnpm-lock.yaml`               | Lockfile (auto-generated, never edit)                                         |
+| `turbo.json`                   | Turborepo task pipeline                                                       |
+| `prettier.config.js`           | Root Prettier config (must be at root)                                        |
+| `lefthook.yml`                 | Git hook config (lint, format, structure)                                     |
+| `vitest.config.ts`             | Root Vitest config with project references                                    |
+| `eslint.config.mjs`            | Root ESLint 9 flat config                                                     |
+| `.prettierignore`              | Prettier exclusions                                                           |
+| `.env.example`                 | Template for `.env.local` (no real secrets)                                   |
+| `.env.local`                   | Real environment variables (gitignored)                                       |
+| `.env.consultant`              | Consultant env reference (gitignored, read-only subset credentials only)      |
+| `.editorconfig`                | Cross-editor indent/line-ending baseline                                      |
+| `.nvmrc`                       | Pins Node.js version (22.x)                                                   |
+| `.gitignore`                   | Standard ignore rules                                                         |
+| `.gitattributes`               | Git attribute rules, line endings (optional, created when needed)             |
+| `.worktreeinclude`             | Claude Code worktree env file declarations (which `.env*` files to copy)      |
+| `greptile.json`                | Greptile AI code-reviewer config (must be at root per Greptile's spec)        |
 
-Note: Files marked with `.template` or `.template.md` are used by `init-project.sh` to scaffold downstream projects. Agents do not create or modify template files.
+Note: v2.1 (BL-247) decommissioned the `*.template.*` root files. The v2.x kernel renderer at `plugins/launchpad/scripts/plugin_default_generators/kernel_renderer/` ships templated equivalents for `README`, `CONTRIBUTING`, `CODE_OF_CONDUCT`, `SECURITY`, and `LICENSE`. `CHANGELOG.md`, `ROADMAP.md`, and `greptile.json` are now user-authored; no v2.x kernel template ships for them (v2.2 BL). See `docs/maintainers/decommission-history.md`.
 
 ### Allowed Directories at Root
 
@@ -128,7 +127,7 @@ scripts/
 ├── compound/                                # Compound Product pipeline scripts
 ├── hooks/                                   # Claude Code hook scripts (PostToolUse)
 ├── maintenance/                             # Structure checks, repo hygiene
-└── setup/                                   # Project init and upstream sync
+└── setup/                                   # v2.1 (BL-247) signpost stubs only; install via marketplace
 
 docs/                                        # See Decision Tree (Section 6.1) for routing
 ├── architecture/                            # System design, ADRs (decisions/ created when needed), tech stack
@@ -351,7 +350,7 @@ Walk through in order. Stop at the first match.
 - AI agent hydration → `scripts/agent_hydration/`
 - Claude Code hook → `scripts/hooks/`
 - Compound Product pipeline → `scripts/compound/`
-- Project init or upstream sync → `scripts/setup/`
+- Project init or upstream sync → `scripts/setup/` is v2.1-decommissioned (signpost stubs only); install via marketplace + `/lp-brainstorm`-pipeline (BL-247)
 - Frontend-specific → `apps/web/scripts/`
 - Backend-specific → `apps/api/scripts/`
 - **Never put scripts at the repo root.**

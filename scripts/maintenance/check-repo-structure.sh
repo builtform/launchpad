@@ -79,22 +79,22 @@ echo ""
 # ============================================================================
 echo "📋 Checking for non-whitelisted root files..."
 
-# Define whitelist (must match REPOSITORY_STRUCTURE.md Section 1)
+# Define whitelist (must match REPOSITORY_STRUCTURE.md Section 1).
+# v2.1 (BL-247) decommissioned the 7 *.template.* swap files for README,
+# CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, CHANGELOG, ROADMAP, and
+# greptile.json; the allowlist rejects their reappearance at root.
+# LICENSE.template is intentionally retained: the v2.x kernel renderer
+# uses it as the source for the LICENSE swap during scaffold.
+# See docs/maintainers/decommission-history.md.
 ALLOWED_DOCS=(
   "README.md"
-  "README.template.md"
   "CLAUDE.md"
   "CONTRIBUTING.md"
-  "CONTRIBUTING.template.md"
   "CODE_OF_CONDUCT.md"
-  "CODE_OF_CONDUCT.template.md"
   "AGENTS.md"
   "SECURITY.md"
-  "SECURITY.template.md"
   "CHANGELOG.md"
-  "CHANGELOG.template.md"
   "ROADMAP.md"
-  "ROADMAP.template.md"
   "LICENSE"
   "LICENSE.template"
 )
@@ -119,7 +119,6 @@ ALLOWED_CONFIGS=(
   "tsconfig.json"
   ".worktreeinclude"
   "greptile.json"
-  "greptile.template.json"
 )
 
 ALLOWED_DIRS=(
