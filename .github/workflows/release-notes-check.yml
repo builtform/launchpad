@@ -4,9 +4,11 @@ name: Release Notes Check
 # docs/releases/v<VERSION>.md file. See docs/maintainers/RELEASE_PROCESS.md
 # for the why and the full release process.
 #
-# This workflow is LaunchPad-internal only — `scripts/setup/init-project.sh`
-# removes it from downstream projects scaffolded via the LaunchPad template,
-# because the per-version release-notes-file convention is a maintainer
+# This workflow is LaunchPad-internal only. v0/v1 init-project.sh used to
+# strip it from downstream projects scaffolded via the LaunchPad template;
+# v2.1 decommissioned that flow (BL-247). Downstream projects scaffolded by
+# the v2.x kernel renderer never receive this workflow, so no strip step is
+# needed. The per-version release-notes-file convention is a maintainer
 # choice, not something we impose on downstream projects whose release
 # practices we cannot predict.
 

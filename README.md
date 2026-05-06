@@ -23,7 +23,7 @@ On top of that kernel, LaunchPad ships 38 slash commands, 36 sub-agents, and 16 
 
 **Where it fits.** LaunchPad is built on top of the best agentic coding practices such as Compound Engineering Plugin, Compound Product, Spec-Driven Development, Ralph Loop, and more (read below for the full attribution). What makes it unique is the structural foundation that makes agent recipes productive across sessions. Run the plugin alongside the kernel.
 
-Works on both **brownfield** projects (add the plugin to an existing repo, run `/lp-define`, get the kernel retrofitted) and **greenfield** (clone the template or run the new `/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define` pipeline for a fresh project with the kernel materialized from scratch).
+Works on both **brownfield** projects (add the plugin to an existing repo, run `/lp-define`, get the kernel retrofitted) and **greenfield** (run the `/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define` pipeline for a fresh project with the kernel materialized from scratch).
 
 LaunchPad ships under the **BuiltForm** marketplace at [github.com/builtform](https://github.com/builtform) — the umbrella brand for plugins and tools by Foad Shafighi.
 
@@ -50,17 +50,23 @@ Restart Claude Code. All `/lp-*` commands are now available. Run `/lp-kickoff` t
 
 The marketplace registration step is required today because BuiltForm is awaiting confirmation in the Anthropic public plugin registry. Once Anthropic confirms BuiltForm, `/plugin install launchpad@builtform` will work on its own and the `marketplace add` line above will no longer be necessary. Until then, run both lines.
 
-### Path 2 — Fresh monorepo with LaunchPad pre-installed (Best for Greenfield)
+### Path 2 — Fresh monorepo (Best for Greenfield)
 
-If you are starting fresh and want a fully scaffolded monorepo with the LaunchPad plugin and kernel fully installed.
+Inside Claude Code, with the plugin installed via Path 1, run the four-command greenfield pipeline:
 
-```bash
-git clone https://github.com/builtform/launchpad my-project
-cd my-project
-./scripts/setup/init-project.sh
+```
+/lp-brainstorm  →  /lp-pick-stack  →  /lp-scaffold-stack  →  /lp-define
 ```
 
-The wizard prompts for project name, description, copyright holder, and license; replaces placeholders; sets up git remotes; registers the BuiltForm marketplace at project scope; and auto-installs the plugin. No separate `/plugin marketplace add` step is required for this path.
+The pipeline scaffolds a fresh monorepo with `package.json`, `lefthook.yml`, the architecture docs, and project config rendered natively by the plugin's kernel renderer. No `git clone` step is required; the plugin is the canonical source for all scaffold content.
+
+**If you need legacy v0/v1 install behavior** (the `init-project.sh` wizard): pin to v2.0.x:
+
+```
+git checkout v2.0.x
+```
+
+The `init-project.sh` script and 7 `*.template.*` swap files were decommissioned in v2.1 (BL-247). See `docs/maintainers/decommission-history.md` for the canonical audit log; see CHANGELOG.md (v2.1.0) for the user-facing migration note.
 
 ---
 
@@ -110,8 +116,7 @@ LaunchPad/
 │   ├── skills/                 # reusable instruction sets (lp-*/SKILL.md)
 │   └── scripts/                # runtime: plugin-*.py/.sh + stack adapters + _vendor/
 ├── .launchpad/                 # project-local harness config (agents.yml, audit.log)
-├── docs/                       # architecture, reports, handoffs, releases
-└── scripts/setup/              # init-project.sh (self-host only)
+└── docs/                       # architecture, reports, handoffs, releases
 ```
 
 </details>
