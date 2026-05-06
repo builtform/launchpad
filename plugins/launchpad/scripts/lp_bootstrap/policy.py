@@ -655,6 +655,33 @@ def ensure_backups_in_gitignore(cwd: Path) -> None:
         )
 
 
+# --- Phase 6 v2.1 lp-define config.yml writer (DA6 + cycle-3 architecture P1-A) ----
+
+def write_config_yaml_atomic(path: Path, content: str) -> None:
+    """Atomically write `.launchpad/config.yml` for /lp-define.
+
+    Wraps `atomic_write_replace` so `lp_define_runner.py` does NOT need to
+    import `atomic_io` directly (Phase 8.5 lint allowlist limits direct
+    `atomic_write_replace` imports to a small set; this helper keeps
+    /lp-define on that allowlist via `lp_bootstrap.policy`).
+
+    Symlink target is rejected fail-closed (mirrors the rest of this
+    module). Parent directory is created if missing.
+    """
+    if path.is_symlink():
+        raise BootstrapPolicyError(
+            f"refusing to write through symlink {path}",
+            reason=BootstrapErrorCode.PATH_TRAVERSAL_REJECTED,
+            path=path,
+            remediation=(
+                f"replace the symlink at {path} with a regular file before "
+                "re-running /lp-define"
+            ),
+        )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_replace(path, content.encode("utf-8"), mode=0o644)
+
+
 __all__ = [
     "BootstrapPolicyError",
     "PolicyAction",
@@ -667,4 +694,5 @@ __all__ = [
     "merge_keys_additive",
     "record_warnings",
     "write_backup_then_overwrite",
+    "write_config_yaml_atomic",
 ]

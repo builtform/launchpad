@@ -1,6 +1,7 @@
 ---
 name: lp-data-migration-auditor
 description: Validates data migrations, backfills, and production data transformations for safety in Prisma/PostgreSQL.
+stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
 ---

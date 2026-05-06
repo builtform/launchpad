@@ -97,6 +97,37 @@ The runner is non-interactive-safe: if stdin isn't a TTY and `--force`
 isn't passed, it defaults every existing-file prompt to `keep`. This makes
 re-runs in CI safe by default.
 
+### Stack persistence (v2.1 Phase 6 §3.6)
+
+`/lp-define` writes the resolved stack id(s) to `.launchpad/config.yml`
+at the **top level** as `stacks: [<id>]` (matches Phase 4
+`auto_promote_stack_to_stacks()` write location). Atomic writes route
+through `lp_bootstrap.policy.write_config_yaml_atomic` (Phase 8.5
+`atomic_write_replace` lint allowlist surface). On re-run, the persisted
+stacks are read via `plugin_config_loader.read_stacks()` which layers
+over `auto_promote_stack_to_stacks()` and discards the returned warnings
+list (caller-side tuple-discard; no helper modification).
+
+To re-detect the stack id after refactoring (e.g., adding Rails to a
+project that previously detected as generic Ruby):
+
+```bash
+# Bare flag: aborts with exit 65 (EX_DATAERR) if detected id differs
+# from persisted; safe sanity check.
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_define_runner.py \
+  --repo-root=$PWD --redetect-stack
+
+# --force is the confirmation token (no Y/N prompt; safe in CI). Detector
+# runs ONCE; persisted stacks: line is overwritten via atomic write.
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_define_runner.py \
+  --repo-root=$PWD --redetect-stack --force
+```
+
+Pipeline / commands / paths sections of `config.yml` are preserved
+(only the `stacks:` line is rewritten).
+
+---
+
 ## Step 1.5: Brownfield infrastructure auto-invoke (v2.1 Phase 3 §3.9)
 
 **Brownfield only.** After the generator returns, classify the

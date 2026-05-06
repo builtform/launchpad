@@ -1,6 +1,7 @@
 ---
 name: lp-design-lens-reviewer
 description: Reviews plans from a design/UX perspective — user experience implications, interaction patterns, and visual consistency.
+stack_scope: core_pipeline
 tools: Read
 model: inherit
 ---

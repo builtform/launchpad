@@ -607,6 +607,43 @@ def auto_promote_stack_to_stacks(
     return config, warnings
 
 
+# --- Phase 6 v2.1 (DA6) -- read_stacks helper for /lp-define ---------------
+
+
+def read_stacks(cwd: Path) -> list[str]:
+    """Phase 6 plan §3.6: layer over `auto_promote_stack_to_stacks` and
+    discard the returned warnings list (caller-side tuple-discard per
+    cycle-3 simplicity P1-S1 + security P1-NEW-B; NO helper modification).
+
+    Returns:
+      * top-level `stacks: [...]` array if present (authoritative).
+      * else `auto_promote_stack_to_stacks({"stack": <legacy>})[0]["stacks"]`
+        if a legacy `stack:` scalar is present.
+      * else empty list (caller decides whether to re-detect).
+
+    Reads the raw YAML directly because `load()` projects to a fixed
+    section schema and intentionally drops top-level `stack` / `stacks`
+    keys; the layered call here keeps the auto_promote signature
+    byte-equivalent to Phase 4's ship.
+    """
+    config_path = (cwd / ".launchpad" / "config.yml").resolve()
+    if not config_path.is_file():
+        return []
+    try:
+        raw = _load_yaml_safe(config_path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return []
+    if not isinstance(raw, dict):
+        return []
+    stacks = raw.get("stacks")
+    if isinstance(stacks, list):
+        return [str(s) for s in stacks]
+    if raw.get("stack") is not None:
+        config_lifted, _warnings = auto_promote_stack_to_stacks(raw)
+        return [str(s) for s in config_lifted.get("stacks", [])]
+    return []
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--repo-root", default=os.environ.get("LP_REPO_ROOT", os.getcwd()))

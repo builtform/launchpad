@@ -16,13 +16,16 @@ from plugin_default_generators._renderer_base import (
 )
 
 
-def test_active_enum_contains_exactly_five_v21_stack_ids():
+def test_active_enum_contains_exactly_six_v21_stack_ids():
+    # Phase 6 v2.1: `rails` added as detector groundwork (no Rails-specific
+    # reviewer in v2.1; framework-axis + Rails reviewers arrive in v2.2 BL).
     assert STACK_ID_ACTIVE_ENUM == frozenset({
         "ts_monorepo",
         "nextjs_standalone",
         "nextjs_fastapi",
         "astro",
         "generic",
+        "rails",
     })
 
 
@@ -31,10 +34,9 @@ def test_validate_stack_id_accepts_each_active_member():
         assert validate_stack_id(sid) == sid
 
 
-def test_validate_stack_id_rejects_unknown_id():
-    with pytest.raises(StackIdInvalidError) as exc:
-        validate_stack_id("rails")
-    assert "rails" in str(exc.value)
+# Phase 6 v2.1: rails-rejection assertion REMOVED; rails is now an active
+# enum member. Rejection is reframed as a phoenix canary in
+# test_stack_id_closed_enum_rails_acceptance.py.
 
 
 def test_validate_stack_id_rejects_path_traversal_attempt():

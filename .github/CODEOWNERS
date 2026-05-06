@@ -12,6 +12,12 @@
 # Plugin source — the heart of LaunchPad
 /plugins/launchpad/                @builtform/core
 
+# Phase 6 v2.1 stack_scope frontmatter on plugin agents. Pre-merge gate
+# defense against malicious upstream PR rewriting stack_scope to disable
+# security review. See docs/plans/launchpad_plans/2026-05-05-v2.1-phase6-implementation-plan.md
+# §3.0 Security Posture.
+/plugins/launchpad/agents/**       @builtform/core
+
 # Runtime scripts and stack adapters
 /plugins/launchpad/scripts/        @builtform/core
 

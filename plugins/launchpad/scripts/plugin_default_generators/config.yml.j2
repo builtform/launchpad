@@ -1,8 +1,12 @@
 # .launchpad/config.yml — seeded by /lp-define from detected stack
 #
-# Three sections: pipeline (stage toggles), commands (shell invocations),
-# paths (canonical locations). Edit freely; /lp-define won't overwrite this
-# file without your explicit consent (interactive per-file prompt).
+# Sections: stacks (v2.1 top-level array of detected stack ids), pipeline
+# (stage toggles), commands (shell invocations), paths (canonical
+# locations). Edit freely; /lp-define won't overwrite this file without
+# your explicit consent (interactive per-file prompt). To re-detect the
+# stack id after refactoring, run `/lp-define --redetect-stack --force`.
+
+stacks: [{% for s in stacks %}{{ s }}{% if not loop.last %}, {% endif %}{% endfor %}]
 
 pipeline:
   brainstorm: enabled

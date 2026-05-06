@@ -1,6 +1,7 @@
 ---
 name: lp-scope-guardian-reviewer
 description: Guards against scope creep in requirements and plans by enforcing boundaries between what's needed now and what can wait.
+stack_scope: core_pipeline
 tools: Read
 model: inherit
 ---

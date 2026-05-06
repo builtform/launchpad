@@ -1,6 +1,7 @@
 ---
 name: lp-figma-design-sync
 description: "Captures Figma design intent via Figma MCP and compares against live implementation in the browser. Produces a structured diff of design-vs-implementation discrepancies and applies fixes."
+stack_scope: design_quality
 model: inherit
 tools: Read, Edit, Write, Grep, Glob, Bash
 ---

@@ -1,6 +1,7 @@
 ---
 name: lp-product-lens-reviewer
 description: Reviews plans from a product strategy perspective — user value, market fit, and strategic consequences of technical decisions.
+stack_scope: core_pipeline
 tools: Read
 model: inherit
 ---

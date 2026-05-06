@@ -611,6 +611,69 @@ def generate(
     return 0
 
 
+def redetect_stack(repo_root: Path, *, force: bool) -> int:
+    """Phase 6 v2.1 DA6: --redetect-stack flag handler.
+
+    Detector runs ONCE per invocation. If the detected stack id matches
+    the persisted `stacks:` array, no-op (exit 0). If mismatch and `force`
+    is False, abort with exit 65 (`EX_DATAERR` from sysexits.h; chosen to
+    distinguish from Phase 8 signpost stubs which use exit 64). If
+    mismatch and `force` is True, atomically rewrite the `stacks:` line
+    in `.launchpad/config.yml` via `lp_bootstrap.policy.write_config_yaml_atomic`.
+
+    `--force` IS the confirmation token (cycle-3 spec-flow P1-1); no Y/N
+    prompt; safe in CI.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "plugin_config_loader", SCRIPT_DIR / "plugin-config-loader.py"
+    )
+    cfg_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cfg_mod)  # type: ignore[union-attr]
+
+    persisted = cfg_mod.read_stacks(repo_root)
+    report = run_detector(repo_root)
+    detected = list(report.get("stacks") or ["generic"])
+
+    if persisted == detected:
+        return 0
+
+    if not force:
+        print(
+            f"detected id {detected!r} differs from persisted {persisted!r}; "
+            f"re-run with --force to overwrite",
+            file=sys.stderr,
+        )
+        return 65
+
+    from lp_bootstrap.policy import write_config_yaml_atomic
+
+    config_path = repo_root / ".launchpad" / "config.yml"
+    if not config_path.is_file():
+        new_text = f"stacks: [{', '.join(detected)}]\n"
+        write_config_yaml_atomic(config_path, new_text)
+        return 0
+
+    text = config_path.read_text(encoding="utf-8")
+    lines = text.splitlines(keepends=False)
+    new_stacks_line = f"stacks: [{', '.join(detected)}]"
+    out: list[str] = []
+    replaced = False
+    for ln in lines:
+        if not replaced and ln.lstrip().startswith("stacks:"):
+            out.append(new_stacks_line)
+            replaced = True
+        else:
+            out.append(ln)
+    if not replaced:
+        out.insert(0, new_stacks_line)
+        out.insert(1, "")
+    new_text = "\n".join(out) + ("\n" if text.endswith("\n") else "")
+    write_config_yaml_atomic(config_path, new_text)
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--repo-root", default=os.environ.get("LP_REPO_ROOT", os.getcwd()))
@@ -623,7 +686,26 @@ def main() -> int:
         action="store_true",
         help="suppress the trust-model banner (used by automated tests)",
     )
+    ap.add_argument(
+        "--redetect-stack",
+        action="store_true",
+        help=(
+            "Re-detect stack id and persist it to .launchpad/config.yml's "
+            "top-level `stacks:` array. Bare flag aborts with exit 65 "
+            "(EX_DATAERR) if detected id differs from persisted; pair "
+            "with --force to overwrite without prompt (safe in CI)."
+        ),
+    )
     args = ap.parse_args()
+
+    if args.redetect_stack:
+        try:
+            return redetect_stack(
+                Path(args.repo_root).resolve(), force=args.force
+            )
+        except Exception as e:
+            print(f"redetect-stack error: {e}", file=sys.stderr)
+            return 1
 
     only_set: set[str] | None = None
     if args.only:

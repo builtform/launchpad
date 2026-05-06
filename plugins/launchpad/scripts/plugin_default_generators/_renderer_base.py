@@ -72,17 +72,22 @@ GENERATORS_ROOT = Path(__file__).resolve().parent
 # `plugin_stack_adapters/<adapter>/templates/<name>.j2.fragment`.
 STACK_FRAGMENTS_ROOT = _SCRIPTS_DIR / "plugin_stack_adapters"
 
-# v2.1 active stack id closed enum (5 values). Stack-aware renderers MUST
-# validate the incoming stack_id against this set BEFORE building the
-# Environment so a bad value raises StackIdInvalidError instead of silently
-# rendering a missing-fragment template error or, worse, looking up an
-# attacker-controlled path traversal.
+# v2.1 active stack id closed enum. Stack-aware renderers MUST validate the
+# incoming stack_id against this set BEFORE building the Environment so a
+# bad value raises StackIdInvalidError instead of silently rendering a
+# missing-fragment template error or, worse, looking up an attacker-
+# controlled path traversal.
+#
+# Phase 6 v2.1: `rails` added as detector groundwork. No Rails-specific
+# reviewer ships in v2.1; framework-axis wire-through + Rails reviewers
+# arrive in v2.2 BL.
 STACK_ID_ACTIVE_ENUM: frozenset[str] = frozenset({
     "ts_monorepo",
     "nextjs_standalone",
     "nextjs_fastapi",
     "astro",
     "generic",
+    "rails",
 })
 
 

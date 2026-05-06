@@ -1,6 +1,7 @@
 ---
 name: lp-performance-auditor
 description: Analyzes code for performance bottlenecks, algorithmic complexity, database queries, memory usage, and scalability in TypeScript/Next.js/Hono/Prisma applications.
+stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
 ---

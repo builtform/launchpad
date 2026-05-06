@@ -84,11 +84,38 @@ Read agent names from `.launchpad/agents.yml`:
 
 ### Always dispatched (both `--full` and `--lightweight`):
 
-Read `harden_plan_agents` from `agents.yml`. Dispatch all listed agents in parallel with plan + project context + learnings + Context7 enrichment.
+Read `harden_plan_agents` from `agents.yml`.
+
+**Pre-filter (v2.1 Phase 6 §3.3 + DA3)**: narrow `harden_plan_agents +
+harden_plan_conditional_agents` through
+`plugin_agent_scope_filter.filter_agents_by_stacks(<combined>, stacks)`
+where `stacks = plugin_config_loader.read_stacks(cwd)`. Step 3.5
+(doc-reviewers) is NOT filtered — they are `core_pipeline` always-load.
+
+**Pass-through fallback** (same banner contract as `/lp-review` Step 3):
+if the filter raises ANY exception, catch broadly, log INFO with the
+exception type, and emit the FALLBACK banner:
+
+> ⚠ stack-filter unavailable (\<exception type\>); dispatching full
+> roster of N agents
+
+Then dispatch all input agents verbatim.
+
+**Partial-drop banner** (cycle-4 spec-flow P2-B): if the filter
+completes with non-empty `last_dropped_names()`, emit:
+
+> ⚠ stack-filter dropped unknown names: \[\<name1\>, \<name2\>\];
+> dispatching M of N agents
+
+Then dispatch the M survivors. Both banners go to user-visible command
+output, not buried logs.
+
+Dispatch survivors in parallel with plan + project context + learnings + Context7 enrichment.
 
 ### Conditional (`--full` only):
 
-Read `harden_plan_conditional_agents` from `agents.yml`. Dispatch all listed agents in parallel.
+Read `harden_plan_conditional_agents` from `agents.yml`. (Already merged
+into the filter input above.) Dispatch all listed agents in parallel.
 
 **Agent resolution:** Scan `${CLAUDE_PLUGIN_ROOT}/agents/**` for `{name}.md` (built-ins shipped with the plugin; their on-disk filenames already include the `lp-` prefix and `agents.yml` stores names with the prefix to match) first, then `.claude/agents/**` for `{name}.md` (project-local extensions). First match wins. If agent file not found, skip silently with a note.
 

@@ -1,6 +1,7 @@
 ---
 name: lp-pr-comment-resolver
 description: Addresses a single PR review comment by implementing the requested change and reporting the resolution.
+stack_scope: core_pipeline
 tools: Read, Edit, Write, Grep, Glob, Bash
 model: inherit
 ---

@@ -1,6 +1,7 @@
 ---
 name: lp-feasibility-reviewer
 description: Assesses technical feasibility of proposed plans against the project's actual stack, constraints, and current state.
+stack_scope: core_pipeline
 tools: Read
 model: inherit
 ---
