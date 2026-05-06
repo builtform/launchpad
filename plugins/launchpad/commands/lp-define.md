@@ -51,42 +51,49 @@ forbids.
 
 ## Step 1: Run the generator
 
-Invoke `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-doc-generator.py`:
+Invoke `${CLAUDE_PLUGIN_ROOT}/scripts/lp_define_runner.py`:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plugin-doc-generator.py \
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_define_runner.py \
   --repo-root=$PWD \
   --product-name="<user-provided name, or existing PRD H1 if re-running>"
 ```
 
-The generator does:
+The runner emits the trust-model banner BEFORE the gate fires:
+
+> "This command will render and atomically write the LaunchPad infrastructure
+> overlay. All rendered content is scanned against `.launchpad/secret-patterns.txt`
+> before any disk write; if any secret pattern matches, all writes are refused."
+
+The runner does:
 
 1. **Detect** — runs the stack detector (manifest allowlist, 1MB cap, bounded walk)
-2. **Compose** — single-stack adapter OR polyglot composer (multi-language path)
-3. **Render** — 4 canonical docs + section registry + config.yml through Jinja2
-   with `select_autoescape(enabled_extensions=('html','htm','xml'), default=False)`
-   so HTML / XML templates autoescape (no template here today, door open for
-   v1.1) but Markdown and YAML render variable content verbatim. Variable
-   values are strings, never re-parsed as Jinja syntax — the SSTI guard
-   was always Jinja's template model, not HTML autoescape, which on
-   Markdown only corrupted benign text like `R&D <Pilot>`. YAML safety
-   relies on `tojson` / explicit yaml-safe quoting in template bodies.
-   `StrictUndefined` is preserved so missing variables fail loudly
-4. **Scan** — every rendered doc passed through `.launchpad/secret-patterns.txt`
-   (with conservative built-in fallback); any match blocks the write. The
-   doc generator does not interpolate parsed manifest CONTENT into template
-   output (it renders manifest paths only), so there is no per-field strip
-   step here today; a `manifest_stripper` helper exists for the case where
-   a future template needs to embed a manifest value, at which point it
-   would be wired at that interpolation boundary
+2. **Compose** — single-stack adapter OR polyglot composer (multi-language path);
+   applies `polyglot_path_rewriter._rewrite_adapter_paths` against
+   `.launchpad/scaffold-receipt.json` so receipt-driven paths flow into the
+   rendered docs
+3. **Render** — 5 canonical docs + section registry + config.yml + agents.yml
+   through Jinja2 with `select_autoescape(enabled_extensions=('html','htm','xml'),
+default=False)`. Markdown and YAML render variable content verbatim;
+   variable values are strings, never re-parsed as Jinja syntax, so the SSTI
+   guard is the template model itself rather than HTML autoescape (which would
+   only corrupt benign text like `R&D <Pilot>`). YAML safety relies on `tojson`
+   / explicit yaml-safe quoting in template bodies. `StrictUndefined` makes
+   missing variables fail loudly
+4. **Buffered batch + scan** — `RendererBase.render_batch` accumulates
+   the full output in memory; `scan_batch` runs `.launchpad/secret-patterns.txt`
+   (with `BUNDLED_DEFAULT_PATTERNS` as the fresh-greenfield fallback) over every
+   rendered file. Any match aborts the run BEFORE any disk write — the
+   atomic-batch-or-none invariant per Phase 8.5 plan section 3.11 (DA1' = a2)
 5. **Apply overwrite menu** per existing file:
    `[k]eep / [o]verwrite / [d]iff preview / [a]ll-overwrite / [s]kip-all`
    - `.launchpad/config.yml` and `.launchpad/agents.yml` are **never**
      included in `[a]ll-overwrite` — always individual prompt with mandatory
      diff (user-tuned state is too costly to lose)
-6. **Write** — writes the new files to disk at their canonical paths
+6. **Write** — atomic-all-or-none via `RendererBase.write_batch` on the
+   accepted subset; the gate re-scans (cache-fast) before any write lands
 
-The generator is non-interactive-safe: if stdin isn't a TTY and `--force`
+The runner is non-interactive-safe: if stdin isn't a TTY and `--force`
 isn't passed, it defaults every existing-file prompt to `keep`. This makes
 re-runs in CI safe by default.
 

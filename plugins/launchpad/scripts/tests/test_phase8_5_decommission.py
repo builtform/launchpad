@@ -316,6 +316,99 @@ def test_no_renderer_subclass_overrides_protected_methods():
             )
 
 
+# ---------------------------------------------------------------------------
+# Slice A -- /lp-define rewire
+# ---------------------------------------------------------------------------
+
+
+def test_lp_define_runner_emits_trust_banner_before_write(tmp_path, capsys):
+    """The /lp-define runner emits the trust-model banner to stderr BEFORE
+    any render or scan fires. Phase 8.5 plan section 3.12 + spec-flow P1-1
+    (enforceable runtime emit, not markdown-only)."""
+    import lp_define_runner
+
+    # Bootstrap a generic-stack project so the detector returns quickly.
+    (tmp_path / "package.json").write_text(
+        '{"name":"demo"}', encoding="utf-8"
+    )
+
+    # Capture stderr; run dry-run + force.
+    rc = lp_define_runner.generate(
+        tmp_path,
+        dry_run=True,
+        force=True,
+        product_name="Demo",
+        emit_trust_banner=True,
+    )
+    captured = capsys.readouterr()
+
+    assert rc == 0, f"runner exit code {rc}; stderr: {captured.err}"
+    # Banner appears BEFORE any rendered-summary output. We capture the
+    # banner exactly as Phase 8.5 plan section 3.12 specified.
+    assert lp_define_runner.TRUST_BANNER in captured.err, (
+        f"trust banner missing from stderr; got:\n{captured.err}"
+    )
+    # Sanity: banner appears verbatim.
+    assert (
+        "All rendered content is scanned against "
+        ".launchpad/secret-patterns.txt before any disk write"
+    ) in captured.err
+
+
+def test_lp_define_runner_renders_canonical_docs_dry_run(tmp_path):
+    """Smoke: dry-run produces the 7 canonical doc relpaths + a clean
+    JSON summary. Stands in for Slice A0a's behavioral-equivalence
+    contract -- the runner produces the same output set as the legacy
+    plugin-doc-generator.py against a generic-stack project."""
+    import lp_define_runner
+
+    (tmp_path / "package.json").write_text('{"name":"demo"}', encoding="utf-8")
+
+    rc = lp_define_runner.generate(
+        tmp_path,
+        dry_run=True,
+        force=False,
+        product_name="Demo",
+        emit_trust_banner=False,
+    )
+    assert rc == 0
+
+
+def test_lp_define_runner_full_batch_secret_finding_refuses_all(tmp_path, monkeypatch):
+    """Synthesize a render whose output contains an AWS-key shape; assert
+    the orchestrator's full-batch scan refuses the run with exit 1 and
+    NO files reach disk. Preserves the legacy
+    plugin-doc-generator.py:496-505 contract."""
+    import lp_define_runner
+
+    (tmp_path / "package.json").write_text('{"name":"demo"}', encoding="utf-8")
+
+    # Inject an AWS-key into the rendered output by monkeypatching
+    # render_docs to add a secret to one of the artifacts.
+    real_render_docs = lp_define_runner.render_docs
+
+    def render_docs_with_secret(*args, **kwargs):
+        rendered = real_render_docs(*args, **kwargs)
+        # Pollute the PRD with a synthesized secret.
+        if "docs/architecture/PRD.md" in rendered:
+            rendered["docs/architecture/PRD.md"] += "\nLook: AKIAABCDEFGHIJKLMNOP\n"
+        return rendered
+
+    monkeypatch.setattr(lp_define_runner, "render_docs", render_docs_with_secret)
+
+    rc = lp_define_runner.generate(
+        tmp_path,
+        dry_run=False,
+        force=True,
+        product_name="Demo",
+        emit_trust_banner=False,
+    )
+    assert rc == 1, "secret in rendered batch must abort the run"
+    # No canonical doc lands on disk.
+    assert not (tmp_path / "docs" / "architecture" / "PRD.md").exists()
+    assert not (tmp_path / ".launchpad" / "config.yml").exists()
+
+
 def test_no_renderer_subclass_writes_directly():
     """No production module under plugin_default_generators/ or
     plugin_stack_adapters/ calls `atomic_write_replace` directly except
