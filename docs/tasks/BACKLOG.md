@@ -1180,3 +1180,70 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 **Cross-link**: builds on v2.1 wrap-and-overlay pattern locked in [docs/plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md](../plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md) §7. v2.2 design plan to be authored when this entry is picked up.
 
 **Default decision**: ship in v2.2. Cheap relative to authoring per-adapter from scratch (estimated ~15-25h vs 8-12h per non-BYO adapter). Prerequisite: v2.1 ships and wrap-and-overlay pattern proves stable in production (the `ulc.spec.org` Tier-2 dogfood is the validation gate).
+
+#### BL-251 - v2.2: Phase 1+2 retroactive Tier B residuals bundle
+
+**Driver**: 2026-05-06 retroactive `--full` /lp-harden-plan against shipped Phase 1 + Phase 2 (HEADs `d14f1a4` + `4fe969f`) surfaced ~16-18 P1 across 26 review agents. Triaged into Tier A (amend now, 9 items, shipped at HEADs `dc9dc08` + `c39eaf0`) + Tier B (defer to v2.2, ~10 items captured here).
+
+**Tier B items** (none ship-blocking; ranked by reviewer-confidence + practical impact):
+
+1. **Email regex "RFC5322-lite" doc clarification** (cosmetic): `IDENTITY_EMAIL_RE` is documented as RFC5322-compliant but is actually a permissive subset. Update HANDSHAKE §10.v2.1 to call it "RFC5322-lite" and enumerate the rejected forms (e.g., quoted local-parts, IP-literal hosts).
+2. **`/lp-pick-stack.md` "5 questions" vs 6 prompts numbering** (cosmetic display): step header says "5 questions" but Step 1.5 emits 6 identity prompts. Reconcile to "6 questions" in command spec.
+3. **CODEOWNERS gate advisory-only on free-tier GitHub** (existing reality): document in SECURITY.md that CODEOWNERS-based schema-source review is enforced only on Pro/Enterprise repos; free-tier repos must pair with branch-protection rules to enforce. Doc-only.
+4. **Identity reader-allowlist enforced by handshake-lint** (architecture-scale, ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS-style): introduce `IDENTITY_READER_ALLOWED_CALLERS` allowlist; add lint rule that `validate_identity()` callers are restricted to declared modules. Defense-in-depth against unscoped identity reads.
+5. **`infrastructure/` + `workflow-config/` skeleton dirs in Phase 2** (verify Phase 3 created them, otherwise add): low-priority structural cleanup; current shipped state may already have these via Phase 3 orchestrated-init utilities.
+6. **Identity context filter discipline** (per-template lint): assert that all `{{ identity.* }}` references in non-Markdown templates use `| tojson` (for JSON contexts) or `| shell_quote` (for shell contexts). Companion to Tier A6 `markdown_safe` filter.
+7. **§17.1 vs §13.6 feature count mismatch in V3 plan** (cosmetic): V3 plan is gitignored; reconciliation is plan-author-only. No shipped artifact impact.
+8. **TOCTOU in `KernelRenderer.refresh()`** (theoretical): mitigated by `atomic_write_replace` + Phase 10 sentinel; document the mitigation in HANDSHAKE §10.v2.1 for completeness.
+9. **`IDENTITY_REPO_URL_RE` permits http:// + RFC1918 hosts**: only matters if downstream fetches the URL server-side. v2.1 does not; v2.2 BYO-scaffolder mode (BL-250) might. Tighten regex when BL-250 design lands.
+10. **`advisory_flock` no timeout** (theoretical wedge): LOCK_NB poll loop with bounded retries would prevent stuck-lock scenarios on `/lp-define` concurrent runs. v2.1 ships single-session-correct; v2.2 multi-session adds the timeout.
+
+**Cross-link**: full Tier A/B audit synthesis in `.harness/handoff-tier-a-bundle.md` (gitignored runtime path; sibling-session implementation prompt). Phase 1+2 retroactive amendments shipped at HEADs `dc9dc08` (8 fixes + DIP cleanup) + `c39eaf0` (HANDSHAKE schema doc).
+
+**Default decision**: defer to v2.2. None of these are ship-blocking; cumulative effort estimated ~6-10h. Schedule alongside v2.2 operational/security infrastructure bundle.
+
+#### BL-252 - v2.2: Phase 11 deferred manifest tampering scenarios
+
+**Driver**: Phase 11 LOCKED v3 plan (2026-05-06) shipped `test_bootstrap_manifest_tampering.py` with 11 scenarios (existing 9 from Phase 3 Slice C + 2 augments per Phase 11 DA3: SymlinkSubstitution + TOCTOU). Cycle 1 + cycle 2 review surfaced 4 additional attack scenarios that did not make the v2.1 ship cut.
+
+**Scenarios to add at v2.2**:
+
+1. **NullByteInjection**: `..\x00..` style path encoding bypasses string `..` checks. Requires path-validation hardening that uses byte-level parsing not string-prefix.
+2. **UnicodeNormalizationAttack**: homoglyph in identity field that NFC-normalizes to a different value post-validation. Requires NFKC normalization at validation time + post-normalization re-check.
+3. **ZIP-bomb / oversized-manifest payloads**: pathologically-large or recursively-compressed manifest payloads. Requires manifest size cap (e.g., 1MB hard limit) + early-reject before parse.
+4. **Concurrent-modification race during manifest read**: file mutated between `manifest_sha256` verify and consume by a concurrent `/lp-update-identity` or external editor. Requires either OS-level file lock during read OR re-hash on consume (already partial in TOCTOU augment).
+
+**Cross-link**: Phase 11 plan `docs/plans/launchpad_plans/2026-05-06-v2.1-phase11-implementation-plan.md` §3.3 (DA3 augment scope + deferral list) + §8 (out-of-scope row). v2.0 baseline at PR #41 cycle-12 closed similar scenarios at the security_fields layer; v2.2 extends to manifest-payload layer.
+
+**Default decision**: defer to v2.2. v2.1 ships with 11 scenarios + 7 attack-class coverage; remaining 4 are exotic edge cases. Cumulative effort estimated ~3-5h.
+
+#### BL-253 - v2.2: Brainstorm Python runner extraction (E2E coverage from brainstorm step)
+
+**Driver**: Phase 11 LOCKED v3 plan (2026-05-06) DA1 + R2 acknowledge that `/lp-brainstorm` is slash-command-only and has no Python runner. The v2.1 E2E test (`test_v21_full_greenfield_pipeline.py`) starts at `pick_stack` and skips brainstorm coverage. v2.0 baseline (PR #41) had the same gap; v2.1 inherits it.
+
+**At v2.2 design time**:
+
+1. Extract brainstorm prompt-construction + response-parsing logic from `plugins/launchpad/commands/lp-brainstorm.md` into `plugins/launchpad/scripts/lp_brainstorm/engine.py` with `run_brainstorm(...)` entry point.
+2. Slash command becomes a thin adapter that invokes the runner with prompt context.
+3. Phase 11 E2E test is extended (or new `test_v22_full_pipeline_with_brainstorm.py`) to cover brainstorm → pick-stack → scaffold-stack → define.
+4. Consider whether brainstorm needs its own `BrainstormResult` dataclass or whether the existing `pick_stack` input dict shape covers it.
+
+**Cross-link**: Phase 11 plan `docs/plans/launchpad_plans/2026-05-06-v2.1-phase11-implementation-plan.md` §3.1 DA1 + §6 R2.
+
+**Default decision**: defer to v2.2. v2.1 ships with documented coverage gap; brainstorm runtime is LLM-dependent so testing gain is modest. Schedule when telemetry justifies (high brainstorm-step bug rate).
+
+#### BL-254 - v2.2: Promote pip-audit + osv-scanner from advisory to required gates
+
+**Driver**: Phase 11 LOCKED v3 plan (2026-05-06) Slice E step 9 captures `pip-audit` + `osv-scanner` output as advisory (non-blocking). Cycle 1 security F8 flagged this as A06 Vulnerable Components risk: a known-CVE dependency could ship if reviewer ignores the advisory output. v2.1 keeps advisory mode for tooling-availability reasons; v2.2 should harden.
+
+**At v2.2 design time**:
+
+1. Add `pip-audit -r requirements.txt` to `verify-v2-ship` GitHub Action as a required step.
+2. Add `osv-scanner --recursive plugins/launchpad/scripts/` to `verify-v2-ship` as a required step.
+3. Adapter pin sweep (BL-100/BL-101/BL-102/BL-103/BL-104 v2.2 stack restorations): assert all adapter SHA pins resolve to OSV-clean upstream commits.
+4. Document allowlist mechanism for accepted-risk CVEs (e.g., transitive vulnerable dep with no exploit path).
+5. Update SECURITY.md to declare the supply-chain-audit posture.
+
+**Cross-link**: Phase 11 plan `docs/plans/launchpad_plans/2026-05-06-v2.1-phase11-implementation-plan.md` §8 row 4 + Slice E step 9 + cycle 1 security F8.
+
+**Default decision**: defer to v2.2. v2.1 ships advisory-only output captured in `/tmp/v2.1.0-*.log`; v2.2 gates promotion alongside the operational/security infrastructure bundle.

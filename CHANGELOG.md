@@ -6,7 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Tracked in [ROADMAP.md](ROADMAP.md). v2.1 is documentation-only (METHODOLOGY/HOW_IT_WORKS refresh); v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks.
+Tracked in [ROADMAP.md](ROADMAP.md). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` (BL-251 through BL-254) for v2.2-deferred items captured during v2.1 ship.
+
+## [2.1.0] -- 2026-05-XX
+
+Architecture refresh: composition wrapper, sealed identity, brownfield-safe re-runs. v2.1 layers a per-stack composition wrapper, a sealed identity contract, and a brownfield-aware re-run path on top of the v2.0 four-command greenfield pipeline. Two new commands ship (`/lp-bootstrap`, `/lp-update-identity`) and the v2.0 four-command greenfield pipeline keeps its v2.0 behavior end-to-end.
+
+Full release notes in [docs/releases/v2.1.0.md](docs/releases/v2.1.0.md).
+
+### Added
+
+- Sealed identity contract: 7-field identity block (`pii_opt_in`, `project_name`, `email`, `copyright_holder`, `repo_url`, `license`, `license_other_body`) sealed under `schema_version: "1.1"` envelope at `/lp-pick-stack` time
+- `/lp-bootstrap` command: bootstraps the harness configuration from plugin-bundled defaults with sentinel-protected execution
+- `/lp-update-identity` command: edits sealed identity values atomically with byte-identical preservation of `generated_at` across re-seal; 5-case re-entry detection (A through E) with transparent legacy v1.0 envelope migration
+- Composition wrapper at `plugin_stack_adapters/composition.py`: pair-table-from-data resolution at runtime, per-stack tempdir isolation, N=2 cap on multi-stack scaffolds
+- 7 stack-agnostic kernel templates (LICENSE, CONTRIBUTING.md, CODE_OF_CONDUCT.md, README.md, SECURITY.md, AGENTS.md, CLAUDE.md) with full canonical license bodies for MIT, Apache-2.0, GPL-3.0, BSD-3-Clause, ISC, MPL-2.0
+- Stack-aware review dispatch: 36 review agents gain `stack_scope` frontmatter (16 `core_pipeline`, 13 `stack:any`, 6 `design_quality`, 1 `skill_quality`); `/lp-review` and `/lp-harden-plan` filter agents per detected stack
+- `StackIdV22Candidate` forward-compat enum: 5 v2.2-candidate stack ids (`python_django`, `python_generic`, `nextjs_hono_cloudflare`, `nextjs_trpc_prisma`, `rails`) routed to `generic` with verbatim INFO log
+- `lp_define_runner.py` render-batch flow: `render_batch` + `scan_batch` + `write_batch` gates every kernel and adapter render through a full-batch secret scanner; any finding refuses the entire batch atomically
+- `secret_allowlist.py` with three suppression mechanisms (Jinja-comment, file-path-glob, regex) plus `BUNDLED_DEFAULT_PATTERNS` fallback when `.launchpad/secret-patterns.txt` is absent
+- `docs/guides/SECRET_SCANNER_TUNING.md`: tuning guide for the secret-scanner gate
+
+### Changed
+
+- v2.0 scaffold artifacts auto-migrate to `schema_version: "1.1"` on first contact with the v2.1 plugin via in-memory-first transparent migration
+- Bidirectional sentinel cross-detect across `/lp-bootstrap`, `/lp-update-identity`, `/lp-scaffold-stack` so two concurrent operations cannot corrupt each other's state
+- ALLOWLIST-based handshake-lint over `atomic_write_replace` callers via AST + import-binding resolution; alias-rename bypasses caught at lint time
+- CODEOWNERS extended with 8 v2.1 schema-source entries; modifications to schema constants require same-commit append-only audit-log entries
+
+### Deferred
+
+- v2.2: composition wrapper test stress harness (3 tests under `test_composition_wrapper.py` family); template cache concurrency hardening; brainstorm Python runner extraction; `pip-audit` and `osv-scanner` promotion from advisory to required gates; 4 manifest tampering scenarios (NullByteInjection, UnicodeNormalizationAttack, ZIP-bomb, ConcurrentModification); GPG-signed tags
+- See `docs/tasks/BACKLOG.md` BL-251 through BL-254
 
 ## [2.0.0] — 2026-05-01
 
@@ -131,7 +162,8 @@ Carried forward into v1.1:
 
 Full v1.1 scope in [ROADMAP.md](ROADMAP.md).
 
-[Unreleased]: https://github.com/builtform/launchpad/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/builtform/launchpad/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/builtform/launchpad/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/builtform/launchpad/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/builtform/launchpad/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/builtform/launchpad/compare/v1.0.0...v1.0.1

@@ -10,10 +10,13 @@ This document is honest about what the harness solves and what it does not. If y
 
 | Version | Supported     |
 | ------- | ------------- |
-| 1.x     | Yes (current) |
+| 2.x     | Yes (current) |
+| 1.x     | Best-effort   |
 | Pre-1.0 | No            |
 
 Security fixes are released as patch versions on the latest minor. Older minors are not back-patched.
+
+**Tag signing posture.** Tags before v2.2 are unsigned; verify ship integrity via release SHA against the tag annotation. Signed tags arrive in v2.2 (BL-214).
 
 ## What the harness controls
 
