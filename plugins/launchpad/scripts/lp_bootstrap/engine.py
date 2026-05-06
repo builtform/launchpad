@@ -166,30 +166,33 @@ _RENDERER: InfrastructureRenderer = InfrastructureRenderer()
 
 
 # --- Plugin manifest path (read_running_plugin_version source of truth) --
-
-_PLUGIN_JSON = (
-    Path(__file__).resolve().parent.parent.parent
-    / ".claude-plugin" / "plugin.json"
-)
+#
+# Phase 1+2 retroactive amendment (bonus dead-code removal): the prior
+# inlined `_read_running_plugin_version` + `_PLUGIN_JSON` constants were
+# byte-for-byte duplicates of `lp_pick_stack.decision_writer`'s exported
+# `read_running_plugin_version`. Consolidated to a single source of truth
+# via deferred import inside the helper to keep engine import-time light.
 
 
 def _read_running_plugin_version() -> str:
-    """Read `plugins/launchpad/.claude-plugin/plugin.json` `version` field.
+    """Delegate to `lp_pick_stack.decision_writer.read_running_plugin_version`.
 
-    Mirrors `lp_pick_stack.decision_writer.read_running_plugin_version`;
-    duplicated here to avoid pulling that module's heavy identity-validation
-    surface into engine import time.
+    Deferred import keeps the heavy identity-validation surface out of
+    engine import time. On manifest-not-found, the underlying reader
+    raises FileNotFoundError; we translate to a structured engine error
+    so callers see the existing remediation message.
     """
+    from lp_pick_stack.decision_writer import (
+        read_running_plugin_version as _shared,
+    )
     try:
-        text = _PLUGIN_JSON.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        # Defect in the plugin install; surface as a structured engine error.
+        return _shared()
+    except FileNotFoundError as exc:
         raise BootstrapEngineError(
-            f"plugin manifest not found at {_PLUGIN_JSON}",
+            f"plugin manifest not found: {exc}",
             reason=BootstrapErrorCode.LAUNCHPAD_DIR_MISSING,
             remediation="reinstall the LaunchPad plugin",
-        )
-    return str(json.loads(text)["version"])
+        ) from exc
 
 
 # --- Phase 1 reader bridge -----------------------------------------------

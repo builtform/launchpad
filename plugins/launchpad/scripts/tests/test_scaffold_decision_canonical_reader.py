@@ -69,6 +69,14 @@ def test_explicit_v10_schema_version_also_emits_warn(tmp_path: Path) -> None:
     assert len(result.warnings) == 1
 
 
+def _valid_identity() -> dict:
+    """Phase 1+2 retroactive amendment A5: read-side validate_identity now
+    rejects malformed identity blocks, so v1.1 envelopes used in tests
+    must carry a complete identity (or no identity at all)."""
+    from lp_pick_stack.decision_writer import default_unset_identity
+    return default_unset_identity()
+
+
 def test_v11_envelope_reads_in_full_mode(tmp_path: Path) -> None:
     _write_decision(tmp_path, {
         "schema_version": "1.1",
@@ -76,7 +84,7 @@ def test_v11_envelope_reads_in_full_mode(tmp_path: Path) -> None:
         "plugin_version": "2.1.0",
         "layers": [{"stack": "next", "role": "fullstack", "path": "."}],
         "stacks": ["next"],
-        "identity": {"pii_opt_in": False},
+        "identity": _valid_identity(),
     })
     result = read_scaffold_decision(tmp_path)
     assert result.present is True
@@ -84,6 +92,34 @@ def test_v11_envelope_reads_in_full_mode(tmp_path: Path) -> None:
     assert result.warnings == []
     assert result.infos == []
     assert result.payload["plugin_version"] == "2.1.0"
+
+
+# Phase 1+2 retroactive amendment A5: hand-edited identity values that
+# bypass capture-time validation are rejected on read so downstream
+# renderers and /lp-update-identity never see hostile values.
+
+def test_amendment_a5_hand_edited_identity_rejected_on_read(tmp_path: Path) -> None:
+    bad_identity = {
+        "pii_opt_in": True,
+        "project_name": "name with spaces",  # allowlist regex rejects spaces
+        "email": "user@example.com",
+        "copyright_holder": "Demo",
+        "repo_url": "https://example.com/demo",
+        "license": "MIT",
+        "license_other_body": "",
+    }
+    _write_decision(tmp_path, {
+        "schema_version": "1.1",
+        "version": "1.0",
+        "plugin_version": "2.1.0",
+        "layers": [{"stack": "next", "role": "fullstack", "path": "."}],
+        "stacks": ["next"],
+        "identity": bad_identity,
+    })
+    with pytest.raises(ConfigError) as exc:
+        read_scaffold_decision(tmp_path)
+    assert "identity field failed validation on read" in str(exc.value)
+    assert "field=project_name" in str(exc.value)
 
 
 def test_v12_forward_compat_emits_info_for_unknown_fields(tmp_path: Path) -> None:

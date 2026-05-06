@@ -19,11 +19,20 @@ The 7 kernel files are stack-agnostic and identity-bearing:
 Phase 8.5 plan section 3.11 (DA1' = a2): render_all routes through
 `render_batch + write_batch` so the secret-scanner gate fires on the
 full kernel output before any single file lands on disk.
+
+Phase 1+2 retroactive amendment A7 (DIP cleanup): the renderer is the
+LOW-LEVEL primitive. It does NOT depend on `lp_pick_stack.decision_writer`
+to seal the kernel_render_state into scaffold-decision.json. Instead,
+both `render_all` and `refresh` RETURN the freshly-computed render-state
+list to their callers; the higher-level caller (lp_scaffold_stack engine
+for greenfield render, lp_update_identity engine for refresh) is
+responsible for the atomic re-seal. This keeps the renderer reusable
+in test fixtures and brownfield contexts that have no scaffold-decision.
 """
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator, Mapping, Sequence
 
@@ -57,10 +66,17 @@ class RefreshResult:
         `source_template_sha256` differs from current plugin's template
         sha (plugin upgrade between scaffold and refresh, per security
         lens P1).
+    `kernel_render_state`: list of dicts shaped per HANDSHAKE §4 v1.1
+        envelope (`{path, rendered_content_sha256, source_template_sha256}`)
+        covering EVERY kernel file currently on disk after refresh
+        (rendered + skipped). Phase 1+2 retroactive amendment A7 pushes
+        the atomic re-seal of this state into the caller (engine.py),
+        so the renderer no longer depends on lp_pick_stack.decision_writer.
     """
     rendered: list[tuple[Path, str]]
     skipped_user_edits: list[Path]
     template_drift_infos: list[str]
+    kernel_render_state: list[dict] = field(default_factory=list)
 
 
 class KernelRenderer(RendererBase):
@@ -91,25 +107,25 @@ class KernelRenderer(RendererBase):
         self,
         cwd: Path,
         identity: Mapping[str, Any],
-    ) -> list[tuple[Path, str]]:
+    ) -> tuple[list[tuple[Path, str]], list[dict]]:
         """Render all 7 kernel files into `cwd` via the buffered-batch flow.
 
-        Returns a list of `(target_path, rendered_sha256)` tuples for each
-        file written. The sha256 values feed the bootstrap manifest's
-        `rendered_content_sha256` field (Phase 3+).
+        Returns `(rendered, kernel_render_state)`:
+
+          * `rendered`: list of `(target_path, rendered_sha256)` tuples
+            for each file written. Feeds the bootstrap manifest's
+            `rendered_content_sha256` field (Phase 3+).
+          * `kernel_render_state`: list of dicts shaped per HANDSHAKE §4
+            v1.1 envelope (`{path, rendered_content_sha256,
+            source_template_sha256}`) covering every kernel file just
+            rendered. The CALLER (lp_scaffold_stack engine) is responsible
+            for sealing this list into scaffold-decision.json via
+            `re_seal_decision_atomic`. Phase 1+2 retroactive amendment A7:
+            this DIP cleanup removes the renderer's prior dependency on
+            lp_pick_stack.decision_writer.
 
         Phase 8.5 plan section 3.11: secret-scanner gate fires on the full
         7-file batch before any single file lands on disk.
-
-        Phase 10 DA7 (flipped): after the kernel batch lands on disk, the
-        `kernel_render_state` block in `<cwd>/.launchpad/scaffold-decision.json`
-        is re-sealed via `re_seal_decision_atomic` so the renderer's
-        per-file sha is the single source of truth at refresh time
-        (architecture-strategist P2-A; eliminates asymmetric coupling).
-        Re-seal is best-effort: if scaffold-decision is absent (greenfield
-        ordering: scaffold-decision is sealed BEFORE render_all by
-        /lp-scaffold-stack engine, but tests and pre-Phase-10 callers
-        may invoke render_all standalone), we skip the re-seal silently.
 
         `cwd` is the project root, NOT a layer subpath.
         """
@@ -125,52 +141,34 @@ class KernelRenderer(RendererBase):
         )
         rendered = [(target, sha256_bytes(content)) for target, content in batch.items()]
 
-        # Phase 10 DA7 + cycle-2 P2-2: re-seal scaffold-decision with
-        # kernel_render_state in a single atomic-write-replace. Best-effort:
-        # silently skip when scaffold-decision is absent (e.g., test fixtures).
-        try:
-            from lp_pick_stack.decision_writer import (
-                re_seal_decision_atomic,
-            )
-            decision_path = cwd / ".launchpad" / "scaffold-decision.json"
-            if decision_path.is_file():
-                state_entries = []
-                for template_name, output_relpath in KERNEL_FILES:
-                    target = cwd / output_relpath
-                    if not target.is_file():
-                        continue
-                    state_entries.append({
-                        "path": output_relpath,
-                        "rendered_content_sha256": sha256_bytes(target.read_bytes()),
-                        "source_template_sha256": self._template_sha256(template_name),
-                    })
+        kernel_render_state: list[dict] = []
+        for template_name, output_relpath in KERNEL_FILES:
+            target = cwd / output_relpath
+            if not target.is_file():
+                continue
+            kernel_render_state.append({
+                "path": output_relpath,
+                "rendered_content_sha256": sha256_bytes(target.read_bytes()),
+                "source_template_sha256": self._template_sha256(template_name),
+            })
 
-                def _set_kernel_render_state(payload):
-                    payload["kernel_render_state"] = state_entries
-
-                re_seal_decision_atomic(cwd, update_fn=_set_kernel_render_state)
-        except Exception:
-            # Don't fail the render on side-effect re-seal failure; the
-            # primary contract is the kernel batch landing on disk. Phase
-            # 10 engine layer surfaces the issue via subsequent
-            # read-and-validate.
-            pass
-
-        return rendered
+        return rendered, kernel_render_state
 
     def refresh(
         self,
         cwd: Path,
         identity: Mapping[str, Any],
         *,
+        prior_kernel_render_state: list[dict] | None = None,
         on_user_edit_warn: bool = True,
     ) -> RefreshResult:
         """Re-render the 7 kernel files with `overwrite-if-unchanged` per DA1.
 
         Phase 10 contract:
-          1. Read `kernel_render_state` block from
-             `<cwd>/.launchpad/scaffold-decision.json` (Phase 10 DA7
-             flipped; was sidecar artifact in v1).
+          1. Use `prior_kernel_render_state` (passed by caller; previously
+             read from scaffold-decision.json by the renderer itself).
+             Phase 1+2 retroactive amendment A7 inverts the dependency:
+             the caller passes the prior state and seals the new state.
           2. For each kernel file: compute on-disk sha256; compare to the
              stored `rendered_content_sha256`. Mismatch -> user edited
              post-render -> refuse THAT file with
@@ -179,30 +177,25 @@ class KernelRenderer(RendererBase):
           3. For matching files: render with new identity; write atomically
              via `write_batch` (secret-scanner gate fires on the surviving
              subset).
-          4. Re-seal scaffold-decision with new `kernel_render_state` block.
 
         Cross-version source-template drift (security-lens P1): if the
-        scaffold-decision's `source_template_sha256` differs from the
-        current plugin's template sha (plugin upgrade between scaffold
-        and refresh), do NOT auto-refuse. Append an INFO string and
-        proceed if `rendered_content_sha256` still matches on-disk
-        (= user hasn't edited; safe to overwrite even with new templates).
+        prior `source_template_sha256` differs from the current plugin's
+        template sha (plugin upgrade between scaffold and refresh), do
+        NOT auto-refuse. Append an INFO string and proceed if
+        `rendered_content_sha256` still matches on-disk (= user hasn't
+        edited; safe to overwrite even with new templates).
 
         Returns RefreshResult with rendered + skipped + template-drift
-        info lists. Caller (engine.run_update_identity) prints the diff
-        summary per Phase 10 §3.12 from this structured return.
+        info lists + the freshly-computed `kernel_render_state` list.
+        Caller (engine.run_update_identity) seals that list into
+        scaffold-decision.json via `re_seal_decision_atomic`.
         """
-        from lp_pick_stack.decision_writer import (
-            read_decision_atomic,
-            re_seal_decision_atomic,
-        )
-
-        decision = read_decision_atomic(cwd)
-        kernel_render_state = decision.get("kernel_render_state") or []
-        # Build path -> sha lookup for quick per-file decisions.
+        # Build path -> entry lookup for quick per-file decisions. None or
+        # empty list signals brownfield/test-fixture flow with no prior state.
+        prior_entries = prior_kernel_render_state or []
         prior_state = {
             entry["path"]: entry
-            for entry in kernel_render_state
+            for entry in prior_entries
             if isinstance(entry, dict) and "path" in entry
         }
 
@@ -264,9 +257,9 @@ class KernelRenderer(RendererBase):
             for target, content in write_subset.items()
         ]
 
-        # Re-seal scaffold-decision with the new state for the rendered subset
-        # AND the unchanged entries for skipped files (their state is unchanged).
-        new_state_entries = []
+        # Compute the new state for the rendered subset AND the unchanged
+        # entries for skipped files (their state is unchanged on disk).
+        new_state_entries: list[dict] = []
         for template_name, output_relpath in KERNEL_FILES:
             target = cwd / output_relpath
             if not target.is_file():
@@ -277,15 +270,11 @@ class KernelRenderer(RendererBase):
                 "source_template_sha256": self._template_sha256(template_name),
             })
 
-        def _set_kernel_render_state(payload):
-            payload["kernel_render_state"] = new_state_entries
-
-        re_seal_decision_atomic(cwd, update_fn=_set_kernel_render_state)
-
         return RefreshResult(
             rendered=rendered,
             skipped_user_edits=skipped,
             template_drift_infos=template_drift_infos,
+            kernel_render_state=new_state_entries,
         )
 
 

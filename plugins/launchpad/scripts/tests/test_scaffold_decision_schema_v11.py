@@ -198,6 +198,53 @@ def test_project_name_allowlist_enforced() -> None:
     assert exc.value.field == "project_name"
 
 
+# Phase 1+2 retroactive amendment A2 -- project_name must start with a
+# letter; literal "." and ".." rejected as path-traversal vectors.
+
+@pytest.mark.parametrize("bad", [".", "..", "-rf", "1leading-digit"])
+def test_project_name_amendment_a2_rejects_unsafe_starts(bad: str) -> None:
+    identity = default_unset_identity()
+    identity["project_name"] = bad
+    with pytest.raises(IdentityValidationError) as exc:
+        validate_identity(identity)
+    assert exc.value.field == "project_name"
+
+
+def test_project_name_amendment_a2_accepts_letter_start() -> None:
+    identity = default_unset_identity()
+    identity["pii_opt_in"] = True
+    identity["project_name"] = "ulc-spec-org"
+    identity["email"] = "user@example.com"
+    identity["copyright_holder"] = "Foad Shafighi"
+    identity["repo_url"] = "https://github.com/example/demo"
+    identity["license"] = "MIT"
+    identity["license_other_body"] = ""
+    validate_identity(identity)  # no raise
+
+
+# Phase 1+2 retroactive amendment A4 -- copyright_holder cap is 200 chars.
+
+def test_copyright_holder_amendment_a4_accepts_200_chars() -> None:
+    identity = default_unset_identity()
+    identity["pii_opt_in"] = True
+    identity["copyright_holder"] = "A" * 200
+    identity["project_name"] = "valid-name"
+    identity["email"] = "user@example.com"
+    identity["repo_url"] = "https://github.com/example/demo"
+    identity["license"] = "MIT"
+    identity["license_other_body"] = ""
+    validate_identity(identity)  # no raise
+
+
+def test_copyright_holder_amendment_a4_rejects_201_chars() -> None:
+    identity = default_unset_identity()
+    identity["pii_opt_in"] = True
+    identity["copyright_holder"] = "A" * 201
+    with pytest.raises(IdentityValidationError) as exc:
+        validate_identity(identity)
+    assert exc.value.field == "copyright_holder"
+
+
 def test_full_envelope_seals_and_writes(tmp_path: Path) -> None:
     payload = build_decision_payload(
         layers=_layers(),

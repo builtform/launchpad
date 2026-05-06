@@ -234,3 +234,13 @@ def test_write_rationale_o_excl_refuses_existing(tmp_path: Path):
 def test_empty_file_sha256_constant():
     import hashlib
     assert EMPTY_FILE_SHA256 == hashlib.sha256(b"").hexdigest()
+
+
+# Phase 1+2 retroactive amendment (bonus dead-code consolidation):
+# the prior duplicate `_read_running_plugin_version` in lp_bootstrap/engine.py
+# now delegates to lp_pick_stack.decision_writer.read_running_plugin_version.
+def test_amendment_bonus_plugin_version_is_single_source_of_truth():
+    from lp_bootstrap.engine import _read_running_plugin_version as _bs_reader
+    from lp_pick_stack.decision_writer import read_running_plugin_version
+
+    assert _bs_reader() == read_running_plugin_version()

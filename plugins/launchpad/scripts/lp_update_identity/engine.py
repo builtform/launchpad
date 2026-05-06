@@ -313,6 +313,56 @@ def _detect_re_entry_case(
     return "UPDATED"
 
 
+def _is_legacy_1_0_envelope(decision_payload: dict | None) -> bool:
+    """Phase 1+2 retroactive amendment A3 -- detect legacy 1.0 envelopes.
+
+    Returns True when the on-disk envelope predates the v2.1 1.1 schema:
+    `schema_version` field absent OR exactly "1.0". Such envelopes were
+    written by v2.0-era /lp-pick-stack and lack the 1.1 identity block;
+    /lp-update-identity transparently migrates them on first invocation.
+    """
+    if decision_payload is None:
+        return False
+    schema_version = decision_payload.get("schema_version")
+    return schema_version is None or schema_version == "1.0"
+
+
+def _migrate_legacy_envelope_in_memory(decision_payload: dict) -> tuple[str, bool]:
+    """Phase 1+2 retroactive amendment A3 -- transparent v1.0 -> v1.1 migration.
+
+    Mutates the in-memory payload to bump `schema_version` to "1.1" and
+    seed `default_unset_identity()` when identity is missing. Identity
+    values that already exist in the legacy envelope are preserved
+    byte-for-byte.
+
+    Returns `(info_message, identity_freshly_seeded)`. The boolean signals
+    that the legacy envelope had no prior identity block (so the engine
+    should route through Case B / seed-as-first-time, not Case E which
+    presumes existing on-disk kernel files).
+
+    Caller is responsible for persisting the mutation to disk via
+    `re_seal_decision_atomic`.
+    """
+    from lp_pick_stack.decision_writer import default_unset_identity
+
+    had_identity = isinstance(decision_payload.get("identity"), dict)
+    if not had_identity:
+        decision_payload["identity"] = default_unset_identity()
+        info = (
+            "Detected legacy v2.0 scaffold-decision.json (schema_version 1.0); "
+            "migrating to 1.1 with UNSET identity placeholders. Continue with "
+            "/lp-update-identity prompts to populate identity."
+        )
+    else:
+        info = (
+            "Detected legacy v2.0 scaffold-decision.json (schema_version 1.0) "
+            "with identity already present; bumping to 1.1 (identity values "
+            "preserved verbatim)."
+        )
+    decision_payload["schema_version"] = "1.1"
+    return info, not had_identity
+
+
 def _compute_identity_diff(
     old_identity: Mapping[str, Any] | None,
     new_identity: Mapping[str, Any],
@@ -436,8 +486,30 @@ def run_update_identity(
             remediation=exc.remediation,
         )
 
+    # Phase 1+2 retroactive amendment A3: transparent legacy v1.0 -> v1.1
+    # migration. When the on-disk envelope predates the v2.1 schema bump,
+    # mutate the in-memory payload BEFORE case detection so the engine sees
+    # the migrated shape. The schema bump persists to disk in the same
+    # re_seal call that writes the new identity values, via the
+    # `_legacy_migration_applied` flag captured into the update closure.
+    _legacy_migration_applied = False
+    _legacy_identity_freshly_seeded = False
+    if _is_legacy_1_0_envelope(decision_payload):
+        _legacy_migration_applied = True
+        migration_info, _legacy_identity_freshly_seeded = (
+            _migrate_legacy_envelope_in_memory(decision_payload)
+        )
+        infos.append(migration_info)
+        print(f"INFO: {migration_info}", file=err_stream)
+
     # Step 2: re-entry case detection.
     case = _detect_re_entry_case(decision_payload, seed_brownfield=seed_brownfield)
+    # When legacy migration just seeded an UNSET identity, route through
+    # Case B (seed-as-first-time) rather than Case E -- Case E presumes
+    # existing on-disk kernel files whose render-state is recorded, but
+    # a freshly-migrated v1.0 envelope predates kernel rendering entirely.
+    if _legacy_identity_freshly_seeded:
+        case = "B"
 
     if case == "A":
         return UpdateIdentityResult(
@@ -593,6 +665,11 @@ def run_update_identity(
         def _apply_identity_update(payload: dict) -> None:
             payload["identity"] = dict(identity_input)
             payload["identity_updated_at"] = _utc_iso8601_now()
+            # Phase 1+2 retroactive amendment A3: persist the legacy
+            # v1.0 -> v1.1 migration on disk in the same atomic re-seal
+            # that writes the new identity values.
+            if _legacy_migration_applied:
+                payload["schema_version"] = "1.1"
             # DA8: append version_drift_log entry on field-change update;
             # case C (no-op) does NOT bump per adversarial P3.
             from lp_pick_stack.decision_writer import read_running_plugin_version
@@ -612,12 +689,29 @@ def run_update_identity(
         re_seal_decision_atomic(cwd, update_fn=_apply_identity_update)
 
         # Step 7: KernelRenderer.refresh().
+        # Phase 1+2 retroactive amendment A7: pass prior_kernel_render_state
+        # explicitly (renderer no longer reads scaffold-decision itself).
         from plugin_default_generators.kernel_renderer import KernelRenderer
+        prior_state = (decision_payload or {}).get("kernel_render_state") or []
         renderer = KernelRenderer()
-        result = renderer.refresh(cwd, identity_input)
+        result = renderer.refresh(
+            cwd, identity_input,
+            prior_kernel_render_state=prior_state,
+        )
         rendered = [p for p, _sha in result.rendered]
         skipped = list(result.skipped_user_edits)
         template_drift_infos = list(result.template_drift_infos)
+
+        # Phase 1+2 retroactive amendment A7: caller-side seal of the
+        # freshly-computed kernel_render_state (renderer no longer seals
+        # scaffold-decision itself).
+        if result.kernel_render_state:
+            new_state = list(result.kernel_render_state)
+
+            def _seal_kernel_render_state(payload: dict) -> None:
+                payload["kernel_render_state"] = new_state
+
+            re_seal_decision_atomic(cwd, update_fn=_seal_kernel_render_state)
     finally:
         # Step 8: clear sentinel even on exception so subsequent invocations
         # don't get blocked by a stale-but-not-yet-recovered marker.

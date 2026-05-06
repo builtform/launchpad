@@ -236,7 +236,7 @@ _SCAFFOLD_DECISION_KNOWN_FIELDS_1_0 = frozenset({
 _SCAFFOLD_DECISION_KNOWN_FIELDS_1_1 = _SCAFFOLD_DECISION_KNOWN_FIELDS_1_0 | frozenset({
     "schema_version", "plugin_version", "stacks", "identity",
     "identity_updated_at",  # added by /lp-update-identity (Phase 10)
-    "kernel_render_state",  # added by KernelRenderer.render_all (Phase 10 DA7-flipped)
+    "kernel_render_state",  # sealed by lp_scaffold_stack engine + lp_update_identity engine (Phase 10 DA7-flipped; Phase 1+2 amendment A7 moved seal out of renderer)
     "version_drift_log",    # appended by /lp-update-identity (Phase 10 DA8)
 })
 
@@ -395,6 +395,26 @@ def read_scaffold_decision(cwd: Path) -> ScaffoldDecisionRead:
 
     # Acceptance branch 2: schema_version "1.1" full read
     if schema_version == "1.1":
+        # Phase 1+2 retroactive amendment A5: validate identity on read.
+        # Hand-edited scaffold-decision.json files that bypass capture-
+        # time validation are rejected here so downstream renderers and
+        # /lp-update-identity never see hostile values. Deferred import
+        # avoids a circular import at module load (plugin-config-loader
+        # is imported by lp_pick_stack consumers).
+        identity = payload.get("identity")
+        if isinstance(identity, dict):
+            from lp_pick_stack.decision_writer import (
+                IdentityValidationError,
+                validate_identity,
+            )
+            try:
+                validate_identity(identity, strict_no_placeholders=False)
+            except IdentityValidationError as exc:
+                raise ConfigError(
+                    f"{target} identity field failed validation on read; "
+                    f"file may have been hand-edited or tampered with: "
+                    f"{exc} (field={exc.field})"
+                ) from exc
         return ScaffoldDecisionRead(
             payload=payload, schema_version=schema_version,
             warnings=warnings, infos=infos, present=True,

@@ -107,8 +107,10 @@ in-place identity updates.
 
 2. **Project name** (always asked; no placeholder)
 
-   Allowlist regex: `^[A-Za-z0-9_.-]{1,64}$`. Re-prompt on validation
-   failure with a one-line description of which characters are allowed.
+   Allowlist regex: `^[A-Za-z][A-Za-z0-9_.-]{0,63}$` (must start with an
+   ASCII letter; 1-64 chars total; literal `.` and `..` rejected as
+   reserved). Re-prompt on validation failure with a one-line description
+   of which characters are allowed.
 
 3. **Email** (skipped on PII opt-out → placeholder)
 
@@ -116,9 +118,10 @@ in-place identity updates.
 
 4. **Copyright holder** (skipped on PII opt-out → placeholder)
 
-   Printable-ASCII allowlist (`^[\x20-\x7E]{1,128}$`) with no backticks,
-   double-quotes, single-quotes, dollar signs, or semicolons (defense in
-   depth against template injection in LICENSE rendering).
+   Printable-ASCII allowlist (`^[\x20-\x7E]{1,200}$`) with no backticks,
+   double-quotes, single-quotes, dollar signs, semicolons, Jinja
+   delimiters (`{`, `}`), HTML angle brackets (`<`, `>`), or format-string
+   `%` (defense in depth against template injection in LICENSE rendering).
 
 5. **Repository URL** (placeholder permitted on Enter)
 

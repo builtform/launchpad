@@ -152,3 +152,58 @@ def test_renderer_base_subclass_must_set_template_subdir() -> None:
 
     with pytest.raises(ValueError, match="TEMPLATE_SUBDIR"):
         BrokenRenderer()
+
+
+# Phase 1+2 retroactive amendment A6 -- markdown_safe filter
+
+_MARKDOWN_METACHARS = ("\\", "*", "_", "[", "]", "(", ")", "<", ">", "`", "!", "#", "|")
+
+
+def test_amendment_a6_markdown_safe_escapes_each_metacharacter() -> None:
+    """Each of the 13 CommonMark active characters is escaped with a
+    backslash prefix when passed through markdown_safe. Backslash is
+    listed first in the escape sequence so subsequent prefixes are not
+    themselves escaped a second time."""
+    env = make_jinja_env("kernel")
+    template = env.from_string("{{ value | markdown_safe }}")
+    for ch in _MARKDOWN_METACHARS:
+        out = template.render(value=f"x{ch}y")
+        assert out == f"x\\{ch}y", f"metachar {ch!r} not escaped"
+
+
+def test_amendment_a6_markdown_safe_only_escapes_each_char_once_per_pass() -> None:
+    """One pass through markdown_safe escapes each metachar exactly once.
+    A second pass re-escapes (idempotent at the per-char level only --
+    templates apply the filter exactly once at the boundary, so this is
+    the documented contract)."""
+    env = make_jinja_env("kernel")
+    template = env.from_string("{{ value | markdown_safe }}")
+    out = template.render(value="*foo*")
+    assert out == "\\*foo\\*"
+
+
+def test_amendment_a6_rendered_readme_escapes_project_name_metacharacters(
+    tmp_path: Path,
+) -> None:
+    """Real README.md.j2 with a hostile project_name passing markdown_safe
+    must produce backslash-escaped output, not raw Markdown emphasis."""
+    from plugin_default_generators.kernel_renderer import KernelRenderer
+
+    identity = _identity(project_name="Foo*bar*")
+    KernelRenderer().render_all(tmp_path, identity)
+    readme = (tmp_path / "README.md").read_text(encoding="utf-8")
+    assert "Foo\\*bar\\*" in readme
+    assert "Foo*bar*" not in readme.split("```")[0]  # not in body prose section
+
+
+def test_amendment_a6_project_name_regex_rejects_markdown_metacharacters() -> None:
+    """Defense in depth: even though markdown_safe escapes any value that
+    slips through, the IDENTITY_PROJECT_NAME_RE allowlist already excludes
+    every Markdown metacharacter at capture time. Pin the contract."""
+    from lp_pick_stack import IDENTITY_PROJECT_NAME_RE
+
+    for ch in ("*", "[", "]", "(", ")", "<", ">", "`", "!", "#", "|", "\\"):
+        candidate = f"name{ch}suffix"
+        assert IDENTITY_PROJECT_NAME_RE.fullmatch(candidate) is None, (
+            f"regex unexpectedly accepted {candidate!r}"
+        )

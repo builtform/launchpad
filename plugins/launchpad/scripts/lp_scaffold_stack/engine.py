@@ -518,7 +518,9 @@ def run_pipeline(
                 KernelRenderer,
             )
             try:
-                KernelRenderer().render_all(cwd, identity)
+                _rendered, kernel_render_state = KernelRenderer().render_all(
+                    cwd, identity,
+                )
             except Exception as exc:  # noqa: BLE001
                 elapsed = time.monotonic() - start
                 return _record_partial_failure(
@@ -536,6 +538,28 @@ def run_pipeline(
                         "Kernel render (LICENSE / CONTRIBUTING / etc.) failed. "
                         "Inspect the error, fix the underlying cause, and re-run."
                     ),
+                )
+
+            # Phase 1+2 retroactive amendment A7: seal kernel_render_state
+            # into scaffold-decision.json from the caller side. Best-effort
+            # narrow-exception catch with WARN; primary contract is the
+            # kernel batch landing on disk.
+            try:
+                from lp_pick_stack.decision_writer import (  # noqa: PLC0415
+                    re_seal_decision_atomic,
+                )
+
+                def _seal_kernel_render_state(payload: dict) -> None:
+                    payload["kernel_render_state"] = kernel_render_state
+
+                re_seal_decision_atomic(cwd, update_fn=_seal_kernel_render_state)
+            except (OSError, json.JSONDecodeError, ValueError) as seal_exc:
+                print(
+                    f"WARN: re-seal of scaffold-decision.json failed: "
+                    f"{seal_exc}; kernel files were rendered successfully "
+                    f"but render-state bookkeeping is stale. Run "
+                    f"/lp-update-identity to re-seal.",
+                    file=sys.stderr,
                 )
 
             # --- Step 4.6: Bootstrap (Phase 3 §2.3 wiring) ---

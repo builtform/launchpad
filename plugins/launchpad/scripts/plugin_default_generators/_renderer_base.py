@@ -185,6 +185,7 @@ def make_jinja_env(template_subdir: str) -> jinja2.Environment:
     )
     env.filters["shell_quote"] = lambda v: shlex.quote(str(v))
     env.filters["to_yaml_safe"] = _to_yaml_safe
+    env.filters["markdown_safe"] = _markdown_safe
     return env
 
 
@@ -219,6 +220,7 @@ def make_stack_aware_jinja_env() -> jinja2.Environment:
     )
     env.filters["shell_quote"] = lambda v: shlex.quote(str(v))
     env.filters["to_yaml_safe"] = _to_yaml_safe
+    env.filters["markdown_safe"] = _markdown_safe
     _STACK_AWARE_ENV = env
     return env
 
@@ -245,6 +247,7 @@ def make_sandboxed_jinja_env() -> jinja2.SandboxedEnvironment:
     )
     env.filters["shell_quote"] = lambda v: shlex.quote(str(v))
     env.filters["to_yaml_safe"] = _to_yaml_safe
+    env.filters["markdown_safe"] = _markdown_safe
     return env
 
 
@@ -262,6 +265,30 @@ def _to_yaml_safe(value: Any) -> str:
         default_flow_style=False,
         allow_unicode=True,
     ).rstrip("\n")
+
+
+# Phase 1+2 retroactive amendment A6: 13 CommonMark active characters that
+# corrupt downstream Markdown rendering and enable `[link](javascript:...)`
+# style injection in GitHub UI when an identity value lands inside a
+# Markdown template body. Escape with backslash-prefix per CommonMark.
+# Backslash is escaped FIRST so subsequent backslash-prefixed escapes are
+# not themselves escaped a second time.
+_MARKDOWN_SAFE_CHARS = ("\\", "*", "_", "[", "]", "(", ")", "<", ">", "`", "!", "#", "|")
+
+
+def _markdown_safe(value: Any) -> str:
+    """Escape CommonMark active characters with backslash-prefix.
+
+    Idempotent on already-escaped input only at the per-character level:
+    a string `\\*` (backslash + asterisk) becomes `\\\\\\*` (escape the
+    backslash + escape the asterisk) on a second pass. Templates apply
+    this filter exactly once at the boundary; downstream rendering does
+    not re-apply.
+    """
+    text = "" if value is None else str(value)
+    for ch in _MARKDOWN_SAFE_CHARS:
+        text = text.replace(ch, "\\" + ch)
+    return text
 
 
 def sha256_file(path: Path) -> str:

@@ -34,6 +34,7 @@ from lp_pick_stack import (
     IDENTITY_COPYRIGHT_HOLDER_RE,
     IDENTITY_EMAIL_RE,
     IDENTITY_PLACEHOLDERS,
+    IDENTITY_PROJECT_NAME_LITERAL_REJECTS,
     IDENTITY_PROJECT_NAME_RE,
     IDENTITY_REPO_URL_RE,
     LICENSE_ENUM,
@@ -177,11 +178,11 @@ def derive_stacks(layers: Sequence[Mapping[str, Any]]) -> list[str]:
 def default_unset_identity() -> dict[str, Any]:
     """Build the all-placeholder identity block written when PII opt-in is False.
 
-    /lp-update-identity (Phase 10) detects placeholder values via
-    IDENTITY_PLACEHOLDER_PATTERN and re-asks the PII Y/N prompt. The
-    placeholder strings are documented in HANDSHAKE §10.v2.1 so downstream
-    consumers (LICENSE/CONTRIBUTING renderers) can render them verbatim
-    or substitute their own defaults.
+    /lp-update-identity (Phase 10) detects placeholder values via the
+    `<...>` leading/trailing-bracket shape check in validate_identity and
+    re-asks the PII Y/N prompt. The placeholder strings are documented in
+    HANDSHAKE §10.v2.1 so downstream consumers (LICENSE/CONTRIBUTING
+    renderers) can render them verbatim or substitute their own defaults.
 
     Five identity fields (matching HANDSHAKE §10.v2.1 Phase 0.3 lock):
     project_name, email, copyright_holder, repo_url, license. The
@@ -259,6 +260,14 @@ def validate_identity(
                 field="project_name",
             )
     else:
+        # Phase 1+2 retroactive amendment A2: explicit reject for "." and
+        # ".." even though the leading-letter regex already excludes them.
+        if project_name in IDENTITY_PROJECT_NAME_LITERAL_REJECTS:
+            raise IdentityValidationError(
+                f"identity.project_name={project_name!r} is reserved (path traversal); "
+                f"pick a name starting with a letter",
+                field="project_name",
+            )
         if not IDENTITY_PROJECT_NAME_RE.fullmatch(project_name):
             raise IdentityValidationError(
                 f"identity.project_name={project_name!r} fails allowlist regex",

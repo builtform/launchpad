@@ -92,11 +92,20 @@ def test_render_all_writes_seven_files(tmp_path: Path) -> None:
 
 
 def test_render_all_returns_path_and_sha256(tmp_path: Path) -> None:
-    results = KernelRenderer().render_all(tmp_path, _real_identity())
-    assert len(results) == 7
-    for path, sha in results:
+    """Phase 1+2 retroactive amendment A7: render_all now returns a
+    tuple `(rendered, kernel_render_state)`. The first element keeps
+    its prior shape (list of (path, sha256) tuples)."""
+    rendered, kernel_render_state = KernelRenderer().render_all(
+        tmp_path, _real_identity(),
+    )
+    assert len(rendered) == 7
+    for path, sha in rendered:
         assert path.is_file()
         assert len(sha) == 64  # sha256 hex digest
+    # Each kernel file has a corresponding render_state entry.
+    assert len(kernel_render_state) == 7
+    for entry in kernel_render_state:
+        assert set(entry.keys()) == {"path", "rendered_content_sha256", "source_template_sha256"}
 
 
 def test_license_mit_renders_canonical_text(tmp_path: Path) -> None:
@@ -118,15 +127,31 @@ def test_license_other_uses_user_supplied_body(tmp_path: Path) -> None:
     assert "MIT License" not in body  # MIT branch not rendered
 
 
-def test_license_apache_renders_placeholder_with_choosealicense_url(tmp_path: Path) -> None:
-    """Phase 2 ships full canonical text for MIT only; non-MIT non-Other
-    licenses render a placeholder that points the user at the canonical
-    text. The 5 remaining license bodies are tracked as a Phase-9 follow-up."""
-    KernelRenderer().render_all(tmp_path, _real_identity(license="Apache-2.0"))
+@pytest.mark.parametrize(
+    "license_value, marker",
+    [
+        ("Apache-2.0", "Licensed under the Apache License, Version 2.0"),
+        ("GPL-3.0", "GNU GENERAL PUBLIC LICENSE"),
+        ("BSD-3-Clause", "BSD 3-Clause License"),
+        ("ISC", "ISC License"),
+        ("MPL-2.0", "Mozilla Public License Version 2.0"),
+    ],
+)
+def test_canonical_license_body_renders_for_each_enum(
+    tmp_path: Path, license_value: str, marker: str
+) -> None:
+    """Phase 1+2 retroactive amendment A1: every closed-enum license value
+    renders its canonical body verbatim. Pre-amendment, only MIT shipped
+    canonical text; the 5 non-MIT non-Other enums fell through to a
+    placeholder pointing at choosealicense.com, breaking real LICENSE
+    files for users who picked any non-MIT license."""
+    KernelRenderer().render_all(tmp_path, _real_identity(license=license_value))
     body = (tmp_path / "LICENSE").read_text()
-    assert "Apache-2.0 License" in body
-    assert "choosealicense.com/licenses/apache-2.0" in body
-    assert "Foad Shafighi" in body  # copyright header still rendered
+    assert marker in body
+    assert "Foad Shafighi" in body
+    assert "choosealicense.com/licenses/" not in body, (
+        f"{license_value}: placeholder URL leaked; canonical body missing"
+    )
 
 
 def test_project_name_lands_in_readme(tmp_path: Path) -> None:
@@ -157,7 +182,8 @@ def test_placeholder_identity_renders_cleanly(tmp_path: Path) -> None:
     """PII opt-out posture: all four identity placeholders survive
     template substitution. The rendered output contains the literal
     `<email>`, `<copyright-holder>`, etc., which /lp-update-identity
-    later detects via IDENTITY_PLACEHOLDER_PATTERN to re-prompt."""
+    later detects via the `<...>` bracket shape check in validate_identity
+    to re-prompt."""
     KernelRenderer().render_all(tmp_path, _placeholder_identity())
     contributing = (tmp_path / "CONTRIBUTING.md").read_text()
     license_text = (tmp_path / "LICENSE").read_text()
@@ -171,9 +197,9 @@ def test_render_is_idempotent_for_same_identity(tmp_path: Path) -> None:
     §10.3): re-rendering with unchanged identity must not produce a
     spurious diff that triggers the "user manual edit" detection."""
     identity = _real_identity()
-    first = KernelRenderer().render_all(tmp_path, identity)
-    second = KernelRenderer().render_all(tmp_path, identity)
-    assert [sha for _, sha in first] == [sha for _, sha in second]
+    first_rendered, _state1 = KernelRenderer().render_all(tmp_path, identity)
+    second_rendered, _state2 = KernelRenderer().render_all(tmp_path, identity)
+    assert [sha for _, sha in first_rendered] == [sha for _, sha in second_rendered]
 
 
 def test_render_creates_parent_directory(tmp_path: Path) -> None:
@@ -202,3 +228,58 @@ def test_missing_identity_field_raises_strict_undefined(tmp_path: Path) -> None:
     incomplete = {"project_name": "x", "license": "MIT"}  # missing email, etc.
     with pytest.raises(jinja2.UndefinedError):
         KernelRenderer().render_all(tmp_path, incomplete)
+
+
+# Phase 1+2 retroactive amendment A7 -- DIP cleanup contract
+
+
+def test_amendment_a7_render_all_does_not_touch_scaffold_decision(tmp_path: Path) -> None:
+    """render_all is the LOW-LEVEL primitive: it produces kernel files
+    and a render_state list. It MUST NOT side-effect on
+    scaffold-decision.json. The caller (lp_scaffold_stack engine)
+    performs the atomic re-seal."""
+    # No .launchpad/ exists -> no scaffold-decision to seal.
+    KernelRenderer().render_all(tmp_path, _real_identity())
+    decision_path = tmp_path / ".launchpad" / "scaffold-decision.json"
+    assert not decision_path.exists()
+
+
+def test_amendment_a7_caller_side_seal_writes_state_correctly(tmp_path: Path) -> None:
+    """Demonstrate the new caller pattern: render_all returns the
+    state list; caller seals it via re_seal_decision_atomic."""
+    import json as _json
+    import sys as _sys
+    _SCRIPTS = Path(__file__).resolve().parent.parent
+    if str(_SCRIPTS) not in _sys.path:
+        _sys.path.insert(0, str(_SCRIPTS))
+
+    from lp_pick_stack.decision_writer import (
+        re_seal_decision_atomic,
+        write_decision_file,
+    )
+
+    # Seed scaffold-decision with the writer (creates a 1.1 envelope).
+    layers = [{"stack": "next", "role": "fullstack", "path": ".", "options": {}}]
+    summary = [{"section": "stack", "bullets": ["next"]}]
+    write_decision_file(
+        layers=layers,
+        matched_category_id="next-fullstack",
+        rationale_summary=summary,
+        rationale_sha256="0" * 64,
+        cwd=tmp_path,
+        identity=_real_identity(),
+    )
+    # Render kernel files; capture the state list.
+    _rendered, kernel_render_state = KernelRenderer().render_all(
+        tmp_path, _real_identity(),
+    )
+
+    # Caller-side seal (mirroring lp_scaffold_stack engine).
+    def _set_state(payload):
+        payload["kernel_render_state"] = kernel_render_state
+
+    re_seal_decision_atomic(tmp_path, update_fn=_set_state)
+    on_disk = _json.loads(
+        (tmp_path / ".launchpad" / "scaffold-decision.json").read_text("utf-8")
+    )
+    assert on_disk["kernel_render_state"] == kernel_render_state

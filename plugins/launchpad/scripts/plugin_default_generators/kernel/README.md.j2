@@ -1,6 +1,6 @@
-# {{ identity.project_name }}
+# {{ identity.project_name | markdown_safe }}
 
-> A short one-line description of {{ identity.project_name }} goes here.
+> A short one-line description of {{ identity.project_name | markdown_safe }} goes here.
 > Replace this paragraph with the actual project pitch.
 
 ## Status
@@ -32,5 +32,5 @@ See [SECURITY.md](SECURITY.md) for how to report security issues.
 
 ## License
 
-{{ identity.project_name }} is licensed under the {{ identity.license }}
+{{ identity.project_name | markdown_safe }} is licensed under the {{ identity.license }}
 license. See [LICENSE](LICENSE) for the full text.
