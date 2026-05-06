@@ -64,7 +64,7 @@ from lp_update_identity.sentinel import (  # noqa: E402
 )
 
 
-_PII_WARN_LINES = (
+PII_WARN_LINES = (
     "WARN: prior identity values persist in git history (LICENSE, CONTRIBUTING.md, ...).",
     "      See docs/guides/IDENTITY_AND_PII.md for removal options.",
 )
@@ -352,10 +352,10 @@ def _print_pii_warn(
         return
     is_tty = getattr(stream, "isatty", lambda: False)()
     if is_tty:
-        for line in _PII_WARN_LINES:
+        for line in PII_WARN_LINES:
             print(line, file=stream)
     else:
-        print(_PII_WARN_LINES[0], file=sys.stderr)
+        print(PII_WARN_LINES[0], file=sys.stderr)
 
 
 def _truncate_for_diff(value: Any) -> str:
