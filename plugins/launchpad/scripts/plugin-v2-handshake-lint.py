@@ -600,6 +600,10 @@ ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS = (
     "plugins/launchpad/scripts/lp_bootstrap/engine.py",  # run_bootstrap orchestration
     "plugins/launchpad/scripts/lp_bootstrap/manifest_writer.py",  # bootstrap manifest writer
     "plugins/launchpad/scripts/lp_bootstrap/sentinel.py",  # crash-recovery sentinels
+    # Phase 10 v2.1: scaffold-decision atomic re-seal lives in decision_writer
+    # (re_seal_decision_atomic) so /lp-update-identity inherits the same
+    # atomic-replace primitive used by /lp-pick-stack's first-write path.
+    "plugins/launchpad/scripts/lp_pick_stack/decision_writer.py",  # re_seal_decision_atomic
 )
 ATOMIC_WRITE_REPLACE_NAMES = ("atomic_write_replace",)
 ATOMIC_WRITE_REPLACE_SCAN_GLOBS = (
