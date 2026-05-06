@@ -30,18 +30,15 @@ Behavioural contract (locked in plan section 3.10):
 """
 from __future__ import annotations
 
-import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Iterator, Mapping, Sequence
 
 # Sibling-script imports.
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
-
-from atomic_io import atomic_write_replace  # noqa: E402
 
 from ._renderer_base import RendererBase, sha256_bytes  # noqa: E402
 
@@ -209,15 +206,48 @@ class InfrastructureRenderer(RendererBase):
             ) from exc
         return text.encode("utf-8")
 
+    def render_targets(
+        self, context: Mapping[str, Any]
+    ) -> Iterator[tuple[Path, str]]:
+        """Yield `(absolute_target_path, rendered_text)` for each
+        infrastructure template. Context carries `cwd: Path`,
+        `identity: Mapping`, and optional `only_paths: Sequence[str]`.
+
+        Phase 8.5 plan section 3.11 (DA1' = a2): subclass implementation
+        of `render_targets` so `render_batch` can buffer the full overlay
+        before the secret-scanner gate fires.
+        """
+        cwd: Path = context["cwd"]
+        identity: Mapping[str, Any] = context["identity"]
+        only_paths = context.get("only_paths")
+
+        if only_paths is not None:
+            allowed = set(only_paths)
+        else:
+            allowed = None
+
+        for template_relpath, target_relpath, _policy, _mode in INFRASTRUCTURE_FILES:
+            if allowed is not None and target_relpath not in allowed:
+                continue
+            text = self.render_to_string(template_relpath, identity)
+            yield cwd / target_relpath, text
+
     def render_all(
         self,
         cwd: Path,
         identity: Mapping[str, Any],
         only_paths: Sequence[str] | None = None,
     ) -> list[tuple[Path, str]]:
-        """Render every path (or the `only_paths` subset) under `cwd`.
+        """Render every path (or the `only_paths` subset) under `cwd` via
+        the buffered-batch flow.
 
-        Atomic-writes each rendered file; chmod after replace per harden B8.
+        Phase 8.5 plan section 3.11 (DA1' = a2): full overlay renders to
+        memory, the secret-scanner gate runs across the whole batch, and
+        only on a clean scan does any file land on disk. Per-file POSIX
+        modes from `FILE_MODES` flow through `write_batch`'s
+        `file_modes` arg; `chmod_after_replace=True` belt-and-braces on
+        the tempfile mode (harden B8).
+
         Returns `[(target_path, rendered_sha256), ...]` in the
         INFRASTRUCTURE_FILES iteration order.
 
@@ -243,36 +273,44 @@ class InfrastructureRenderer(RendererBase):
                         "/lp-bootstrap --help for the canonical list"
                     ),
                 )
-            allowed = set(only_paths)
-        else:
-            allowed = None
 
-        results: list[tuple[Path, str]] = []
-        for template_relpath, target_relpath, _policy, mode in INFRASTRUCTURE_FILES:
+        # Build the file_modes mapping in the same iteration order as
+        # INFRASTRUCTURE_FILES so write_batch preserves on-disk modes.
+        allowed = set(only_paths) if only_paths is not None else None
+        target_to_mode: dict[Path, int] = {}
+        for _template, target_relpath, _policy, mode in INFRASTRUCTURE_FILES:
             if allowed is not None and target_relpath not in allowed:
                 continue
+            target_to_mode[cwd / target_relpath] = mode
 
-            text = self.render_to_string(template_relpath, identity)
-            encoded = text.encode("utf-8")
+        # Render full batch to memory.
+        batch = self.render_batch(
+            [{"cwd": cwd, "identity": identity, "only_paths": only_paths}]
+        )
 
-            if target_relpath == ".gitignore":
-                # Renderer side: collect warnings; engine consumes via
-                # caller-supplied warnings sink. We do not block.
-                _ = _validate_gitignore_content(text)
+        # Side-effect: validate gitignore content (warnings only).
+        gitignore_target = cwd / ".gitignore"
+        if gitignore_target in batch:
+            _ = _validate_gitignore_content(
+                batch[gitignore_target].decode("utf-8", errors="replace")
+            )
 
-            target = cwd / target_relpath
-            target.parent.mkdir(parents=True, exist_ok=True)
-            atomic_write_replace(target, encoded, mode=mode)
-            try:
-                # harden B8: chmod AFTER os.replace; belt-and-braces on the
-                # mode set by atomic_write_replace's fchmod-on-tempfile.
-                os.chmod(target, mode)
-            except OSError:
-                pass
+        # Atomic write-all-or-none after secret-scanner gate.
+        patterns_file = cwd / ".launchpad" / "secret-patterns.txt"
+        allowlist_path = cwd / ".launchpad" / "secret-allowlist.txt"
+        self.write_batch(
+            batch,
+            file_modes=target_to_mode,
+            chmod_after_replace=True,
+            patterns_file=patterns_file,
+            allowlist_path=allowlist_path,
+        )
 
-            results.append((target, sha256_bytes(encoded)))
-
-        return results
+        return [
+            (target, sha256_bytes(batch[target]))
+            for target in target_to_mode
+            if target in batch
+        ]
 
     def gitignore_warnings(self, identity: Mapping[str, Any]) -> list[str]:
         """Return allowlist-scan warnings for the rendered `.gitignore`.

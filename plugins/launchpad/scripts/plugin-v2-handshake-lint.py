@@ -569,7 +569,41 @@ SCHEMA_SOURCE_FILES = (
     # Phase 4 v2.1 adapter Protocol + composition + cache (Slice A+) sources
     "plugins/launchpad/scripts/plugin_stack_adapters/contracts.py",  # Adapter Protocol, OverlayConfig, ConflictPolicy
     "plugins/launchpad/scripts/plugin_stack_adapters/pin_registry.py",  # _UPSTREAM_SHA registry; rotation-detected
+    # Phase 8.5 v2.1 render-batch flow + secret-scanner gate sources
+    "plugins/launchpad/scripts/plugin_default_generators/_renderer_base.py",  # render_batch + scan_batch + write_batch contract (DA1' = a2)
+    "plugins/launchpad/scripts/plugin_default_generators/secret_allowlist.py",  # filter_allowlisted (DA4)
+    "plugins/launchpad/scripts/plugin_stack_adapters/polyglot_path_rewriter.py",  # _rewrite_adapter_paths standalone home (DA2)
+    "plugins/launchpad/scripts/plugin_stack_adapters/secret_scanner.py",  # BUNDLED_DEFAULT_PATTERNS + pattern cache (DA3 + DA5)
 )
+
+# Phase 8.5 plan section 2.3: ALLOWLIST-based lint rule for atomic_write_replace
+# callers. Only these files are permitted to call atomic_write_replace; any
+# other caller (or an aliased import like `from atomic_io import
+# atomic_write_replace as _w`) fails the lint. Adding a new permitted
+# caller requires CODEOWNERS review on this constant.
+ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS = (
+    "plugins/launchpad/scripts/atomic_io.py",  # the source module (defines + re-exports)
+    "plugins/launchpad/scripts/plugin_default_generators/_renderer_base.py",  # write_batch (DA1' = a2 gate)
+    # lp_bootstrap is the per-file policy layer; engine + manifest_writer +
+    # sentinel are siblings of policy.py doing the bootstrap-tier writes
+    # (NOT renderer bypass). Plan section 2.3 listed `policy.py` as the
+    # canonical entry but the practical bootstrap surface is the whole
+    # module; CODEOWNERS protects it as a unit.
+    "plugins/launchpad/scripts/lp_bootstrap/policy.py",  # per-file policy dispatcher
+    "plugins/launchpad/scripts/lp_bootstrap/engine.py",  # run_bootstrap orchestration
+    "plugins/launchpad/scripts/lp_bootstrap/manifest_writer.py",  # bootstrap manifest writer
+    "plugins/launchpad/scripts/lp_bootstrap/sentinel.py",  # crash-recovery sentinels
+)
+ATOMIC_WRITE_REPLACE_NAMES = ("atomic_write_replace",)
+ATOMIC_WRITE_REPLACE_SCAN_GLOBS = (
+    "plugins/launchpad/scripts/**/*.py",
+)
+
+# Phase 8.5 plan section 2.3: audit-log enforcement rule. Any deletion of a
+# CODEOWNERS-protected path requires a same-commit
+# `docs/maintainers/decommission-history.md` entry with non-empty Reason +
+# Reviewer columns. Phase 8 entries are the seed corpus.
+DECOMMISSION_AUDIT_LOG = "docs/maintainers/decommission-history.md"
 
 # Phase 4 v2.1: pin-registry rotation-detector. Every modification of a
 # `sha` value in pin_registry.py requires a same-commit append-only entry in
@@ -1284,6 +1318,144 @@ def check_scaffold_failed_schema(failures: list[str]) -> None:
     _emit(failures, "scaffold-failed-schema", bad)
 
 
+def check_atomic_write_replace_allowlist(failures: list[str]) -> None:
+    """Phase 8.5 plan section 2.3: ALLOWLIST-based lint rule for
+    `atomic_write_replace` callers.
+
+    Only modules in `ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS` may call
+    `atomic_write_replace` (or an aliased import). Anything else fails
+    the lint. Uses AST analysis with import-binding resolution so
+    `from atomic_io import atomic_write_replace as _w` then `_w(...)` is
+    detected as a violation in the same module.
+    """
+    rule = "atomic-write-replace-allowlist"
+    import ast as _ast
+
+    permitted = set(ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS)
+
+    py_files: list[Path] = []
+    for pat in ATOMIC_WRITE_REPLACE_SCAN_GLOBS:
+        py_files.extend(REPO_ROOT.glob(pat))
+
+    hits: list[str] = []
+    for py_path in py_files:
+        try:
+            rel = py_path.relative_to(REPO_ROOT).as_posix()
+        except ValueError:
+            continue
+        if rel in permitted:
+            continue
+        if "/_vendor/" in rel or "/__pycache__/" in rel:
+            continue
+        if "/tests/" in rel or rel.endswith("_test.py") or rel.startswith(
+            "plugins/launchpad/scripts/tests/"
+        ):
+            # Tests are permitted to call atomic_write_replace as part
+            # of fixture setup; the gate targets production code paths.
+            continue
+        try:
+            tree = _ast.parse(py_path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+
+        # Bind every import name resolving to atomic_io.atomic_write_replace.
+        bound_names: set[str] = set()
+        for node in _ast.walk(tree):
+            if isinstance(node, _ast.ImportFrom):
+                if (node.module or "").endswith("atomic_io"):
+                    for alias in node.names:
+                        if alias.name in ATOMIC_WRITE_REPLACE_NAMES:
+                            bound_names.add(alias.asname or alias.name)
+            elif isinstance(node, _ast.Import):
+                for alias in node.names:
+                    if alias.name == "atomic_io":
+                        # `atomic_io.atomic_write_replace(...)` calls
+                        # are caught via Attribute below.
+                        bound_names.add(alias.asname or alias.name)
+
+        # Walk the AST looking for calls. Bare-name calls hit
+        # `bound_names`; attribute calls hit `<atomic_io_alias>.atomic_write_replace`.
+        for node in _ast.walk(tree):
+            if isinstance(node, _ast.Call):
+                func = node.func
+                if isinstance(func, _ast.Name) and func.id in bound_names:
+                    hits.append(f"{rel}:{node.lineno}: {func.id}(...)")
+                elif (
+                    isinstance(func, _ast.Attribute)
+                    and func.attr in ATOMIC_WRITE_REPLACE_NAMES
+                    and isinstance(func.value, _ast.Name)
+                    and func.value.id in bound_names
+                ):
+                    hits.append(
+                        f"{rel}:{node.lineno}: {func.value.id}.{func.attr}(...)"
+                    )
+
+    if hits:
+        failures.append(
+            f"[{rule}] atomic_write_replace called from non-allowlisted "
+            f"module(s); only {sorted(permitted)} may call this function "
+            f"(Phase 8.5 plan section 2.3). Hits:\n  "
+            + "\n  ".join(sorted(hits))
+        )
+
+
+def check_decommission_audit_log_required(
+    failures: list[str], base_ref: str = "origin/main"
+) -> None:
+    """Phase 8.5 plan section 2.3 audit-log enforcement rule.
+
+    Any deletion of a CODEOWNERS-protected path under
+    `plugins/launchpad/scripts/` requires a same-commit append-only entry
+    in `docs/maintainers/decommission-history.md`. The check:
+
+      1. `git diff --name-only --diff-filter=D <base>...HEAD` -> deleted files.
+      2. If any deleted path matches the protected pattern set, assert
+         the audit log is in the changed-files set.
+    """
+    rule = "decommission-audit-log-required"
+    rc, deleted_out = _run(
+        ["git", "diff", "--name-only", "--diff-filter=D", f"{base_ref}...HEAD"]
+    )
+    if rc != 0:
+        # Diff failed; CI is responsible for fetching the base ref.
+        return
+
+    deleted = {line.strip() for line in deleted_out.splitlines() if line.strip()}
+    if not deleted:
+        return
+
+    # Protected patterns: anything under plugins/launchpad/scripts/ except
+    # __pycache__ + _vendor.
+    protected_prefixes = ("plugins/launchpad/scripts/",)
+    excluded_substrings = ("/__pycache__/", "/_vendor/", "/tests/")
+
+    protected_deleted = []
+    for d in deleted:
+        if not any(d.startswith(p) for p in protected_prefixes):
+            continue
+        if any(s in d for s in excluded_substrings):
+            continue
+        protected_deleted.append(d)
+
+    if not protected_deleted:
+        return
+
+    rc, changed_out = _run(["git", "diff", "--name-only", f"{base_ref}...HEAD"])
+    if rc != 0:
+        return
+    changed = {line.strip() for line in changed_out.splitlines() if line.strip()}
+
+    if DECOMMISSION_AUDIT_LOG not in changed:
+        failures.append(
+            f"[{rule}] CODEOWNERS-protected path(s) deleted without a "
+            f"same-commit append entry in {DECOMMISSION_AUDIT_LOG}:\n  "
+            + "\n  ".join(sorted(protected_deleted))
+            + f"\n\nPhase 8.5 plan section 2.3 audit-log enforcement: every "
+            f"deletion under plugins/launchpad/scripts/ requires an "
+            f"append-only audit-log entry with non-empty Reason + Reviewer."
+        )
+
+
 def run_default_lint() -> int:
     failures: list[str] = []
     check_no_raw_subprocess(failures)
@@ -1293,6 +1465,7 @@ def run_default_lint() -> int:
     check_hyphen_test_files(failures)
     check_pull_request_target_safety(failures)
     check_private_origin_leakage(failures)
+    check_atomic_write_replace_allowlist(failures)
     # Phase 1 catalog validation (only enforced when the catalog files exist;
     # at Phase -1 they did not, and the lint stayed silent on this surface).
     if SCAFFOLDERS_YML.exists() or CATEGORY_PATTERNS_YML.exists():

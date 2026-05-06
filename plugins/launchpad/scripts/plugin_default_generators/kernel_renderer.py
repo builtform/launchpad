@@ -1,4 +1,4 @@
-"""Kernel renderer (V3 plan section 17.1 Phase 2).
+"""Kernel renderer (V3 plan section 17.1 Phase 2; Phase 8.5 batch flow).
 
 Thin subclass of `RendererBase` that ships the 7 kernel templates rendered
 by `/lp-scaffold-stack` at greenfield scaffold time AND re-rendered by
@@ -14,18 +14,16 @@ The 7 kernel files are stack-agnostic and identity-bearing:
   * AGENTS.md            (project_name + repo_url + email + license)
   * CLAUDE.md            (project_name; Claude-specific superset of AGENTS.md)
 
-Phase 2 ships full canonical text for the MIT license enum (the default).
-Non-MIT licenses render a placeholder pointing at choosealicense.com; the
-remaining 5 license bodies (Apache-2.0, GPL-3.0, BSD-3-Clause, ISC,
-MPL-2.0) are tracked as a Phase-9 follow-up. The `Other` license enum
-uses `identity.license_other_body` verbatim.
+Phase 8.5 plan section 3.11 (DA1' = a2): render_all routes through
+`render_batch + write_batch` so the secret-scanner gate fires on the
+full kernel output before any single file lands on disk.
 """
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Iterator, Mapping, Sequence
 
-from ._renderer_base import RendererBase
+from ._renderer_base import RendererBase, sha256_bytes
 
 
 # Inventory: (template name relative to TEMPLATE_SUBDIR, output relpath)
@@ -46,34 +44,45 @@ class KernelRenderer(RendererBase):
 
     TEMPLATE_SUBDIR = "kernel"
 
+    def render_targets(
+        self, context: Mapping[str, Any]
+    ) -> Iterator[tuple[Path, str]]:
+        """Yield `(absolute_target_path, rendered_text)` for each kernel
+        template. Context must carry `cwd: Path` and `identity: Mapping`.
+        """
+        cwd: Path = context["cwd"]
+        identity: Mapping[str, Any] = context["identity"]
+        for template_name, output_relpath in KERNEL_FILES:
+            text = self.render_to_string(template_name, identity)
+            yield cwd / output_relpath, text
+
     def render_all(
         self,
         cwd: Path,
         identity: Mapping[str, Any],
     ) -> list[tuple[Path, str]]:
-        """Render all 7 kernel files into `cwd`.
+        """Render all 7 kernel files into `cwd` via the buffered-batch flow.
 
         Returns a list of `(target_path, rendered_sha256)` tuples for each
         file written. The sha256 values feed the bootstrap manifest's
         `rendered_content_sha256` field (Phase 3+).
 
-        `cwd` is the project root, NOT a layer subpath. Kernel files live
-        at the top of the project tree alongside the user's own README,
-        package.json, etc.
+        Phase 8.5 plan section 3.11: secret-scanner gate fires on the full
+        7-file batch before any single file lands on disk.
 
-        Re-rendering is idempotent: each call writes the same content for
-        the same identity input. Per V3 plan section 10.1 conflict policy,
-        kernel files are written with `overwrite-if-unchanged` policy at
-        Phase 3+ wiring time -- /lp-update-identity will not clobber a
-        user's manual edits unless the on-disk hash matches the previously
-        rendered hash.
+        `cwd` is the project root, NOT a layer subpath.
         """
-        results: list[tuple[Path, str]] = []
-        for template_name, output_relpath in KERNEL_FILES:
-            target = cwd / output_relpath
-            _, sha256 = self.render_to_path(template_name, target, identity)
-            results.append((target, sha256))
-        return results
+        patterns_file = cwd / ".launchpad" / "secret-patterns.txt"
+        allowlist_path = cwd / ".launchpad" / "secret-allowlist.txt"
+        batch = self.render_batch(
+            [{"cwd": cwd, "identity": identity}],
+        )
+        self.write_batch(
+            batch,
+            patterns_file=patterns_file,
+            allowlist_path=allowlist_path,
+        )
+        return [(target, sha256_bytes(content)) for target, content in batch.items()]
 
 
 __all__ = ["KERNEL_FILES", "KernelRenderer"]

@@ -1,16 +1,30 @@
 """Shared rendering primitives for the v2.1 renderer split (V3 plan section 13.6).
 
-Three single-purpose renderers (kernel_renderer, infrastructure_renderer,
-workflow_config_renderer) subclass `RendererBase` and share:
+Subclasses bind to a `TEMPLATE_SUBDIR` (e.g., `"kernel"`, `"infrastructure"`)
+or set it to `"."` to load templates directly from `GENERATORS_ROOT` (used
+by the v2.1 /lp-define orchestrator for the canonical PRD/TECH_STACK/
+APP_FLOW/BACKEND_STRUCTURE/SECTION_REGISTRY/config.yml/agents.yml render).
 
-  * Jinja Environment matching the existing canonical at
-    `plugin-doc-generator.py:97-128` (autoescape posture preserved verbatim
-    so the test_jinja2_autoescape regression contract continues to hold).
+Three single-purpose renderers (kernel_renderer, infrastructure_renderer,
+lp_define orchestrator) share:
+
+  * Jinja Environment matching the autoescape posture verbatim from the
+    superseded plugin-doc-generator -- HTML-extension-only via
+    `select_autoescape`. The test_renderer_base_jinja_autoescape regression
+    contract pins this so a future change cannot silently introduce SSTI
+    or HTML-escape Markdown text.
   * StrictUndefined plus keep_trailing_newline so missing identity fields
     fail loudly at render time and trailing newlines round-trip cleanly.
-  * `sha256_file()` utility for manifest tracking (Phase 3+).
-  * `atomic_write()` helper that wraps `atomic_io.atomic_write_replace`
-    with command-name-aware sentinel files for crash recovery.
+  * Buffered-batch flow per Phase 8.5 plan section 3.11 (DA1' = a2):
+    `render_batch(contexts) -> dict[Path, bytes]` (in-memory only),
+    `scan_batch(batch) -> list[SecretMatch]` (full-batch secret-scanner
+    over rendered content; allowlist-aware), `write_batch(batch) -> None`
+    (atomic write-all-or-none after scan_batch returns no findings).
+    Subclasses implement `render_targets(context)` and never call
+    `atomic_write_replace` directly. The handshake-lint enforces this
+    via an ALLOWLIST-based rule restricted to
+    `_renderer_base.py + lp_bootstrap/policy.py + atomic_io.py`.
+  * `sha256_file()` / `sha256_bytes()` utilities for manifest tracking.
   * `identity_inject()` helper that takes the sealed identity dict from
     scaffold-decision.json and produces the Jinja context every kernel
     template can rely on (project_name, copyright_holder, email, repo_url,
@@ -19,18 +33,9 @@ workflow_config_renderer) subclass `RendererBase` and share:
     `to_yaml_safe` (already part of Jinja stdlib for `tojson`; we add
     `to_yaml_safe` via PyYAML's safe_dump for YAML value injection).
 
-Per Round 2 P1-N4 closure: the regression contract for autoescape lives
-at `tests/test_renderer_base_jinja_autoescape.py` (Phase 2; new). The SSTI
-gate asserts that an attacker-controlled identity value containing
-`{{ 7*7 }}` lands as the literal string `{{ 7*7 }}` in rendered output,
-NOT as `49` -- Jinja variable values are always strings, never re-parsed
-as syntax, but the test pins the contract so a future autoescape change
-cannot silently introduce SSTI.
-
-Phase 8 deletes `plugin-doc-generator.py`; until then BOTH this module and
-the legacy script source the autoescape posture from the same canonical
-spec (the inline copy here mirrors the legacy source verbatim, with the
-same comment explaining why HTML autoescape is not turned on globally).
+Phase 8.5 plan section 3.11 also forbids subclasses from overriding
+`render_to_path` / `render_batch` / `scan_batch` / `write_batch`.
+test_no_renderer_subclass_overrides_protected_methods asserts.
 """
 from __future__ import annotations
 
@@ -40,7 +45,7 @@ import os
 import shlex
 import sys
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterable, Iterator, Mapping
 
 import jinja2
 
@@ -53,7 +58,9 @@ from atomic_io import atomic_write_replace  # noqa: E402
 
 # Generators root. Subdirectories at `kernel/`, `infrastructure/`, and
 # `workflow-config/` each carry their own .j2 templates. The base class
-# accepts a subdirectory name so each subclass binds to its template root.
+# accepts a subdirectory name so each subclass binds to its template root;
+# `"."` selects GENERATORS_ROOT directly (used by the /lp-define
+# orchestrator in Phase 8.5).
 GENERATORS_ROOT = Path(__file__).resolve().parent
 
 # Phase 4 v2.1 (Slice F): per-adapter fragment root for stack-aware
@@ -81,6 +88,22 @@ class StackIdInvalidError(ValueError):
     stack-aware renderer. Phase 4 plan section 3.11 closed-enum guarantee."""
 
 
+class SecretScannerViolation(RuntimeError):
+    """Raised by `write_batch` when `scan_batch` returns at least one
+    finding. Carries the structured findings list + the count of refused
+    writes for caller-side reporting (Phase 8.5 plan section 3.11)."""
+
+    def __init__(
+        self,
+        findings: list,
+        refused_count: int,
+        message: str,
+    ) -> None:
+        super().__init__(message)
+        self.findings = findings
+        self.refused_count = refused_count
+
+
 def validate_stack_id(stack_id: str) -> str:
     """Phase 4 plan section 3.11 closed-enum gate. Raise on miss.
 
@@ -98,15 +121,18 @@ def validate_stack_id(stack_id: str) -> str:
 def make_jinja_env(template_subdir: str) -> jinja2.Environment:
     """Build the Jinja2 Environment for a renderer subdirectory.
 
-    Autoescape policy: HTML-extension-only via `select_autoescape`. Templates
-    that ARE HTML (none today, but reserved) get autoescape automatically
-    via the extension match. Markdown and YAML templates do NOT get
-    autoescape because globally forcing it escapes normal text characters
-    like `&`, `<`, `>` even when they appear in user-facing strings,
-    producing artifacts like `R&amp;D` in rendered prose. The actual
-    injection threat (a hostile value in detected manifests being
-    re-evaluated as Jinja) is already prevented by Jinja's template model:
-    variable values render as strings, never re-parsed as syntax.
+    `template_subdir == "."` loads templates directly from
+    `GENERATORS_ROOT` (used by the v2.1 /lp-define orchestrator).
+
+    Autoescape policy: HTML-extension-only via `select_autoescape`.
+    Templates that ARE HTML (none today, but reserved) get autoescape
+    automatically via the extension match. Markdown and YAML templates
+    do NOT get autoescape because globally forcing it escapes normal text
+    characters like `&`, `<`, `>` even when they appear in user-facing
+    strings, producing artifacts like `R&amp;D` in rendered prose. The
+    actual injection threat (a hostile value in detected manifests being
+    re-evaluated as Jinja) is already prevented by Jinja's template
+    model: variable values render as strings, never re-parsed as syntax.
 
     YAML templates use `tojson` or explicit yaml-safe quoting for any
     field where a string might collide with YAML syntax -- that pattern
@@ -117,12 +143,12 @@ def make_jinja_env(template_subdir: str) -> jinja2.Environment:
 
     Filter additions:
       - `shell_quote(value)`: shlex.quote-based escaping for bash contexts.
-        Identity values flowing into shell scripts (e.g., `git config
-        user.email "{{ identity.email | shell_quote }}"`) MUST use this
-        filter. Plain `{{ identity.email }}` is unsafe in shell.
       - `to_yaml_safe(value)`: PyYAML safe_dump for YAML value injection.
     """
-    template_root = GENERATORS_ROOT / template_subdir
+    if template_subdir in ("", "."):
+        template_root = GENERATORS_ROOT
+    else:
+        template_root = GENERATORS_ROOT / template_subdir
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(str(template_root)),
         autoescape=jinja2.select_autoescape(
@@ -147,11 +173,7 @@ _STACK_AWARE_ENV: jinja2.Environment | None = None
 
 
 def make_stack_aware_jinja_env() -> jinja2.Environment:
-    """Singleton-cached Jinja Environment for stack-aware renders.
-
-    Filter parity with `make_jinja_env` (shell_quote + to_yaml_safe + tojson)
-    plus the `select_autoescape` posture preserved verbatim.
-    """
+    """Singleton-cached Jinja Environment for stack-aware renders."""
     global _STACK_AWARE_ENV
     if _STACK_AWARE_ENV is not None:
         return _STACK_AWARE_ENV
@@ -210,8 +232,6 @@ def _to_yaml_safe(value: Any) -> str:
     Emits a double-quoted YAML scalar with proper escaping.
     """
     import yaml  # type: ignore[import-not-found]
-    # Use default_style='"' to force double-quoted output; default_flow_style=False
-    # avoids JSON-like flow output for nested structures.
     return yaml.safe_dump(
         value,
         default_style='"',
@@ -221,12 +241,7 @@ def _to_yaml_safe(value: Any) -> str:
 
 
 def sha256_file(path: Path) -> str:
-    """Compute the sha256 of a file's contents.
-
-    Used by the bootstrap-manifest writer (Phase 3+) for the
-    `source_template_sha256` and `rendered_content_sha256` fields. Pinning
-    here so all renderers agree on the canonical hash function.
-    """
+    """Compute the sha256 of a file's contents."""
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(65536), b""):
@@ -240,16 +255,7 @@ def sha256_bytes(data: bytes) -> str:
 
 
 def identity_inject(identity: Mapping[str, Any]) -> dict[str, Any]:
-    """Build the Jinja context for kernel/infrastructure templates.
-
-    Derived helpers added on top of the raw identity dict:
-      - `current_year`: integer (UTC) for copyright headers.
-      - `license_url`: choosealicense.com URL for the license enum (None
-        for "Other"; the license_other_body field carries the actual text).
-
-    Returns a dict that templates render under `{{ identity.project_name }}`
-    etc. plus `{{ current_year }}`.
-    """
+    """Build the Jinja context for kernel/infrastructure templates."""
     license_value = identity.get("license", "Other")
     license_url = (
         f"https://choosealicense.com/licenses/{license_value.lower()}/"
@@ -267,14 +273,33 @@ class RendererBase:
     """Abstract base for the v2.1 renderer split.
 
     Subclasses bind to their template subdirectory by setting `TEMPLATE_SUBDIR`
-    and then call `self.env.get_template(...)` for each render. Concrete
-    renderers (kernel_renderer.KernelRenderer, infrastructure_renderer.
-    InfrastructureRenderer, workflow_config_renderer.WorkflowConfigRenderer)
-    are thin: they enumerate which templates to render where and pass through
-    to the base.
+    and implement `render_targets(context)` to yield `(target_absolute_path,
+    rendered_text)` pairs. Public batch flow:
+
+      * `render_batch(contexts) -> dict[Path, bytes]`: in-memory only;
+        does NOT touch disk.
+      * `scan_batch(batch, *, patterns_file=None, allowlist_path=None,
+        template_sources=None) -> list[SecretMatch]`: secret scanner over
+        the full batch; returns ALL findings.
+      * `write_batch(batch, *, file_modes=None, ...) -> None`: atomic
+        write-all-or-none after scan_batch returns no findings.
+
+    Phase 8.5 plan section 3.11 forbids subclasses from overriding any of
+    these protected methods OR `render_to_path` (so the secret-scanner
+    gate cannot be bypassed at any caller layer). The handshake-lint test
+    asserts.
     """
 
-    TEMPLATE_SUBDIR: str = ""  # subclasses override (e.g., "kernel")
+    TEMPLATE_SUBDIR: str = ""  # subclasses override (e.g., "kernel"; "." for root)
+
+    # Phase 8.5 plan section 3.11 closed-set of protected method names.
+    # `test_no_renderer_subclass_overrides_protected_methods` enforces.
+    PROTECTED_METHODS: frozenset[str] = frozenset({
+        "render_batch",
+        "scan_batch",
+        "write_batch",
+        "render_to_path",
+    })
 
     def __init__(self) -> None:
         if not self.TEMPLATE_SUBDIR:
@@ -282,7 +307,14 @@ class RendererBase:
                 f"{type(self).__name__}.TEMPLATE_SUBDIR must be set"
             )
         self.env = make_jinja_env(self.TEMPLATE_SUBDIR)
-        self.template_root = GENERATORS_ROOT / self.TEMPLATE_SUBDIR
+        if self.TEMPLATE_SUBDIR in ("", "."):
+            self.template_root = GENERATORS_ROOT
+        else:
+            self.template_root = GENERATORS_ROOT / self.TEMPLATE_SUBDIR
+
+    # ------------------------------------------------------------------
+    # Read-only render primitives (kept for backward compat)
+    # ------------------------------------------------------------------
 
     def render_to_string(
         self,
@@ -290,14 +322,7 @@ class RendererBase:
         identity: Mapping[str, Any],
         extra_context: Mapping[str, Any] | None = None,
     ) -> str:
-        """Render a template with the identity context plus optional extras.
-
-        `template_name` is relative to the renderer's TEMPLATE_SUBDIR. Extra
-        context (passed by stack-aware renderers in Phase 4+) merges over
-        the identity-derived defaults; stack-aware values can therefore
-        override identity-derived values when they need to (e.g., adapter
-        renderers may inject project-specific overrides).
-        """
+        """Render a template with the identity context plus optional extras."""
         ctx = identity_inject(identity)
         if extra_context:
             ctx.update(extra_context)
@@ -311,24 +336,163 @@ class RendererBase:
         identity: Mapping[str, Any],
         extra_context: Mapping[str, Any] | None = None,
     ) -> tuple[str, str]:
-        """Render and atomically write to `target`.
+        """Render and atomically write to `target` via the buffered-batch
+        gate. Backwards-compat wrapper: callers that previously rendered
+        a single file now also get the secret-scanner gate, just operating
+        on a 1-item batch.
 
-        Returns (rendered_text, rendered_sha256). The sha256 is the hash
-        of the rendered bytes (after UTF-8 encoding) and feeds the
-        `rendered_content_sha256` field of the bootstrap manifest (Phase 3+).
+        Returns (rendered_text, rendered_sha256).
+
+        Phase 8.5 plan section 3.11: render_to_path is a thin wrapper
+        over `render_batch + write_batch` so the gate fires here too.
         """
         rendered = self.render_to_string(template_name, identity, extra_context)
         encoded = rendered.encode("utf-8")
-        atomic_write_replace(target, encoded)
+        batch = {target: encoded}
+        self.write_batch(batch)
         return rendered, sha256_bytes(encoded)
+
+    # ------------------------------------------------------------------
+    # Buffered-batch flow (Phase 8.5 plan section 3.11; DA1' = a2)
+    # ------------------------------------------------------------------
+
+    def render_targets(
+        self, context: Mapping[str, Any]
+    ) -> Iterator[tuple[Path, str]]:
+        """Subclass-overridable: yield `(absolute_target_path, rendered_text)`
+        pairs for the given context. Called by `render_batch`.
+
+        Default implementation raises NotImplementedError; subclasses that
+        use `render_batch` MUST override.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__}.render_targets must be overridden "
+            "before render_batch can be called"
+        )
+
+    def render_batch(
+        self, contexts: Iterable[Mapping[str, Any]]
+    ) -> dict[Path, bytes]:
+        """Render every target across every context to an in-memory dict.
+        Does NOT touch disk -- the Phase 8.5 plan section 3.11 invariant
+        (DA1' = a2 buffered batch + refuse-all on any finding).
+        """
+        rendered: dict[Path, bytes] = {}
+        for context in contexts:
+            for target_path, content_str in self.render_targets(context):
+                rendered[Path(target_path)] = content_str.encode("utf-8")
+        return rendered
+
+    def scan_batch(
+        self,
+        batch: Mapping[Path, bytes],
+        *,
+        patterns_file: Path | None = None,
+        allowlist_path: Path | None = None,
+        template_sources: Mapping[Path, str] | None = None,
+    ) -> list:
+        """Run the secret scanner over the full rendered batch; return all
+        findings across all files. Allowlist mechanisms (Phase 8.5 plan
+        section 3.9 DA4) are consulted before findings are returned.
+        """
+        # Sibling imports stay inside the method so the renderer module
+        # itself does not pull the scanner at import time.
+        from plugin_stack_adapters.secret_scanner import (
+            load_patterns,
+            scan,
+        )
+        from plugin_default_generators.secret_allowlist import (
+            filter_allowlisted,
+        )
+
+        if patterns_file is None:
+            # Phase 8.5 DA5: relative-path lookup is the caller's job.
+            # Without a hint we fall through to bundled patterns.
+            patterns = load_patterns(None)
+        else:
+            patterns = load_patterns(patterns_file)
+
+        all_findings: list = []
+        for target_path, content_bytes in batch.items():
+            text = content_bytes.decode("utf-8", errors="replace")
+            raw = scan(text, patterns=patterns, source=str(target_path))
+            template_source = (
+                template_sources.get(target_path)
+                if template_sources is not None
+                else None
+            )
+            kept = filter_allowlisted(
+                raw,
+                target_path,
+                text,
+                template_source=template_source,
+                allowlist_path=allowlist_path,
+            )
+            all_findings.extend(kept)
+        return all_findings
+
+    def write_batch(
+        self,
+        batch: Mapping[Path, bytes],
+        *,
+        file_modes: Mapping[Path, int] | None = None,
+        chmod_after_replace: bool = False,
+        patterns_file: Path | None = None,
+        allowlist_path: Path | None = None,
+        template_sources: Mapping[Path, str] | None = None,
+    ) -> None:
+        """Atomically write `batch` to disk only if `scan_batch` returns
+        no findings. If any finding surfaces in any file, NO files are
+        written and `SecretScannerViolation` is raised with the full
+        findings list and the count of refused writes. Phase 8.5 plan
+        section 3.11 (DA1' = a2 atomic-batch-or-none invariant).
+
+        `file_modes`: optional per-target file mode (e.g.,
+        infrastructure_renderer's per-file POSIX modes). When provided,
+        atomic_write_replace receives the mode and (with chmod_after_replace
+        true) os.chmod fires after replace as belt-and-braces.
+        """
+        findings = self.scan_batch(
+            batch,
+            patterns_file=patterns_file,
+            allowlist_path=allowlist_path,
+            template_sources=template_sources,
+        )
+        if findings:
+            sources = {getattr(f, "source", None) for f in findings}
+            sources.discard(None)
+            raise SecretScannerViolation(
+                findings=findings,
+                refused_count=len(batch),
+                message=(
+                    f"Secret scanner found {len(findings)} match(es) "
+                    f"across {len(sources) or len(batch)} file(s); "
+                    f"refused all {len(batch)} writes."
+                ),
+            )
+
+        modes = file_modes or {}
+        for target_path, content in batch.items():
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            mode = modes.get(target_path)
+            if mode is None:
+                atomic_write_replace(target_path, content)
+            else:
+                atomic_write_replace(target_path, content, mode=mode)
+                if chmod_after_replace:
+                    try:
+                        os.chmod(target_path, mode)
+                    except OSError:
+                        pass
 
 
 __all__ = [
     "GENERATORS_ROOT",
     "STACK_FRAGMENTS_ROOT",
     "STACK_ID_ACTIVE_ENUM",
-    "StackIdInvalidError",
     "RendererBase",
+    "SecretScannerViolation",
+    "StackIdInvalidError",
     "identity_inject",
     "make_jinja_env",
     "make_sandboxed_jinja_env",
