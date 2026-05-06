@@ -125,6 +125,21 @@ class SafeRunTimedOut(RuntimeError):
     SIGKILL and the child still has surviving descendants per psutil."""
 
 
+class SafeRunUnsupportedPlatform(RuntimeError):
+    """Phase 5 v2.1 (DA3): raised by safe_run_long_shell on non-POSIX
+    platforms. WARN-and-degrade was rejected (cycle-1 architecture P2-C);
+    callers should surface a structured refusal pointing at WSL2 +
+    v2.2 BL native-Windows support."""
+
+
+class SafeRunInvalidCommand(ValueError):
+    """Phase 5 v2.1 (cycle-2 P3-C NUL-byte guard): raised by
+    safe_run_long_shell when the shell-string command contains a NUL
+    byte. Refused before Popen so the error is clear; argv-list validation
+    is skipped for shell=True paths so this guard is the only character
+    contract `safe_run_long_shell` enforces."""
+
+
 def _kill_descendants(pid: int, sig: int) -> None:
     """Best-effort SIGTERM/SIGKILL ladder targeting all descendants of `pid`.
 
@@ -230,6 +245,96 @@ def safe_run_long(
     )
 
 
+def safe_run_long_shell(
+    cmd_string: str,
+    cwd: Path,
+    *,
+    sigint_timeout_s: float = _DEFAULT_SIGINT_TIMEOUT_S,
+    sigterm_timeout_s: float = _DEFAULT_SIGTERM_TIMEOUT_S,
+) -> subprocess.CompletedProcess[bytes]:
+    """Phase 5 v2.1 (DA2 flipped) shell-string variant of `safe_run_long`.
+
+    Long-running variant for `commands.dev: ["pnpm dev"]`-style entries which
+    are shell strings, not argv lists. Re-uses every helper from
+    `safe_run_long` (`_signal_child_group_then_descendants`, `_wait_for_exit`,
+    `_kill_descendants`, `_build_safe_env`) so the SIGINT/SIGTERM/SIGKILL
+    ladder is identical -- only the Popen call differs:
+
+      - Accepts a shell string instead of argv list.
+      - `subprocess.Popen(cmd, shell=True, start_new_session=True, cwd=cwd,
+        env=_build_safe_env())`. The env-hygiene strip from Phase 4 is
+        explicitly preserved (cycle-2 security P2-A).
+      - Skips `_validate_argv` (which rejects shell metacharacters; would
+        always fail for legitimate `commands.dev` entries).
+      - Pre-Popen guards: refuse on non-POSIX (DA3 REFUSE not WARN); refuse
+        on NUL-byte (cycle-2 P3-C input contract).
+
+    Lint allowlist (per cycle-1 security-lens F-SEC-LENS-2 + cycle-2 pattern-
+    finder P2): `check_no_shell_true` in plugin-v2-handshake-lint.py
+    explicitly carve-outs `safe_run.py` -- this is the ONLY shell=True call
+    site in the v2 module surface.
+    """
+    if os.name != "posix":
+        raise SafeRunUnsupportedPlatform(
+            "safe_run_long_shell requires POSIX (uses os.setsid/os.killpg). "
+            "Native Windows is deferred to v2.2 BL; on Windows use WSL2."
+        )
+    if "\x00" in cmd_string:
+        raise SafeRunInvalidCommand(
+            "safe_run_long_shell: cmd_string contains NUL byte; refusing"
+        )
+
+    env = _build_safe_env()
+
+    env_override = os.environ.get("LAUNCHPAD_SIGINT_TIMEOUT_S")
+    if env_override is not None:
+        try:
+            sigint_timeout_s = float(env_override)
+        except ValueError:
+            pass
+
+    proc = subprocess.Popen(
+        cmd_string,
+        shell=True,
+        env=env,
+        cwd=str(cwd),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    )
+
+    interrupted = False
+    try:
+        try:
+            stdout, stderr = proc.communicate()
+        except KeyboardInterrupt:
+            interrupted = True
+            stdout, stderr = b"", b""
+            _signal_child_group_then_descendants(
+                proc, sigint_timeout_s, sigterm_timeout_s
+            )
+    except BaseException:
+        _signal_child_group_then_descendants(
+            proc, sigint_timeout_s, sigterm_timeout_s
+        )
+        raise
+
+    rc = proc.returncode
+    if interrupted:
+        raise SafeRunInterrupted(
+            f"shell command {cmd_string!r} interrupted by user; cleanup ran "
+            f"SIGINT -> SIGTERM -> SIGKILL ladder within "
+            f"{sigint_timeout_s + sigterm_timeout_s:.1f}s budget"
+        )
+
+    return subprocess.CompletedProcess(
+        args=cmd_string,
+        returncode=rc if rc is not None else -1,
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+
 def _signal_child_group_then_descendants(
     proc: subprocess.Popen,
     sigint_timeout_s: float,
@@ -283,6 +388,9 @@ __all__ = [
     "UnsafeArgvError",
     "SafeRunInterrupted",
     "SafeRunTimedOut",
+    "SafeRunUnsupportedPlatform",
+    "SafeRunInvalidCommand",
     "safe_run",
     "safe_run_long",
+    "safe_run_long_shell",
 ]

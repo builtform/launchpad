@@ -46,7 +46,7 @@ if str(SCRIPT_DIR) not in sys.path:
 import yaml  # noqa: E402
 
 
-VALID_STAGES = ("test", "typecheck", "lint", "format", "build")
+VALID_STAGES = ("test", "typecheck", "lint", "format", "build", "dev")
 
 
 class ConfigMissingError(FileNotFoundError):
@@ -287,6 +287,47 @@ def run_stage(repo_root: Path, stage: str, *, check_only: bool = False) -> int:
 
     if not cmds:
         print(f"[{stage}] skipped (empty array in config.yml)", file=sys.stderr)
+        return 0
+
+    if stage == "dev":
+        if len(cmds) > 1:
+            print(
+                f"error: commands.dev must contain at most 1 entry; got {len(cmds)}. "
+                "For multiple dev servers, use 'concurrently' or 'npm-run-all'.",
+                file=sys.stderr,
+            )
+            return 2
+        # DA2 (flipped) + DA3: route through safe_run_long_shell which inherits
+        # Phase 4's SIGINT/SIGTERM/SIGKILL ladder. POSIX-only refusal happens
+        # inside the helper; non-POSIX raises SafeRunUnsupportedPlatform.
+        from safe_run import (
+            SafeRunInterrupted,
+            SafeRunInvalidCommand,
+            SafeRunTimedOut,
+            SafeRunUnsupportedPlatform,
+            safe_run_long_shell,
+        )
+        cmd = cmds[0]
+        prefix = f"[{stage} 1/1]"
+        print(f"{prefix} {cmd}", file=sys.stderr)
+        try:
+            result = safe_run_long_shell(cmd, repo_root)
+        except SafeRunInterrupted:
+            return 130
+        except SafeRunTimedOut:
+            return 137
+        except SafeRunUnsupportedPlatform as exc:
+            print(f"error: dev_stage_unsupported_on_platform: {exc}", file=sys.stderr)
+            return 2
+        except SafeRunInvalidCommand as exc:
+            print(f"error: invalid commands.dev entry: {exc}", file=sys.stderr)
+            return 2
+        if result.returncode != 0:
+            print(
+                f"{prefix} exited {result.returncode}; stopping stage",
+                file=sys.stderr,
+            )
+            return result.returncode
         return 0
 
     for i, cmd in enumerate(cmds, start=1):

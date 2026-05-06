@@ -367,6 +367,13 @@ def check_no_shell_true(failures: list[str]) -> None:
             continue
         if path.endswith("plugin-v2-handshake-lint.py"):
             continue
+        # Phase 5 v2.1 (cycle-1 security-lens F-SEC-LENS-2 + cycle-2
+        # pattern-finder P2): safe_run.py is the single audit-trailed
+        # exception -- safe_run_long_shell uses Popen(shell=True) for
+        # commands.dev entries. The SIGINT/SIGTERM/SIGKILL ladder + env
+        # hygiene contract is identical to the argv-list path.
+        if path.endswith("safe_run.py"):
+            continue
         if "/tests/" in path:
             continue
         # Documentation/prohibition mentions allowed.

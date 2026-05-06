@@ -21,9 +21,19 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any, NamedTuple
+
+
+# --- Phase 5 v2.1 (DA4) -- --get-config-value path allowlist ---
+#
+# Module-level compiled regex. Single source of truth: depth bound is encoded
+# directly in `{0,4}` (5 segments max). Phase 5 plan section 3.4 +
+# architecture P3-C drops the runtime path.count(".") <= 4 duplicate check.
+_PATH_ALLOWLIST_RE = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z0-9_]+){0,4}$")
+_PATH_LENGTH_CAP_BYTES = 256
 
 
 # --- YAML parsing: minimal, no external dep ---
@@ -95,7 +105,7 @@ def _coerce_commands(commands: dict[str, Any]) -> dict[str, list[str]]:
     (skip marker); missing keys become empty lists.
     """
     out: dict[str, list[str]] = {}
-    for key in ("test", "typecheck", "lint", "format", "build"):
+    for key in ("test", "typecheck", "lint", "format", "build", "dev"):
         val = commands.get(key, [])
         if isinstance(val, str):
             val = [val] if val else []
@@ -137,7 +147,7 @@ def load(repo_root: Path | None = None, path: Path | None = None) -> dict[str, A
 
     result: dict[str, Any] = {
         "pipeline": {},
-        "commands": {"test": [], "typecheck": [], "lint": [], "format": [], "build": []},
+        "commands": {"test": [], "typecheck": [], "lint": [], "format": [], "build": [], "dev": []},
         "paths": {
             "architecture_dir": "docs/architecture",
             "tasks_dir": "docs/tasks",
@@ -520,6 +530,48 @@ def read_bootstrap_manifest(cwd: Path) -> BootstrapManifestRead:
     )
 
 
+# --- Phase 5 v2.1 (DA4 + DA6) -- --get-config-value helpers -----------------
+
+
+def _validate_config_path(path: str) -> None:
+    """Phase 5 plan section 3.4: 256-byte length cap BEFORE regex; then
+    allowlist match. Raises ConfigError on rejection.
+
+    Length-cap message intentionally does NOT echo the rejected input
+    (cycle-2 P2-B input-echo guard): pre-regex inputs may carry ANSI
+    escape sequences or terminal-control chars that the character class
+    has not yet excluded. Regex-rejection message echoes the input, since
+    by then `[a-z0-9_.]` is the only character class allowed.
+    """
+    if len(path.encode("utf-8")) > _PATH_LENGTH_CAP_BYTES:
+        raise ConfigError(
+            f"error: config path exceeds {_PATH_LENGTH_CAP_BYTES} bytes"
+        )
+    if not _PATH_ALLOWLIST_RE.fullmatch(path):
+        raise ConfigError(
+            f"error: invalid config path {path!r}; must match "
+            f"{_PATH_ALLOWLIST_RE.pattern}"
+        )
+
+
+def _get_value_at_path(config: dict[str, Any], path: str) -> Any:
+    """Walk a dotted path through the merged config. The `path` MUST already
+    have passed `_validate_config_path`; this helper is the second leg."""
+    segments = path.split(".")
+    cur: Any = config
+    walked: list[str] = []
+    for seg in segments:
+        walked.append(seg)
+        if not isinstance(cur, dict) or seg not in cur:
+            full = ".".join(segments)
+            raise ConfigError(
+                f"error: config key {seg!r} not found at path {full!r}; "
+                "check config.yml"
+            )
+        cur = cur[seg]
+    return cur
+
+
 # --- CLI entry ---
 
 # --- Phase 4 v2.1 (Slice D) minimal stacks-array lift -----------------------
@@ -560,7 +612,25 @@ def main() -> int:
     ap.add_argument("--repo-root", default=os.environ.get("LP_REPO_ROOT", os.getcwd()))
     ap.add_argument("--section", choices=["pipeline", "commands", "paths", "overwrite", "audit", "all"], default="all")
     ap.add_argument("--strict", action="store_true", help="exit non-zero if any section had errors")
+    ap.add_argument(
+        "--get-config-value",
+        metavar="DOTTED_PATH",
+        help=(
+            "read a single config value at the given dotted path "
+            "(e.g. commands.test). Output is JSON-encoded to stdout. "
+            "Takes precedence over --section if both are passed."
+        ),
+    )
     args = ap.parse_args()
+
+    # Phase 5 v2.1 (DA4): validate path BEFORE config load so malformed
+    # inputs are rejected cheaply (security F4) without I/O.
+    if args.get_config_value is not None:
+        try:
+            _validate_config_path(args.get_config_value)
+        except ConfigError as e:
+            print(str(e), file=sys.stderr)
+            return 2
 
     try:
         cfg = load(Path(args.repo_root))
@@ -574,6 +644,16 @@ def main() -> int:
             print(f"WARN: {err}", file=sys.stderr)
         if args.strict:
             return 1
+
+    # Phase 5 v2.1 (DA6): --get-config-value branch precedence over --section.
+    if args.get_config_value is not None:
+        try:
+            value = _get_value_at_path(cfg, args.get_config_value)
+        except ConfigError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        print(json.dumps(value))
+        return 0
 
     if args.section == "all":
         print(json.dumps(cfg, indent=2))
