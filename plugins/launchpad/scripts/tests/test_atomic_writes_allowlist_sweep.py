@@ -143,15 +143,17 @@ def test_allowlist_constant_byte_for_byte_match() -> None:
     constants = _load_lint_constants()
     allowed = constants["ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS"]
 
-    # The current expected set per Phase 10 Slice D + Phase 8.5. Order
-    # matches the source listing.
+    # The current expected set per Phase 10 Slice D + Phase 8.5,
+    # narrowed at Phase 11 hardening A4 (lp_bootstrap/sentinel.py
+    # harmonized to O_CREAT|O_EXCL and dropped its atomic_write_replace
+    # dependency, mirroring the other two sentinels). Order matches the
+    # source listing.
     expected = (
         "plugins/launchpad/scripts/atomic_io.py",
         "plugins/launchpad/scripts/plugin_default_generators/_renderer_base.py",
         "plugins/launchpad/scripts/lp_bootstrap/policy.py",
         "plugins/launchpad/scripts/lp_bootstrap/engine.py",
         "plugins/launchpad/scripts/lp_bootstrap/manifest_writer.py",
-        "plugins/launchpad/scripts/lp_bootstrap/sentinel.py",
         "plugins/launchpad/scripts/lp_pick_stack/decision_writer.py",
     )
     assert allowed == expected, (

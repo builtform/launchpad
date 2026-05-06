@@ -50,7 +50,7 @@ The `marketplace add` step is required today because BuiltForm is awaiting confi
 
 ### Verifying installation
 
-After restart, type `/lp-` and Claude Code should autocomplete with LaunchPad commands. You can also confirm via `claude plugin list` in your terminal: LaunchPad should appear with version `1.0.0` and marketplace `builtform`.
+After restart, type `/lp-` and Claude Code should autocomplete with LaunchPad commands. You can also confirm via `claude plugin list` in your terminal: LaunchPad should appear with the version from `plugins/launchpad/.claude-plugin/plugin.json` (`2.1.0` at the time of writing) and marketplace `builtform`.
 
 ### Install scopes
 
@@ -200,17 +200,16 @@ The panel's contents are spec'd in [SCAFFOLD_OPERATIONS.md §5](../architecture/
 
 Once `/lp-define` has rendered the project's architecture docs and the four-command pipeline has settled, the project's identity values (project name, email, copyright holder, repo URL, license) live sealed in `.launchpad/scaffold-decision.json` under `schema_version: "1.1"`. To update any of these values later without re-scaffolding, run `/lp-update-identity`.
 
-The command detects which of five re-entry cases applies (A through E, plus Case F for legacy v1.0 envelope migration), validates the new identity input against the documented regex constants, re-renders the 7 kernel templates atomically, and re-seals `scaffold-decision.json` with `generated_at` preserved byte-identical. After a successful run, `/lp-update-identity` prints a PII WARN noting that prior identity values persist in git history.
+The command detects which of five re-entry cases applies (A through E per the canonical matrix in [lp-update-identity command spec](../../plugins/launchpad/commands/lp-update-identity.md)). Migration of pre-v2.1 envelopes from `schema_version: "1.0"` to `"1.1"` happens transparently as in-memory preprocessing before case dispatch, so the legacy-migration path folds into Case B (seed-as-first-time). The command validates the new identity input against the documented regex constants, re-renders the 7 kernel templates atomically, and re-seals `scaffold-decision.json` with `generated_at` preserved byte-identical. After a successful run, `/lp-update-identity` prints a PII WARN noting that prior identity values persist in git history.
 
-| Flag                            | Effect                                                                                     |
-| ------------------------------- | ------------------------------------------------------------------------------------------ |
-| `--dry-run`                     | preview the changes without writing                                                        |
-| `--force`                       | override `USER_EDIT_BLOCKS_REFRESH` after reviewing the kernel-file diff                   |
-| `--seed-brownfield`             | seed identity for projects scaffolded before v2.1 (triggers Case D email cross-check)      |
-| `--allow-email-mismatch`        | accept that the project email differs from `git config user.email` (Case D escape)         |
-| `--accept-plugin-version-drift` | record a `(from_version, to_version)` tuple in `version_drift_log` and proceed             |
-| `--quiet`                       | suppress the PII WARN print (informational only; does not change history-rewrite behavior) |
-| `--recover`                     | clear a stale sentinel after PID-liveness check                                            |
+| Flag                     | Effect                                                                                                    |
+| ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `--dry-run`              | preview the changes without writing                                                                       |
+| `--seed-brownfield`      | seed identity for projects scaffolded before v2.1 (triggers Case D email cross-check)                     |
+| `--allow-email-mismatch` | accept that the project email differs from `git config user.email` (Case D escape)                        |
+| `--quiet`                | suppress the PII WARN print + diff summary (informational only; does not change history-rewrite behavior) |
+
+Stale-sentinel recovery is automatic: a dead-PID sentinel from an interrupted prior run is auto-cleared at preflight time with an INFO entry; no flag needed. Plugin-version drift is recorded automatically in `version_drift_log` whenever the running plugin version differs from the value sealed in `scaffold-decision.json`.
 
 For the canonical re-entry case table, error-code map, on-disk artifacts touched, and privilege model, see [SCAFFOLD_OPERATIONS.md §12](../architecture/SCAFFOLD_OPERATIONS.md#12-lp-update-identity-re-entry-case-table-v21-phase-10). For the PII removal recipe (`git filter-repo` over committed identity values), see [IDENTITY_AND_PII.md](IDENTITY_AND_PII.md).
 
@@ -907,4 +906,4 @@ For the canonical post-tag verification flow and the rollback procedure if `veri
 - [README](../../README.md)
 - [Methodology](METHODOLOGY.md), architecture, design principles, credits
 - [Repository Structure](../architecture/REPOSITORY_STRUCTURE.md), file-placement decision tree
-- [Release notes](../releases/v1.0.0.md)
+- [Release notes](../releases/v2.1.0.md)

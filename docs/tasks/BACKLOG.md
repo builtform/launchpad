@@ -1247,3 +1247,84 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 **Cross-link**: Phase 11 plan `docs/plans/launchpad_plans/2026-05-06-v2.1-phase11-implementation-plan.md` §8 row 4 + Slice E step 9 + cycle 1 security F8.
 
 **Default decision**: defer to v2.2. v2.1 ships advisory-only output captured in `/tmp/v2.1.0-*.log`; v2.2 gates promotion alongside the operational/security infrastructure bundle.
+
+<!-- v2.1.1 patch lane (created 2026-05-06 during the final cross-cutting hardening pass over `c563d81..HEAD`). The 14-agent review surfaced ~25 P2 / P3 items that did not block v2.1.0 ship but should land as a fast-follow patch within 7-14 days of v2.1.0. v2.1.1 is the dedicated patch home; v2.2 stays for operational/security infrastructure + stack catalog restorations. Items added empirically as real-world v2.1 use surfaces them. -->
+
+#### BL-255 - v2.1.1: Sentinel + identity-write security hardening bundle
+
+**Driver**: 2026-05-06 cross-cutting hardening pass surfaced 5 sentinel/identity-write defenses that are currently asymmetric or incomplete. Tier A (this hardening cycle) wired the missing scaffold-stack sentinel write-side and harmonized bootstrap to `O_CREAT|O_EXCL`; the remaining items are non-blocking but should land in v2.1.1 to close the defense surface fully.
+
+**Items**:
+
+1. **Case B legacy-migration bypasses Case D email cross-check.** A planted legacy `schema_version: "1.0"` envelope routes through `lp_update_identity` Case B (seed-as-first-time after migration) without the Case D `git config user.email` cross-check. Hoist the email cross-check to fire on raw read of legacy envelopes BEFORE migration so PR-based identity-forgery via planted-stub-legacy-envelope is closed for all entry paths. File: `lp_update_identity/engine.py:511-566`. Adds `LEGACY_IDENTITY_FORGERY_SUSPECTED` exit-65 reason.
+2. **`/lp-update-identity` does not acquire `.bootstrap.lock` advisory flock.** `/lp-bootstrap` takes the lock to serialize preflight + sentinel-write; `/lp-update-identity` performs the same 3-step sequence without the lock so two concurrent commands can both pass cross-detect. Wrap `run_update_identity` body in `with advisory_flock(cwd / LAUNCHPAD_DIR_NAME / ".bootstrap.lock"):` to share the lock domain. Same fix for `/lp-scaffold-stack` engine. File: `lp_update_identity/engine.py:471-737` + `lp_scaffold_stack/engine.py:run_pipeline`.
+3. **`_sentinel_preflight` ImportError fail-open.** Both bootstrap and update-identity catch `ImportError` on the sibling sentinel modules and `pass` silently, downgrading cross-detect to one-way. Replace with hard `BootstrapEngineError(SENTINEL_BLOCKING)` so a packaging regression surfaces immediately. File: `lp_bootstrap/engine.py:354-395` + `lp_update_identity/engine.py:220-260`.
+4. **`atomic_write_excl` allowlist mirror.** Phase 8.5 added an ALLOWLIST + AST + import-binding lint for `atomic_write_replace` callers but `atomic_write_excl` (used by all 3 sentinel writers) has no equivalent. Future contributors adding a 4th sentinel sit outside the cross-detect topology silently. Add `ATOMIC_WRITE_EXCL_ALLOWED_CALLERS` to `plugin-v2-handshake-lint.py` mirroring the existing allowlist mechanism.
+5. **`--allow-email-mismatch` audit-log entry missing.** Override flag silences the email cross-check refusal but records nothing in `version_drift_log`. Forensic review cannot distinguish a legitimate override from a compromise. Append `{override: "allow_email_mismatch", actor_email: <raw>, applied_at: <iso>}` to `version_drift_log` whenever the flag is used. File: `lp_update_identity/engine.py:561-685`.
+
+**Cross-link**: Wave 1 security-auditor P2 + adversarial S-1; Wave 1 frontend-races P2-1/2/3; security-lens S-3/S-4/S-8. Synthesis in `.harness/handoff-tier-b-bundle.md` (gitignored runtime path).
+
+**Effort estimate**: ~6-10h cumulative across the 5 items.
+
+**Default decision**: defer to v2.1.1. v2.1.0 already converges defenses for the common-case attack vectors (atomic-write sentinel acquisition + bidirectional cross-detect after Tier A); items 1-5 close the long tail.
+
+#### BL-256 - v2.1.1: Doc-vs-code coherence patch bundle
+
+**Driver**: 2026-05-06 cross-cutting hardening pass surfaced ~12 documentation-vs-code drift items. Tier A locked the highest-impact P1s (re-entry case framing, license enum, Phase 1 in release notes, --force phantom flag, v1.0.0 stale strings, refusal hint). The Tier B residuals are individually small but worth bundling into a single doc-patch PR to ship clean.
+
+**Items**:
+
+1. **HANDSHAKE §4 documents `/lp-scaffold-stack` plugin_version abort that doesn't exist in code.** Either add a `plugin_version` pin check to `lp_scaffold_stack/decision_validator.py` mirroring `_check_plugin_version_pin` in lp_bootstrap, OR update HANDSHAKE §4 lines 466-469 to read "`/lp-bootstrap` aborts ...; `/lp-scaffold-stack` does NOT validate `plugin_version` — the manifest hash is re-checked at bootstrap time." Recommendation: doc fix is cheaper and matches Phase 1+2-A8 intent.
+2. **`lp_update_identity/engine.py` missing from `SCHEMA_SOURCE_FILES` + CODEOWNERS.** This is the file containing the 1.0 → 1.1 schema migration but is not gated by the schema-CODEOWNERS rule. Add to both: `.github/CODEOWNERS` (after the existing 8 schema-source entries) and `plugin-v2-handshake-lint.py` `SCHEMA_SOURCE_FILES`.
+3. **v2.1 fixture `sha256` self-consistency test.** `tests/fixtures/v2_0_baseline_manifests/v2_1_scaffold_decision.json` carries a hard-coded `sha256` field; no test asserts it equals `canonical_hash(payload − sha256)`. Add `test_v2_1_fixture_canonical_hash_self_consistent` in `test_cross_version_interop.py`. Same assertion for the v2.0 fixture.
+4. **`validate_identity` strict-mode field-set docstring.** Strict mode is documented as rejecting placeholder shapes universally but actually checks only 4 of 7 PII fields. Tighten the docstring at `lp_pick_stack/decision_writer.py:202-340` to enumerate the 4 fields actually checked.
+5. **`re_seal_decision_atomic` silently restores `generated_at`.** Phase 10 DA9 docstring claims byte-identity assertion; implementation silently overwrites caller-mutated `generated_at`. Either rename the docstring claim to "preserve" OR change to `raise ValueError` so caller bugs surface. File: `lp_pick_stack/decision_writer.py:507-516`.
+6. **plugin.json keywords cleanup.** `keywords` array lists `go`, `django` which are not v2.1 active stacks (they are v2.2-candidate). Drop or relabel.
+7. **Active-stacks vocabulary.** Release notes line 11 says "5 active stack ids"; HOW_IT_WORKS.md:79 lists 10 stacks (the v2.0 catalog naming). Add a glossary line clarifying that "5 active composition stack ids" ≠ "10 v2.0 scaffold catalog entries", or unify the vocabulary across docs.
+8. **BL-247 decommission missing from CHANGELOG/release notes Removed section.** README.md:69 + HOW_IT_WORKS.md:63 mention the `init-project.sh` + 7 `*.template.*` decommission but neither CHANGELOG `[2.1.0]` nor release notes have a "Removed" subsection. Add one.
+9. **README "12 plugin-test suites" count.** Verify against current test-suite count (Phase 11 ship is 1198 collected across 36+ test files). Update or remove the precise number.
+10. **README Path 2 enumeration.** Path 2 description at README.md:61 mentions "package.json, lefthook.yml, the architecture docs" but does not mention the 7 kernel renders. Append "+ LICENSE/CONTRIBUTING/CODE_OF_CONDUCT/SECURITY/README/AGENTS/CLAUDE."
+11. **"v2.0 pipeline" vs "v2.x pipeline" vocabulary lock.** Release notes commit to "v2.0 behavior end-to-end" so "v2.0 pipeline" is canonical; HOW_IT_WORKS.md:5 and other locations mix "v2.x". Lock to "v2.0 pipeline".
+12. **IDENTITY_AND_PII.md PII default-posture section.** Doc starts at "what persists" but never states that PII opt-out is the default. Add a "Default posture" §1.
+
+**Effort estimate**: ~3-5h cumulative as a single bundled doc-patch PR.
+
+**Default decision**: defer to v2.1.1. None of the items break user flows in v2.1.0; the bundle is a quality polish.
+
+#### BL-257 - v2.1.1: Perf optimizations + test infrastructure polish
+
+**Driver**: 2026-05-06 cross-cutting hardening pass surfaced 6 perf items + 3 test-infrastructure items. None breach existing budgets at v2.1.0 (1198 tests in 54.76s under 90s budget — 39% headroom), but the optimizations are real cycle reductions and the test-infra fixes address documented flakiness.
+
+**Perf items**:
+
+1. **KernelRenderer triple-sha amplification.** `refresh()` and `render_all()` both compute `(disk_sha, template_sha)` in the inner loop and then re-compute the same shas in the post-write state-emit loop. Cache into a dict and reuse. ~10-line diff at `kernel_renderer.py:225-270`. Saves 14 redundant disk reads + 14 sha256 ops per refresh.
+2. **`re_seal_decision_atomic` 2x call per `/lp-update-identity` refresh.** Phase 1+2-A7 inversion split the seal into two atomic-write cycles (identity + kernel_render_state). Combine into a single `update_fn` closure for one read-modify-write cycle. ~20-line diff at `lp_update_identity/engine.py:689,714`. Saves one `atomic_write_replace` + one `F_FULLFSYNC` (5-50ms on macOS) per refresh.
+3. **Phase 11 atomic-write allowlist sweep duplicates Phase 8.5 lint AST work at runtime.** `test_atomic_writes_allowlist_sweep.py` re-parses `plugins/launchpad/scripts/**/*.py` on every pytest invocation (~200-400ms). Hoist `_load_lint_constants()` and the AST scan into a session-scoped fixture so they pay once per session.
+4. **`_load_agent_index` LRU + `_last_dropped` per-call clear.** Bound `lru_cache(maxsize=None)` to `maxsize=4` and clear `_last_dropped` at the start of every `filter_agents_by_stacks` call. File: `plugin-agent-scope-filter.py:73-75,152-197`.
+
+**Test infrastructure items**:
+
+5. **pytest-xdist `@pytest.mark.serial` for 2 perf tests.** `test_cold_fill_thousand_files_under_three_seconds` (3s budget) and `test_write_batch_perf_under_300ms_30file_scaffold` (300ms budget) fail under `-n auto` due to CPU contention. Phase 11 reconciliation #1 documents this; v2.1.0 ships verified via plain pytest. Add `@pytest.mark.serial` decorator + xdist `loadgroup` config so DoD runs cleanly under `-n auto`.
+6. **gitleaks `.gitleaks.toml` allowlist for test fixtures.** Phase 11 reconciliation #4 documents 5 false positives in `test_phase8_5_decommission.py` (intentional `AKIA*` placeholders). Add `.gitleaks.toml` allowlist scoped to `**/test_phase8_5_decommission.py` so the leakage audit can be promoted from advisory to required without false-positive noise.
+7. **`check_legacy_yaml_canonical_hash_removal` smoke test.** BL-210 gate (now retargeted to v2.2 per Phase 11 hardening A5) is currently uncovered by any test. Add a smoke test that invokes the gate against synthetic plugin.json at versions 2.1.99 (gate inactive) and 2.2.0 (gate active) so the gate's regression is caught when it eventually fires.
+
+**Effort estimate**: ~4-6h cumulative across all 7 items. Items 1-2 require care (caller cooperation); items 3-7 are mechanical.
+
+**Default decision**: defer to v2.1.1. Perf headroom is sufficient at v2.1.0 ship; the optimizations are tightening opportunities, not blockers.
+
+#### BL-258 - v2.1.1: Tag-signing posture promotion (was v2.2 BL-214)
+
+**Driver**: SECURITY.md "Tags before v2.2 are unsigned" creates a 6+ month maintainer-trust window. The 2026-05-06 cross-cutting hardening pass adversarial-lens flagged this as the longest-lived security gap in the v2.1 ship surface. The mitigation is a 30-minute change (RELEASE_PROCESS.md update + maintainer guidance to enable `tag.gpgSign = true`); the signing infrastructure itself (Sigstore + transparency log per the original BL-214 scope) can stay on v2.2.
+
+**At v2.1.1 design time**:
+
+1. Update `docs/maintainers/RELEASE_PROCESS.md`: maintainers MUST `git tag -s` v2.1.1+ tags. Document the GPG key rotation policy + which keys are valid for v2.1 release-track tags.
+2. Update `SECURITY.md:19`: replace "Tags before v2.2 are unsigned" with "Tags before v2.1.1 are unsigned. Starting at v2.1.1, all release-track tags are GPG-signed by maintainers listed in `docs/maintainers/RELEASE_PROCESS.md`."
+3. Add a CI step in `verify-v2-ship.yml` that runs `git tag -v <tag>` and fails the workflow if the tag is unsigned, gated on tag versions >= "2.1.1".
+4. v2.2 BL-214 stays open for the broader Sigstore + transparency-log work (out-of-band verification path that doesn't depend on GitHub repo write access alone).
+
+**Cross-link**: cross-cutting hardening adversarial F6 + security-lens S-7. Originally captured as v2.2 BL-214; promoted to v2.1.1 because the marketplace-install threat surface is wide enough to warrant the early move.
+
+**Effort estimate**: ~30-60 min across the 4 sub-items.
+
+**Default decision**: defer to v2.1.1. v2.1.0 ships unsigned per the documented posture; v2.1.1 closes the gap before any sustained v2.1.x usage period.

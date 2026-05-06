@@ -591,15 +591,19 @@ SCHEMA_SOURCE_FILES = (
 ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS = (
     "plugins/launchpad/scripts/atomic_io.py",  # the source module (defines + re-exports)
     "plugins/launchpad/scripts/plugin_default_generators/_renderer_base.py",  # write_batch (DA1' = a2 gate)
-    # lp_bootstrap is the per-file policy layer; engine + manifest_writer +
-    # sentinel are siblings of policy.py doing the bootstrap-tier writes
-    # (NOT renderer bypass). Plan section 2.3 listed `policy.py` as the
+    # lp_bootstrap is the per-file policy layer; engine + manifest_writer
+    # are siblings of policy.py doing the bootstrap-tier writes (NOT
+    # renderer bypass). Plan section 2.3 listed `policy.py` as the
     # canonical entry but the practical bootstrap surface is the whole
     # module; CODEOWNERS protects it as a unit.
+    #
+    # Phase 11 hardening A4: `lp_bootstrap/sentinel.py` was REMOVED from
+    # this allowlist after the sentinel writer harmonized to
+    # `O_CREAT|O_EXCL` (mirroring lp_scaffold_stack + lp_update_identity
+    # sentinels), eliminating its `atomic_write_replace` dependency.
     "plugins/launchpad/scripts/lp_bootstrap/policy.py",  # per-file policy dispatcher
     "plugins/launchpad/scripts/lp_bootstrap/engine.py",  # run_bootstrap orchestration
     "plugins/launchpad/scripts/lp_bootstrap/manifest_writer.py",  # bootstrap manifest writer
-    "plugins/launchpad/scripts/lp_bootstrap/sentinel.py",  # crash-recovery sentinels
     # Phase 10 v2.1: scaffold-decision atomic re-seal lives in decision_writer
     # (re_seal_decision_atomic) so /lp-update-identity inherits the same
     # atomic-replace primitive used by /lp-pick-stack's first-write path.
@@ -1133,11 +1137,18 @@ def check_pyyaml_cve(failures: list[str]) -> int:
 
 
 def check_legacy_yaml_canonical_hash_removal(failures: list[str]) -> int:
-    """v2.1.0 gate (BL-210): when plugin.json version >= 2.1.0, the legacy
+    """v2.2.0 gate (BL-210): when plugin.json version >= 2.2.0, the legacy
     YAML migration helper must have been deleted.
 
+    Phase 11 hardening A5: gate threshold bumped from 2.1.0 to 2.2.0. The
+    Phase 11 plugin.json bump 2.0.0 -> 2.1.0 activated this gate prematurely
+    against code that still defines and calls `_legacy_yaml_canonical_hash`.
+    BL-210 deletion lands with the v2.2 audit-tooling promotion bundle so
+    the gate's docstring + activation threshold + symbol removal land in
+    the same release. Until then the gate stays inactive at v2.1.x.
+
     Implementation: grep for the symbol; if found AND plugin.json version is
-    >= 2.1.0, fail. Reads plugin.json directly (no JSON canonicalization
+    >= 2.2.0, fail. Reads plugin.json directly (no JSON canonicalization
     needed for a single-field lookup)."""
     plugin_json = REPO_ROOT / "plugins" / "launchpad" / ".claude-plugin" / "plugin.json"
     if not plugin_json.exists():
@@ -1149,12 +1160,12 @@ def check_legacy_yaml_canonical_hash_removal(failures: list[str]) -> int:
         failures.append(f"[legacy-yaml-removal] plugin.json parse error: {exc}")
         return 1
     version = meta.get("version", "")
-    # Parse semver major.minor only; gate fires at >= 2.1.0
+    # Parse semver major.minor only; gate fires at >= 2.2.0
     m = re.match(r"(\d+)\.(\d+)", version)
     if not m:
         return 0
     major, minor = int(m.group(1)), int(m.group(2))
-    if (major, minor) < (2, 1):
+    if (major, minor) < (2, 2):
         return 0  # gate not yet active
     hits = _git_grep("_legacy_yaml_canonical_hash",
                      "plugins/launchpad/scripts/", fixed=True)

@@ -191,15 +191,24 @@ def test_preconditions_dead_pid_sentinel_recovers(tmp_path: Path):
 
 
 def test_preconditions_live_bootstrap_sentinel_aborts(tmp_path: Path):
-    """Check 4: /lp-bootstrap concurrent-run via sentinel + live PID."""
+    """Check 4: /lp-bootstrap concurrent-run via sentinel + live PID.
+
+    Uses `os.getppid()` (the pytest runner's parent) instead of
+    `os.getpid()` because the Phase 11 hardening A1 same-PID guard
+    correctly skips the cross-detect when the sentinel was written by
+    the SAME process (legitimate in-process re-entry, e.g.
+    /lp-scaffold-stack invoking /lp-bootstrap from inside its own
+    sentinel zone). Concurrent peers have different PIDs.
+    """
     _seed_full_scaffold(tmp_path)
     from lp_bootstrap.sentinel import write_sentinel as bs_write
+    peer_pid = os.getppid()
     bs_write(
         tmp_path,
         mode="greenfield",
         pre_edit_manifest_sha256=None,
         target_paths=[],
-        command_pid=os.getpid(),
+        command_pid=peer_pid,
     )
     with pytest.raises(_PreconditionAbort) as exc:
         _validate_preconditions(tmp_path, seed_brownfield=False)

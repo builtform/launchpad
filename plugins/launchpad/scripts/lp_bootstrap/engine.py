@@ -351,6 +351,13 @@ def _sentinel_preflight(cwd: Path) -> tuple[SentinelSnapshot | None, list[str]]:
     # BEFORE the bootstrap-own sentinel check. If a live /lp-update-identity
     # is running, /lp-bootstrap must refuse so the two commands cannot
     # interleave their atomic-replace windows on scaffold-decision.json.
+    #
+    # Phase 11 hardening A1: same-PID guard. /lp-scaffold-stack acquires
+    # its own sentinel and then invokes run_bootstrap from the SAME
+    # process; that legitimate in-process re-entry must not self-block.
+    # If `command_pid == os.getpid()`, the sentinel belongs to the same
+    # execution context (not a concurrent peer), so skip the refusal.
+    own_pid = os.getpid()
     try:
         from lp_update_identity.sentinel import (
             is_pid_alive as _id_is_pid_alive,
@@ -360,7 +367,11 @@ def _sentinel_preflight(cwd: Path) -> tuple[SentinelSnapshot | None, list[str]]:
         _id_read_sentinel = None  # type: ignore[assignment]
     if _id_read_sentinel is not None:
         id_snap = _id_read_sentinel(cwd)
-        if id_snap is not None and _id_is_pid_alive(id_snap.command_pid):
+        if (
+            id_snap is not None
+            and id_snap.command_pid != own_pid
+            and _id_is_pid_alive(id_snap.command_pid)
+        ):
             raise BootstrapEngineError(
                 f"/lp-update-identity is running (sentinel pid={id_snap.command_pid})",
                 reason=BootstrapErrorCode.IDENTITY_UPDATE_IN_PROGRESS,
@@ -375,6 +386,7 @@ def _sentinel_preflight(cwd: Path) -> tuple[SentinelSnapshot | None, list[str]]:
     # scaffold-stack sentinel. /lp-bootstrap refuses while
     # /lp-scaffold-stack is in its kernel-render + scaffold-decision
     # re-seal window so the two commands cannot race the atomic-replace.
+    # Same-PID guard mirrors the identity-update branch above.
     try:
         from lp_scaffold_stack.sentinel import (
             is_pid_alive as _ss_is_pid_alive,
@@ -384,7 +396,11 @@ def _sentinel_preflight(cwd: Path) -> tuple[SentinelSnapshot | None, list[str]]:
         _ss_read_sentinel = None  # type: ignore[assignment]
     if _ss_read_sentinel is not None:
         ss_snap = _ss_read_sentinel(cwd)
-        if ss_snap is not None and _ss_is_pid_alive(ss_snap.command_pid):
+        if (
+            ss_snap is not None
+            and ss_snap.command_pid != own_pid
+            and _ss_is_pid_alive(ss_snap.command_pid)
+        ):
             raise BootstrapEngineError(
                 f"/lp-scaffold-stack is running (sentinel pid={ss_snap.command_pid})",
                 reason=BootstrapErrorCode.SENTINEL_BLOCKING,

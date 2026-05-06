@@ -27,7 +27,15 @@ _SCRIPTS = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
+from lp_bootstrap import LAUNCHPAD_DIR_NAME  # noqa: E402
+from lp_bootstrap import SENTINEL_NAME as _BOOTSTRAP_SENTINEL_NAME  # noqa: E402
 from lp_define_runner import generate as define_generate  # noqa: E402
+from lp_scaffold_stack.sentinel import (  # noqa: E402
+    SCAFFOLD_STACK_SENTINEL_NAME as _SCAFFOLD_STACK_SENTINEL_NAME,
+)
+from lp_update_identity import (  # noqa: E402
+    IDENTITY_UPDATE_SENTINEL_NAME as _IDENTITY_UPDATE_SENTINEL_NAME,
+)
 from lp_update_identity.engine import PII_WARN_LINES  # noqa: E402
 
 
@@ -104,12 +112,17 @@ def test_brownfield_idempotent_define_re_entry(tmp_path: Path, capsys: pytest.Ca
 
     # Sentinel files (lp-bootstrap + lp-update-identity + lp-scaffold-stack)
     # must not exist post-/lp-define -- the runner does not stage any of
-    # these sentinels.
-    for sentinel in (
-        ".launchpad/.lp-bootstrap-in-progress",
-        ".launchpad/.lp-update-identity-in-progress",
-        ".launchpad/.scaffold-stack-in-progress",
+    # these sentinels. Filenames sourced from each package's canonical
+    # constants (Phase 11 hardening A3: prior literal strings used a
+    # `lp-` prefix not present in the actual constants, so two of three
+    # assertions were tautologically true and could not catch regressions).
+    launchpad_dir = repo_root / LAUNCHPAD_DIR_NAME
+    for sentinel_filename in (
+        _BOOTSTRAP_SENTINEL_NAME,
+        _IDENTITY_UPDATE_SENTINEL_NAME,
+        _SCAFFOLD_STACK_SENTINEL_NAME,
     ):
-        assert not (repo_root / sentinel).exists(), (
-            f"unexpected sentinel after /lp-define re-entry: {sentinel}"
+        sentinel_path = launchpad_dir / sentinel_filename
+        assert not sentinel_path.exists(), (
+            f"unexpected sentinel after /lp-define re-entry: {sentinel_path}"
         )

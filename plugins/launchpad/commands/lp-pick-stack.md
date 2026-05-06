@@ -248,6 +248,20 @@ Per pick-stack plan §3.4 + `SCAFFOLD_HANDSHAKE.md` §4 rule 4:
    eleventy, hugo, hono, fastapi, django, rails, supabase, expo) as a
    menu. Per stack: one-line description, pillar tag, default role.
 
+   **v2.2-candidate disclosure.** Five of the 10 stacks (`rails`,
+   `django`, `hono`, `supabase`, `expo`) are members of
+   `StackIdV22Candidate` at v2.1: detection groundwork has landed but
+   their stack-specific kernel adapters route through the `generic`
+   adapter at v2.1. Selecting one of these still produces a working
+   scaffold (via the v2.0 manual-override catalog routing), but the
+   resulting scaffold uses generic defaults rather than stack-aware
+   ones. Full stack-aware adapters for these five ids land in v2.2.
+   When presenting the menu, prefix the five ids with a `[v2.2-candidate]`
+   tag and offer the user an explicit `[continue with generic]` /
+   `[choose another stack]` confirmation step before resolving the
+   layer spec. Phase 11 hardening A7: this disclosure replaces the
+   prior silent INFO-log fallthrough flagged in cross-phase review.
+
 2. Prompt user for `(stack, role, path, options)` triples per layer.
    `monorepo: true` is implied when `len(layers) > 1`.
 
@@ -291,7 +305,11 @@ Per pick-stack plan §2.1 step 3-4 + `SCAFFOLD_HANDSHAKE.md` §9.1:
    `os.open(... O_WRONLY|O_CREAT|O_EXCL, 0o600)` per HANDSHAKE §7 (Layer 9
    atomicity). On `FileExistsError`, refuse with
    `reason: "scaffold_decision_already_exists"` and the hint:
-   "remove `.launchpad/` and re-run `/lp-pick-stack`."
+   "to update sealed identity values (project name, license, repo URL,
+   email, copyright holder) without re-scaffolding, run
+   `/lp-update-identity`. Only remove `.launchpad/` and re-run
+   `/lp-pick-stack` if you want to start over from a clean slate
+   (this orphans the sealed scaffold-decision and any receipt linkage)."
 
 4. Compute `rationale_sha256` from the written file's bytes (returned by
    `write_rationale_atomic`).

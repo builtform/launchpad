@@ -218,13 +218,22 @@ def _validate_preconditions(
         )
 
     # Check 4: /lp-bootstrap concurrent-run.
+    # Phase 11 hardening A1: same-PID guard mirrors lp_bootstrap engine
+    # cross-detect. If the sentinel was written by THIS process (e.g., a
+    # future caller invokes update-identity from inside scaffold-stack),
+    # don't self-block.
+    own_pid = os.getpid()
     try:
         from lp_bootstrap.sentinel import (
             is_pid_alive as _bs_is_pid_alive,
             read_sentinel as _bs_read_sentinel,
         )
         bs_snap = _bs_read_sentinel(cwd)
-        if bs_snap is not None and _bs_is_pid_alive(bs_snap.command_pid):
+        if (
+            bs_snap is not None
+            and bs_snap.command_pid != own_pid
+            and _bs_is_pid_alive(bs_snap.command_pid)
+        ):
             raise _PreconditionAbort(
                 code=IdentityUpdateErrorCode.BOOTSTRAP_IN_PROGRESS,
                 message=(
@@ -245,7 +254,11 @@ def _validate_preconditions(
             read_sentinel as _ss_read_sentinel,
         )
         ss_snap = _ss_read_sentinel(cwd)
-        if ss_snap is not None and _ss_is_pid_alive(ss_snap.command_pid):
+        if (
+            ss_snap is not None
+            and ss_snap.command_pid != own_pid
+            and _ss_is_pid_alive(ss_snap.command_pid)
+        ):
             raise _PreconditionAbort(
                 code=IdentityUpdateErrorCode.BOOTSTRAP_IN_PROGRESS,
                 message=(

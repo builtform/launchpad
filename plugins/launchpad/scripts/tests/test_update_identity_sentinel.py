@@ -124,15 +124,22 @@ def test_read_sentinel_live_pid_signals_refuse(tmp_path: Path):
 
 def test_bootstrap_preflight_cross_detects_identity_sentinel(tmp_path: Path, monkeypatch):
     """DA3 bidirectional parity (security F2 + frontend-races F1):
-    /lp-bootstrap refuses on live `.identity-update-in-progress` sentinel."""
+    /lp-bootstrap refuses on live `.identity-update-in-progress` sentinel.
+
+    Uses `os.getppid()` instead of `os.getpid()` because the Phase 11
+    hardening A1 same-PID guard correctly skips the cross-detect for
+    in-process re-entry. Concurrent peers have different PIDs.
+    """
     cwd = _seed_launchpad_dir(tmp_path)
-    # Seed identity-update sentinel with this process's PID (live).
+    # Seed identity-update sentinel with the test runner's parent PID
+    # (always alive while pytest is running).
+    peer_pid = os.getppid()
     write_sentinel(
         cwd,
         pre_edit_decision_sha256=None,
         target_paths=["LICENSE"],
         backup_path="/tmp/bk",
-        command_pid=os.getpid(),
+        command_pid=peer_pid,
     )
 
     from lp_bootstrap.engine import (

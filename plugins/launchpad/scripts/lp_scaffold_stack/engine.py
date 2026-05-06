@@ -501,6 +501,80 @@ def run_pipeline(
             ),
         )
 
+    # --- Sentinel acquisition (Phase 10 cycle-2 F9 + cycle-3 P2-2 closure) ---
+    # Acquired BEFORE any scaffold-decision re-seal or bootstrap-manifest
+    # write. Bidirectional cross-detect in lp_bootstrap._sentinel_preflight
+    # and lp_update_identity._validate_preconditions reads this sentinel
+    # and refuses on a live PID. Clearing happens in the finally block
+    # below regardless of success/failure path.
+    from lp_scaffold_stack.sentinel import (  # noqa: PLC0415
+        clear_sentinel as _scaffold_stack_clear_sentinel,
+        write_sentinel as _scaffold_stack_write_sentinel,
+    )
+    try:
+        _scaffold_stack_write_sentinel(cwd, mode="scaffold-stack")
+    except FileExistsError:
+        elapsed = time.monotonic() - start
+        rej = Rejected(
+            reason="scaffold_stack_in_progress",
+            message=(
+                "another /lp-scaffold-stack appears to be running "
+                "(.launchpad/.scaffold-stack-in-progress exists). If "
+                "certain no other invocation is active, remove the "
+                "sentinel manually after confirming no live PID."
+            ),
+            field_name=".scaffold-stack-in-progress",
+        )
+        log_path = _emit_rejection(repo_root, rej, stderr=stderr)
+        result = PipelineResult(
+            success=False, outcome=Outcome.ABORTED,
+            reason=rej.reason, message=rej.message,
+            rejection_log_path=log_path, decision_path=decision_path,
+            elapsed_seconds=elapsed,
+        )
+        if write_telemetry_flag:
+            _emit_telemetry(repo_root, outcome=Outcome.ABORTED,
+                            elapsed_seconds=elapsed, reason=rej.reason)
+        return result
+
+    try:
+        return _run_pipeline_after_sentinel(
+            cwd=cwd,
+            repo_root=repo_root,
+            decision_path=decision_path,
+            accepted=accepted,
+            layers=layers,
+            materialized=materialized,
+            wiring=wiring,
+            install_seconds=install_seconds,
+            start=start,
+            stderr=stderr,
+            write_telemetry_flag=write_telemetry_flag,
+        )
+    finally:
+        _scaffold_stack_clear_sentinel(cwd)
+
+
+def _run_pipeline_after_sentinel(
+    *,
+    cwd: Path,
+    repo_root: Path,
+    decision_path: Path,
+    accepted: Accepted,
+    layers: list,
+    materialized: list[MaterializationResult],
+    wiring,
+    install_seconds: float,
+    start: float,
+    stderr,
+    write_telemetry_flag: bool,
+) -> PipelineResult:
+    """Steps 4.5 through 5b, executed inside the scaffold-stack sentinel.
+
+    Extracted from `run_pipeline` so the sentinel-protected zone can be
+    expressed as a single try/finally without restructuring the prior
+    Step 0-4 early-return ladder.
+    """
     # --- Step 4.5: Kernel render (v1.1 envelopes only) ---
     # V3 plan §17.1 Phase 2: render the 7 stack-agnostic identity-bearing
     # kernel files (LICENSE, CONTRIBUTING, CODE_OF_CONDUCT, README,

@@ -47,7 +47,7 @@ Mirrors `/lp-pick-stack` Step 1.5 lines 88-151 per DA2. Up to 7 prompts:
 2. **email** (regex-allowlisted; re-asked verbatim from /lp-pick-stack)
 3. **copyright_holder** (printable ASCII; forbidden chars `` ` " ' $ ; { } < > % ``)
 4. **repo_url** (`https?://...`)
-5. **license** (closed enum: `MIT`, `Apache-2.0`, `MPL-2.0`, `GPL-3.0`, `BSD-2-Clause`, `BSD-3-Clause`, `Other`)
+5. **license** (closed enum: `MIT`, `Apache-2.0`, `GPL-3.0`, `BSD-3-Clause`, `ISC`, `MPL-2.0`, `Other` — sourced from `lp_pick_stack.LICENSE_ENUM`)
 6. **PII opt-in** (Y/N) — ALWAYS re-asked per code-simplicity P3-folded.
 7. **license_other_body** (conditional; only when license=`Other` is selected)
 

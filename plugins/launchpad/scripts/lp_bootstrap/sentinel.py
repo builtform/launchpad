@@ -43,7 +43,7 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from atomic_io import atomic_write_replace  # noqa: E402
+from atomic_io import _full_fsync_darwin, _fsync_parent  # noqa: E402
 
 from lp_bootstrap import (  # noqa: E402
     LAUNCHPAD_DIR_NAME,
@@ -96,10 +96,22 @@ def write_sentinel(
     target_paths: list[str],
     command_pid: int | None = None,
 ) -> SentinelSnapshot:
-    """Write the sentinel JSON atomically.
+    """Atomically create the sentinel via `O_CREAT|O_EXCL|O_WRONLY` + 0o600.
 
     `target_paths` is the planned render target list; `--recover` reads it
     to know which files might be partial. Mode is 0o600 per harden B6.
+
+    Phase 11 hardening A4: harmonized to `O_CREAT|O_EXCL` to mirror
+    `lp_scaffold_stack/sentinel.write_sentinel` and
+    `lp_update_identity/sentinel.write_sentinel`. Previously this used
+    `atomic_write_replace` (rename-over), which would silently overwrite
+    a peer's sentinel if the cross-detect-then-write window was raced.
+    `_sentinel_preflight` now passes a freshly-cleared filesystem (or
+    a recovered stale-PID sentinel that was deleted) and any concurrent
+    peer who beats us to `os.open(O_EXCL)` makes us raise FileExistsError
+    cleanly. The bootstrap engine holds `.bootstrap.lock` across
+    preflight + this write, so within bootstrap the race is impossible;
+    the O_EXCL is defense-in-depth against unflocked peers.
     """
     pid = command_pid if command_pid is not None else os.getpid()
     payload = {
@@ -110,8 +122,26 @@ def write_sentinel(
         "mode": mode,
     }
     target = sentinel_path(cwd)
+    target.parent.mkdir(parents=True, exist_ok=True)
     encoded = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
-    atomic_write_replace(target, encoded, mode=0o600)
+
+    fd = os.open(
+        str(target),
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+        0o600,
+    )
+    try:
+        try:
+            os.fchmod(fd, 0o600)
+        except OSError:
+            pass
+        os.write(fd, encoded)
+        os.fsync(fd)
+        _full_fsync_darwin(fd)
+    finally:
+        os.close(fd)
+    _fsync_parent(target)
+
     return SentinelSnapshot(
         command_pid=pid,
         started_at=payload["started_at"],

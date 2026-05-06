@@ -160,7 +160,6 @@ class KernelRenderer(RendererBase):
         identity: Mapping[str, Any],
         *,
         prior_kernel_render_state: list[dict] | None = None,
-        on_user_edit_warn: bool = True,
     ) -> RefreshResult:
         """Re-render the 7 kernel files with `overwrite-if-unchanged` per DA1.
 
@@ -259,11 +258,40 @@ class KernelRenderer(RendererBase):
 
         # Compute the new state for the rendered subset AND the unchanged
         # entries for skipped files (their state is unchanged on disk).
+        #
+        # Phase 11 hardening A2 (data-loss fix): for files in `skipped`
+        # (user edited post-render), PRESERVE the prior
+        # `rendered_content_sha256` from `prior_state` instead of
+        # re-hashing the on-disk bytes. Re-hashing would store the
+        # user's edit sha; the next /lp-update-identity invocation would
+        # see `current_disk_sha == prior_rendered_sha` (because both are
+        # now the user's edit sha), enter the "safe to overwrite" branch
+        # at line ~243, and SILENTLY DESTROY the user's edit. Preserving
+        # the prior sha keeps the user-edit-detection branch live across
+        # invocations until the user explicitly resolves the drift.
+        skipped_set = set(skipped)
         new_state_entries: list[dict] = []
         for template_name, output_relpath in KERNEL_FILES:
             target = cwd / output_relpath
             if not target.is_file():
                 continue
+            if target in skipped_set:
+                prior_entry = prior_state.get(output_relpath)
+                if (
+                    isinstance(prior_entry, dict)
+                    and prior_entry.get("rendered_content_sha256")
+                    and prior_entry.get("source_template_sha256")
+                ):
+                    new_state_entries.append({
+                        "path": output_relpath,
+                        "rendered_content_sha256": prior_entry["rendered_content_sha256"],
+                        "source_template_sha256": prior_entry["source_template_sha256"],
+                    })
+                    continue
+                # Defensive fallback (should not happen given how `skipped`
+                # is populated above): no prior_entry available, so we have
+                # no choice but to re-hash. The next refresh's comparison
+                # will skip again the moment the user touches the file.
             new_state_entries.append({
                 "path": output_relpath,
                 "rendered_content_sha256": sha256_bytes(target.read_bytes()),
