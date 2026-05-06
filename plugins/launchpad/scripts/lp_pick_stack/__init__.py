@@ -63,7 +63,13 @@ IDENTITY_REPO_URL_RE = re.compile(r"^https?://[\w./%-]{1,512}$")
 
 # Forbidden chars in copyright holder (defense-in-depth on top of the
 # printable-ASCII allowlist; matches the V3 plan §10.v2.1 design lock).
-IDENTITY_COPYRIGHT_FORBIDDEN_CHARS = frozenset({"`", '"', "'", "$", ";"})
+IDENTITY_COPYRIGHT_FORBIDDEN_CHARS = frozenset({
+    "`", '"', "'", "$", ";",
+    # Phase 10 v2.1 (security-auditor F3): prevent Jinja delimiter / HTML
+    # tag / format-string injection through the copyright_holder field
+    # which is the only identity value that may contain free-form text.
+    "{", "}", "<", ">", "%",
+})
 
 # Placeholder values written when PII opt-in is declined. /lp-update-identity
 # (Phase 10) detects these via IDENTITY_PLACEHOLDER_PATTERN and re-asks the

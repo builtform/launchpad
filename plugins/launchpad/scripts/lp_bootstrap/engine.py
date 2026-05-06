@@ -368,6 +368,29 @@ def _sentinel_preflight(cwd: Path) -> tuple[SentinelSnapshot | None, list[str]]:
                 ),
             )
 
+    # Phase 10 cycle-2 F9 + cycle-3 P2-2: bidirectional cross-detect of
+    # scaffold-stack sentinel. /lp-bootstrap refuses while
+    # /lp-scaffold-stack is in its kernel-render + scaffold-decision
+    # re-seal window so the two commands cannot race the atomic-replace.
+    try:
+        from lp_scaffold_stack.sentinel import (
+            is_pid_alive as _ss_is_pid_alive,
+            read_sentinel as _ss_read_sentinel,
+        )
+    except ImportError:  # pragma: no cover
+        _ss_read_sentinel = None  # type: ignore[assignment]
+    if _ss_read_sentinel is not None:
+        ss_snap = _ss_read_sentinel(cwd)
+        if ss_snap is not None and _ss_is_pid_alive(ss_snap.command_pid):
+            raise BootstrapEngineError(
+                f"/lp-scaffold-stack is running (sentinel pid={ss_snap.command_pid})",
+                reason=BootstrapErrorCode.SENTINEL_BLOCKING,
+                remediation=(
+                    f"wait for pid {ss_snap.command_pid} to finish before "
+                    f"re-running /lp-bootstrap"
+                ),
+            )
+
     snap = read_sentinel(cwd)
     if snap is None:
         return None, []

@@ -236,6 +236,8 @@ _SCAFFOLD_DECISION_KNOWN_FIELDS_1_0 = frozenset({
 _SCAFFOLD_DECISION_KNOWN_FIELDS_1_1 = _SCAFFOLD_DECISION_KNOWN_FIELDS_1_0 | frozenset({
     "schema_version", "plugin_version", "stacks", "identity",
     "identity_updated_at",  # added by /lp-update-identity (Phase 10)
+    "kernel_render_state",  # added by KernelRenderer.render_all (Phase 10 DA7-flipped)
+    "version_drift_log",    # appended by /lp-update-identity (Phase 10 DA8)
 })
 
 _BOOTSTRAP_MANIFEST_KNOWN_FIELDS_1_0 = frozenset({

@@ -148,6 +148,21 @@ Always:
   matches (OpenAI keys, AWS keys, GitHub PATs, PEM blocks): emit
   `scaffold-failed-<ts>.json` with `reason: "secret_scan_failed"`.
 
+## Phase 4.5: Kernel render + scaffold-decision re-seal (Phase 10 v2.1 DA7-flipped)
+
+After Phase 4 cross-cutting wiring lands and BEFORE Phase 5a receipt
+write, the engine writes the `.scaffold-stack-in-progress` sentinel
+(via `lp_scaffold_stack/sentinel.py:write_sentinel`) and invokes
+`KernelRenderer.render_all(cwd, identity)`. `render_all` itself re-seals
+`scaffold-decision.json` with the populated `kernel_render_state` block
+in a SINGLE `atomic_write_replace` call (per Phase 10 cycle-2 P2-2:
+not seal-then-re-seal). The sentinel is cleared after `render_all`
+returns successfully.
+
+Bidirectional cross-detect: `/lp-bootstrap` and `/lp-update-identity`
+refuse on a live scaffold-stack sentinel (per Phase 10 cycle-2 F9 +
+cycle-3 P2-2 lock).
+
 ## Phase 5a: Receipt write
 
 Build the payload per HANDSHAKE §5 schema:

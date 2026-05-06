@@ -198,12 +198,21 @@ def default_unset_identity() -> dict[str, Any]:
     }
 
 
-def validate_identity(identity: Mapping[str, Any]) -> None:
+def validate_identity(
+    identity: Mapping[str, Any],
+    *,
+    strict_no_placeholders: bool = False,
+) -> None:
     """Validate an identity dict against the V3 plan §10.v2.1 allowlists.
 
     Placeholder values (matching `<lower-with-dashes>`) are accepted in any
     field that allows them (author_name, author_email, copyright_holder,
     repo_url) so the PII opt-out path round-trips through the validator.
+
+    Phase 10 (DA2 + security-auditor F3): when `strict_no_placeholders` is
+    True, placeholder shapes are REJECTED rather than round-tripped.
+    /lp-update-identity passes `strict=True` because re-sealing identity
+    with placeholder values would silently degrade prior PII opt-in state.
 
     Raises IdentityValidationError(field=...) on the first failure. The
     caller wires `field` into a structured re-prompt or rejection message.
@@ -226,7 +235,12 @@ def validate_identity(identity: Mapping[str, Any]) -> None:
                 f"identity.{field} must be a string", field=field
             )
         if value.startswith("<") and value.endswith(">"):
-            return  # placeholder; round-trip allowed
+            if strict_no_placeholders:
+                raise IdentityValidationError(
+                    f"identity.{field} contains placeholder shape; refused under strict_no_placeholders",
+                    field=field,
+                )
+            return  # placeholder; round-trip allowed (non-strict)
         if not regex.fullmatch(value):
             raise IdentityValidationError(
                 f"identity.{field}={value!r} fails allowlist regex",
@@ -238,7 +252,13 @@ def validate_identity(identity: Mapping[str, Any]) -> None:
         raise IdentityValidationError(
             "identity.project_name must be a string", field="project_name"
         )
-    if not (project_name.startswith("<") and project_name.endswith(">")):
+    if project_name.startswith("<") and project_name.endswith(">"):
+        if strict_no_placeholders:
+            raise IdentityValidationError(
+                "identity.project_name contains placeholder shape; refused under strict_no_placeholders",
+                field="project_name",
+            )
+    else:
         if not IDENTITY_PROJECT_NAME_RE.fullmatch(project_name):
             raise IdentityValidationError(
                 f"identity.project_name={project_name!r} fails allowlist regex",
@@ -252,7 +272,13 @@ def validate_identity(identity: Mapping[str, Any]) -> None:
         raise IdentityValidationError(
             "identity.copyright_holder must be a string", field="copyright_holder"
         )
-    if not (copyright_holder.startswith("<") and copyright_holder.endswith(">")):
+    if copyright_holder.startswith("<") and copyright_holder.endswith(">"):
+        if strict_no_placeholders:
+            raise IdentityValidationError(
+                "identity.copyright_holder contains placeholder shape; refused under strict_no_placeholders",
+                field="copyright_holder",
+            )
+    else:
         if not IDENTITY_COPYRIGHT_HOLDER_RE.fullmatch(copyright_holder):
             raise IdentityValidationError(
                 f"identity.copyright_holder fails printable-ASCII allowlist",
@@ -421,6 +447,79 @@ def write_decision_atomic(
     return target
 
 
+def read_decision_atomic(cwd: Path) -> dict[str, Any]:
+    """Read `.launchpad/scaffold-decision.json` and return the parsed dict.
+
+    Phase 10 helper (per cycle-3 pattern-finder P3-1): the only readers
+    that ship today are `plugin-config-loader.read_scaffold_decision()`
+    (returns a NamedTuple wrapper for diagnostics) and engine-side raw
+    `json.loads`. /lp-update-identity needs a parsed dict for in-process
+    re-write, so we expose this convenience reader rather than threading
+    NamedTuple unwrapping through Phase 10's engine.
+
+    Raises FileNotFoundError if the file is absent; raises ValueError
+    (from json.loads) if the contents are malformed. Caller decides how
+    to translate (IdentityUpdateErrorCode.SCAFFOLD_DECISION_MISSING etc.).
+    """
+    target = cwd / ".launchpad" / DECISION_FILENAME
+    text = target.read_text(encoding="utf-8")
+    payload = json.loads(text)
+    if not isinstance(payload, dict):
+        raise ValueError(
+            f"{target} top-level is not a JSON object (got {type(payload).__name__})"
+        )
+    return payload
+
+
+def re_seal_decision_atomic(
+    cwd: Path,
+    *,
+    update_fn,
+) -> dict[str, Any]:
+    """Read scaffold-decision, apply `update_fn(payload) -> payload`, re-seal.
+
+    Phase 10 atomic re-seal helper (per DA9 + adversarial #1):
+      * Reads the on-disk envelope via `read_decision_atomic`.
+      * Captures the existing `generated_at` value BEFORE delegating to
+        `update_fn`.
+      * Applies `update_fn(mutable_dict)` so the caller can mutate any
+        field in-place (identity block, plugin_version, etc.).
+      * Strips the prior `sha256` field, re-asserts `generated_at` byte-
+        identical to the pre-edit value (DA9 immutability), re-seals via
+        `seal_decision_payload`.
+      * Atomically writes via `atomic_write_replace` (NOT `atomic_write_excl`
+        per security-auditor F5 -- the file ALREADY exists for a re-seal).
+
+    Returns the new sealed payload. Caller is responsible for sentinel
+    lifecycle around this call; this function performs the on-disk
+    mutation only.
+    """
+    from atomic_io import atomic_write_replace
+    payload = read_decision_atomic(cwd)
+    pre_generated_at = payload.get("generated_at")
+
+    update_fn(payload)
+
+    # DA9 + adversarial P1: read-old, copy-forward, byte-identical assert.
+    if pre_generated_at is not None and payload.get("generated_at") != pre_generated_at:
+        # Caller's update_fn must NOT mutate generated_at. Restore.
+        payload["generated_at"] = pre_generated_at
+
+    payload.pop("sha256", None)
+    sealed = seal_decision_payload(payload)
+
+    line = json.dumps(
+        sealed,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    )
+    target = cwd / ".launchpad" / DECISION_FILENAME
+    atomic_write_replace(target, line.encode("utf-8"), mode=0o600)
+    return sealed
+
+
 def write_decision_file(
     *,
     layers: Sequence[Mapping[str, Any]],
@@ -473,7 +572,9 @@ __all__ = [
     "compute_bound_cwd",
     "default_unset_identity",
     "derive_stacks",
+    "read_decision_atomic",
     "read_running_plugin_version",
+    "re_seal_decision_atomic",
     "seal_decision_payload",
     "validate_identity",
     "write_decision_atomic",

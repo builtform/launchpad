@@ -221,3 +221,74 @@ def test_full_envelope_seals_and_writes(tmp_path: Path) -> None:
     assert on_disk["plugin_version"] == read_running_plugin_version()
     assert on_disk["identity"]["pii_opt_in"] is False
     assert on_disk["stacks"] == ["next"]
+
+
+# Phase 10 v2.1 (additive per plan §2.3 + architecture-strategist P1-B):
+# kernel_render_state round-trip + generated_at preservation across
+# /lp-update-identity round-trip.
+
+def test_kernel_render_state_round_trips(tmp_path: Path) -> None:
+    """DA7-flipped: kernel_render_state block lives inside scaffold-decision
+    and round-trips through the seal/parse cycle."""
+    from lp_pick_stack.decision_writer import (
+        re_seal_decision_atomic,
+    )
+    target_path, _sealed = write_decision_file(
+        layers=_layers(),
+        matched_category_id="next-fullstack",
+        rationale_summary=_summary(),
+        rationale_sha256="0" * 64,
+        cwd=tmp_path,
+    )
+    state_entries = [
+        {
+            "path": "LICENSE",
+            "rendered_content_sha256": "a" * 64,
+            "source_template_sha256": "b" * 64,
+        },
+        {
+            "path": "README.md",
+            "rendered_content_sha256": "c" * 64,
+            "source_template_sha256": "d" * 64,
+        },
+    ]
+
+    def _set(payload):
+        payload["kernel_render_state"] = state_entries
+
+    re_seal_decision_atomic(tmp_path, update_fn=_set)
+    on_disk = json.loads(target_path.read_text(encoding="utf-8"))
+    assert on_disk["kernel_render_state"] == state_entries
+    # sha256 envelope is recomputed; the raw payload mutation succeeded.
+    assert "sha256" in on_disk
+
+
+def test_generated_at_preserved_across_re_seal(tmp_path: Path) -> None:
+    """DA9 + adversarial P1: re_seal_decision_atomic must preserve
+    generated_at byte-identical across /lp-update-identity round-trip
+    even if update_fn mutates it inadvertently."""
+    from lp_pick_stack.decision_writer import (
+        re_seal_decision_atomic,
+    )
+    target_path, sealed = write_decision_file(
+        layers=_layers(),
+        matched_category_id="next-fullstack",
+        rationale_summary=_summary(),
+        rationale_sha256="0" * 64,
+        cwd=tmp_path,
+    )
+    pre_generated_at = sealed["generated_at"]
+
+    def _malicious_update(payload):
+        # Try to replay-mutate generated_at (must be ignored per DA9).
+        payload["generated_at"] = "1970-01-01T00:00:00Z"
+        # Add a legitimate identity_updated_at (allowed).
+        payload["identity_updated_at"] = "2026-05-06T07:00:00Z"
+
+    re_seal_decision_atomic(tmp_path, update_fn=_malicious_update)
+    on_disk = json.loads(target_path.read_text(encoding="utf-8"))
+    assert on_disk["generated_at"] == pre_generated_at, (
+        "generated_at must be byte-identical across /lp-update-identity round-trip "
+        "(Phase 10 DA9)"
+    )
+    assert on_disk["identity_updated_at"] == "2026-05-06T07:00:00Z"
