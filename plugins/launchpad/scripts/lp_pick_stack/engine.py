@@ -499,11 +499,21 @@ def _finalize_decision(
             rationale_path, rationale_sha256 = write_rationale_atomic(rendered, cwd)
         except DecisionWriteError as exc:
             elapsed = time.monotonic() - start
+            # Phase 10 §3.13 discoverability item 1: when scaffold-decision
+            # already exists, the user's intent is almost certainly to
+            # update identity in-place; surface /lp-update-identity in
+            # the refusal message.
+            message = str(exc)
+            if exc.reason == "scaffold_decision_already_exists":
+                message = (
+                    f"{message}; identity already sealed -- use "
+                    f"/lp-update-identity to update individual fields"
+                )
             result = PipelineResult(
                 success=False,
                 outcome=Outcome.ABORTED,
                 reason=exc.reason,
-                message=str(exc),
+                message=message,
                 elapsed_seconds=elapsed,
             )
             if write_telemetry:

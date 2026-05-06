@@ -86,6 +86,7 @@ Each orchestrator checks a section's status before proceeding — you can run th
 - **`/lp-define`** — seeds your architecture docs (PRD, tech stack, design system, app flow, backend, CI/CD) and section specs. Stack-aware: detects TypeScript / Python / polyglot projects and seeds `.launchpad/agents.yml` and `.launchpad/config.yml` accordingly.
 - **`/lp-plan`** — design workflow (when UI is involved) → `/lp-pnf` (Plan Next Feature) → `/lp-harden-plan` (multi-agent plan stress-test) → human approval gate.
 - **`/lp-build`** — fully autonomous: `/lp-inf` (execute the plan) → `/lp-review` (multi-agent review with confidence scoring and FP suppression) → `/lp-resolve-todo-parallel` (fix findings) → `/lp-test-browser` → `/lp-ship` (opens PR, never merges) → `/lp-learn` (captures learnings).
+- **`/lp-update-identity`** — update sealed identity (project rename, license change, copyright holder, email, repo URL fill-in) without re-scaffolding. Re-renders the 7 kernel files via `KernelRenderer.refresh()`.
 
 Full workflow guide: [HOW_IT_WORKS.md](docs/guides/HOW_IT_WORKS.md).
 
