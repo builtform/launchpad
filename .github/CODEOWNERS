@@ -73,3 +73,20 @@
 /plugins/launchpad/scripts/plugin_stack_adapters/generic.py          @builtform/core
 /plugins/launchpad/scripts/template_cache/                           @builtform/core
 /docs/maintainers/upstream-pin-rotations.md                          @builtform/core
+
+# Phase 8.5 v2.1 schema-source files (DA1' = a2 buffered batch + scanner
+# gate + DA2 path-rewriter + DA3 pattern cache + DA4 allowlist + DA5
+# bundled patterns). The render-batch flow + secret-scanner gate are the
+# v2.1 security-positive surface; CODEOWNERS protects the source-of-truth
+# constants (BUNDLED_DEFAULT_PATTERNS) + the gate logic. The audit-log
+# enforcement rule in plugin-v2-handshake-lint.py requires every deletion
+# under plugins/launchpad/scripts/ to carry a same-commit append in
+# docs/maintainers/decommission-history.md.
+/plugins/launchpad/scripts/plugin_default_generators/_renderer_base.py     @builtform/core
+/plugins/launchpad/scripts/plugin_default_generators/secret_allowlist.py   @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/polyglot_path_rewriter.py @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/secret_scanner.py         @builtform/core
+/plugins/launchpad/scripts/lp_define_runner.py                             @builtform/core
+/.github/workflows/release-notes-check.yml                                 @builtform/core
+/.launchpad/secret-patterns.txt                                            @builtform/core
+/docs/maintainers/decommission-history.md                                  @builtform/core
