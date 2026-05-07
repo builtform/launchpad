@@ -175,3 +175,11 @@ def test_full_greenfield_pipeline(tmp_path: Path) -> None:
     assert not marker.exists()
     consumed = list((cwd / ".launchpad").glob(".first-run-marker.consumed.*"))
     assert consumed, "first-run-marker.consumed.* missing post-scaffold"
+
+    # Per Codex PR #50 P1-B harden Slice D §4: astro single-mode declares
+    # `workspace_source_map_single == {}` (empty) so the scaffold MUST NOT
+    # synthesize an `apps/` wrap; preserves the existing D3 behavior of
+    # adapters that own the whole project root.
+    assert not (cwd / "apps").exists(), (
+        "astro single-mode must not wrap files under apps/"
+    )

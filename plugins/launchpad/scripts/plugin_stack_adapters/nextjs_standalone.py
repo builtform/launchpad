@@ -20,9 +20,11 @@ from __future__ import annotations
 import re
 import shutil
 from pathlib import Path
-from typing import Callable
+from types import MappingProxyType
+from typing import Callable, Mapping
 
 from .contracts import (
+    _EMPTY_WORKSPACE_MAP,
     Adapter,
     AdapterScaffoldError,
     CompositionRule,
@@ -105,6 +107,17 @@ class NextjsStandaloneAdapter:
     workspace_name: str | None = "app"
     unwrap_strategy: UnwrapStrategy = "nested_turborepo"
     composes_with: dict[StackIdActive, CompositionRule] = _COMPOSES_WITH
+    # Per Codex P1-B harden D3/D4:
+    #  - single-mode: empty map preserves "fork next-forge as project root"
+    #    (next-forge IS a Turborepo with its own apps/ + packages/);
+    #  - composition-mode: lift the upstream-nested `apps/app` to
+    #    `composition_root/apps/app`, and lift `packages/` to top-level
+    #    sibling so `pnpm-workspace.yaml` globs resolve.
+    workspace_source_map_single: Mapping[str, str] = _EMPTY_WORKSPACE_MAP
+    workspace_source_map_composition: Mapping[str, str] = MappingProxyType({
+        "app": "apps/app",
+    })
+    package_workspace_paths: tuple[str, ...] = ("packages",)
 
     def __init__(
         self, *, fetcher: Callable[[Path], None] | None = None

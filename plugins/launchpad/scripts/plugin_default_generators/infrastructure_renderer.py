@@ -115,6 +115,9 @@ _GITIGNORE_ALLOWLIST_REGEXES: tuple[re.Pattern[str], ...] = tuple(
         r"^build(/|$)",
         r"^\.DS_Store$",
         r"^generated_images(/|$)",
+        # Per Codex PR #50 P1-B harden P1-ζ: scaffold tempdir parent for
+        # composition + single-adapter wrapping.
+        r"^\.lp-tmp(/|$)",
         r"^# .*$",  # comments
         r"^$",       # blank lines
     )

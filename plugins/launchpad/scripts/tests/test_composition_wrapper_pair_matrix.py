@@ -29,9 +29,18 @@ pytestmark = pytest.mark.slow
 
 
 def _trivial_fetcher(target: Path) -> None:
+    """vintasoftware-shaped synthetic tree (`app/` + `api/` siblings).
+
+    Per Codex PR #50 P1-B harden P2-β: composition placement now lifts
+    `tempdir/app` + `tempdir/api` per
+    `NextjsFastapiAdapter.workspace_source_map_composition`, so the
+    fetcher MUST include both subtrees.
+    """
     files = {
         "package.json": b'{"name": "stub"}\n',
         "README.md": b"# stub\n",
+        "app/package.json": b'{"name": "frontend"}\n',
+        "api/main.py": b"app = 'fastapi'\n",
     }
     for rel, body in files.items():
         p = target / rel
@@ -40,6 +49,14 @@ def _trivial_fetcher(target: Path) -> None:
 
 
 def _next_forge_tree(target: Path) -> None:
+    """next-forge-shaped synthetic tree.
+
+    Per Codex PR #50 P1-B harden P2-β: matches the upstream's
+    Turborepo layout (`apps/app/`, `packages/<n>/`, root `turbo.json`)
+    so composition placement can lift `apps/app` to project-root and
+    `packages/` to top-level sibling. Keeps the `rogue-top-level-dir/`
+    regression file as a residual that should NOT be lifted.
+    """
     files = {
         "package.json": b'{"name": "next-forge", "engines": {"node": ">=20"}}\n',
         "turbo.json": b'{"tasks": {"build": {}}}\n',
@@ -190,13 +207,23 @@ def test_other_adapters_declare_unwrap_strategy_none():
 def test_nested_turborepo_upstream_lays_down_apps_and_packages_dirs(
     tmp_path: Path, cache_root_tmp: Path
 ):
+    """Per Codex PR #50 P1-B harden Slice D §6.4: replace the lenient
+    OR-clause with strict structural assertions. Composition placement of
+    `nextjs_standalone` must lift the upstream's `apps/app/` subtree to
+    `composition_root/apps/app/` and `packages/` to top-level sibling
+    (not double-nest the next-forge tree).
+    """
     project = tmp_path / "project"
     adapter = NextjsStandaloneAdapter(fetcher=_next_forge_tree)
     compose([adapter], project)
-    workspace = project / "apps" / "app"
-    assert workspace.is_dir()
-    assert (workspace / "apps" / "app" / "package.json").is_file() or (
-        workspace / "apps" / "app").is_dir()
+    # Strict: lifted apps/app contains the upstream's package.json.
+    assert (project / "apps" / "app" / "package.json").is_file()
+    # Strict: lifted packages/ sibling at composition root.
+    assert (project / "packages").is_dir()
+    assert (project / "packages" / "auth" / "package.json").is_file()
+    # Strict: NO double-nested next-forge tree.
+    assert not (project / "apps" / "app" / "apps").exists()
+    assert not (project / "apps" / "app" / "packages").exists()
 
 
 # --- engines / lockfile / union-merge invariants -------------------------

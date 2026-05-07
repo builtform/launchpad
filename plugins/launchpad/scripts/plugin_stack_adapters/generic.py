@@ -20,9 +20,11 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Mapping
 
 from .contracts import (
+    _EMPTY_PACKAGE_PATHS,
+    _EMPTY_WORKSPACE_MAP,
     Adapter,
     AdapterOutput,
     AdapterScaffoldError,
@@ -166,6 +168,11 @@ class GenericAdapter:
     workspace_name: str | None = "extra"
     unwrap_strategy: UnwrapStrategy = "none"
     composes_with: dict[StackIdActive, CompositionRule] = _COMPOSES_WITH
+    # Per Codex P1-B harden D6: generic adapter has no upstream tree; in
+    # composition mode the empty tempdir maps wholesale to apps/<extra>/.
+    workspace_source_map_single: Mapping[str, str] = _EMPTY_WORKSPACE_MAP
+    workspace_source_map_composition: Mapping[str, str] = _EMPTY_WORKSPACE_MAP
+    package_workspace_paths: tuple[str, ...] = _EMPTY_PACKAGE_PATHS
 
     def __init__(
         self, *, fetcher: Callable[[Path], None] | None = None

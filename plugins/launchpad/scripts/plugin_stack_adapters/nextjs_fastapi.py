@@ -21,9 +21,11 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import Callable
+from types import MappingProxyType
+from typing import Callable, Mapping
 
 from .contracts import (
+    _EMPTY_PACKAGE_PATHS,
     Adapter,
     AdapterScaffoldError,
     CompositionRule,
@@ -92,6 +94,19 @@ class NextjsFastapiAdapter:
     unwrap_strategy: UnwrapStrategy = "none"
     composes_with: dict[StackIdActive, CompositionRule] = _COMPOSES_WITH
     additional_workspaces: tuple[str, ...] = ("api",)
+    # Per Codex P1-B harden D2/D3: vintasoftware/nextjs-fastapi-template lays
+    # `app/` (Next.js) and `api/` (FastAPI) at upstream root. Both single
+    # and composition mode wrap them under `apps/<name>/` siblings so
+    # `pnpm-workspace.yaml` globs resolve.
+    workspace_source_map_single: Mapping[str, str] = MappingProxyType({
+        "app": "app",
+        "api": "api",
+    })
+    workspace_source_map_composition: Mapping[str, str] = MappingProxyType({
+        "app": "app",
+        "api": "api",
+    })
+    package_workspace_paths: tuple[str, ...] = _EMPTY_PACKAGE_PATHS
 
     def __init__(
         self, *, fetcher: Callable[[Path], None] | None = None

@@ -88,7 +88,7 @@ def test_compose_writes_no_residual_tmp_dirs(
     project = tmp_path / "project"
     adapter = AstroAdapter(sub_template_id="docs", fetcher=_astro_tree)
     compose([adapter], project)
-    tmp_root = project / ".tmp"
+    tmp_root = project / ".lp-tmp"
     leftover = list(tmp_root.iterdir()) if tmp_root.exists() else []
     assert leftover == [], f"composition leaked tmp dirs: {leftover}"
 
@@ -167,7 +167,7 @@ def test_compose_rolls_back_on_second_adapter_failure(
         assert leftover == [], (
             f"composition placed workspaces despite rollback: {leftover}"
         )
-    tmp_root = project / ".tmp"
+    tmp_root = project / ".lp-tmp"
     if tmp_root.exists():
         leftover_tmp = list(tmp_root.iterdir())
         assert leftover_tmp == [], (
@@ -224,7 +224,7 @@ def test_compose_atomically_places_workspaces_via_os_replace(
     workspace = project / "apps" / "content"
     assert workspace.is_dir()
     # Empty .tmp/ after placement implies os.replace ran (rename, not copy).
-    tmp_root = project / ".tmp"
+    tmp_root = project / ".lp-tmp"
     if tmp_root.exists():
         assert list(tmp_root.iterdir()) == []
 

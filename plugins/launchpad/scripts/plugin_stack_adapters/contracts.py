@@ -29,7 +29,8 @@ constants are forbidden (enforced by `tests/test_no_floating_tag_pins.py`).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal, NotRequired, Protocol, TypedDict, runtime_checkable
+from types import MappingProxyType
+from typing import Literal, Mapping, NotRequired, Protocol, TypedDict, runtime_checkable
 
 
 StackId = Literal[
@@ -124,6 +125,72 @@ class OverlayConfig(TypedDict):
     conflict_policy: dict[str, ConflictPolicy]
 
 
+# Per-Codex P1-B harden: shared empty defaults for the Adapter Protocol
+# placement-mapping fields. `MappingProxyType({})` is hashable + read-only,
+# so all 5 adapters can reference the same module-level constant safely.
+_EMPTY_WORKSPACE_MAP: Mapping[str, str] = MappingProxyType({})
+_EMPTY_PACKAGE_PATHS: tuple[str, ...] = ()
+
+
+def _validate_workspace_source_relpath(value: str, *, field_name: str) -> None:
+    """Reject attacker-controlled path traversal in adapter-declared values.
+
+    Mirrors the verbatim "attacker-controlled path traversal" comment pin from
+    `_renderer_base.py:75-79`. Adapter-declared placement values are
+    CODEOWNERS-trusted but we still validate at import time so a future drift
+    fails closed.
+    """
+    if not isinstance(value, str):
+        raise TypeError(
+            f"{field_name} must be str, got {type(value).__name__!r}"
+        )
+    if value == "":
+        # Empty string means "tempdir IS the workspace"; only valid as a
+        # placement value when wrapped in a non-empty map. Reject up front.
+        raise ValueError(
+            f"{field_name} must not be empty; use an empty map to skip wrapping"
+        )
+    if value.startswith("/") or value.startswith("\\"):
+        raise ValueError(
+            f"{field_name}={value!r} must be a relative POSIX path"
+        )
+    parts = value.replace("\\", "/").split("/")
+    if any(part == ".." for part in parts):
+        raise ValueError(
+            f"{field_name}={value!r} contains '..' segment "
+            f"(attacker-controlled path traversal forbidden)"
+        )
+    if any(part == "" for part in parts[:-1]):
+        # Disallow `//` and trailing absolute-style empties (POSIX).
+        raise ValueError(
+            f"{field_name}={value!r} contains empty path segment"
+        )
+
+
+def _validate_workspace_source_map(
+    m: Mapping[str, str], *, field_name: str
+) -> None:
+    """Per-Codex P1-α: reject path-traversal in adapter-declared values."""
+    for key, value in m.items():
+        if not isinstance(key, str) or key == "":
+            raise ValueError(
+                f"{field_name} key {key!r} must be a non-empty workspace name"
+            )
+        _validate_workspace_source_relpath(value, field_name=f"{field_name}[{key!r}]")
+
+
+def _validate_package_workspace_paths(
+    paths: tuple[str, ...], *, field_name: str
+) -> None:
+    """Per-Codex P1-α: reject path-traversal in adapter-declared values."""
+    if not isinstance(paths, tuple):
+        raise TypeError(
+            f"{field_name} must be tuple, got {type(paths).__name__!r}"
+        )
+    for path in paths:
+        _validate_workspace_source_relpath(path, field_name=field_name)
+
+
 @runtime_checkable
 class Adapter(Protocol):
     """v2.1 adapter behavior surface. See Phase 4 plan §3.3.
@@ -131,6 +198,16 @@ class Adapter(Protocol):
     Runtime-checkable so `isinstance(obj, Adapter)` works in tests and
     composition. ABC was rejected: ts_monorepo has no upstream and would carry
     abstract-method overrides for empty bodies.
+
+    `workspace_source_map_single` and `workspace_source_map_composition` map
+    workspace_name (e.g. "app", "api") to the relative path inside the
+    adapter-rendered tempdir whose subtree is moved to
+    `<root>/apps/<workspace_name>/`. Both default to empty mapping meaning
+    "tempdir IS the workspace" (current behavior for ts_monorepo, generic,
+    astro). `package_workspace_paths` lists tempdir-relative subtrees that
+    are lifted to top-level siblings (e.g. nextjs_standalone declares
+    `("packages",)` so the upstream's nested `packages/` ends up at
+    `composition_root/packages/`).
     """
 
     stack_id: StackIdActive
@@ -139,6 +216,9 @@ class Adapter(Protocol):
     workspace_name: str | None
     unwrap_strategy: UnwrapStrategy
     composes_with: dict[StackIdActive, CompositionRule]
+    workspace_source_map_single: Mapping[str, str]
+    workspace_source_map_composition: Mapping[str, str]
+    package_workspace_paths: tuple[str, ...]
 
     def scaffold_into(self, tempdir: Path) -> None: ...
     def apply_overlay(self, tempdir: Path) -> None: ...
@@ -304,4 +384,8 @@ __all__ = [
     "CommandsConfig",
     "PipelineOverrides",
     "AdapterOutput",
+    "_EMPTY_WORKSPACE_MAP",
+    "_EMPTY_PACKAGE_PATHS",
+    "_validate_workspace_source_map",
+    "_validate_package_workspace_paths",
 ]

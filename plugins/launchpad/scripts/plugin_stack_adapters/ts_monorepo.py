@@ -13,7 +13,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from typing import Mapping
+
 from .contracts import (
+    _EMPTY_PACKAGE_PATHS,
+    _EMPTY_WORKSPACE_MAP,
     AdapterOutput,
     AppFlowInfo,
     BackendInfo,
@@ -119,6 +123,12 @@ class TsMonorepoAdapter:
     workspace_name: str | None = None
     unwrap_strategy: UnwrapStrategy = "none"
     composes_with: dict[StackIdActive, CompositionRule] = {}
+    # Per Codex P1-B harden D6: ts_monorepo is a Turborepo itself; no apps/
+    # wrapping in either single or composition mode (composition mode is in
+    # any case rejected via the ts_monorepo + * catch-all).
+    workspace_source_map_single: Mapping[str, str] = _EMPTY_WORKSPACE_MAP
+    workspace_source_map_composition: Mapping[str, str] = _EMPTY_WORKSPACE_MAP
+    package_workspace_paths: tuple[str, ...] = _EMPTY_PACKAGE_PATHS
 
     def scaffold_into(self, tempdir: Path) -> None:
         return None

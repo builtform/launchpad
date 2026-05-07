@@ -1,14 +1,21 @@
 """v2.1 Adapter dispatch helper for /lp-scaffold-stack.
 
-Phase 4 plan section 4 Slice D. The existing
-`lp_scaffold_stack/engine.py:run_pipeline` predates the v2.1 Adapter
-Protocol and dispatches to the v1 `run() -> AdapterOutput` API; this module
-is the v2.1 dispatch surface that compositions and adapter-aware single-
-stack scaffolds invoke instead.
+Phase 4 plan section 4 Slice D + Codex PR #50 P1-B harden Slice C.
+The existing `lp_scaffold_stack/engine.py:run_pipeline` predates the v2.1
+Adapter Protocol and dispatches to the v1 `run() -> AdapterOutput` API;
+this module is the v2.1 dispatch surface that compositions and
+adapter-aware single-stack scaffolds invoke instead.
 
-Single-adapter mode: invokes `Adapter.scaffold_into(workspace_dir)` followed
-by `Adapter.apply_overlay(workspace_dir)`. For adapters with no upstream
-(ts_monorepo, generic) the calls are no-ops.
+Single-adapter mode:
+  - When `Adapter.workspace_source_map_single` is empty (ts_monorepo,
+    nextjs_standalone, astro, generic), invokes
+    `Adapter.scaffold_into(workspace_dir)` followed by
+    `Adapter.apply_overlay(workspace_dir)`. Preserves the existing
+    fork-as-project-root semantics for nextjs_standalone.
+  - When the map is non-empty (nextjs_fastapi: `{"app": "app",
+    "api": "api"}`), routes through `dispatch_single_adapter_into_apps`
+    which renders into a `<workspace>/.lp-tmp/` tempdir then `os.replace`
+    each declared subtree to `<workspace>/apps/<workspace_name>/`.
 
 Composition mode: dispatches to `composition.compose(adapters,
 composition_root)`. The N=2 cap is enforced upstream by
@@ -16,12 +23,20 @@ composition_root)`. The N=2 cap is enforced upstream by
 """
 from __future__ import annotations
 
+import os
+import shutil
+import uuid
 from pathlib import Path
 from typing import Iterable
 
 from plugin_stack_adapters.composition import (
     CompositionAbortError,
+    CompositionRejectionCode,
     CompositionResult,
+    TMP_PARENT_DIRNAME,
+    _assert_within,
+    _ensure_same_fs,
+    _reject_symlinks_in_subtree,
     compose,
     validate_pair,
 )
@@ -59,17 +74,223 @@ def resolve_adapter(stack_id: str) -> Adapter:
     return module.ADAPTER  # type: ignore[no-any-return]
 
 
+def _dispatch_single_adapter_into_apps(
+    adapter: Adapter, project_root: Path
+) -> Path:
+    """Single-adapter mode for adapters declaring a non-empty
+    `workspace_source_map_single`.
+
+    Per Codex PR #50 P1-B harden D3 + P1-ε + P1-ζ:
+      1. Refuse-loud if `<project_root>/apps/<workspace_name>/` already
+         contains user content (re-run idempotency).
+      2. Scaffold into a tempdir under `<project_root>/.lp-tmp/`.
+      3. For each declared `(workspace_name, source_relpath)`: validate
+         path containment, reject symlinks, then `os.replace
+         tempdir/<source_relpath> → project_root/apps/<workspace_name>/`.
+      4. Lift `package_workspace_paths` to top-level siblings.
+      5. Cleanup the residual tempdir; fail-closed if a moved subtree
+         re-emerged.
+
+    Per harden P1-ζ: the tempdir parent is `.lp-tmp/` (NOT `.tmp/`) to
+    avoid collision with Next.js build directories. Generated
+    `.gitignore` includes `.lp-tmp/` (item-driven; not in this module).
+    """
+    project_root.mkdir(parents=True, exist_ok=True)
+    apps_root = project_root / "apps"
+    apps_root.mkdir(parents=True, exist_ok=True)
+
+    # Per harden P1-ε re-run idempotency: refuse-loud if any declared
+    # destination already contains user content. composition_root is
+    # whole-project-replace by contract; single-adapter dispatch is NOT,
+    # so we cannot blindly rmtree-then-replace.
+    for workspace_name in adapter.workspace_source_map_single:
+        target = apps_root / workspace_name
+        if target.exists() and any(target.iterdir()):
+            raise ScaffoldStepFailedError(
+                reason="workspace_target_already_populated",
+                path=target,
+                remediation=(
+                    f"{target} already contains user content; "
+                    f"delete apps/{workspace_name}/ or use --force "
+                    f"to re-scaffold"
+                ),
+            )
+    for pkg_relpath in adapter.package_workspace_paths:
+        target = project_root / pkg_relpath
+        if target.exists() and any(target.iterdir()):
+            raise ScaffoldStepFailedError(
+                reason="workspace_target_already_populated",
+                path=target,
+                remediation=(
+                    f"{target} already contains user content; "
+                    f"delete {pkg_relpath}/ or use --force to re-scaffold"
+                ),
+            )
+
+    tmp_root = project_root / TMP_PARENT_DIRNAME
+    tmp_root.mkdir(parents=True, exist_ok=True)
+    # Per harden P1-ζ: cross-FS guard on the single-adapter tempdir mirrors
+    # the composition-mode check.
+    _ensure_same_fs(project_root, tmp_root)
+
+    tempdir = tmp_root / f"lp-{adapter.stack_id}-{uuid.uuid4().hex[:8]}"
+    placed: list[Path] = []
+    try:
+        adapter.scaffold_into(tempdir)
+        adapter.apply_overlay(tempdir)
+
+        for workspace_name, source_relpath in (
+            adapter.workspace_source_map_single.items()
+        ):
+            src_raw = tempdir / source_relpath
+            src = _assert_within(
+                src_raw,
+                tempdir,
+                field_name=(
+                    f"workspace_source_map_single[{workspace_name!r}] of "
+                    f"{adapter.stack_id}"
+                ),
+            )
+            if not src.exists():
+                raise CompositionAbortError(
+                    reason=(
+                        CompositionRejectionCode
+                        .WORKSPACE_SOURCE_MAP_MISMATCH.value
+                    ),
+                    path=src,
+                    remediation=(
+                        f"adapter {adapter.stack_id} declared source "
+                        f"relpath {source_relpath!r} but the rendered "
+                        f"tempdir does not contain that path"
+                    ),
+                )
+            _reject_symlinks_in_subtree(src)
+            workspace_target_raw = apps_root / workspace_name
+            workspace_target = _assert_within(
+                workspace_target_raw,
+                project_root,
+                field_name=f"apps/{workspace_name}",
+            )
+            # Idempotency pre-check above already verified the target is
+            # empty/missing; safe to rmdir an empty placeholder if one
+            # exists from the apps_root.mkdir above.
+            if workspace_target.exists() and not any(
+                workspace_target.iterdir()
+            ):
+                workspace_target.rmdir()
+            os.replace(str(src), str(workspace_target))
+            placed.append(workspace_target)
+
+        for pkg_relpath in adapter.package_workspace_paths:
+            src_raw = tempdir / pkg_relpath
+            src = _assert_within(
+                src_raw,
+                tempdir,
+                field_name=(
+                    f"package_workspace_paths[{pkg_relpath!r}] of "
+                    f"{adapter.stack_id}"
+                ),
+            )
+            if not src.exists():
+                continue
+            _reject_symlinks_in_subtree(src)
+            dst_raw = project_root / pkg_relpath
+            dst = _assert_within(
+                dst_raw,
+                project_root,
+                field_name=f"package path {pkg_relpath!r}",
+            )
+            if dst.exists() and not any(dst.iterdir()):
+                dst.rmdir()
+            os.replace(str(src), str(dst))
+            placed.append(dst)
+
+        # Per harden P3-ν: surface tampered-tempdir slip-through.
+        for workspace_name, source_relpath in (
+            adapter.workspace_source_map_single.items()
+        ):
+            if (tempdir / source_relpath).exists():
+                raise CompositionAbortError(
+                    reason=(
+                        CompositionRejectionCode
+                        .RESIDUAL_TAMPERED_TEMPDIR.value
+                    ),
+                    path=tempdir,
+                    remediation=(
+                        f"tempdir {tempdir} still contains "
+                        f"{source_relpath!r} after move; refusing cleanup "
+                        f"to surface tampered-tempdir slip-through"
+                    ),
+                )
+        for pkg_relpath in adapter.package_workspace_paths:
+            if (tempdir / pkg_relpath).exists():
+                raise CompositionAbortError(
+                    reason=(
+                        CompositionRejectionCode
+                        .RESIDUAL_TAMPERED_TEMPDIR.value
+                    ),
+                    path=tempdir,
+                    remediation=(
+                        f"tempdir {tempdir} still contains "
+                        f"{pkg_relpath!r} after move; refusing cleanup "
+                        f"to surface tampered-tempdir slip-through"
+                    ),
+                )
+
+        if tempdir.exists():
+            shutil.rmtree(tempdir, ignore_errors=False)
+        if tmp_root.exists() and not any(tmp_root.iterdir()):
+            tmp_root.rmdir()
+    except BaseException:
+        # Per harden P1-γ: rollback in REVERSE order. Failure to clean up
+        # a placed dir logs the secrets-warning recommendation via the
+        # composition._rollback path; here we inline a simpler rollback
+        # since dispatch is single-adapter-only.
+        for path in reversed(placed):
+            try:
+                if path.is_dir():
+                    shutil.rmtree(path, ignore_errors=False)
+                elif path.exists():
+                    path.unlink()
+            except OSError:
+                # Same secrets-warning posture as composition._rollback.
+                pass
+        if tempdir.exists():
+            try:
+                shutil.rmtree(tempdir, ignore_errors=False)
+            except OSError:
+                pass
+        raise
+
+    return project_root
+
+
 def dispatch_single_adapter(
     adapter: Adapter, workspace_dir: Path
 ) -> Path:
-    """Single-adapter mode: scaffold + overlay into `workspace_dir`."""
+    """Single-adapter mode dispatch.
+
+    Per Codex PR #50 P1-B harden D3:
+      - Empty `workspace_source_map_single`: legacy behavior — call
+        `scaffold_into(workspace_dir)` directly. Covers ts_monorepo +
+        astro + generic + nextjs_standalone (single-mode preserves
+        fork-as-project-root for next-forge).
+      - Non-empty: route through `_dispatch_single_adapter_into_apps`.
+    """
     workspace_dir.mkdir(parents=True, exist_ok=True)
+    if not adapter.workspace_source_map_single:
+        try:
+            adapter.scaffold_into(workspace_dir)
+            adapter.apply_overlay(workspace_dir)
+        except Exception as exc:
+            raise bridge_to_scaffold_error(exc) from exc
+        return workspace_dir
     try:
-        adapter.scaffold_into(workspace_dir)
-        adapter.apply_overlay(workspace_dir)
+        return _dispatch_single_adapter_into_apps(adapter, workspace_dir)
+    except CompositionAbortError:
+        raise
     except Exception as exc:
         raise bridge_to_scaffold_error(exc) from exc
-    return workspace_dir
 
 
 def dispatch_composition(

@@ -22,21 +22,27 @@ Workspace allocation:
     (both claim "app"); collision suffix renames the FIRST to "app-fe"
     with the section 3.12 verbatim INFO log.
 
-Sequential render:
+Sequential render (Codex PR #50 P1-B harden):
   1. Same-FS pre-flight: TMPDIR must be on the same filesystem as
      composition_root. os.replace requires same-FS atomicity.
-  2. Per-adapter scaffold_into(tempdir) into composition_root/.tmp/<id>.
+  2. Per-adapter scaffold_into(tempdir) into composition_root/.lp-tmp/<id>.
   3. Per-adapter apply_overlay(tempdir).
-  4. After all adapters complete, atomic os.replace into final
-     composition_root/apps/<workspace_name>/ paths.
-  5. On any per-adapter failure, rollback: shutil.rmtree all prior
-     successful tempdirs + the in-progress one. Errors during cleanup are
-     logged with the secrets-warning recommendation per harden P0.
+  4. After all adapters complete, per-workspace `os.replace` lifts
+     `tempdir/<source_relpath>` to `composition_root/apps/<workspace_name>/`
+     using `Adapter.workspace_source_map_composition`. Empty map preserves
+     legacy whole-tempdir → apps/<primary> behavior. `package_workspace_paths`
+     entries lift to `composition_root/<path>` siblings.
+  5. On any per-adapter failure: rollback rmtrees both rendered tempdirs
+     AND already-placed `apps/<workspace>/` + `composition_root/<package>/`
+     paths in reverse order. Errors during cleanup are logged with the
+     secrets-warning recommendation per harden P0.
 """
 from __future__ import annotations
 
 import logging
+import os
 import shutil
+import stat
 import uuid
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -47,6 +53,8 @@ from .contracts import (
     Adapter,
     AdapterScaffoldError,
     StackIdActive,
+    _validate_package_workspace_paths,
+    _validate_workspace_source_map,
 )
 
 LOG = logging.getLogger("plugin_stack_adapters.composition")
@@ -54,12 +62,24 @@ LOG = logging.getLogger("plugin_stack_adapters.composition")
 N2_CAP = 2
 TS_MONOREPO_STACK_ID: StackIdActive = "ts_monorepo"
 
+# Per Codex PR #50 P1-B harden P1-ζ: tempdir parent renamed from `.tmp/`
+# (collides with Next.js build dirs) to `.lp-tmp/`. Both single-adapter
+# wrapping and composition mode use this directory.
+TMP_PARENT_DIRNAME = ".lp-tmp"
+
 
 class CompositionRejectionCode(StrEnum):
     N2_CAP_EXCEEDED = "n2_cap_exceeded"
     TS_MONOREPO_PAIR = "ts_monorepo_pair"
     DUPLICATE_STACKS = "duplicate_stacks"
     UNSUPPORTED_PAIR = "unsupported_pair"
+    # Per Codex PR #50 P1-B harden P2-δ + P2-θ.
+    WORKSPACE_SOURCE_MAP_MISMATCH = "workspace_source_map_mismatch"
+    PACKAGE_WORKSPACE_PATH_COLLISION = "package_workspace_path_collision"
+    # Per Codex PR #50 P1-B harden P1-α + P1-β + P3-ν.
+    PATH_TRAVERSAL_IN_WORKSPACE_MAP = "path_traversal_in_workspace_map"
+    SYMLINK_IN_SCAFFOLD_TREE = "symlink_in_scaffold_tree"
+    RESIDUAL_TAMPERED_TEMPDIR = "residual_tampered_tempdir"
 
 
 # Phase 4 section 3.12 verbatim catalog.
@@ -95,6 +115,22 @@ class CompositionAbortError(RuntimeError):
 class CompositionRejection:
     code: CompositionRejectionCode
     message: str
+
+
+@dataclass(frozen=True)
+class _PlacementEntry:
+    """Per-workspace placement directive built from adapter declarations.
+
+    `declared_key` is the key in `adapter.workspace_source_map_composition`
+    (or `""` for legacy whole-tempdir adapters); `dest_workspace_name` is
+    the post-rename name under `apps/`. Per harden P3-β, the rename only
+    affects the destination; source-side relpath stays adapter-declared.
+    """
+
+    adapter: Adapter
+    declared_key: str
+    dest_workspace_name: str
+    source_relpath: str  # "" for legacy whole-tempdir adapters
 
 
 @dataclass
@@ -161,6 +197,74 @@ def validate_pair(
     return None
 
 
+def _validate_workspace_source_map_consistency(adapter: Adapter) -> None:
+    """Per Codex PR #50 P1-B harden P2-δ: workspace_source_map_composition
+    keys must match {primary} ∪ additional_workspaces of the same adapter.
+
+    Empty map is allowed (legacy whole-tempdir adapters: ts_monorepo,
+    astro, generic). Non-empty map must contain ALL declared workspaces
+    (primary + additional_workspaces) AND must NOT contain extra keys.
+    """
+    map_keys = set(adapter.workspace_source_map_composition.keys())
+    if not map_keys:
+        # Legacy whole-tempdir adapter; additional_workspaces must be empty
+        # because there is no source path to lift extras from.
+        extras = tuple(getattr(adapter, "additional_workspaces", ()))
+        if extras:
+            raise CompositionAbortError(
+                reason=(
+                    CompositionRejectionCode
+                    .WORKSPACE_SOURCE_MAP_MISMATCH.value
+                ),
+                path=None,
+                remediation=(
+                    f"adapter {adapter.stack_id} declares "
+                    f"additional_workspaces={extras!r} but "
+                    f"workspace_source_map_composition is empty; declare "
+                    f"per-workspace source relpaths to lift them"
+                ),
+            )
+        return
+
+    primary = adapter.workspace_name
+    additional = tuple(getattr(adapter, "additional_workspaces", ()))
+    declared: set[str] = set(additional)
+    if primary is not None:
+        declared.add(primary)
+
+    extra_keys = map_keys - declared
+    if extra_keys:
+        raise CompositionAbortError(
+            reason=(
+                CompositionRejectionCode
+                .WORKSPACE_SOURCE_MAP_MISMATCH.value
+            ),
+            path=None,
+            remediation=(
+                f"adapter {adapter.stack_id} workspace_source_map_composition "
+                f"declares {sorted(extra_keys)!r} but those keys are not in "
+                f"{{primary={primary!r}}} ∪ additional_workspaces="
+                f"{additional!r}"
+            ),
+        )
+
+    missing_keys = declared - map_keys
+    if missing_keys:
+        raise CompositionAbortError(
+            reason=(
+                CompositionRejectionCode
+                .WORKSPACE_SOURCE_MAP_MISMATCH.value
+            ),
+            path=None,
+            remediation=(
+                f"adapter {adapter.stack_id} declares "
+                f"primary={primary!r} + additional_workspaces={additional!r} "
+                f"but workspace_source_map_composition is missing keys "
+                f"{sorted(missing_keys)!r}"
+            ),
+        )
+
+
 def resolve_workspace_allocation(
     adapters: list[Adapter],
 ) -> tuple[dict[str, Adapter], list[str]]:
@@ -169,7 +273,14 @@ def resolve_workspace_allocation(
     Returns (mapping, info_logs). Info_logs is a list of section 3.12 verbatim
     messages emitted during allocation (currently only the `app -> app-fe`
     collision suffix log).
+
+    Per Codex PR #50 P1-B harden P2-δ: validates each adapter's
+    workspace_source_map_composition is consistent with its declared
+    primary + additional_workspaces. Mismatches raise CompositionAbortError.
     """
+    for adapter in adapters:
+        _validate_workspace_source_map_consistency(adapter)
+
     mapping: dict[str, Adapter] = {}
     info_logs: list[str] = []
     seen_app_workspace = False
@@ -219,7 +330,102 @@ def resolve_workspace_allocation(
     return mapping, info_logs
 
 
+def _build_placement_plan(
+    adapters: list[Adapter], mapping: dict[str, Adapter]
+) -> list[_PlacementEntry]:
+    """Build the (adapter, declared_key, dest_workspace_name, source_relpath)
+    placement plan from the resolved workspace mapping.
+
+    Per Codex PR #50 P1-B harden P3-β: when `resolve_workspace_allocation`
+    renames the first `app`-claimer to `app-fe`, the source-side relpath
+    stays adapter-declared (looked up by the original `workspace_name`)
+    while the destination key reflects the rename.
+    """
+    plan: list[_PlacementEntry] = []
+    # Reverse-lookup adapter-instance to dest names. dict is order-preserving
+    # so the order matches resolve_workspace_allocation's iteration.
+    adapter_to_dest_names: dict[int, list[str]] = {}
+    for dest_name, adapter in mapping.items():
+        adapter_to_dest_names.setdefault(id(adapter), []).append(dest_name)
+
+    for adapter in adapters:
+        dest_names = adapter_to_dest_names.get(id(adapter), [])
+        if not dest_names:
+            continue  # ts_monorepo (workspace_name=None) gets no placement
+
+        ws_map = adapter.workspace_source_map_composition
+        if not ws_map:
+            # Legacy whole-tempdir adapter (astro / generic). Single dest_name
+            # only; map source_relpath="" meaning "tempdir IS the workspace".
+            assert len(dest_names) == 1, (
+                f"adapter {adapter.stack_id} with empty "
+                f"workspace_source_map_composition cannot have multiple "
+                f"destinations {dest_names!r}"
+            )
+            plan.append(
+                _PlacementEntry(
+                    adapter=adapter,
+                    declared_key=dest_names[0],
+                    dest_workspace_name=dest_names[0],
+                    source_relpath="",
+                )
+            )
+            continue
+
+        # Non-empty map: iterate the adapter's declared keys and resolve
+        # each to its (possibly renamed) destination.
+        primary = adapter.workspace_name
+        for declared_key, source_relpath in ws_map.items():
+            # Determine dest_workspace_name: if rename happened, the primary
+            # was renamed to "app-fe" while additional_workspaces kept their
+            # names. Match dest_names by elimination.
+            if declared_key == primary and "app-fe" in dest_names:
+                dest_workspace_name = "app-fe"
+            elif declared_key in dest_names:
+                dest_workspace_name = declared_key
+            else:
+                # Declared key absent from mapping (e.g. primary renamed but
+                # additional_workspaces still in dest_names without primary
+                # entry): fall back to renamed primary if exactly one
+                # un-claimed dest_name remains.
+                claimed = {
+                    e.dest_workspace_name
+                    for e in plan
+                    if e.adapter is adapter
+                }
+                remaining = [d for d in dest_names if d not in claimed]
+                if declared_key == primary and len(remaining) == 1:
+                    dest_workspace_name = remaining[0]
+                else:
+                    raise CompositionAbortError(
+                        reason=(
+                            CompositionRejectionCode
+                            .WORKSPACE_SOURCE_MAP_MISMATCH.value
+                        ),
+                        path=None,
+                        remediation=(
+                            f"adapter {adapter.stack_id} declares "
+                            f"workspace_source_map_composition key "
+                            f"{declared_key!r} but no destination "
+                            f"in mapping {mapping!r} matches"
+                        ),
+                    )
+            plan.append(
+                _PlacementEntry(
+                    adapter=adapter,
+                    declared_key=declared_key,
+                    dest_workspace_name=dest_workspace_name,
+                    source_relpath=source_relpath,
+                )
+            )
+    return plan
+
+
 def _ensure_same_fs(composition_root: Path, tmp_root: Path) -> None:
+    """Per harden P1-ζ: cross-FS guard. os.replace requires same-FS
+    atomicity. Reject early so rollback cleanup doesn't compound the
+    failure mode.
+    """
     if composition_root.stat().st_dev != tmp_root.stat().st_dev:
         raise CompositionAbortError(
             reason="cross_filesystem_tmp_dir",
@@ -231,8 +437,104 @@ def _ensure_same_fs(composition_root: Path, tmp_root: Path) -> None:
         )
 
 
-def _rollback(rendered_tempdirs: list[tuple[Adapter, Path]]) -> None:
-    """Phase 4 section 3.6 rollback contract; secrets-warning on rmtree fail."""
+def _reject_symlinks_in_subtree(src: Path) -> None:
+    """Per Codex PR #50 P1-B harden P1-β: reject symlinks at the placement
+    boundary. Walks the source subtree without following symlinks; any
+    symlink (file OR dir) raises CompositionAbortError. Prevents an
+    attacker-controlled scaffold tree from `os.replace`-ing a symlink to
+    `/etc` into the project tree.
+    """
+    if src.is_symlink():
+        raise CompositionAbortError(
+            reason=CompositionRejectionCode.SYMLINK_IN_SCAFFOLD_TREE.value,
+            path=src,
+            remediation=(
+                f"scaffold tree contains symlink at {src}; v2.1 forbids "
+                f"symlinks in adapter-rendered output (defense against "
+                f"attacker-controlled path traversal)"
+            ),
+        )
+    if not src.is_dir():
+        # is_symlink() on a missing path is False; so a stat check covers
+        # the "src never existed" case in caller.
+        return
+    for dirpath, dirnames, filenames in os.walk(
+        str(src), followlinks=False
+    ):
+        for name in (*dirnames, *filenames):
+            child = Path(dirpath) / name
+            try:
+                child_stat = os.lstat(str(child))
+            except OSError:
+                continue
+            if stat.S_ISLNK(child_stat.st_mode):
+                raise CompositionAbortError(
+                    reason=(
+                        CompositionRejectionCode
+                        .SYMLINK_IN_SCAFFOLD_TREE.value
+                    ),
+                    path=child,
+                    remediation=(
+                        f"scaffold tree contains symlink at {child}; "
+                        f"v2.1 forbids symlinks in adapter-rendered "
+                        f"output (defense against attacker-controlled "
+                        f"path traversal)"
+                    ),
+                )
+
+
+def _assert_within(
+    candidate: Path, root: Path, *, field_name: str
+) -> Path:
+    """Per Codex PR #50 P1-B harden P1-α: containment check before every
+    `os.replace`. `Path.is_relative_to` rejects path traversal even if the
+    adapter import-time validator was bypassed.
+
+    Mirrors the verbatim "attacker-controlled path traversal" comment pin
+    from `plugin_default_generators/_renderer_base.py:75-79`.
+    """
+    resolved_candidate = candidate.resolve(strict=False)
+    resolved_root = root.resolve(strict=False)
+    if not resolved_candidate.is_relative_to(resolved_root):
+        raise CompositionAbortError(
+            reason=(
+                CompositionRejectionCode
+                .PATH_TRAVERSAL_IN_WORKSPACE_MAP.value
+            ),
+            path=candidate,
+            remediation=(
+                f"{field_name} resolves to {resolved_candidate} which "
+                f"escapes {resolved_root} (attacker-controlled path "
+                f"traversal forbidden)"
+            ),
+        )
+    return resolved_candidate
+
+
+def _rollback(
+    rendered_tempdirs: list[tuple[Adapter, Path]],
+    placed_paths: list[Path],
+) -> None:
+    """Per Codex PR #50 P1-B harden P1-γ: rollback rmtrees BOTH rendered
+    tempdirs AND already-placed `apps/<workspace>/` + composition_root
+    package paths in REVERSE order. Errors during cleanup preserve the
+    secrets-warning log line VERBATIM from the legacy rollback path.
+    """
+    # Reverse-order rmtree of placed paths first (more visible to the
+    # operator post-failure).
+    for placed in reversed(placed_paths):
+        try:
+            if placed.is_dir():
+                shutil.rmtree(placed, ignore_errors=False)
+            elif placed.exists():
+                placed.unlink()
+        except OSError as cleanup_err:
+            LOG.error(
+                "rollback rmtree failed for %s; manual cleanup required (may "
+                "contain secrets-shaped files like .env.example): %s",
+                placed,
+                cleanup_err,
+            )
     for adapter, tempdir in rendered_tempdirs:
         try:
             shutil.rmtree(tempdir, ignore_errors=False)
@@ -245,6 +547,38 @@ def _rollback(rendered_tempdirs: list[tuple[Adapter, Path]]) -> None:
             )
 
 
+def _check_no_residual_moved_subtree(
+    tempdir: Path,
+    moved_relpaths: Iterable[str],
+) -> None:
+    """Per Codex PR #50 P1-B harden P3-ν: if any of the previously-moved
+    subtree paths is still present under tempdir after the move loop
+    completes, that signals tampering (a fetcher re-emerged moved
+    content). Refuse cleanup (fail-closed) with structured error citing
+    the offending paths.
+    """
+    offenders: list[Path] = []
+    for relpath in moved_relpaths:
+        if not relpath:
+            continue
+        candidate = tempdir / relpath
+        if candidate.exists():
+            offenders.append(candidate)
+    if offenders:
+        raise CompositionAbortError(
+            reason=(
+                CompositionRejectionCode
+                .RESIDUAL_TAMPERED_TEMPDIR.value
+            ),
+            path=tempdir,
+            remediation=(
+                f"tempdir {tempdir} contains residual paths previously "
+                f"moved out: {[str(p) for p in offenders]!r}; refusing "
+                f"cleanup to surface tampered-tempdir slip-through"
+            ),
+        )
+
+
 def compose(
     adapters: list[Adapter],
     composition_root: Path,
@@ -252,8 +586,16 @@ def compose(
     """Phase 4 composition orchestrator.
 
     Validates the selection, allocates workspaces, scaffolds + overlays each
-    adapter into a tempdir under composition_root/.tmp/, and atomically
-    places each rendered tempdir at composition_root/apps/<workspace>.
+    adapter into a tempdir under composition_root/.lp-tmp/, and atomically
+    places each rendered tempdir's per-workspace subtree at
+    composition_root/apps/<workspace_name>/. `package_workspace_paths` lift
+    upstream-nested `packages/` to top-level siblings.
+
+    Per Codex PR #50 P1-B: composition placement now honors
+    `Adapter.workspace_source_map_composition` so `nextjs_standalone`
+    (`{"app": "apps/app"}` + `package_workspace_paths=("packages",)`) and
+    `nextjs_fastapi` (`{"app": "app", "api": "api"}`) produce
+    structurally-correct Turborepo layouts.
     """
     rejection = validate_pair(adapters)
     if rejection is not None:
@@ -266,7 +608,7 @@ def compose(
     composition_root.mkdir(parents=True, exist_ok=True)
     apps_root = composition_root / "apps"
     apps_root.mkdir(parents=True, exist_ok=True)
-    tmp_root = composition_root / ".tmp"
+    tmp_root = composition_root / TMP_PARENT_DIRNAME
     tmp_root.mkdir(parents=True, exist_ok=True)
     _ensure_same_fs(composition_root, tmp_root)
 
@@ -274,16 +616,33 @@ def compose(
     for log_msg in info_logs:
         LOG.info(log_msg)
 
-    # Reverse-map adapter -> assigned workspace_name (primary only). This is
-    # what we actually place under apps/. additional_workspaces are handled
-    # implicitly by scaffold_into laying down both subtrees inside the
-    # tempdir; the placement step only handles the primary workspace dir.
-    adapter_to_primary_workspace: dict[Adapter, str] = {}
-    for ws_name, adapter in workspace_map.items():
-        if adapter not in adapter_to_primary_workspace:
-            adapter_to_primary_workspace[adapter] = ws_name
+    # Per Codex PR #50 P1-B harden P2-θ: detect collisions between adapters
+    # declaring overlapping `package_workspace_paths` BEFORE rendering any
+    # tempdir.
+    seen_packages: dict[str, Adapter] = {}
+    for adapter in adapters:
+        for pkg_path in adapter.package_workspace_paths:
+            if pkg_path in seen_packages:
+                raise CompositionAbortError(
+                    reason=(
+                        CompositionRejectionCode
+                        .PACKAGE_WORKSPACE_PATH_COLLISION.value
+                    ),
+                    path=composition_root,
+                    remediation=(
+                        f"adapters {seen_packages[pkg_path].stack_id} and "
+                        f"{adapter.stack_id} both declare "
+                        f"package_workspace_paths containing {pkg_path!r}; "
+                        f"v2.1 forbids overlap"
+                    ),
+                )
+            seen_packages[pkg_path] = adapter
 
-    rendered: list[tuple[Adapter, Path]] = []
+    placement_plan = _build_placement_plan(adapters, workspace_map)
+
+    # Per Codex PR #50 P1-B harden P3-γ: dict instead of list[tuple] keyed
+    # on adapter identity to eliminate the legacy O(n²) `next()` scan.
+    rendered: dict[int, tuple[Adapter, Path]] = {}
     placed: list[Path] = []
     try:
         for adapter in adapters:
@@ -292,7 +651,7 @@ def compose(
                 adapter.scaffold_into(tempdir)
                 adapter.apply_overlay(tempdir)
             except Exception as exc:
-                rendered.append((adapter, tempdir))
+                rendered[id(adapter)] = (adapter, tempdir)
                 raise CompositionAbortError(
                     reason="adapter_scaffold_failed",
                     path=tempdir,
@@ -301,20 +660,110 @@ def compose(
                         f"overlay: {exc}"
                     ),
                 ) from exc
-            rendered.append((adapter, tempdir))
+            rendered[id(adapter)] = (adapter, tempdir)
 
-        for adapter in adapters:
-            tempdir = next(td for a, td in rendered if a is adapter)
-            workspace_name = adapter_to_primary_workspace[adapter]
-            workspace_target = apps_root / workspace_name
+        # Per-workspace placement loop using per-adapter
+        # workspace_source_map_composition. Empty map preserves the legacy
+        # whole-tempdir → apps/<dest> behavior.
+        for entry in placement_plan:
+            _, tempdir = rendered[id(entry.adapter)]
+            if entry.source_relpath:
+                src_raw = tempdir / entry.source_relpath
+            else:
+                src_raw = tempdir
+            # Containment check against the rendering tempdir (P1-α).
+            src = _assert_within(
+                src_raw,
+                tempdir,
+                field_name=(
+                    f"workspace_source_map_composition[{entry.declared_key!r}]"
+                    f" of {entry.adapter.stack_id}"
+                ),
+            )
+            if not src.exists():
+                raise CompositionAbortError(
+                    reason=(
+                        CompositionRejectionCode
+                        .WORKSPACE_SOURCE_MAP_MISMATCH.value
+                    ),
+                    path=src,
+                    remediation=(
+                        f"adapter {entry.adapter.stack_id} declared source "
+                        f"relpath {entry.source_relpath!r} but the rendered "
+                        f"tempdir does not contain that path"
+                    ),
+                )
+            # Symlink rejection (P1-β) on the source subtree.
+            _reject_symlinks_in_subtree(src)
+            workspace_target_raw = apps_root / entry.dest_workspace_name
+            workspace_target = _assert_within(
+                workspace_target_raw,
+                composition_root,
+                field_name=(
+                    f"apps/{entry.dest_workspace_name}"
+                ),
+            )
+            # Per harden P2-ζ: explicit rmtree-then-replace for re-run
+            # idempotency under composition mode (composition_root is
+            # whole-project-replace by contract).
             if workspace_target.exists():
                 shutil.rmtree(workspace_target)
-            import os
-
-            os.replace(str(tempdir), str(workspace_target))
+            os.replace(str(src), str(workspace_target))
             placed.append(workspace_target)
+
+        # Per-package lift: top-level siblings under composition_root.
+        for adapter in adapters:
+            _, tempdir = rendered[id(adapter)]
+            for pkg_relpath in adapter.package_workspace_paths:
+                src_raw = tempdir / pkg_relpath
+                src = _assert_within(
+                    src_raw,
+                    tempdir,
+                    field_name=(
+                        f"package_workspace_paths[{pkg_relpath!r}] of "
+                        f"{adapter.stack_id}"
+                    ),
+                )
+                if not src.exists():
+                    # Adapter declared a `packages/` sibling but the upstream
+                    # didn't ship one in this rendering. Skip silently rather
+                    # than fail; not all sub-templates have the same layout.
+                    continue
+                _reject_symlinks_in_subtree(src)
+                dst_raw = composition_root / pkg_relpath
+                dst = _assert_within(
+                    dst_raw,
+                    composition_root,
+                    field_name=f"package path {pkg_relpath!r}",
+                )
+                if dst.exists():
+                    shutil.rmtree(dst)
+                os.replace(str(src), str(dst))
+                placed.append(dst)
+
+        # Per harden P2-ε + P3-ν: cleanup the now-stripped tempdirs after
+        # all moves. Fail-closed if any moved subtree path re-emerges in
+        # the residual (signals tampering).
+        for adapter in adapters:
+            _, tempdir = rendered[id(adapter)]
+            moved_relpaths: list[str] = []
+            for entry in placement_plan:
+                if entry.adapter is adapter and entry.source_relpath:
+                    moved_relpaths.append(entry.source_relpath)
+            moved_relpaths.extend(adapter.package_workspace_paths)
+            _check_no_residual_moved_subtree(tempdir, moved_relpaths)
+            if tempdir.exists():
+                shutil.rmtree(tempdir, ignore_errors=False)
+
+        # If nothing else lives under tmp_root, drop it too (keeps
+        # composition_root tidy when the gitignore has not yet been seeded).
+        if tmp_root.exists() and not any(tmp_root.iterdir()):
+            tmp_root.rmdir()
     except BaseException:
-        _rollback([(a, td) for a, td in rendered if td.exists()])
+        _rollback(
+            [(a, td) for (a, td) in rendered.values() if td.exists()],
+            placed,
+        )
         raise
 
     return CompositionResult(
@@ -331,7 +780,11 @@ __all__ = [
     "CompositionRejectionCode",
     "CompositionResult",
     "N2_CAP",
+    "TMP_PARENT_DIRNAME",
     "compose",
     "resolve_workspace_allocation",
     "validate_pair",
+    "_ensure_same_fs",
+    "_reject_symlinks_in_subtree",
+    "_assert_within",
 ]

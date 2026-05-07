@@ -25,9 +25,11 @@ from __future__ import annotations
 import logging
 import shutil
 from pathlib import Path
-from typing import Callable, Literal
+from typing import Callable, Literal, Mapping
 
 from .contracts import (
+    _EMPTY_PACKAGE_PATHS,
+    _EMPTY_WORKSPACE_MAP,
     Adapter,
     AdapterOutput,
     AdapterScaffoldError,
@@ -222,6 +224,11 @@ class AstroAdapter:
     workspace_name: str | None = "content"
     unwrap_strategy: UnwrapStrategy = "none"
     composes_with: dict[StackIdActive, CompositionRule] = _COMPOSES_WITH
+    # Per Codex P1-B harden D6: Astro upstream lays files at root of the
+    # selected sub-template; tempdir IS the workspace in both modes.
+    workspace_source_map_single: Mapping[str, str] = _EMPTY_WORKSPACE_MAP
+    workspace_source_map_composition: Mapping[str, str] = _EMPTY_WORKSPACE_MAP
+    package_workspace_paths: tuple[str, ...] = _EMPTY_PACKAGE_PATHS
 
     def __init__(
         self,
