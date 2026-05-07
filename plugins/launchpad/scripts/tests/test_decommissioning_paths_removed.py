@@ -61,11 +61,14 @@ def test_signpost_stubs_have_decommission_shape(rel_path: str) -> None:
         assert "removed in v2.1" in body, (
             f"{rel_path} signpost stub must include the v2.1 removal message"
         )
-        # chmod -x: ensure the executable bit is NOT set on the stub so it
-        # cannot be sourced or accidentally invoked from CI scripts.
+        # chmod +x: signpost stubs are user-invokable on purpose so a
+        # direct `./scripts/setup/init-project.sh` (per CLAUDE.md or any
+        # prior doc reference) prints the v2.1 migration message instead
+        # of failing with permission denied. The body just prints +
+        # exit 64; being executable does not change the safety story.
         mode = target.stat().st_mode
-        assert (mode & 0o111) == 0, (
-            f"{rel_path} signpost stub must be non-executable (chmod -x); "
+        assert (mode & 0o111) != 0, (
+            f"{rel_path} signpost stub must be executable (chmod +x); "
             f"current mode 0o{mode & 0o777:o}"
         )
     else:

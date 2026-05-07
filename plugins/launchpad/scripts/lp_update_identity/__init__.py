@@ -50,9 +50,10 @@ IDENTITY_UPDATE_SENTINEL_MODE: Final[str] = "update-identity"
 class IdentityUpdateErrorCode(StrEnum):
     """Structured error codes raised by `/lp-update-identity`.
 
-    Per DA4 v3 (8 codes; collapsed from v1's 10 per code-simplicity P2;
-    status enum split). User-visible category map lives in
-    `commands/lp-update-identity.md` ## Error codes section.
+    Per DA4 v3 (9 codes; collapsed from v1's 10 per code-simplicity P2;
+    status enum split; BROWNFIELD_SEED_NOT_IMPLEMENTED added in v2.1.0).
+    User-visible category map lives in `commands/lp-update-identity.md`
+    ## Error codes section.
     """
     SCAFFOLD_DECISION_MISSING = "scaffold_decision_missing"
     IDENTITY_UPDATE_IN_PROGRESS = "identity_update_in_progress"

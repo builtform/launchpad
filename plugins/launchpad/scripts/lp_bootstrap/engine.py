@@ -44,6 +44,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -946,6 +947,25 @@ class _RenderRecord:
     warnings: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class _RenderContext:
+    """Per-target render state captured in Phase A and replayed in Phase C.
+
+    Phase A renders + computes shas; Phase B scans the batch refuse-all-on-
+    finding; Phase C policy-dispatches using the pre-rendered bytes. Holds
+    everything the dispatch branches need so Phase C never re-renders.
+    """
+    template_relpath: str
+    target_relpath: str
+    target_path: Path
+    policy: BootstrapPolicy
+    file_mode: int
+    rendered_bytes: bytes
+    rendered_sha: str
+    manifest_sha: str | None
+    on_disk_sha: str | None
+
+
 def _render_loop(
     cwd: Path,
     *,
@@ -955,19 +975,124 @@ def _render_loop(
     mode: BootstrapMode,
     backup_dir: Path | None,
 ) -> list[_RenderRecord]:
-    """Iterate targets; render + dispatch policy + atomically write."""
-    records: list[_RenderRecord] = []
+    """Three-phase render-then-scan-then-write loop.
+
+    Phase A — render-collect (NO writes; refresh-mode included): build
+    `rendered_batch: dict[Path, bytes]` plus a per-target `_RenderContext`
+    capturing shas. Phase A is render-only; even refresh-mode's
+    `write_backup_then_overwrite` MUST live in Phase C so a finding on a
+    later target refuses-all writes including backups.
+
+    Phase B — secret-scan gate: invoke `_RENDERER.scan_batch` and refuse
+    every write on any finding. Fail-closed on scanner infra failure
+    (OSError / UnicodeDecodeError / ValueError / re.error from a malformed
+    user-supplied regex). `.is_file()` guards on `patterns_file` /
+    `allowlist_path` so greenfield bootstrap (where the project-local
+    secret-patterns.txt is itself one of the 30 render targets) falls
+    through to bundled defaults via `None`.
+
+    Phase C — policy dispatch: replay the per-target contexts; identical
+    behavior to the prior single-pass loop except renders are reused.
+    """
     refresh_modes = ("refresh", "refresh-all")
 
+    # Phase A — render-collect. NO writes.
+    contexts: list[_RenderContext] = []
+    rendered_batch: dict[Path, bytes] = {}
     for template_relpath, target_relpath, policy, file_mode in targets:
         target_path = cwd / target_relpath
         rendered_bytes = _RENDERER.render_target(target_relpath, identity)
+        rendered_batch[target_path] = rendered_bytes
         rendered_sha = sha256_bytes(rendered_bytes)
         manifest_sha = _entry_sha_for(existing_manifest, target_relpath)
-
         on_disk_sha: str | None = None
         if target_path.exists() and not target_path.is_symlink():
             on_disk_sha = sha256_file(target_path)
+        contexts.append(_RenderContext(
+            template_relpath=template_relpath,
+            target_relpath=target_relpath,
+            target_path=target_path,
+            policy=policy,
+            file_mode=file_mode,
+            rendered_bytes=rendered_bytes,
+            rendered_sha=rendered_sha,
+            manifest_sha=manifest_sha,
+            on_disk_sha=on_disk_sha,
+        ))
+
+    # Phase B — secret-scan gate. Refuse-all on finding; fail-closed on
+    # scanner infra failure. `.is_file()` guards mirror lp_define_runner
+    # scan_all:261-262 verbatim. `template_sources=None` matches the
+    # /lp-define convention (Jinja-comment allowlists not used at the
+    # bootstrap surface).
+    patterns_file = cwd / ".launchpad" / "secret-patterns.txt"
+    allowlist_path = cwd / ".launchpad" / "secret-allowlist.txt"
+    try:
+        findings = _RENDERER.scan_batch(
+            rendered_batch,
+            patterns_file=patterns_file if patterns_file.is_file() else None,
+            allowlist_path=allowlist_path if allowlist_path.is_file() else None,
+            template_sources=None,
+        )
+    except (OSError, UnicodeDecodeError, ValueError, re.error) as exc:
+        # `re.error` is NOT a ValueError subclass (Python stdlib: inherits
+        # from Exception directly), so it must be listed explicitly.
+        # `type(exc).__name__` instead of `{exc}` keeps potentially
+        # secret-shaped bytes from UnicodeDecodeError.args out of the
+        # surfaced message.
+        raise BootstrapEngineError(
+            f"Secret scanner failed during /lp-bootstrap render: "
+            f"{type(exc).__name__}",
+            reason=BootstrapErrorCode.SECRET_SCANNER_VIOLATION,
+            path=cwd,
+            remediation=(
+                "Scanner infrastructure error; ALL writes refused. Verify "
+                ".launchpad/secret-patterns.txt and "
+                ".launchpad/secret-allowlist.txt are readable, then re-run."
+            ),
+        ) from exc
+    if findings:
+        # Normalize finding sources to repo-relative paths for cleaner
+        # operator output. `cwd_abs = cwd.resolve()` upfront so a relative
+        # cwd input (e.g. Path(".") from a CLI caller) does not fall
+        # through the ValueError branch and leak absolute paths. Mirrors
+        # lp_define_runner scan_all:267-271.
+        cwd_abs = cwd.resolve()
+        sources: set[str] = set()
+        for f in findings:
+            src = getattr(f, "source", None)
+            if not src:
+                continue
+            try:
+                sources.add(str(Path(src).resolve().relative_to(cwd_abs)))
+            except ValueError:
+                sources.add(src)
+        raise BootstrapEngineError(
+            f"Secret scanner found {len(findings)} match(es) across "
+            f"{len(sources) or len(rendered_batch)} file(s) during render; "
+            f"refused all {len(rendered_batch)} writes.",
+            reason=BootstrapErrorCode.SECRET_SCANNER_VIOLATION,
+            path=cwd,
+            remediation=(
+                "Inspect findings in the BootstrapResult.errors output and "
+                "stderr; edit the offending source (template or identity "
+                "field), and re-run /lp-bootstrap. Scanner patterns are "
+                "configurable at .launchpad/secret-patterns.txt."
+            ),
+        )
+
+    # Phase C — policy dispatch. Replays Phase A contexts; only place writes
+    # happen.
+    records: list[_RenderRecord] = []
+    for ctx in contexts:
+        target_relpath = ctx.target_relpath
+        target_path = ctx.target_path
+        policy = ctx.policy
+        file_mode = ctx.file_mode
+        rendered_bytes = ctx.rendered_bytes
+        rendered_sha = ctx.rendered_sha
+        manifest_sha = ctx.manifest_sha
+        on_disk_sha = ctx.on_disk_sha
 
         # Refresh modes: skip the fast-path; force overwrite-with-backup.
         if mode in refresh_modes:
@@ -1063,11 +1188,6 @@ def _render_loop(
             except OSError:
                 pass
 
-        # Manifest entry:
-        #   * write actions stamp rendered_sha
-        #   * skip-unchanged + kept-user-edits keep the manifest's prior sha
-        #     (so KEPT_USER_EDITS does not falsely promote the user's
-        #     content to "this is what we rendered")
         if policy_result.action in (
             PolicyAction.WRITE, PolicyAction.APPENDED, PolicyAction.MERGED,
         ):

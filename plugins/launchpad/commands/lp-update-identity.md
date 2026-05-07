@@ -85,7 +85,7 @@ Detection-order rule (per DA5): the table is read in flag-then-file-then-schema-
 
 ## Error codes
 
-8 codes per DA4 (collapsed from v1's 10):
+9 codes per DA4 (collapsed from v1's 10; BROWNFIELD_SEED_NOT_IMPLEMENTED added in v2.1.0):
 
 | Code                              | User category               | Meaning                                                                                                                                                       |
 | --------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |

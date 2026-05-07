@@ -108,6 +108,7 @@ class BootstrapErrorCode(StrEnum):
     TEMPLATE_RENDER_FAILED = "template_render_failed"
     TEMPLATE_NOT_FOUND = "template_not_found"
     POLICY_COLLISION = "policy_collision"
+    SECRET_SCANNER_VIOLATION = "secret_scanner_violation"
 
     # Filesystem-class
     DISK_FULL = "disk_full"
