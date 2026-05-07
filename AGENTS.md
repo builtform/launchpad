@@ -109,7 +109,7 @@ This project is LaunchPad-scaffolded. Most structured workflows live in `plugins
 | Capture a learning                      | Read `plugins/launchpad/commands/lp-learn.md` and follow it   |
 | Triage review findings                  | Read `plugins/launchpad/commands/lp-triage.md` and follow it  |
 
-See `plugins/launchpad/commands/` for the full inventory (38 workflows).
+See `plugins/launchpad/commands/` for the full inventory (42 workflows).
 
 ### Known degradation: parallel sub-agent dispatch
 

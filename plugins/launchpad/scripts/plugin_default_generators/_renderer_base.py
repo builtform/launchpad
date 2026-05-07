@@ -57,7 +57,10 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from atomic_io import atomic_write_replace  # noqa: E402
+from atomic_io import (  # noqa: E402
+    atomic_write_replace,
+    atomic_write_replace_batch,
+)
 
 # Generators root. Subdirectories at `kernel/`, `infrastructure/`, and
 # `workflow-config/` each carry their own .j2 templates. The base class
@@ -492,16 +495,40 @@ class RendererBase:
         allowlist_path: Path | None = None,
         template_sources: Mapping[Path, str] | None = None,
     ) -> None:
-        """Atomically write `batch` to disk only if `scan_batch` returns
-        no findings. If any finding surfaces in any file, NO files are
-        written and `SecretScannerViolation` is raised with the full
-        findings list and the count of refused writes. Phase 8.5 plan
-        section 3.11 (DA1' = a2 atomic-batch-or-none invariant).
+        """Two-phase atomic write of `batch`.
+
+        Phase 0 — secret-scan gate (Phase 8.5 DA1' = a2):
+          Run `scan_batch`; on any finding, NO files are written and
+          `SecretScannerViolation` is raised with the full findings list.
+
+        Phase 1 — stage (atomic — partial failure leaves all targets untouched):
+          For each (target, content) pair, write `content` to a sibling
+          `.<basename>.<random>.tmp` file in the target's parent dir,
+          fsync the tempfile, set the per-file mode. If ANY stage fails,
+          unlink ALL staged tempfiles and raise — original target files
+          on disk are byte-for-byte unchanged.
+
+        Phase 2 — rename (best-effort — same-FS atomic renames make full-batch
+        failure rare but not impossible):
+          Atomic-rename each staged tempfile to its final target path.
+          If a rename fails mid-batch (rare; same-FS guaranteed by the
+          tempfile-in-target-parent layout), the failed-rename file
+          remains as `.tmp` on disk and any prior renames remain at
+          final paths. Caller surface: this post-condition is exposed
+          via the underlying `OSError` propagation; the operator
+          recovers by either completing the rename manually or running
+          /lp-bootstrap --recover.
+
+        v2.1 Codex PR #50 post-review P1: this two-phase shape replaces
+        the previous sequential `atomic_write_replace` loop, which
+        committed each write immediately and could leave the batch in a
+        partial state when a later write failed.
 
         `file_modes`: optional per-target file mode (e.g.,
         infrastructure_renderer's per-file POSIX modes). When provided,
-        atomic_write_replace receives the mode and (with chmod_after_replace
-        true) os.chmod fires after replace as belt-and-braces.
+        the staged tempfile is fchmod'd to that mode before rename and
+        (with chmod_after_replace true) os.chmod fires after rename as
+        belt-and-braces.
         """
         findings = self.scan_batch(
             batch,
@@ -523,18 +550,19 @@ class RendererBase:
             )
 
         modes = file_modes or {}
-        for target_path, content in batch.items():
-            target_path.parent.mkdir(parents=True, exist_ok=True)
-            mode = modes.get(target_path)
-            if mode is None:
-                atomic_write_replace(target_path, content)
-            else:
-                atomic_write_replace(target_path, content, mode=mode)
-                if chmod_after_replace:
-                    try:
-                        os.chmod(target_path, mode)
-                    except OSError:
-                        pass
+        # Two-phase atomic write: stage all targets first, then rename.
+        # See `atomic_write_replace_batch` in atomic_io.py for the
+        # phase-1 (atomic) / phase-2 (best-effort) contract.
+        atomic_write_replace_batch(batch, modes=modes)
+        if chmod_after_replace:
+            for target_path in batch.keys():
+                mode = modes.get(target_path)
+                if mode is None:
+                    continue
+                try:
+                    os.chmod(target_path, mode)
+                except OSError:
+                    pass
 
 
 __all__ = [

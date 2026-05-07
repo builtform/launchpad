@@ -39,6 +39,7 @@ Sequential render (Codex PR #50 P1-B harden):
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import shutil
@@ -80,6 +81,10 @@ class CompositionRejectionCode(StrEnum):
     PATH_TRAVERSAL_IN_WORKSPACE_MAP = "path_traversal_in_workspace_map"
     SYMLINK_IN_SCAFFOLD_TREE = "symlink_in_scaffold_tree"
     RESIDUAL_TAMPERED_TEMPDIR = "residual_tampered_tempdir"
+    # v2.1 Codex PR #50 post-review P0: stale .pre-composition-<sha8> backup
+    # from a prior crashed run is present at the target's sibling slot.
+    # Refuse with clear remediation (run /lp-bootstrap --recover).
+    STALE_PRE_COMPOSITION_BACKUP = "stale_pre_composition_backup"
 
 
 # Phase 4 section 3.12 verbatim catalog.
@@ -511,14 +516,77 @@ def _assert_within(
     return resolved_candidate
 
 
+def _pre_composition_backup_path(target: Path, composition_root: Path) -> Path:
+    """v2.1 Codex PR #50 post-review P0: deterministic backup-path naming.
+
+    Returns `<parent>/<basename>.pre-composition-<sha8>` where sha8 is
+    sha256 of the target's relpath under composition_root. Determinism
+    means a stale backup from a prior crashed run is detectable by
+    name (the user can either rename it back or run /lp-bootstrap
+    --recover after confirming nothing else uses it).
+    """
+    rel = target.relative_to(composition_root).as_posix()
+    sha8 = hashlib.sha256(rel.encode("utf-8")).hexdigest()[:8]
+    return target.with_name(f"{target.name}.pre-composition-{sha8}")
+
+
+def _backup_existing_target(
+    target: Path,
+    composition_root: Path,
+) -> Path | None:
+    """v2.1 Codex PR #50 post-review P0: replace rmtree-then-place with
+    rename-aside-then-place.
+
+    If `target` exists, atomic-rename it to its deterministic backup
+    sibling and return the backup path. If `target` is absent, return
+    None (no backup needed). If the backup path already exists (stale
+    from a prior crash), refuse with `STALE_PRE_COMPOSITION_BACKUP` so
+    the operator decides whether to keep the prior backup or move it
+    aside before re-running.
+
+    Atomic rename preserves the user's pre-existing tree byte-for-byte
+    (no copy cost; same-FS rename guaranteed since composition_root +
+    backup-sibling share the same parent device).
+    """
+    if not target.exists():
+        return None
+    backup = _pre_composition_backup_path(target, composition_root)
+    if backup.exists():
+        raise CompositionAbortError(
+            reason=CompositionRejectionCode.STALE_PRE_COMPOSITION_BACKUP.value,
+            path=backup,
+            remediation=(
+                f"a stale composition backup is present at {backup} from a "
+                f"prior crashed /lp-pick-stack or /lp-scaffold-stack run. "
+                f"Run /lp-bootstrap --recover to clear stale state, OR "
+                f"manually rename {backup} aside if you want to keep it for "
+                f"forensic review before re-running. composition refuses to "
+                f"clobber an unverified backup."
+            ),
+        )
+    os.rename(str(target), str(backup))
+    return backup
+
+
 def _rollback(
     rendered_tempdirs: list[tuple[Adapter, Path]],
     placed_paths: list[Path],
+    backups: "list[tuple[Path, Path]] | None" = None,
 ) -> None:
     """Per Codex PR #50 P1-B harden P1-γ: rollback rmtrees BOTH rendered
     tempdirs AND already-placed `apps/<workspace>/` + composition_root
     package paths in REVERSE order. Errors during cleanup preserve the
     secrets-warning log line VERBATIM from the legacy rollback path.
+
+    v2.1 Codex PR #50 post-review P0: also restore pre-existing target
+    trees from `.pre-composition-<sha8>` backups. Reverse-order:
+      1. Remove placed paths (newly written content).
+      2. Atomic-rename each backup back to its original target path,
+         restoring the user's pre-existing tree byte-for-byte.
+      3. Remove rendered tempdirs.
+
+    Backup restore happens AFTER placed-path removal so the rename slot
+    is clear when restore fires.
     """
     # Reverse-order rmtree of placed paths first (more visible to the
     # operator post-failure).
@@ -535,6 +603,34 @@ def _rollback(
                 placed,
                 cleanup_err,
             )
+    # v2.1 Codex PR #50 post-review P0: restore backups in reverse
+    # order so dependent paths (e.g., apps/web restored before
+    # apps/admin) are slotted back consistently.
+    if backups:
+        for original, backup in reversed(backups):
+            if not backup.exists():
+                continue
+            try:
+                # If the placed-path removal above failed and the
+                # original is still on disk, we cannot restore without
+                # clobbering — leave the backup in place and surface a
+                # loud log so the operator handles it manually.
+                if original.exists():
+                    LOG.error(
+                        "rollback could not restore %s from backup %s: "
+                        "original path still exists post-rollback. Manual "
+                        "intervention required: rm -rf %s && mv %s %s",
+                        original, backup, original, backup, original,
+                    )
+                    continue
+                os.rename(str(backup), str(original))
+            except OSError as restore_err:
+                LOG.error(
+                    "rollback restore failed for %s -> %s; manual cleanup "
+                    "required (backup at %s contains user's pre-composition "
+                    "tree; mv it back manually): %s",
+                    backup, original, backup, restore_err,
+                )
     for adapter, tempdir in rendered_tempdirs:
         try:
             shutil.rmtree(tempdir, ignore_errors=False)
@@ -644,6 +740,10 @@ def compose(
     # on adapter identity to eliminate the legacy O(n²) `next()` scan.
     rendered: dict[int, tuple[Adapter, Path]] = {}
     placed: list[Path] = []
+    # v2.1 Codex PR #50 post-review P0: backup-before-clobber tracking.
+    # Each entry is `(original_target_path, backup_path)`; rollback
+    # restores by atomic-renaming backup -> original.
+    backups: list[tuple[Path, Path]] = []
     try:
         for adapter in adapters:
             tempdir = tmp_root / f"lp-{adapter.stack_id}-{uuid.uuid4().hex[:8]}"
@@ -703,11 +803,14 @@ def compose(
                     f"apps/{entry.dest_workspace_name}"
                 ),
             )
-            # Per harden P2-ζ: explicit rmtree-then-replace for re-run
-            # idempotency under composition mode (composition_root is
-            # whole-project-replace by contract).
-            if workspace_target.exists():
-                shutil.rmtree(workspace_target)
+            # v2.1 Codex PR #50 post-review P0: replace rmtree-then-place
+            # with backup-rename-then-place. Atomic rename preserves the
+            # user's pre-existing tree byte-for-byte; rollback can
+            # restore it if placement fails. Refuse if a stale backup
+            # already exists (prior crashed run).
+            backup = _backup_existing_target(workspace_target, composition_root)
+            if backup is not None:
+                backups.append((workspace_target, backup))
             os.replace(str(src), str(workspace_target))
             placed.append(workspace_target)
 
@@ -736,8 +839,12 @@ def compose(
                     composition_root,
                     field_name=f"package path {pkg_relpath!r}",
                 )
-                if dst.exists():
-                    shutil.rmtree(dst)
+                # v2.1 Codex PR #50 post-review P0: backup-rename-then-place
+                # for package paths too (same data-loss risk as workspace
+                # paths above).
+                backup = _backup_existing_target(dst, composition_root)
+                if backup is not None:
+                    backups.append((dst, backup))
                 os.replace(str(src), str(dst))
                 placed.append(dst)
 
@@ -763,6 +870,7 @@ def compose(
         _rollback(
             [(a, td) for (a, td) in rendered.values() if td.exists()],
             placed,
+            backups=backups,
         )
         raise
 

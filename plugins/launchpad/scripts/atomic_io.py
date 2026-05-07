@@ -38,7 +38,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Mapping
 
 
 __all__ = [
@@ -165,6 +165,79 @@ def atomic_write_replace(
             tmp.unlink()
         raise
     _fsync_parent(target)
+
+
+def atomic_write_replace_batch(
+    batch: "Mapping[Path, bytes]",
+    *,
+    modes: "Mapping[Path, int] | None" = None,
+    default_mode: int = 0o600,
+) -> None:
+    """Two-phase atomic write of `batch` (v2.1 Codex PR #50 post-review P1).
+
+    Phase 1 — stage (atomic — partial failure leaves all targets untouched):
+      For each `(target, content)` pair, write content into a sibling
+      `.<basename>.<random>.tmp` in the target's parent dir; fsync;
+      fchmod to the per-target mode (or `default_mode`). If any stage
+      fails, unlink ALL staged tempfiles and raise — original target
+      files on disk are byte-for-byte unchanged.
+
+    Phase 2 — rename (best-effort — same-FS atomic renames make full-batch
+    failure rare but not impossible):
+      Atomic-rename each staged tempfile to its final path. Same-FS
+      rename is guaranteed because the tempfile lives in the target's
+      parent dir. If a rename fails mid-batch, the failed tempfile
+      remains on disk as `.tmp` and any prior renames remain at final
+      paths — the operator surface is the propagated `OSError`.
+
+    Replaces the prior sequential `atomic_write_replace` loop in
+    `RendererBase.write_batch()`, which committed each write
+    immediately and could leave the batch in a partial state when a
+    later write failed. Lint allowlist rule applies to this helper
+    too — see `plugin-v2-handshake-lint.py
+    ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS`.
+    """
+    modes = modes or {}
+    staged: list[tuple[Path, Path]] = []
+    in_flight_tmp: Path | None = None
+    try:
+        for target, content in batch.items():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            mode = modes.get(target, default_mode)
+            fd, tmp_name = tempfile.mkstemp(
+                prefix=f".{target.name}.",
+                suffix=".tmp",
+                dir=str(target.parent),
+            )
+            in_flight_tmp = Path(tmp_name)
+            try:
+                try:
+                    os.fchmod(fd, mode)
+                except OSError:
+                    pass
+                os.write(fd, content)
+                os.fsync(fd)
+                _full_fsync_darwin(fd)
+            finally:
+                os.close(fd)
+            staged.append((target, in_flight_tmp))
+            in_flight_tmp = None
+    except BaseException:
+        # Clean up the in-flight tmp (created by mkstemp but not yet
+        # appended to `staged` — happens when fchmod / os.write / fsync
+        # raises mid-staging). Then unlink all already-staged tmp files
+        # so the caller observes byte-for-byte unchanged target files.
+        if in_flight_tmp is not None:
+            with contextlib.suppress(OSError):
+                in_flight_tmp.unlink()
+        for _target, tmp in staged:
+            with contextlib.suppress(OSError):
+                tmp.unlink()
+        raise
+
+    for target, tmp in staged:
+        os.replace(str(tmp), str(target))
+        _fsync_parent(target)
 
 
 @contextlib.contextmanager

@@ -331,6 +331,14 @@ def _entry_files_match_manifest(entry_dir: Path) -> bool:
     v2.1 Codex PR #50 P0 (D9.1) read-side mirror: also invalidate when
     a non-regular non-directory entry has appeared in the cache subtree
     (e.g., post-mount mirror attack via tmpfs symlink swap).
+
+    v2.1 Codex PR #50 post-review P2: an empty `files` array in the
+    manifest does NOT short-circuit the extra-file check. A cache entry
+    with `.ready` + an empty/corrupt `files` list and an unexpected
+    payload file on disk previously passed verification; that bypass
+    is closed by always building `actual` and comparing to
+    `expected_files` (an empty expected set requires an empty actual
+    set, sentinel files excluded).
     """
     expected_path = entry_dir / EXPECTED_FILES_FILE
     try:
@@ -338,8 +346,6 @@ def _entry_files_match_manifest(entry_dir: Path) -> bool:
     except (OSError, json.JSONDecodeError):
         return False
     expected_files = set(manifest.get("files", []))
-    if not expected_files:
-        return True
 
     if _walk_for_disallowed_entries(entry_dir) is not None:
         return False

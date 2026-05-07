@@ -614,7 +614,14 @@ ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS = (
     # filter pipeline.
     "plugins/launchpad/scripts/plugin-restamp-redact-wip.py",
 )
-ATOMIC_WRITE_REPLACE_NAMES = ("atomic_write_replace",)
+# v2.1 Codex PR #50 post-review P1: `atomic_write_replace_batch` is the
+# two-phase shape introduced for `RendererBase.write_batch()`. It uses
+# the same primitives (mkstemp/fsync/fchmod/os.replace/_fsync_parent)
+# and is gated by the same allowlist; the lint scans for either symbol.
+ATOMIC_WRITE_REPLACE_NAMES = (
+    "atomic_write_replace",
+    "atomic_write_replace_batch",
+)
 ATOMIC_WRITE_REPLACE_SCAN_GLOBS = (
     "plugins/launchpad/scripts/**/*.py",
 )
