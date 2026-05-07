@@ -94,9 +94,17 @@ def make_decision(
     else:
         rationale_path, rsha = write_rationale(cwd, rationale_body)
 
+    # v2.1.0 completion plan §3.3: `stacks` is the v2.1 dispatch surface
+    # (`engine.py` reads it post-validation and routes via
+    # `dispatch_by_stack_ids`). `derive_stacks` translates legacy catalog
+    # shortnames to STACK_ID_ACTIVE_ENUM members.
+    from lp_pick_stack.decision_writer import derive_stacks  # noqa: PLC0415
+
+    layers_payload = [dict(layer) for layer in layers]
     payload = {
         "version": version,
-        "layers": [dict(layer) for layer in layers],
+        "layers": layers_payload,
+        "stacks": derive_stacks(layers_payload),
         "monorepo": bool(monorepo),
         "matched_category_id": matched_category_id,
         "rationale_path": ".launchpad/rationale.md",

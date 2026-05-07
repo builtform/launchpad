@@ -29,9 +29,14 @@ def test_resolve_adapter_returns_adapter_protocol_instances():
         assert isinstance(adapter, Adapter), sid
 
 
-def test_resolve_adapter_rejects_unknown_stack_id():
+def test_resolve_adapter_rejects_truly_unknown_stack_id():
+    """v2.1.0 completion plan §3.1: ids outside both
+    `_ADAPTER_REGISTRY` and `_V22_CANDIDATE_IDS` raise
+    `unknown_v21_stack_id`. (`rails` is now a v2.2 candidate per
+    STACK_ID_ACTIVE_ENUM, so it falls into `v22_candidate_unsupported`
+    instead — covered by `test_dispatch_v210_completion.py`.)"""
     with pytest.raises(ScaffoldStepFailedError) as exc:
-        resolve_adapter("rails")
+        resolve_adapter("not_a_real_stack_id_anywhere")
     assert exc.value.reason == "unknown_v21_stack_id"
 
 

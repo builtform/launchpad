@@ -8,11 +8,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 Tracked in [ROADMAP.md](ROADMAP.md). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` (BL-251 through BL-254) for v2.2-deferred items captured during v2.1 ship.
 
-## [2.1.0] -- 2026-05-06
+## [2.1.0]
 
-Architecture refresh: composition wrapper, sealed identity, brownfield-safe re-runs. v2.1 layers a per-stack composition wrapper, a sealed identity contract, and a brownfield-aware re-run path on top of the v2.0 four-command greenfield pipeline. Two new commands ship (`/lp-bootstrap`, `/lp-update-identity`) and the v2.0 four-command greenfield pipeline keeps its v2.0 behavior end-to-end.
+`/lp-scaffold-stack` now actually scaffolds via specialized v2.1 adapters — the v2.1 Adapter Protocol's `dispatch_by_stack_ids` is wired in production for the 5 active stacks (`ts_monorepo`, `nextjs_standalone`, `nextjs_fastapi`, `astro`, `generic`). The 5 v2.2-candidate stacks (`python_django`, `python_generic`, `nextjs_hono_cloudflare`, `nextjs_trpc_prisma`, `rails`) require explicit opt-in via `--accept-v22-fallback`; v2.2 ships dedicated support. Schema 1.0 decisions are now hard-rejected at validate time — v2.0 reached zero in-the-wild adoption before v2.1 ship; the rejection message names the regeneration recipe verbatim.
 
 Full release notes in [docs/releases/v2.1.0.md](docs/releases/v2.1.0.md).
+
+### Added (v2.1.0 ship)
+
+- `dispatch_by_stack_ids` wired in `/lp-scaffold-stack`'s production pipeline; legacy `materialize_layer` orchestrate/curate path deleted (`layer_materializer.py` removed)
+- `--accept-v22-fallback` kwarg surface on `run_pipeline` for v2.2-candidate stack-ids; receipt records `adapter_dispatch_meta.fallback_ids` when used
+- `dispatch_enumeration.py` module: post-dispatch workspace walker with symlink rejection, cwd-containment check, `.git*` + credential-dotdir exclusion, 50k-file cap
+- Receipt schema gains `LayerReceiptEntry` TypedDict (replaces deleted `MaterializationResult` dataclass) + `adapter_dispatch_meta` allowlisted sibling
+- Decision schema_1.1 envelope gains `_META_KEY_REGEX` + `_ALLOWED_DECISION_META_KEYS` allowlist; new `*_meta` keys require schema_version bump
+
+### Bug fixes (v2.1.0 ship)
+
+- `atomic_io._write_all` POSIX short-write loop at all 3 atomic-write call sites (was `os.write` once; could silently truncate)
+- Case E "y" all-files-missing schema corruption fix: signal moves from `_meta` smuggled into `kernel_render_state` (corrupted per-file uniform shape) to a top-level `kernel_render_state_meta` sibling
+- Workflow SHA-pinning at all 8 sites (root + `.j2` templates) with new lefthook grep gate enforcing the pin
+- Downstream `.j2` workflows gain `permissions: { contents: read }` and `persist-credentials: false` on `actions/checkout`
+- `--seed-brownfield` reframed as `--dry-run`-only at v2.1.0; non-dry-run create path lands at v2.1.1 BL-271
+- `lp-scaffold-stack.md` doc drift reconciled to the new v2.1 dispatch surface
 
 ### Added
 

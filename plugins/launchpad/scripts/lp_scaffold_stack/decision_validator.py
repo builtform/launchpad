@@ -95,6 +95,22 @@ _FORBIDDEN_BULLET_RE = re.compile(
 _MAX_BULLET_CHARS = 240
 
 
+# v2.1.0 completion plan §3.5: `*_meta` allowlist for the v1.1 envelope.
+# Adding a new `*_meta` sibling key requires a `schema_version` bump
+# (1.1 -> 1.2). v2.1.x will NOT introduce new `*_meta` keys.
+_ALLOWED_DECISION_META_KEYS: frozenset[str] = frozenset({
+    "kernel_render_state_meta",
+})
+
+# Cycle-5 lock per v2.1.0 completion plan §3.5: `_META_KEY_REGEX` is a
+# strict identifier-shape regex with `\Z` source anchor (defense-in-depth
+# against future refactor swapping `fullmatch()` -> `match()`/`search()`).
+# Lower-case ASCII identifier ending in `_meta`; rejects bare `_meta`,
+# `Foo_Meta` (mixed case), unicode-prefix variants, and `1_meta` (leading
+# digit) — all four cases are exercised in test_dispatch_v210_completion.
+_META_KEY_REGEX = re.compile(r"[a-z][a-z0-9_]*_meta\Z")
+
+
 @dataclass(frozen=True)
 class Accepted:
     """Validation passed. Payload (with sha256 verified) is included."""
@@ -631,20 +647,82 @@ def validate_decision(
             field_name="sha256",
         )
 
-    # --- v2.1 Codex PR #50 P1.3 (D9.2): schema_version "1.1" envelope ---
-    # When the decision carries `schema_version: "1.1"`, validate the
-    # extended envelope (plugin_version + stacks + identity + optional
-    # kernel_render_state). The legacy 1.0 envelope skips this branch.
-    if decision.get("schema_version") == "1.1":
+    # --- v2.1.0 completion plan §2.2 + §2.3: schema_version dispatch ---
+    # Hard-reject 1.0 BEFORE the 1.1 branch. Order matters: a 1.0 decision
+    # has `layers` but no `stacks`/`identity`, so falling through into the
+    # v1.1 envelope check would surface a less-specific
+    # `v1_1_plugin_version_invalid` rejection. The dedicated branch
+    # carries the regeneration recipe verbatim per §2.3.
+    schema_version = decision.get("schema_version")
+    if schema_version == "1.0":
+        return Rejected(
+            reason="schema_1_0_unsupported",
+            message=(
+                "schema_version=1.0 (v2.0 layers-only) decisions are not "
+                "supported by v2.1; v2.0 reached zero in-the-wild adoption "
+                "before v2.1 ship. To regenerate: (1) back up "
+                ".launchpad/scaffold-decision.json if you want to keep a "
+                "copy of the prior decision, (2) run /lp-pick-stack — it "
+                "is idempotent on layer inputs and produces a v1.1 schema "
+                "decision losslessly from the same layer choices, "
+                "(3) re-run /lp-scaffold-stack."
+            ),
+            field_name="schema_version",
+        )
+    if schema_version == "1.1":
         v11_rej = _validate_v1_1_envelope(decision, cwd)
         if v11_rej is not None:
             return v11_rej
+        # v2.1.0 completion plan §3.5: the `*_meta` allowlist runs after
+        # the v1.1 envelope check so plugin_version/stacks/identity gates
+        # surface their specific rejection reasons first.
+        meta_rej = _validate_meta_keys_allowlist(
+            decision,
+            allowed=_ALLOWED_DECISION_META_KEYS,
+            payload_kind="decision",
+        )
+        if meta_rej is not None:
+            return meta_rej
 
     return Accepted(
         payload=dict(decision),
         nonce=nonce,
         bound_cwd=dict(decision["bound_cwd"]),
     )
+
+
+def _validate_meta_keys_allowlist(
+    payload: Mapping[str, Any],
+    *,
+    allowed: frozenset[str],
+    payload_kind: str,
+) -> "Rejected | None":
+    """v2.1.0 completion plan §3.5: enforce the `*_meta` allowlist.
+
+    Pattern-match rule (NOT additive): for each top-level key, iff
+    `_META_KEY_REGEX.fullmatch(key)` AND `key not in allowed` ->
+    Rejected(reason="unknown_meta_field"). Non-`*_meta` keys are
+    unaffected — they are gated by their own positive-shape checks.
+
+    `payload_kind` is woven into `field_name` for forensic traceability
+    when the same allowlist mechanism is reused on the receipt side.
+    """
+    for key in payload:
+        if not isinstance(key, str):
+            continue
+        if not _META_KEY_REGEX.fullmatch(key):
+            continue
+        if key not in allowed:
+            return Rejected(
+                reason="unknown_meta_field",
+                message=(
+                    f"{payload_kind} payload contains *_meta sibling key "
+                    f"{key!r} not in v1.1 allowlist {sorted(allowed)!r}; "
+                    f"new *_meta keys require a schema_version bump"
+                ),
+                field_name=key,
+            )
+    return None
 
 
 def _is_kernel_seed_pending(decision: Mapping[str, Any]) -> bool:

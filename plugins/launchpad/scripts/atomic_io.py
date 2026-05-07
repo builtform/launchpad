@@ -72,6 +72,28 @@ def _fsync_parent(target: Path) -> None:
         os.close(dirfd)
 
 
+def _write_all(fd: int, data: bytes) -> None:
+    """POSIX-safe full-write loop.
+
+    `write(2)` is permitted to perform a short write — on certain
+    filesystems and signal scenarios, `os.write(fd, data)` returns a
+    value smaller than `len(data)`. The bare-call sites prior to
+    v2.1.0 silently truncated. Per v2.1.0 completion plan §4.1: loop
+    until all bytes are flushed; `OSError` propagates so callers can
+    rollback the partial write.
+    """
+    mv = memoryview(data)
+    written = 0
+    while written < len(mv):
+        n = os.write(fd, mv[written:])
+        if n == 0:
+            raise OSError(
+                "atomic_io._write_all: os.write returned 0 with "
+                f"{len(mv) - written} bytes remaining"
+            )
+        written += n
+
+
 def _full_fsync_darwin(fd: int) -> None:
     """Apply F_FULLFSYNC on darwin; no-op elsewhere or on unsupported FS.
 
@@ -117,7 +139,7 @@ def atomic_write_excl(
             os.fchmod(fd, mode)
         except OSError:
             pass
-        os.write(fd, encoded)
+        _write_all(fd, encoded)
         os.fsync(fd)
         _full_fsync_darwin(fd)
     finally:
@@ -154,7 +176,7 @@ def atomic_write_replace(
                 os.fchmod(fd, mode)
             except OSError:
                 pass
-            os.write(fd, encoded)
+            _write_all(fd, encoded)
             os.fsync(fd)
             _full_fsync_darwin(fd)
         finally:
@@ -215,7 +237,7 @@ def atomic_write_replace_batch(
                     os.fchmod(fd, mode)
                 except OSError:
                     pass
-                os.write(fd, content)
+                _write_all(fd, content)
                 os.fsync(fd)
                 _full_fsync_darwin(fd)
             finally:

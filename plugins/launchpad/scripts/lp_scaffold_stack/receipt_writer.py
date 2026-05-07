@@ -19,10 +19,11 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, TypedDict
 
 # Sibling-script imports.
 _SCRIPTS = Path(__file__).resolve().parent.parent
@@ -39,10 +40,50 @@ from lp_scaffold_stack import (  # noqa: E402
 RECEIPT_FILENAME = "scaffold-receipt.json"
 
 
+# v2.1.0 completion plan §3.6: typed entry for `layers_materialized`.
+# Replaces the deleted `MaterializationResult` dataclass — receipt is the
+# publishing surface, so the type lives at the publishing boundary. Each
+# entry's `adapter_used` carries the resolved adapter id (e.g.
+# "nextjs_standalone") so v2.2 readers can replay forensically when a
+# v2.2-candidate routed via the generic fallback at v2.1.0.
+class LayerReceiptEntry(TypedDict):
+    stack: str
+    path: str
+    role: str
+    adapter_used: str
+    files_created: list[str]
+
+
+# v2.1.0 completion plan §3.5: receipt-side `*_meta` allowlist.
+# Mirrors `decision_validator._ALLOWED_DECISION_META_KEYS` on the
+# publishing surface; `adapter_dispatch_meta` is the only v2.1.0 sibling.
+_ALLOWED_RECEIPT_META_KEYS: frozenset[str] = frozenset({
+    "adapter_dispatch_meta",
+})
+
+# Cycle-5 lock per v2.1.0 completion plan §3.5: identical regex to the
+# validator-side `_META_KEY_REGEX`. Duplicated by-design at this seam to
+# keep the two surfaces independent (no shared helper at module scope).
+_META_KEY_REGEX = re.compile(r"[a-z][a-z0-9_]*_meta\Z")
+
+
 class ReceiptWriteError(RuntimeError):
     """Raised on receipt-write failure. Carries `reason:` field."""
 
     def __init__(self, message: str, reason: str):
+        super().__init__(message)
+        self.reason = reason
+
+
+class ReceiptBuildError(ValueError):
+    """Raised when a receipt payload contains a disallowed `*_meta` key.
+
+    Per v2.1.0 completion plan §3.5: receipts forbid `*_meta` siblings
+    outside `_ALLOWED_RECEIPT_META_KEYS`. Symmetric to the validator-side
+    `Rejected(reason="unknown_meta_field")` path on scaffold-decision.json.
+    """
+
+    def __init__(self, message: str, *, reason: str = "unknown_meta_field"):
         super().__init__(message)
         self.reason = reason
 
@@ -62,12 +103,20 @@ def build_receipt_payload(
     tier1_governance_summary: Mapping[str, Any] | None = None,
     scaffolded_at: str | None = None,
     version: str | None = None,
+    adapter_dispatch_meta: Mapping[str, Any] | None = None,
 ) -> dict:
     """Build the receipt payload (sans `sha256` field).
 
     The `tier1_governance_summary` is auto-populated when None: 4 fields per
     HANDSHAKE §5 schema. Callers that need to override any individual count
     pass a complete dict.
+
+    `adapter_dispatch_meta` (per v2.1.0 completion plan §3.5): when a
+    v2.2-candidate stack id routes via the `generic` fallback (only
+    possible with `--accept-v22-fallback`), the engine passes
+    `{"fallback_ids": [...]}` so consumers can detect the fallback for
+    forensic replay. Validated against `_ALLOWED_RECEIPT_META_KEYS` at
+    write time.
     """
     if tier1_governance_summary is None:
         # Per PR #41 cycle 8 #1 closure (Codex P1 + Greptile P1 dual-flag):
@@ -99,7 +148,31 @@ def build_receipt_payload(
         "secret_scan_passed": bool(secret_scan_passed),
         "tier1_governance_summary": dict(tier1_governance_summary),
     }
+    if adapter_dispatch_meta is not None:
+        payload["adapter_dispatch_meta"] = dict(adapter_dispatch_meta)
+    _validate_meta_keys_allowlist(payload)
     return payload
+
+
+def _validate_meta_keys_allowlist(payload: Mapping[str, Any]) -> None:
+    """v2.1.0 completion plan §3.5: enforce the receipt-side `*_meta`
+    allowlist. Raises `ReceiptBuildError` for any disallowed key.
+
+    Pattern-match rule (NOT additive): non-`*_meta` keys are unaffected
+    by this gate; only keys whose shape matches `_META_KEY_REGEX` are
+    checked against `_ALLOWED_RECEIPT_META_KEYS`.
+    """
+    for key in payload:
+        if not isinstance(key, str):
+            continue
+        if not _META_KEY_REGEX.fullmatch(key):
+            continue
+        if key not in _ALLOWED_RECEIPT_META_KEYS:
+            raise ReceiptBuildError(
+                f"receipt payload contains *_meta sibling key {key!r} not "
+                f"in v1.1 allowlist {sorted(_ALLOWED_RECEIPT_META_KEYS)!r}; "
+                f"new *_meta keys require a schema_version bump"
+            )
 
 
 def seal_receipt_payload(payload: Mapping[str, Any]) -> dict:
@@ -186,6 +259,7 @@ def write_receipt(
     tier1_governance_summary: Mapping[str, Any] | None = None,
     scaffolded_at: str | None = None,
     version: str | None = None,
+    adapter_dispatch_meta: Mapping[str, Any] | None = None,
 ) -> tuple[Path, dict]:
     """Build + seal + atomic write. Returns (path, sealed_payload)."""
     payload = build_receipt_payload(
@@ -198,6 +272,7 @@ def write_receipt(
         tier1_governance_summary=tier1_governance_summary,
         scaffolded_at=scaffolded_at,
         version=version,
+        adapter_dispatch_meta=adapter_dispatch_meta,
     )
     sealed = seal_receipt_payload(payload)
     target = write_receipt_atomic(sealed, cwd)
@@ -206,6 +281,8 @@ def write_receipt(
 
 __all__ = [
     "RECEIPT_FILENAME",
+    "LayerReceiptEntry",
+    "ReceiptBuildError",
     "ReceiptWriteError",
     "build_receipt_payload",
     "seal_receipt_payload",

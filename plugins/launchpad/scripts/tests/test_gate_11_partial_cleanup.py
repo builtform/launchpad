@@ -50,6 +50,17 @@ def _two_layer_polyglot(project: Path):
 
 
 def test_partial_failure_emits_scaffold_failed(tmp_path: Path):
+    """v2.1.0 completion plan §3.3: the v2.0 per-layer materialization
+    failure semantics (layer 0 succeeds, layer 1 fails, "partial layer
+    failure" recovery) are gone — `dispatch_by_stack_ids` is unified
+    over `decision["stacks"]`. v2.1.x BL-281 covers cleanup-contract
+    coverage on the new dispatch surface (composition._rollback +
+    single-adapter scaffold_into cleanup are already exercised in
+    `test_composition_pre_existing_backup.py`)."""
+    pytest.skip(
+        "obsolete v2.0 layer_materializer failure semantics; v2.1 "
+        "dispatch cleanup is covered by composition._rollback tests"
+    )
     project = tmp_path / "project"
     project.mkdir()
     decision_path, payload = _two_layer_polyglot(project)
@@ -101,9 +112,15 @@ def test_destructive_path_denylist_at_write_time():
 
 
 def test_rerun_after_fix_succeeds(tmp_path: Path):
-    """After a partial failure, re-running with the same decision file
-    succeeds when the underlying cause is fixed (because the nonce was
-    NOT consumed)."""
+    """v2.1.0 completion plan §3.3: v2.0 layer_materializer is gone;
+    rerun-after-fix is now exercised at the adapter layer where the
+    workspace_target_already_populated reason fires on a re-run with
+    populated apps/<name>/. See `test_single_adapter_apps_wrapping.py`
+    for that coverage."""
+    pytest.skip(
+        "obsolete v2.0 layer_materializer rerun semantics; covered in "
+        "test_single_adapter_apps_wrapping.py"
+    )
     project = tmp_path / "project"
     project.mkdir()
     decision_path, payload = _two_layer_polyglot(project)

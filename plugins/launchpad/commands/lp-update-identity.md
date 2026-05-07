@@ -9,11 +9,19 @@ description: Update sealed identity values (project rename, license change, copy
 
 ```
 /lp-update-identity                              → interactive identity update
-/lp-update-identity --seed-brownfield            → seed identity for legacy v2.0 / manually-created project
+/lp-update-identity --seed-brownfield --dry-run  → preview seeding for legacy v2.0 / manually-created project (v2.1.0: --dry-run-only — see note below)
 /lp-update-identity --allow-email-mismatch       → override git config user.email cross-check (Case D)
 /lp-update-identity --quiet                      → suppress PII WARN print + diff summary (does NOT suppress Case D --seed-brownfield banner, brownfield Continue prompt, or --allow-email-mismatch WARN)
 /lp-update-identity --dry-run                    → compute diff but do not write
 ```
+
+> **v2.1.0 — `--seed-brownfield` is `--dry-run`-only.** The non-dry-run
+> create path is BL-271 (v2.1.1). Invoking `--seed-brownfield` without
+> `--dry-run` returns `BROWNFIELD_SEED_NOT_IMPLEMENTED` (see error
+> codes table below) and does NOT write `scaffold-decision.json`. The
+> dry-run path validates preconditions and reports what would be
+> seeded; this is enough for greenfield-but-late projects to confirm
+> their identity inputs before /lp-pick-stack lands the real flow.
 
 **Arguments**: `$ARGUMENTS` (parse for `--seed-brownfield`, `--allow-email-mismatch`,
 `--quiet`, `--dry-run`).
@@ -79,16 +87,17 @@ Detection-order rule (per DA5): the table is read in flag-then-file-then-schema-
 
 8 codes per DA4 (collapsed from v1's 10):
 
-| Code                          | User category        | Meaning                                                                                                 |
-| ----------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------- |
-| `scaffold_decision_missing`   | Cannot start         | scaffold-decision.json absent / unreadable.                                                             |
-| `identity_update_in_progress` | Cannot start         | another `/lp-update-identity` is running (live PID); OR sentinel JSON corrupt.                          |
-| `bootstrap_in_progress`       | Cannot start         | `/lp-bootstrap` or `/lp-scaffold-stack` is running.                                                     |
-| `permission_denied`           | Cannot start         | `.launchpad/` directory not writable.                                                                   |
-| `user_edit_blocks_refresh`    | Blocked by user edit | per-file: on-disk sha ≠ prior `rendered_content_sha256` (user edited post-render).                      |
-| `identity_validation_failed`  | Validation failure   | identity field fails allowlist regex / forbidden chars / license enum.                                  |
-| `git_config_email_mismatch`   | Brownfield refused   | proposed email mismatches `git config user.email` (fail-closed; override via `--allow-email-mismatch`). |
-| `brownfield_seed_refused`     | Brownfield refused   | scaffold-decision absent without `--seed-brownfield` flag.                                              |
+| Code                              | User category               | Meaning                                                                                                                                                       |
+| --------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scaffold_decision_missing`       | Cannot start                | scaffold-decision.json absent / unreadable.                                                                                                                   |
+| `identity_update_in_progress`     | Cannot start                | another `/lp-update-identity` is running (live PID); OR sentinel JSON corrupt.                                                                                |
+| `bootstrap_in_progress`           | Cannot start                | `/lp-bootstrap` or `/lp-scaffold-stack` is running.                                                                                                           |
+| `permission_denied`               | Cannot start                | `.launchpad/` directory not writable.                                                                                                                         |
+| `user_edit_blocks_refresh`        | Blocked by user edit        | per-file: on-disk sha ≠ prior `rendered_content_sha256` (user edited post-render).                                                                            |
+| `identity_validation_failed`      | Validation failure          | identity field fails allowlist regex / forbidden chars / license enum.                                                                                        |
+| `git_config_email_mismatch`       | Brownfield refused          | proposed email mismatches `git config user.email` (fail-closed; override via `--allow-email-mismatch`).                                                       |
+| `brownfield_seed_refused`         | Brownfield refused          | scaffold-decision absent without `--seed-brownfield` flag.                                                                                                    |
+| `brownfield_seed_not_implemented` | Brownfield refused (v2.1.0) | `--seed-brownfield` invoked without `--dry-run`. The non-dry-run create path lands at v2.1.1 BL-271; until then, use `--dry-run` to preview the seed payload. |
 
 Status codes (info-class returns; not errors): `updated`, `no_op`, `seeded_first_time`.
 

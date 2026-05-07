@@ -121,9 +121,20 @@ def build_decision(
 
     rsha = hashlib.sha256(rationale_body.encode("utf-8")).hexdigest()
 
+    # v2.1.0 completion plan §3.3/§3.4: the `stacks` array is the v2.1
+    # dispatch surface (`engine.py` reads it post-validation and routes
+    # via `dispatch_by_stack_ids`). `derive_stacks` translates legacy
+    # catalog shortnames (e.g. `next`) to STACK_ID_ACTIVE_ENUM members
+    # via the composition-first + singleton fallback so test fixtures
+    # written with v2.0-style layer payloads still reach the v2.1
+    # dispatch path.
+    from lp_pick_stack.decision_writer import derive_stacks  # noqa: PLC0415
+
+    layers_payload = [dict(layer) for layer in stack_combo]
     payload: dict[str, Any] = {
         "version": version,
-        "layers": [dict(layer) for layer in stack_combo],
+        "layers": layers_payload,
+        "stacks": derive_stacks(layers_payload),
         "monorepo": bool(monorepo),
         "matched_category_id": matched_category_id,
         "rationale_path": ".launchpad/rationale.md",

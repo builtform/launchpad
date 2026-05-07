@@ -51,7 +51,13 @@ def _make_tempdir() -> Path:
 
 def _setup_iteration(cwd: Path) -> Path:
     """Write decision + rationale + marker + stub scaffolders.yml. Returns
-    the stub scaffolders.yml path."""
+    the stub scaffolders.yml path.
+
+    v2.1.0 completion plan §3.3 note: the autouse
+    `hermetic_v21_adapters` conftest fixture pre-populates the template
+    cache for every adapter at its pinned SHA, so spawned subprocesses
+    of /lp-scaffold-stack hit the cache and don't reach the network.
+    """
     spec = STACK_COMBOS["A"]
     decision = build_decision(
         spec["stack_combo"], cwd,

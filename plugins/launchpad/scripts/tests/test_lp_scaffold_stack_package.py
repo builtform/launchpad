@@ -24,22 +24,27 @@ def test_package_imports():
 
 
 def test_submodule_imports():
+    """v2.1.0 completion plan §3.6: `layer_materializer` deleted; the
+    v2.1 adapter dispatch surface now lives in `v21_adapter_dispatch` +
+    `dispatch_enumeration`."""
     from lp_scaffold_stack import (
         cleanup_recorder,
         cross_cutting_wirer,
         decision_validator,
+        dispatch_enumeration,
         engine,
-        layer_materializer,
         marker_consumer,
         nonce_ledger,
         receipt_writer,
         rejection_logger,
+        v21_adapter_dispatch,
     )
 
     assert callable(decision_validator.validate_decision)
     assert callable(nonce_ledger.append_nonce)
     assert callable(marker_consumer.consume_marker)
-    assert callable(layer_materializer.materialize_layer)
+    assert callable(v21_adapter_dispatch.dispatch_by_stack_ids)
+    assert callable(dispatch_enumeration.enumerate_files)
     assert callable(cross_cutting_wirer.wire_cross_cutting)
     assert callable(receipt_writer.write_receipt)
     assert callable(rejection_logger.write_rejection)

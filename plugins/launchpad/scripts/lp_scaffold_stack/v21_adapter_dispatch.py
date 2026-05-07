@@ -29,6 +29,7 @@ import uuid
 from pathlib import Path
 from typing import Iterable
 
+from plugin_default_generators._renderer_base import STACK_ID_ACTIVE_ENUM
 from plugin_stack_adapters.composition import (
     CompositionAbortError,
     CompositionRejectionCode,
@@ -55,23 +56,70 @@ _ADAPTER_REGISTRY: dict[str, str] = {
     "generic": "plugin_stack_adapters.generic",
 }
 
+# v2.1.0 completion plan §3.1 D1a: v2.2-candidate stack-ids partition,
+# derived from `STACK_ID_ACTIVE_ENUM - frozenset(_ADAPTER_REGISTRY)` so
+# the partition invariant is structural (any future addition to
+# STACK_ID_ACTIVE_ENUM auto-classifies as candidate-or-active by registry
+# membership; drift becomes impossible). Replaces the cycle-0 drift-gate
+# test approach with a one-line invariant.
+_V22_CANDIDATE_IDS: frozenset[str] = (
+    STACK_ID_ACTIVE_ENUM - frozenset(_ADAPTER_REGISTRY)
+)
 
-def resolve_adapter(stack_id: str) -> Adapter:
-    """Look up the v2.1 ADAPTER singleton for a closed-enum stack id."""
-    if stack_id not in _ADAPTER_REGISTRY:
-        raise ScaffoldStepFailedError(
-            reason="unknown_v21_stack_id",
-            path=None,
-            remediation=(
-                f"stack_id {stack_id!r} not in v2.1 active set "
-                f"{tuple(_ADAPTER_REGISTRY)!r}; use the generic fallback or "
-                f"file a v2.2 adapter request"
-            ),
-        )
+
+def resolve_adapter(
+    stack_id: str,
+    *,
+    accept_v22_fallback: bool = False,
+) -> Adapter:
+    """Look up the v2.1 ADAPTER singleton for a closed-enum stack id.
+
+    For v2.2-candidate ids without an active Adapter Protocol
+    implementation: hard-fail unless `accept_v22_fallback=True`. With the
+    flag, route via the `generic` adapter and emit stderr WARN; the
+    caller persists `adapter_dispatch_meta.fallback_ids` to the receipt.
+
+    Per 2026-05-08-v2.1.0-completion-plan.md §2.1.1: silent generic
+    fallback is a confused-deputy hazard (user picks `nextjs_hono_*`,
+    artifact is a blank shell, divergence invisible until workspace
+    open). Flag-gated opt-in keeps the catalog-alias pattern available
+    for power users while preserving discoverability.
+    """
     import importlib
 
-    module = importlib.import_module(_ADAPTER_REGISTRY[stack_id])
-    return module.ADAPTER  # type: ignore[no-any-return]
+    if stack_id in _ADAPTER_REGISTRY:
+        return importlib.import_module(_ADAPTER_REGISTRY[stack_id]).ADAPTER  # type: ignore[no-any-return]
+
+    if stack_id in _V22_CANDIDATE_IDS:
+        if not accept_v22_fallback:
+            raise ScaffoldStepFailedError(
+                reason="v22_candidate_unsupported",
+                path=None,
+                remediation=(
+                    f"stack_id {stack_id!r} ships specialized support in "
+                    f"v2.2; pass --accept-v22-fallback to scaffold via the "
+                    f"generic adapter at v2.1.0 (a minimal, framework-"
+                    f"agnostic workspace shell — framework-specific "
+                    f"scaffolding ships in v2.2)"
+                ),
+            )
+        import sys
+        print(
+            f"[v2.1 dispatch] stack_id {stack_id!r} routed via generic "
+            f"adapter — no specialized v2.1 adapter; v2.2 ships dedicated "
+            f"support; --accept-v22-fallback acknowledged",
+            file=sys.stderr,
+        )
+        return importlib.import_module(_ADAPTER_REGISTRY["generic"]).ADAPTER  # type: ignore[no-any-return]
+
+    raise ScaffoldStepFailedError(
+        reason="unknown_v21_stack_id",
+        path=None,
+        remediation=(
+            f"stack_id {stack_id!r} not in STACK_ID_ACTIVE_ENUM "
+            f"{tuple(_ADAPTER_REGISTRY) + tuple(sorted(_V22_CANDIDATE_IDS))!r}"
+        ),
+    )
 
 
 def _dispatch_single_adapter_into_apps(
@@ -309,11 +357,20 @@ def dispatch_composition(
 
 
 def dispatch_by_stack_ids(
-    stack_ids: list[str], workspace_dir: Path
+    stack_ids: list[str],
+    workspace_dir: Path,
+    *,
+    accept_v22_fallback: bool = False,
 ) -> CompositionResult | Path:
     """One entrypoint for callers that have stack_ids and want a uniform
     return surface. Single-id: returns the populated workspace_dir.
     Multi-id: returns the CompositionResult.
+
+    `accept_v22_fallback` (kwarg-only per cycle-3 of the v2.1.0
+    completion plan §2.1.1): when True, v2.2-candidate stack ids route
+    via the `generic` adapter instead of hard-failing. The caller is
+    responsible for persisting the fallback list to
+    `adapter_dispatch_meta.fallback_ids` on the scaffold receipt.
     """
     if len(stack_ids) == 0:
         raise ScaffoldStepFailedError(
@@ -322,15 +379,39 @@ def dispatch_by_stack_ids(
             remediation="at least one stack_id is required",
         )
     if len(stack_ids) == 1:
-        adapter = resolve_adapter(stack_ids[0])
+        adapter = resolve_adapter(
+            stack_ids[0], accept_v22_fallback=accept_v22_fallback
+        )
         return dispatch_single_adapter(adapter, workspace_dir)
-    adapters = [resolve_adapter(sid) for sid in stack_ids]
+    adapters = [
+        resolve_adapter(sid, accept_v22_fallback=accept_v22_fallback)
+        for sid in stack_ids
+    ]
     return dispatch_composition(adapters, workspace_dir)
 
 
+def fallback_ids_used(
+    stack_ids: list[str], *, accept_v22_fallback: bool
+) -> list[str]:
+    """Return the post-validation intersection of `stack_ids` with the
+    v2.2-candidate set, only when the fallback flag is in effect.
+
+    Per 2026-05-08-v2.1.0-completion-plan.md §3.5: the engine persists
+    this list as `adapter_dispatch_meta.fallback_ids` on the scaffold
+    receipt. Bounded by the N=2 composition cap and STACK_ID_ACTIVE_ENUM
+    membership; v2.2 readers MUST treat the field as historical record
+    (validate against v2.1.0's union, not v2.2's then-current enum).
+    """
+    if not accept_v22_fallback:
+        return []
+    return [sid for sid in stack_ids if sid in _V22_CANDIDATE_IDS]
+
+
 __all__ = [
+    "_V22_CANDIDATE_IDS",
     "resolve_adapter",
     "dispatch_single_adapter",
     "dispatch_composition",
     "dispatch_by_stack_ids",
+    "fallback_ids_used",
 ]

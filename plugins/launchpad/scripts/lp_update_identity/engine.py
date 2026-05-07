@@ -728,17 +728,49 @@ def run_update_identity(
             all_files_missing = all(
                 e.get("missing_on_disk", False) for e in on_disk_state
             )
-            new_kernel_state: list[dict] | None = list(on_disk_state)
+            # v2.1.0 completion plan §4.3 fix: drop the `_meta` dict
+            # smuggled into `new_kernel_state` (corrupted the per-file
+            # uniform shape). Seed `source_template_sha256` AS
+            # `rendered_content_sha256` for missing files so the next
+            # `/lp-bootstrap --refresh` sees matching SHAs and re-renders
+            # cleanly rather than misclassifying as user-edit. Per-file
+            # fork: when SOME files are missing (mixed state), seal SHAs
+            # only on the missing entries; preserve on-disk state for the
+            # rest. The all-files-missing signal is now a top-level
+            # `kernel_render_state_meta` sibling key sealed alongside
+            # `kernel_render_state` (see `_apply_identity_update`).
+            kernel_render_state_meta: dict[str, Any] | None = None
             if all_files_missing:
-                # Stamp meta on the state list so /lp-review can surface
-                # the recovery hint per D6.
-                new_kernel_state.append({
-                    "_meta": "all_files_missing",
+                new_kernel_state = [
+                    {
+                        **e,
+                        "rendered_content_sha256": e.get(
+                            "source_template_sha256"
+                        ),
+                    }
+                    for e in on_disk_state
+                ]
+                kernel_render_state_meta = {
+                    "all_files_missing": True,
                     "remediation": (
                         "all kernel files missing on disk; run "
                         "/lp-bootstrap --refresh to regenerate"
                     ),
-                })
+                }
+            else:
+                new_kernel_state = [
+                    (
+                        {
+                            **e,
+                            "rendered_content_sha256": e.get(
+                                "source_template_sha256"
+                            ),
+                        }
+                        if e.get("missing_on_disk", False)
+                        else dict(e)
+                    )
+                    for e in on_disk_state
+                ]
         else:
             # Step 6: KernelRenderer.refresh() runs FIRST so any failure
             # leaves scaffold-decision.json with the prior identity rather
@@ -756,6 +788,7 @@ def run_update_identity(
                 list(result.kernel_render_state)
                 if result.kernel_render_state else None
             )
+            kernel_render_state_meta = None
 
         # Step 7: scaffold-decision atomic re-seal -- AFTER successful refresh.
         # Combines identity update + kernel_render_state into one atomic
@@ -815,11 +848,20 @@ def run_update_identity(
             payload["plugin_version"] = new_plugin_version
             # Fold kernel_render_state into the same atomic write via the
             # mark_kernel_seeded helper. Skip when refresh produced no
-            # state (no-op cases) to preserve prior behavior.
+            # state (no-op cases) to preserve prior behavior. v2.1.0
+            # completion plan §4.3: when Case E "y" detected
+            # all-files-missing, also seal `kernel_render_state_meta` as
+            # a top-level sibling so consumers (`/lp-review`) can surface
+            # the recovery hint without poisoning the per-file
+            # `kernel_render_state` schema.
             if new_kernel_state is not None:
                 sealed = mark_kernel_seeded(payload, new_kernel_state)
                 payload.clear()
                 payload.update(sealed)
+                if kernel_render_state_meta is not None:
+                    payload["kernel_render_state_meta"] = (
+                        kernel_render_state_meta
+                    )
 
         re_seal_decision_atomic(cwd, update_fn=_apply_identity_update)
     finally:

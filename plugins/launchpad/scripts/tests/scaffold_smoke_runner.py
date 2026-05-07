@@ -50,6 +50,8 @@ import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
+
+import pytest
 from pathlib import Path
 from typing import Any, Callable
 
@@ -666,7 +668,14 @@ def test_smoke_a_astro_static_blog():
 
 
 def test_smoke_b_fastapi_curate():
-    _assert_test_result(_run_b())
+    """v2.1.0 completion plan §3.6: the v2.0 curate mechanism (and the
+    `layer_materializer` module that drove it) has been deleted. The
+    `fastapi` catalog shortname now maps to `python_generic` — a
+    v2.2-candidate that requires `--accept-v22-fallback` to dispatch.
+    Smoke coverage for v2.2 adapters lands with v2.2 BL-275."""
+    pytest.skip(
+        "obsolete v2.0 curate-mode test; v2.2 adapters land per BL-275"
+    )
 
 
 def test_smoke_c_polyglot_next_fastapi():
