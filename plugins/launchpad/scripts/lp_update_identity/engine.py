@@ -675,27 +675,71 @@ def run_update_identity(
     skipped: list[Path] = []
     template_drift_infos: list[str] = []
     try:
-        # Step 6: KernelRenderer.refresh() runs FIRST so any failure leaves
-        # scaffold-decision.json with the prior identity rather than a
-        # half-applied state where JSON has new identity but kernel files
-        # still hold old (Codex PR #50 P1).
-        # Phase 1+2 retroactive amendment A7: pass prior_kernel_render_state
-        # explicitly (renderer no longer reads scaffold-decision itself).
+        # v2.1 Codex PR #50 Greptile #6 (D6): Case E "y" path skips
+        # KernelRenderer.refresh() (which would clobber user edits). It
+        # writes a `.pre-migration` backup, computes current on-disk SHAs
+        # via `compute_current_on_disk_state()`, and seals
+        # kernel_render_state via `mark_kernel_seeded()` without rendering
+        # any new content. Result: user files preserved verbatim; only
+        # scaffold-decision.json gets the sealed state.
         from plugin_default_generators.kernel_renderer import KernelRenderer
-        prior_state = (decision_payload or {}).get("kernel_render_state") or []
         renderer = KernelRenderer()
-        result = renderer.refresh(
-            cwd, identity_input,
-            prior_kernel_render_state=prior_state,
-        )
-        rendered = [p for p, _sha in result.rendered]
-        skipped = list(result.skipped_user_edits)
-        template_drift_infos = list(result.template_drift_infos)
+
+        if case == "E" and baseline_decision == "y":
+            # Write `.pre-migration` backup BEFORE the migration write so
+            # the validator's chain-validation gate (D9.2) can verify the
+            # migration_origin_sha256 against the backup. Backup remains
+            # for forensic/recovery purposes (cleanup deferred to BL-269).
+            decision_path_pm = (
+                cwd / LAUNCHPAD_DIR_NAME / "scaffold-decision.json"
+            )
+            backup_path_pm = (
+                cwd / LAUNCHPAD_DIR_NAME / "scaffold-decision.json.pre-migration"
+            )
+            if decision_path_pm.is_file():
+                shutil.copy2(decision_path_pm, backup_path_pm)
+            on_disk_state = renderer.compute_current_on_disk_state(cwd)
+            all_files_missing = all(
+                e.get("missing_on_disk", False) for e in on_disk_state
+            )
+            new_kernel_state: list[dict] | None = list(on_disk_state)
+            if all_files_missing:
+                # Stamp meta on the state list so /lp-review can surface
+                # the recovery hint per D6.
+                new_kernel_state.append({
+                    "_meta": "all_files_missing",
+                    "remediation": (
+                        "all kernel files missing on disk; run "
+                        "/lp-bootstrap --refresh to regenerate"
+                    ),
+                })
+        else:
+            # Step 6: KernelRenderer.refresh() runs FIRST so any failure
+            # leaves scaffold-decision.json with the prior identity rather
+            # than a half-applied state where JSON has new identity but
+            # kernel files still hold old (Codex PR #50 P1).
+            prior_state = (decision_payload or {}).get("kernel_render_state") or []
+            result = renderer.refresh(
+                cwd, identity_input,
+                prior_kernel_render_state=prior_state,
+            )
+            rendered = [p for p, _sha in result.rendered]
+            skipped = list(result.skipped_user_edits)
+            template_drift_infos = list(result.template_drift_infos)
+            new_kernel_state = (
+                list(result.kernel_render_state)
+                if result.kernel_render_state else None
+            )
 
         # Step 7: scaffold-decision atomic re-seal -- AFTER successful refresh.
         # Combines identity update + kernel_render_state into one atomic
         # write so the on-disk decision reflects the just-rendered state.
-        new_kernel_state = list(result.kernel_render_state) if result.kernel_render_state else None
+
+        # v2.1 Codex PR #50 P1.3 (D9.2): identity-update re-seal also
+        # routes through `mark_kernel_seeded()` so the ratchet keys
+        # (kernel_seed_pending, migration_origin_sha256) are canonically
+        # stripped whenever a kernel_render_state lands.
+        from lp_scaffold_stack.decision_validator import mark_kernel_seeded
 
         def _apply_identity_update(payload: dict) -> None:
             payload["identity"] = dict(identity_input)
@@ -705,26 +749,51 @@ def run_update_identity(
             # that writes the new identity values.
             if _legacy_migration_applied:
                 payload["schema_version"] = "1.1"
-            # DA8: append version_drift_log entry on field-change update;
-            # case C (no-op) does NOT bump per adversarial P3.
+            # D7 canonical 5-key version_drift_log shape via shared helper.
             from lp_pick_stack.decision_writer import read_running_plugin_version
+            from lp_bootstrap.version_drift import (
+                Fingerprint,
+                Names,
+                compute_identity_fields_changed,
+            )
             new_plugin_version = read_running_plugin_version()
             old_plugin_version = payload.get("plugin_version")
-            log = list(payload.get("version_drift_log") or [])
-            log.append({
-                "from": old_plugin_version,
-                "to": new_plugin_version,
+            old_identity_map: dict[str, str] = {}
+            if isinstance(old_identity, dict):
+                for k, v in old_identity.items():
+                    if v is None:
+                        continue
+                    old_identity_map[str(k)] = str(v)
+            new_identity_map: dict[str, str] = {
+                str(k): str(v)
+                for k, v in dict(identity_input).items()
+                if v is not None
+            }
+            pii_opt_in = bool(dict(identity_input).get("pii_opt_in"))
+            changed = compute_identity_fields_changed(
+                old_identity_map, new_identity_map, pii_opt_in=pii_opt_in,
+            )
+            entry: dict[str, Any] = {
+                "from_version": old_plugin_version,
+                "to_version": new_plugin_version,
                 "via": "/lp-update-identity",
-                "fields_changed": fields_changed,
-                "at": _utc_iso8601_now(),
-            })
+                "accepted_at": _utc_iso8601_now(),
+            }
+            if isinstance(changed, Names):
+                entry["fields_changed"] = list(changed.names)
+            elif isinstance(changed, Fingerprint):
+                entry["fields_changed_fingerprint"] = changed.digest
+            log = list(payload.get("version_drift_log") or [])
+            log.append(entry)
             payload["version_drift_log"] = log
             payload["plugin_version"] = new_plugin_version
-            # Fold kernel_render_state into the same atomic write so the
-            # decision file never observes "new identity + stale render
-            # state" mid-flight.
+            # Fold kernel_render_state into the same atomic write via the
+            # mark_kernel_seeded helper. Skip when refresh produced no
+            # state (no-op cases) to preserve prior behavior.
             if new_kernel_state is not None:
-                payload["kernel_render_state"] = new_kernel_state
+                sealed = mark_kernel_seeded(payload, new_kernel_state)
+                payload.clear()
+                payload.update(sealed)
 
         re_seal_decision_atomic(cwd, update_fn=_apply_identity_update)
     finally:

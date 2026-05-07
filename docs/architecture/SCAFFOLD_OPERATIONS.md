@@ -928,4 +928,39 @@ Cross-references: HANDSHAKE §14 (manifest contract), Phase 10 implementation pl
 
 ---
 
-**Status**: This document is the operations layer for v2.0 implementation as of 2026-04-30, extended by §10 for v2.1 Phase 3. The companion `SCAFFOLD_HANDSHAKE.md` covers the contracts layer. Both v2.0 plans reduce to references against these two documents. Plan Hardening Notes appendices must not contradict them; if they do, the contracts doc wins.
+## 12.6 Canonical version_drift_log schema (v2.1 Codex PR #50 D7)
+
+Both `/lp-bootstrap` and `/lp-update-identity` emit a unified 5-key shape into `scaffold-decision.json["version_drift_log"]`:
+
+```json
+{
+  "from_version": "2.0.1",
+  "to_version": "2.1.0",
+  "via": "bootstrap", // OR "/lp-update-identity"
+  "fields_changed": ["plugin_version"],
+  "accepted_at": "2026-05-07T12:34:56Z"
+}
+```
+
+### PII redaction policy
+
+`compute_identity_fields_changed` (in `lp_bootstrap/version_drift.py`) is the **single owner** of the redaction decision. Callers never choose which field name appears in the entry; the helper returns a tagged variant:
+
+| Variant       | Sealed field                 | When                |
+| ------------- | ---------------------------- | ------------------- |
+| `Names`       | `fields_changed`             | `pii_opt_in: true`  |
+| `Fingerprint` | `fields_changed_fingerprint` | `pii_opt_in: false` |
+
+Fingerprint format: `sha256:<16-char-prefix>` over the canonicalized comma-joined sorted set of changed-field names.
+
+### Writer-side canonicalization
+
+Writers emit the canonical 5-key shape directly. v2.1.0 ships zero reader-side normalization (no readers exist yet); reader API + version_drift_log accessor are deferred to v2.1.1 BL-264.
+
+### --recover multi-command contract (D4)
+
+`/lp-bootstrap --recover` clears the bootstrap sentinel and unlinks a provably-stale manifest (`manifest.created_at < sentinel.acquired_at`). The deferred reconciliation (auto-completing partial runs) lives at v2.1.1 BL-262. `/lp-update-identity` does NOT participate in `--recover` semantics; its sentinel is independently owned and recovered via dead-PID auto-clear in `_validate_preconditions`.
+
+---
+
+**Status**: This document is the operations layer for v2.0 implementation as of 2026-04-30, extended by §10 for v2.1 Phase 3 and §12.6 for v2.1 Codex PR #50 follow-up (2026-05-07). The companion `SCAFFOLD_HANDSHAKE.md` covers the contracts layer. Both v2.0 plans reduce to references against these two documents. Plan Hardening Notes appendices must not contradict them; if they do, the contracts doc wins.

@@ -102,24 +102,30 @@ def test_refresh_only_touches_specified_path(tmp_path):
 # --- --refresh-all blanket refresh ----------------------------------------
 
 def test_refresh_all_writes_all_30_paths(tmp_path):
+    # v2.1 Codex PR #50 P1.A: count is 31 after restamp-history-hook
+    # entry is added to INFRASTRUCTURE_FILES.
+    from lp_bootstrap import INFRASTRUCTURE_FILES
+    expected = len(INFRASTRUCTURE_FILES)
     _bootstrap_clean(tmp_path)
     result = run_bootstrap(
         tmp_path, mode="refresh-all", identity=_identity(),
     )
     assert result.outcome == "success"
-    assert result.files_processed == 30
-    assert result.files_written == 30
+    assert result.files_processed == expected
+    assert result.files_written == expected
 
 
 def test_refresh_all_no_manifest_degrades_to_full_bootstrap(tmp_path):
     """Harden A8: no manifest -> silent degrade to full bootstrap."""
+    from lp_bootstrap import INFRASTRUCTURE_FILES
+    expected = len(INFRASTRUCTURE_FILES)
     # No prior bootstrap; .launchpad exists but no manifest
     (tmp_path / LAUNCHPAD_DIR_NAME).mkdir()
     result = run_bootstrap(
         tmp_path, mode="refresh-all", identity=_identity(),
     )
     assert result.outcome == "success"
-    assert result.files_written == 30
+    assert result.files_written == expected
     assert any("no manifest found" in w for w in result.warnings)
 
 
@@ -267,5 +273,6 @@ def test_drift_accepted_auto_triggers_refresh_all(tmp_path):
     )
     # refresh-all -> backup_dir should be populated
     assert result.backup_dir is not None
-    # All 30 processed
-    assert result.files_processed == 30
+    # v2.1 Codex PR #50 P1.A: count is 31 after restamp-history-hook entry.
+    from lp_bootstrap import INFRASTRUCTURE_FILES
+    assert result.files_processed == len(INFRASTRUCTURE_FILES)

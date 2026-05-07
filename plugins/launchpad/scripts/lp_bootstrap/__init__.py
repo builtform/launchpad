@@ -121,6 +121,22 @@ class BootstrapErrorCode(StrEnum):
     PATH_TRAVERSAL_REJECTED = "path_traversal_rejected"
 
 
+class BootstrapStatus(StrEnum):
+    """v2.1 Codex PR #50 P1.D (D4) status taxonomy for non-error outcomes.
+
+    Distinct from `BootstrapErrorCode`: these are the success-class /
+    informational outcomes the engine surfaces to callers (and to the
+    `--recover` flow) to disambiguate "what state did we end up in".
+    """
+    # `--recover` cleared the sentinel; manifest unlinked because
+    # manifest.created_at predated sentinel.acquired_at (provably stale).
+    RECOVERED_SENTINEL_CLEAR_ONLY = "recovered_sentinel_clear_only"
+
+    # Stale-sentinel detected by liveness predicates: pid_dead OR
+    # hostname_mismatch OR mtime_age > STALE_SENTINEL_THRESHOLD_HOURS.
+    STALE_SENTINEL_DETECTED = "stale_sentinel_detected"
+
+
 @dataclass(frozen=True)
 class BootstrapError:
     """Structured per-file or per-run failure surfaced through engine result."""
@@ -207,6 +223,11 @@ INFRASTRUCTURE_FILES: Final[tuple[
     ("scripts/hooks/audit-skills.sh.j2", "scripts/hooks/audit-skills.sh", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o755),
     ("scripts/hooks/track-skill-usage.sh.j2", "scripts/hooks/track-skill-usage.sh", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o755),
 
+    # 15a. v2.1 Codex PR #50 P1.A (D1): restamp-history commit-msg hook
+    # (downstream-rendered template; introduces subject-line allowlist
+    # accepting conventional-commit prefixes + `wip`).
+    ("scripts/hooks/restamp-history-hook.py.j2", "scripts/hooks/restamp-history-hook.py", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o755),
+
     # 16-17. scripts/maintenance/ (structure drift detection; Phase 4 stack-aware)
     ("scripts/maintenance/check-repo-structure.sh.j2", "scripts/maintenance/check-repo-structure.sh", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o755),
     ("scripts/maintenance/detect-structure-drift.sh.j2", "scripts/maintenance/detect-structure-drift.sh", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o755),
@@ -249,13 +270,34 @@ INFRASTRUCTURE_TARGETS: Final[frozenset[str]] = frozenset(
 )
 
 
+# v2.1 Codex PR #50 P1.A (D1): hook-classification map keyed by
+# target_relpath. Co-located with INFRASTRUCTURE_FILES so the drift gate
+# (`set(HOOK_CLASSIFICATIONS) <= INFRASTRUCTURE_TARGETS`) catches any
+# rename mismatch. v2.2 BL-265 refactors to a dataclass single-source.
+HOOK_CLASSIFICATIONS: Final[Mapping[str, str]] = MappingProxyType({
+    "scripts/hooks/restamp-history-hook.py": "commit-msg",
+    "scripts/hooks/audit-skills.sh": "lefthook-helper",
+    "scripts/hooks/track-skill-usage.sh": "lefthook-helper",
+})
+
+
+# v2.1 Codex PR #50 P1.D (D4): bootstrap sentinel staleness threshold (hours).
+# Sentinel is treated stale if mtime_age exceeds this value AND no other
+# liveness predicate fired (`pid_dead` and `hostname_mismatch` are
+# instant-stale signals, while age is the soft fallback for pid/hostname
+# matches that still look abandoned).
+STALE_SENTINEL_THRESHOLD_HOURS: Final[int] = 2
+
+
 __all__ = [
     "BACKUP_DIR_NAME",
     "BootstrapError",
     "BootstrapErrorCode",
     "BootstrapPolicy",
     "BootstrapState",
+    "BootstrapStatus",
     "FILE_MODES",
+    "HOOK_CLASSIFICATIONS",
     "INFRASTRUCTURE_FILES",
     "INFRASTRUCTURE_TARGETS",
     "LAUNCHPAD_DIR_NAME",
@@ -263,5 +305,6 @@ __all__ = [
     "MANIFEST_FILENAME",
     "MANIFEST_SCHEMA_VERSION",
     "SENTINEL_NAME",
+    "STALE_SENTINEL_THRESHOLD_HOURS",
     "WARNINGS_FILENAME",
 ]

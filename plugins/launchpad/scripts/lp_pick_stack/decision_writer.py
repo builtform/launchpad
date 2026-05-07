@@ -158,6 +158,33 @@ def read_running_plugin_version() -> str:
     return str(json.loads(text)["version"])
 
 
+# v2.1 Codex PR #50 Greptile #5 (D5): catalog-shortname → STACK_ID_ACTIVE_ENUM
+# fallback mapping. Composition-first matches happen elsewhere; this map
+# resolves uncomposed singletons. Ordered as in plan §2 D5.
+_CATALOG_FALLBACK_MAP: Mapping[str, str] = {
+    # Catalog-fallback: each maps to a STACK_ID_ACTIVE_ENUM member.
+    "supabase": "generic",
+    "expo": "generic",
+    "eleventy": "generic",
+    "hugo": "generic",
+    "hono": "generic",          # uncomposed singleton; composition-first
+                                # promotes ["next", "hono"] to nextjs_hono_cloudflare.
+    "next": "nextjs_standalone",
+    "django": "python_generic", # NOT python_django at v2.1 — widening invariant
+                                # deferred to BL-263.
+    "fastapi": "python_generic",
+}
+
+# v2.1 Codex PR #50 Greptile #5 (D5): composition reductions. Composition-
+# first ordering — these matches fire BEFORE the singleton fallback so
+# `["next", "fastapi"]` → `["nextjs_fastapi"]` rather than
+# `["nextjs_standalone", "python_generic"]`.
+_COMPOSITION_REDUCTIONS: Mapping[frozenset[str], str] = {
+    frozenset({"next", "fastapi"}): "nextjs_fastapi",
+    frozenset({"next", "hono"}): "nextjs_hono_cloudflare",
+}
+
+
 def derive_stacks(layers: Sequence[Mapping[str, Any]]) -> list[str]:
     """Derive the v2.1 envelope's flat `stacks` array from the layers list.
 
@@ -166,13 +193,59 @@ def derive_stacks(layers: Sequence[Mapping[str, Any]]) -> list[str]:
     frontend-dashboard}, {stack: nextjs_standalone, role: backend}]` collapses
     to `["astro", "nextjs_standalone"]`. Order matches first appearance in
     `layers` so /lp-scaffold-stack can iterate stacks deterministically.
+
+    v2.1 Codex PR #50 Greptile #5 (D5): catalog-shortname stacks (e.g.
+    `next`, `django`, `supabase`) translate through the composition-first
+    + singleton fallback to STACK_ID_ACTIVE_ENUM members so downstream
+    `decision_validator.validate_decision()` v1.1 envelope check passes.
+    Stacks already in the active enum (e.g. `astro`, `nextjs_standalone`,
+    `python_django`) pass through unchanged. The per-layer `layers[].stack`
+    field is NOT translated — scaffolders.yml still consumes catalog
+    shortnames; only the top-level flat `stacks` array is translated for
+    cross-tooling consumption.
     """
     seen: dict[str, None] = {}
     for layer in layers:
         stack = layer.get("stack")
         if isinstance(stack, str) and stack and stack not in seen:
             seen[stack] = None
-    return list(seen.keys())
+    raw_ids = list(seen.keys())
+
+    # Composition-first: check the multi-stack reductions before
+    # singleton fallback.
+    raw_set = frozenset(raw_ids)
+    composed: list[str] = []
+    consumed: set[str] = set()
+    for combo, target_id in _COMPOSITION_REDUCTIONS.items():
+        if combo.issubset(raw_set):
+            composed.append(target_id)
+            consumed.update(combo)
+
+    # Singleton fallback for unconsumed ids; pass through ids already in
+    # the active enum unchanged.
+    try:
+        from plugin_default_generators._renderer_base import STACK_ID_ACTIVE_ENUM
+    except ImportError:  # pragma: no cover
+        STACK_ID_ACTIVE_ENUM = frozenset()  # type: ignore[assignment]
+    out: list[str] = []
+    out.extend(composed)
+    for sid in raw_ids:
+        if sid in consumed:
+            continue
+        if sid in STACK_ID_ACTIVE_ENUM:
+            if sid not in out:
+                out.append(sid)
+        elif sid in _CATALOG_FALLBACK_MAP:
+            mapped = _CATALOG_FALLBACK_MAP[sid]
+            if mapped not in out:
+                out.append(mapped)
+        else:
+            # Unknown id — leave unchanged so the validator surfaces a
+            # specific rejection at validate_decision time rather than a
+            # silent translation hiding the bug.
+            if sid not in out:
+                out.append(sid)
+    return out
 
 
 def default_unset_identity() -> dict[str, Any]:

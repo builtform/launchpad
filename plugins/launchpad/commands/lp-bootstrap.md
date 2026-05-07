@@ -39,14 +39,14 @@ to `--refresh` is rejected with `unknown_refresh_path`.
 
 ## Arguments
 
-| Flag                            | Behavior                                                                                                                                                                                                                     |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| (none)                          | Full bootstrap. Per-file policy from plan section 3.2 decides each file. Fast-path skips paths whose on-disk sha matches the manifest sha and the rendered sha.                                                              |
-| `--refresh <path>`              | Re-render a single infrastructure path with `overwrite-with-backup`. Path must be in the v2.1 30-path inventory. Repeatable for batch refresh.                                                                               |
-| `--refresh-all`                 | Re-render every infrastructure path with `overwrite-with-backup`. If no manifest exists, silently degrades to full bootstrap with INFO `no_manifest_to_refresh`.                                                             |
-| `--accept-plugin-version-drift` | Override the plugin-version pin abort. Records the drift in `scaffold-decision.json` `version_drift_log[]`. Auto-triggers `--refresh-all` to align manifest shas with the new plugin's templates. Sealed identity preserved. |
-| `--recover`                     | Inspect sentinel snapshot. If sentinel + manifest are consistent and on-disk reality matches snapshot's `target_paths`, auto-completes the interrupted run. If state diverges, fails with structured guidance.               |
-| `--accept-bootstrap`            | Non-interactive consent flag for brownfield auto-invocation. Required by `/lp-define` brownfield dispatch in CI / scripted contexts when no terminal is available for the y/N prompt.                                        |
+| Flag                            | Behavior                                                                                                                                                                                                                                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| (none)                          | Full bootstrap. Per-file policy from plan section 3.2 decides each file. Fast-path skips paths whose on-disk sha matches the manifest sha and the rendered sha.                                                                                                                                              |
+| `--refresh <path>`              | Re-render a single infrastructure path with `overwrite-with-backup`. Path must be in the v2.1 30-path inventory. Repeatable for batch refresh.                                                                                                                                                               |
+| `--refresh-all`                 | Re-render every infrastructure path with `overwrite-with-backup`. If no manifest exists, silently degrades to full bootstrap with INFO `no_manifest_to_refresh`.                                                                                                                                             |
+| `--accept-plugin-version-drift` | Override the plugin-version pin abort. Records the drift in `scaffold-decision.json` `version_drift_log[]`. Auto-triggers `--refresh-all` to align manifest shas with the new plugin's templates. Sealed identity preserved.                                                                                 |
+| `--recover`                     | v2.1 Codex PR #50 P1.D (D4): clears the bootstrap sentinel + unlinks a provably-stale manifest (when `manifest.created_at` predates `sentinel.acquired_at`). Returns `BootstrapStatus.RECOVERED_SENTINEL_CLEAR_ONLY`. Full reconciliation (auto-completing interrupted runs) is deferred to v2.1.1 (BL-262). |
+| `--accept-bootstrap`            | Non-interactive consent flag for brownfield auto-invocation. Required by `/lp-define` brownfield dispatch in CI / scripted contexts when no terminal is available for the y/N prompt.                                                                                                                        |
 
 Glob support in `--refresh <path>` is v2.2 backlog; v2.1 accepts exact
 paths only.
@@ -103,18 +103,46 @@ mode)` snapshot.
 
 ## Recovery from interrupted runs
 
-If a `/lp-bootstrap` was killed mid-render, the sentinel remains. The
-recovery surface:
+v2.1 Codex PR #50 P1.D (D4): `--recover` is intentionally narrow at
+v2.1.0. Full reconciliation (auto-completing the interrupted run by
+re-rendering partial files) is deferred to v2.1.1 (BL-262).
 
-1. Run `/lp-bootstrap --recover`. The engine inspects the sentinel
-   snapshot, confirms PID liveness, and either auto-completes the
-   interrupted run OR fails with structured guidance.
-2. If `--recover` cannot resolve the state (e.g., sentinel is corrupt OR
-   on-disk reality diverges from snapshot's `target_paths`), the engine
-   surfaces remediation prose and exits non-zero.
-3. As a last resort: manually `rm .launchpad/.bootstrap-in-progress` after
-   confirming no `/lp-bootstrap` PID is alive (`ps -p <pid>` from the
-   sentinel snapshot).
+What `--recover` does at v2.1.0:
+
+1. Clears the bootstrap sentinel.
+2. Unlinks the manifest IFF `manifest.created_at` is older than
+   `sentinel.acquired_at` (provably stale: a fresh manifest cannot exist
+   prior to the sentinel that initiated its writing run; the inverse is
+   the abandoned-bootstrap-followed-by-stale-manifest downgrade-attack
+   surface, where stale manifest + cleared sentinel would let a future
+   `_check_plugin_version_pin` pass for the OLD plugin version).
+3. Returns `BootstrapStatus.RECOVERED_SENTINEL_CLEAR_ONLY` so callers can
+   distinguish from a no-op clear.
+
+What is deferred to v2.1.1 (BL-262):
+
+- Auto-completing the partial run by re-rendering the
+  `target_paths` whose hashes diverge from the current manifest.
+
+Stale-sentinel detection during normal `/lp-bootstrap`:
+
+When `_sentinel_preflight` observes a sentinel file owned by a non-live
+PID, OR a hostname mismatch, OR an mtime older than
+`STALE_SENTINEL_THRESHOLD_HOURS` (= 2), the engine returns
+`BootstrapStatus.STALE_SENTINEL_DETECTED` with this remediation:
+
+```
+bootstrap sentinel from PID {pid} on {hostname_or_fingerprint} acquired_at {ts}
+appears stale (reason: {triggered_reason}). Run /lp-bootstrap --recover to clear
+and retry.
+```
+
+`{triggered_reason}` is exactly one of `pid_dead`, `hostname_mismatch`,
+`age_exceeded` (single triggered reason, not a meta-list).
+
+As a last resort: manually `rm .launchpad/.bootstrap-in-progress` after
+confirming no `/lp-bootstrap` PID is alive (`ps -p <pid>` from the
+sentinel snapshot).
 
 ## Brownfield auto-invocation
 

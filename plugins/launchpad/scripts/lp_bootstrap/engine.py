@@ -313,18 +313,47 @@ def _record_version_drift(
 ) -> None:
     """Append a `version_drift_log[]` entry on scaffold-decision.json.
 
+    v2.1 Codex PR #50 Greptile #7 (D7): canonical 5-key shape via the
+    shared `compute_identity_fields_changed` helper. Bootstrap version-
+    pin drift always emits `fields_changed=["plugin_version"]` (only
+    plugin_version drifted; identity fields unchanged).
+
     Sealed identity preserved (the original `plugin_version` field stays
     pointing at the originally-recorded version; future readers see the
     drift in the audit trail rather than via overwrite).
     """
     from datetime import datetime, timezone
+    from lp_bootstrap.version_drift import (
+        Fingerprint,
+        Names,
+        compute_identity_fields_changed,
+    )
     accepted_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    log = decision_payload.get("version_drift_log") or []
-    log.append({
+
+    # Bootstrap drift always touches `plugin_version` only; route through
+    # the shared helper so writer-side serialization (Names ->
+    # fields_changed; Fingerprint -> fields_changed_fingerprint) matches
+    # the identity-update writer exactly.
+    pii_opt_in = bool(
+        ((decision_payload.get("identity") or {}) or {}).get("pii_opt_in")
+    )
+    changed = compute_identity_fields_changed(
+        {"plugin_version": str(from_version)},
+        {"plugin_version": str(to_version)},
+        pii_opt_in=pii_opt_in,
+    )
+    entry: dict[str, Any] = {
         "from_version": from_version,
         "to_version": to_version,
+        "via": "bootstrap",
         "accepted_at": accepted_at,
-    })
+    }
+    if isinstance(changed, Names):
+        entry["fields_changed"] = list(changed.names)
+    elif isinstance(changed, Fingerprint):
+        entry["fields_changed_fingerprint"] = changed.digest
+    log = decision_payload.get("version_drift_log") or []
+    log.append(entry)
     decision_payload["version_drift_log"] = log
 
     target = cwd / LAUNCHPAD_DIR_NAME / "scaffold-decision.json"
@@ -602,6 +631,7 @@ def run_bootstrap(
     refresh_paths: Sequence[str] | None = None,
     identity: Mapping[str, Any] | None = None,
     accept_plugin_version_drift: bool = False,
+    dry_run: bool = False,
 ) -> BootstrapResult:
     """Materialize the v2.1 30-path infrastructure overlay under `cwd`.
 
@@ -660,48 +690,89 @@ def run_bootstrap(
                     plugin_version=None,
                 )
 
-            # Step 3: plugin-version pin check FIRST.
-            running, vinfos = _check_plugin_version_pin(
-                cwd, accept_drift=accept_plugin_version_drift,
-            )
-            plugin_version = running
-            warnings.extend(vinfos)
-
-            # Step 4: manifest tampering integrity check.
-            existing_manifest, mwarn = _verify_manifest_integrity(cwd)
-            warnings.extend(mwarn)
-
-            if mode in ("refresh", "refresh-all") and existing_manifest is None:
-                # Harden A8: silently degrade to full bootstrap with INFO log.
-                warnings.append(
-                    "no manifest found; running full bootstrap "
-                    "(mode degraded from refresh to greenfield-class)"
-                )
-                refresh_paths = None
-                # Treat as full bootstrap from here.
-
-            if accept_plugin_version_drift and refresh_paths is None and mode in (
-                "brownfield-auto", "greenfield"
-            ):
-                # Section 3.4 + 6.1: drift-accepted runs auto-trigger
-                # --refresh-all to realign manifest shas.
-                mode = "refresh-all"
-
-            # Resolve identity.
-            if identity is None:
-                resolved_identity = _resolve_identity(cwd)
-            else:
-                resolved_identity = identity
-
-            # Step 5: write sentinel.
-            target_paths = [t[1] for t in _selected_targets(refresh_paths)]
+            # v2.1 Codex PR #50 P1 + Greptile #2 (D8): write_sentinel becomes
+            # the FIRST mutable action so the 5 operations below execute
+            # under the bootstrap sentinel. Closes the cross-detect window
+            # race (another /lp-bootstrap or /lp-update-identity could
+            # squeeze its own atomic-replace through between this run's
+            # _check_plugin_version_pin and the prior write_sentinel
+            # location). The 5 ops + render path are wrapped in try/finally
+            # so clear_sentinel fires on every exit path.
+            #
+            # Provisional sentinel content: pre_edit_manifest_sha256 + the
+            # final target_paths list are not yet known (they come after
+            # _verify_manifest_integrity + refresh-mode degradation). We
+            # write provisional values up-front; the sentinel is treated
+            # as a lock + observability marker, not a forensic record.
             write_sentinel(
                 cwd,
                 mode=mode,
-                pre_edit_manifest_sha256=None if existing_manifest is None
-                else _manifest_sha(cwd),
-                target_paths=target_paths,
+                pre_edit_manifest_sha256=None,
+                target_paths=[],
             )
+
+            try:
+                # Step 3: plugin-version pin check FIRST.
+                running, vinfos = _check_plugin_version_pin(
+                    cwd, accept_drift=accept_plugin_version_drift,
+                )
+                plugin_version = running
+                warnings.extend(vinfos)
+
+                # Step 4: manifest tampering integrity check.
+                existing_manifest, mwarn = _verify_manifest_integrity(cwd)
+                warnings.extend(mwarn)
+
+                if mode in ("refresh", "refresh-all") and existing_manifest is None:
+                    # Harden A8: silently degrade to full bootstrap with INFO log.
+                    warnings.append(
+                        "no manifest found; running full bootstrap "
+                        "(mode degraded from refresh to greenfield-class)"
+                    )
+                    refresh_paths = None
+                    # Treat as full bootstrap from here.
+
+                if accept_plugin_version_drift and refresh_paths is None and mode in (
+                    "brownfield-auto", "greenfield"
+                ):
+                    # Section 3.4 + 6.1: drift-accepted runs auto-trigger
+                    # --refresh-all to realign manifest shas.
+                    mode = "refresh-all"
+
+                # Resolve identity.
+                if identity is None:
+                    resolved_identity = _resolve_identity(cwd)
+                else:
+                    resolved_identity = identity
+            except BaseException:
+                # Any failure in the 5 moved ops MUST clear the sentinel.
+                clear_sentinel(cwd)
+                raise
+
+            # v2.1 Codex PR #50 P1.D (D4): dry_run short-circuit. The
+            # sentinel is acquired-and-cleared above; no manifest write,
+            # no render-loop side effects. Returns a minimal success
+            # result so callers can verify the sentinel lifecycle.
+            if dry_run:
+                clear_sentinel(cwd)
+                _emit_telemetry(
+                    repo_root, "success", mode,
+                    files_processed=0, files_written=0,
+                    files_skipped=0, files_kept=0,
+                )
+                return BootstrapResult(
+                    outcome="success",
+                    mode=mode,
+                    files_processed=0,
+                    files_written=0,
+                    files_skipped=0,
+                    files_kept_user_edits=0,
+                    errors=(),
+                    warnings=tuple(warnings),
+                    manifest_path=None,
+                    backup_dir=None,
+                    plugin_version=plugin_version,
+                )
 
             # Refresh modes: ensure backups dir is gitignored, then create
             # a fresh backup directory.

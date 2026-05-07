@@ -242,6 +242,13 @@ _SCAFFOLD_DECISION_KNOWN_FIELDS_1_1 = _SCAFFOLD_DECISION_KNOWN_FIELDS_1_0 | froz
 
 _BOOTSTRAP_MANIFEST_KNOWN_FIELDS_1_0 = frozenset({
     "manifest_schema_version", "plugin_version", "last_render_timestamp", "files",
+    # v2.1 Codex PR #50 P1.D (D4): created_at sealed by manifest_writer
+    # alongside last_render_timestamp. Optional field; legacy manifests
+    # without it fall back to filesystem mtime in the --recover predicate.
+    "created_at",
+    # `security_fields` is reserved for v2.2 forward-compat; allowed in the
+    # known-fields set so reader does not warn on its presence.
+    "security_fields",
 })
 
 

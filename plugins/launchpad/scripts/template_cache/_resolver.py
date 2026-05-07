@@ -38,7 +38,15 @@ class AttestationStatus(StrEnum):
 
 
 class ResolverError(RuntimeError):
-    """Phase 4 §3.11.5(b): structured triple for engine-boundary bridging."""
+    """Phase 4 §3.11.5(b): structured triple for engine-boundary bridging.
+
+    v2.1 Codex PR #50 P0 (D9.1) reason taxonomy reference: the resolver
+    itself never produces `disallowed_entry_in_fetched_template`; that
+    taxonomy code is owned by `_store._walk_for_disallowed_entries` and
+    surfaces via `TemplateCacheError` after the fetcher returns. Documented
+    here so downstream callers grep this module for "disallowed_entry_*"
+    reasons and find the intentional split.
+    """
 
     def __init__(self, *, reason: str, path: Path | None, remediation: str) -> None:
         super().__init__(remediation)

@@ -111,12 +111,20 @@ class BootstrapManifest:
     (e.g., signed-template attestations in v2.2). Always empty in v2.1.
     Canonical reader treats non-empty as an `unsupported_security_extension`
     abort.
+
+    v2.1 Codex PR #50 P1.D (D4): `created_at` is sealed at write-time
+    (alongside the existing `last_render_timestamp`). The `--recover`
+    flow reads `created_at` to decide whether to unlink a stale manifest
+    (`manifest.created_at < sentinel.acquired_at` is provably stale).
+    Legacy manifests without `created_at` fall back to filesystem mtime
+    with a stderr warning per D4.
     """
     manifest_schema_version: str
     plugin_version: str
     last_render_timestamp: str
     files: tuple[BootstrapManifestEntry, ...]
     security_fields: tuple[Any, ...] = field(default_factory=tuple)
+    created_at: str = ""
 
 
 # --- Path normalization (section 3.3) -------------------------------------
@@ -329,11 +337,17 @@ def build_manifest(
                 mode=entry.mode,
             )
         )
+    now = _utc_iso8601_now()
     return BootstrapManifest(
         manifest_schema_version=MANIFEST_SCHEMA_VERSION,
         plugin_version=plugin_version,
-        last_render_timestamp=timestamp or _utc_iso8601_now(),
+        last_render_timestamp=timestamp or now,
         files=tuple(normalized),
+        # v2.1 Codex PR #50 P1.D (D4): seal created_at alongside
+        # last_render_timestamp. Both reflect the same moment on first
+        # write; readers compare against sentinel.acquired_at to detect
+        # stale-manifest-after-abandoned-bootstrap.
+        created_at=timestamp or now,
     )
 
 
@@ -352,6 +366,9 @@ def manifest_to_json_bytes(manifest: BootstrapManifest) -> bytes:
         "files": [asdict(e) for e in manifest.files],
         "security_fields": list(manifest.security_fields),
     }
+    # v2.1 Codex PR #50 P1.D (D4): emit created_at when sealed.
+    if manifest.created_at:
+        payload["created_at"] = manifest.created_at
     return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 

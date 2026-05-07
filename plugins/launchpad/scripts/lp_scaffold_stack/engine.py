@@ -622,9 +622,20 @@ def _run_pipeline_after_sentinel(
                 from lp_pick_stack.decision_writer import (  # noqa: PLC0415
                     re_seal_decision_atomic,
                 )
+                from lp_scaffold_stack.decision_validator import (  # noqa: PLC0415
+                    mark_kernel_seeded,
+                )
 
+                # v2.1 Codex PR #50 P1.3 (D9.2): route through the
+                # mark_kernel_seeded() single-owner helper so the ratchet
+                # keys (kernel_seed_pending, migration_origin_sha256) are
+                # canonically stripped on every re-seal. Replaces the
+                # earlier inline `payload["kernel_render_state"] = ...`
+                # mutation.
                 def _seal_kernel_render_state(payload: dict) -> None:
-                    payload["kernel_render_state"] = kernel_render_state
+                    sealed = mark_kernel_seeded(payload, kernel_render_state)
+                    payload.clear()
+                    payload.update(sealed)
 
                 re_seal_decision_atomic(cwd, update_fn=_seal_kernel_render_state)
             except (OSError, json.JSONDecodeError, ValueError) as seal_exc:

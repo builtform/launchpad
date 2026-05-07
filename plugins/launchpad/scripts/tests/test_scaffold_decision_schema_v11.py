@@ -89,7 +89,10 @@ def test_stacks_derived_with_first_occurrence_dedup() -> None:
         {"stack": "next", "role": "fullstack", "path": "apps/web"},
         {"stack": "next", "role": "backend", "path": "apps/api"},
     ]
-    assert derive_stacks(layers) == ["astro", "next"]
+    # v2.1 Codex PR #50 Greptile #5 (D5): catalog-shortname `next` translates
+    # to STACK_ID_ACTIVE_ENUM member `nextjs_standalone` in the top-level
+    # `stacks` array. Per-layer `stack: next` is unchanged in `layers[].stack`.
+    assert derive_stacks(layers) == ["astro", "nextjs_standalone"]
 
 
 def test_default_identity_is_pii_optout_with_placeholders(tmp_path: Path) -> None:
@@ -267,7 +270,9 @@ def test_full_envelope_seals_and_writes(tmp_path: Path) -> None:
     assert on_disk["schema_version"] == "1.1"
     assert on_disk["plugin_version"] == read_running_plugin_version()
     assert on_disk["identity"]["pii_opt_in"] is False
-    assert on_disk["stacks"] == ["next"]
+    # v2.1 Codex PR #50 Greptile #5 (D5): stacks translates `next` to
+    # `nextjs_standalone` (STACK_ID_ACTIVE_ENUM member); per-layer is unchanged.
+    assert on_disk["stacks"] == ["nextjs_standalone"]
 
 
 # Phase 10 v2.1 (additive per plan §2.3 + architecture-strategist P1-B):

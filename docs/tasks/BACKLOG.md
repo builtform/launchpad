@@ -1405,3 +1405,45 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 **Cross-link**: BL-236 slip RCA (root cause: scope-doc-to-implementation-plan handoff was lossy + no reconciliation gate); orphan-check script at `plugins/launchpad/scripts/plugin-backlog-orphan-check.py` (mechanism #1, shipped v2.1.0); BACKLOG.md "Convention: BL ↔ CHANGELOG cross-reference" header section (mechanism #3, shipped v2.1.0).
 
 **Default decision**: defer to v2.1.1. Mechanisms #1 + #3 close the immediate gap (an orphan in BACKLOG.md will now fail CI). Mechanisms #2 + #4 + #5 are belt-and-suspenders defenses that make slip impossible at multiple stages of the planning chain rather than only at ship time.
+
+#### BL-262 - v2.1.1: `/lp-bootstrap --recover` full reconciliation
+
+**Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 P1.D follow-up bundle. v2.1.0 ships only sentinel-clear + provably-stale-manifest unlink; full reconciliation (auto-completing partial runs by re-rendering paths whose hashes diverge from the current manifest) is the BL-262 scope. Documented at `docs/architecture/SCAFFOLD_OPERATIONS.md` §12.6 + `plugins/launchpad/commands/lp-bootstrap.md`.
+
+**Default decision**: defer to v2.1.1. The narrow surface lands the must-fix (downgrade-attack closure) without the design lift of partial-render reconciliation.
+
+#### BL-263 - v2.1.1: StackIdV22Candidate persistence widening for `python_django`
+
+**Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 D5 (catalog fallback). Per the v2.1.0 fallback table, `django` resolves to `python_generic` (NOT `python_django`) at scaffold time. The widening — letting `python_django` flow through the closed-enum persistence — is deferred to BL-263 so the v2.1.0 fallback can be conservative.
+
+**Default decision**: defer to v2.1.1. Conservative fallback at v2.1.0; widening lands once Django adapter dispatch is genuinely active.
+
+#### BL-264 - v2.1.1: `version_drift_log` reader API + canonical normalization
+
+**Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 D7. v2.1.0 ships writer-side canonical 5-key emission (bootstrap + identity-update both speak the same shape). No reader API exists at v2.1.0; pre-v2.1-rc mixed-shape entries are tolerated as historical data. BL-264 adds: (1) a typed `VersionDriftEntry` reader, (2) reader-side normalization for legacy 4-key entries, (3) accessor methods.
+
+**Default decision**: defer to v2.1.1. No production reader exists at v2.1.0; the reader API can land alongside the first consumer.
+
+#### BL-265 - v2.1.1: HOOK_CLASSIFICATIONS dataclass single-source refactor
+
+**Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 D1. v2.1.0 ships HOOK_CLASSIFICATIONS as a parallel `Mapping[str, str]` keyed by target_relpath, co-located with `INFRASTRUCTURE_FILES`. The drift gate (`set(HOOK_CLASSIFICATIONS) <= INFRASTRUCTURE_TARGETS`) catches rename mismatch. BL-265 collapses the two structures into one dataclass per row.
+
+**Default decision**: defer to v2.1.1. The parallel mapping is structurally safe at v2.1.0; the dataclass refactor is ergonomic cleanup.
+
+#### BL-266 - v2.1.1: typed Rejected sub-types + `--accept-v2-2-fallback` CLI flag
+
+**Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 D5/D9. v2.1.0 routes Rejected reasons through the existing `Rejected.extra` dict for missing_fields + ambiguity matches. BL-266 adds: (1) typed Rejected sub-types per failure category, (2) optional `--accept-v2-2-fallback` flag for downstream CI users that want to bypass the interactive confirmation for v2.2-candidate stack ids.
+
+**Default decision**: defer to v2.1.1. The flag is intentionally NOT shipped at v2.1.0 (non-TTY contract refuses; explicit-accept opt-in is filed for downstream demand).
+
+#### BL-267 - v2.1.1: `/lp-bootstrap --refresh --accept-drift` consumer of `user_has_drift`
+
+**Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 D6. v2.1.0 seals `user_has_drift: bool` per kernel-render-state entry (Case E "y" path). The consumer that reads this flag — `/lp-bootstrap --refresh --accept-drift` — is BL-267. v2.1.0 documents the contract so downstream readers don't observe the field as orphaned data.
+
+**Default decision**: defer to v2.1.1. The flag is sealed-but-not-yet-read at v2.1.0; the consumer lands when the broader `--refresh` reconciliation surface (BL-262) does.
+
+#### BL-268 - v2.2: `template_cache` symlink allowlist for monorepo workspaces
+
+**Status (2026-05-07)**: NEW — deferred to v2.2 from v2.1.0 Codex PR #50 P0 (D9.1). v2.1.0 rejects ALL non-regular non-directory entries in fetched template trees (symlink, block/char devices, FIFOs, sockets). If real upstream monorepo workspaces use legitimate symlinks, BL-268 considers an allowlist that distinguishes intra-tree symlinks (allowed) from escape-target symlinks (rejected).
+
+**Default decision**: defer to v2.2. v2.1.0 ships the conservative all-reject posture; allowlist work is dependent on real-world demand.

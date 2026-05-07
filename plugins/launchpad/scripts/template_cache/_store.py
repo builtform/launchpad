@@ -21,6 +21,7 @@ Phase 4 plan §3.7. Private submodule of `template_cache`. Implements the
 """
 from __future__ import annotations
 
+import base64
 import contextlib
 import datetime as _dt
 import errno
@@ -29,6 +30,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
 import threading
@@ -53,15 +55,121 @@ DEFAULT_CACHE_DIR = Path.home() / ".launchpad" / "template-cache"
 
 _FETCH_SEMAPHORE = threading.Semaphore(MAX_CONCURRENT_FETCHES)
 
+# v2.1 Codex PR #50 P0 (D9.1): cap audit-log target rendering at 256 bytes.
+# Defends against attacker-crafted long-target-name DoS through repeated
+# fetches that would otherwise let an attacker bloat error logs.
+MAX_REJECTION_TARGET_BYTES = 256
+
+
+def _sanitize_readlink_target(target: str | bytes) -> tuple[str, str]:
+    """Return (`target_safe`, `target_bytes_b64`) for audit logging.
+
+    `target_safe` is shlex-quoted with non-printable chars escaped via
+    `backslashreplace`; capped at MAX_REJECTION_TARGET_BYTES with an
+    explicit truncation suffix so the original length is preserved.
+    `target_bytes_b64` is the base64-encoded raw bytes (also capped) for
+    forensic recovery without injecting raw bytes into log streams.
+    """
+    if isinstance(target, bytes):
+        raw_bytes = target
+        text = target.decode("utf-8", errors="backslashreplace")
+    else:
+        text = target
+        raw_bytes = target.encode("utf-8", errors="backslashreplace")
+    quoted = shlex.quote(text).encode("ascii", "backslashreplace").decode("ascii")
+    # Strip C0 control chars (0x00-0x1F except tab) so audit-log output
+    # is never raw-byte-addressable. Plan D9.1: "non-printable strip
+    # before message rendering."
+    quoted = "".join(
+        c if (ord(c) >= 0x20 or c == "\t") and ord(c) != 0x7F else f"\\x{ord(c):02x}"
+        for c in quoted
+    )
+    original_len = len(raw_bytes)
+    if len(quoted.encode("utf-8", errors="replace")) > MAX_REJECTION_TARGET_BYTES:
+        cutoff = MAX_REJECTION_TARGET_BYTES
+        target_safe = (
+            quoted.encode("utf-8", errors="replace")[:cutoff].decode(
+                "utf-8", errors="replace",
+            )
+            + f"...truncated_{original_len}_bytes"
+        )
+    else:
+        target_safe = quoted
+    if original_len > MAX_REJECTION_TARGET_BYTES:
+        target_bytes_b64 = (
+            base64.b64encode(raw_bytes[:MAX_REJECTION_TARGET_BYTES]).decode("ascii")
+            + f"...truncated_{original_len}_bytes"
+        )
+    else:
+        target_bytes_b64 = base64.b64encode(raw_bytes).decode("ascii")
+    return target_safe, target_bytes_b64
+
+
+def _walk_for_disallowed_entries(
+    root: Path,
+) -> tuple[Path, str, str, str] | None:
+    """Reject non-regular non-directory filesystem entries in `root`.
+
+    v2.1 Codex PR #50 P0 (D9.1) hybrid pattern matching `composition.py:440`.
+    Walks `root` without following symlinks and rejects:
+    symlinks, block devices, char devices, FIFOs, sockets.
+
+    Returns `(entry_path, kind, target_safe, target_bytes_b64)` on first
+    rejection (`target_safe` and `target_bytes_b64` are empty strings for
+    non-symlink kinds) OR `None` when the subtree is clean.
+    """
+    if root.is_symlink():
+        try:
+            link_target = os.readlink(str(root))
+        except OSError:
+            link_target = ""
+        target_safe, target_b64 = _sanitize_readlink_target(link_target)
+        return root, "symlink", target_safe, target_b64
+    for dirpath, dirnames, filenames in os.walk(str(root), followlinks=False):
+        for name in (*dirnames, *filenames):
+            entry = Path(dirpath) / name
+            try:
+                lst = os.lstat(str(entry))
+            except OSError:
+                continue
+            mode = lst.st_mode
+            if stat.S_ISLNK(mode):
+                try:
+                    link_target = os.readlink(str(entry))
+                except OSError:
+                    link_target = ""
+                target_safe, target_b64 = _sanitize_readlink_target(link_target)
+                return entry, "symlink", target_safe, target_b64
+            if stat.S_ISBLK(mode):
+                return entry, "block_device", "", ""
+            if stat.S_ISCHR(mode):
+                return entry, "char_device", "", ""
+            if stat.S_ISFIFO(mode):
+                return entry, "fifo", "", ""
+            if stat.S_ISSOCK(mode):
+                return entry, "socket", "", ""
+    return None
+
 
 class TemplateCacheError(RuntimeError):
     """Phase 4 §3.11.5(b): per-module error with the structured triple."""
 
-    def __init__(self, *, reason: str, path: Path | None, remediation: str) -> None:
+    def __init__(
+        self,
+        *,
+        reason: str,
+        path: Path | None,
+        remediation: str,
+        entry_kind: str | None = None,
+    ) -> None:
         super().__init__(remediation)
         self.reason = reason
         self.path = path
         self.remediation = remediation
+        # v2.1 Codex PR #50 P0 (D9.1): name the disallowed-entry kind for
+        # downstream filtering (taxonomy values: symlink, block_device,
+        # char_device, fifo, socket; None for non-disallowed-entry causes).
+        self.entry_kind = entry_kind
 
 
 @dataclass(frozen=True)
@@ -218,7 +326,12 @@ def _entry_is_ready(entry_dir: Path) -> bool:
 
 
 def _entry_files_match_manifest(entry_dir: Path) -> bool:
-    """Phase 4 §3.7 rule #8: missing-files OR extra-files invalidates."""
+    """Phase 4 §3.7 rule #8: missing-files OR extra-files invalidates.
+
+    v2.1 Codex PR #50 P0 (D9.1) read-side mirror: also invalidate when
+    a non-regular non-directory entry has appeared in the cache subtree
+    (e.g., post-mount mirror attack via tmpfs symlink swap).
+    """
     expected_path = entry_dir / EXPECTED_FILES_FILE
     try:
         manifest = json.loads(expected_path.read_text(encoding="utf-8"))
@@ -227,6 +340,9 @@ def _entry_files_match_manifest(entry_dir: Path) -> bool:
     expected_files = set(manifest.get("files", []))
     if not expected_files:
         return True
+
+    if _walk_for_disallowed_entries(entry_dir) is not None:
+        return False
 
     actual: set[str] = set()
     for path in entry_dir.rglob("*"):
@@ -398,9 +514,44 @@ def fetch(
             if handle.entry_dir.exists():
                 _purge_entry(handle.entry_dir)
 
+            # v2.1 Codex PR #50 P0 (D9.1): tmp_dir is created with mode 0o700
+            # BEFORE the fetcher writes; on exit we re-chmod defensively in
+            # case the fetcher loosened permissions. Closes the unprivileged-
+            # peer race window where another process could observe the
+            # in-progress tree.
             handle.tmp_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
             try:
+                with contextlib.suppress(OSError):
+                    os.chmod(str(handle.tmp_dir), 0o700)
                 fetcher(handle.tmp_dir)
+                # v2.1 Codex PR #50 P0 (D9.1): walk the freshly-fetched tree
+                # rejecting symlinks + block/char devices + FIFOs + sockets.
+                # MUST run AFTER fetcher and BEFORE _write_manifest_and_ready
+                # so the rejection is observed before any sentinel artifacts
+                # are written. Detection rmtrees the tmp_dir and raises.
+                rejection = _walk_for_disallowed_entries(handle.tmp_dir)
+                if rejection is not None:
+                    entry_path, kind, target_safe, target_b64 = rejection
+                    extra_target = ""
+                    if kind == "symlink":
+                        extra_target = (
+                            f"; target={target_safe} target_bytes_b64={target_b64}"
+                        )
+                    with contextlib.suppress(OSError):
+                        shutil.rmtree(handle.tmp_dir)
+                    raise TemplateCacheError(
+                        reason="disallowed_entry_in_fetched_template",
+                        path=entry_path,
+                        remediation=(
+                            f"upstream template at {repo_url}@{sha[:8]} "
+                            f"contains disallowed filesystem entry "
+                            f"({kind}) at {entry_path.relative_to(handle.tmp_dir).as_posix() if entry_path != handle.tmp_dir else '<root>'}"
+                            f"{extra_target}; v2.1 forbids non-regular "
+                            f"non-directory entries (defense against "
+                            f"attacker-controlled path traversal)"
+                        ),
+                        entry_kind=kind,
+                    )
                 _write_manifest_and_ready(handle.tmp_dir)
                 os.replace(str(handle.tmp_dir), str(handle.entry_dir))
             except BaseException:

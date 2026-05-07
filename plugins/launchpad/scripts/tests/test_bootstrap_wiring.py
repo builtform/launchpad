@@ -60,7 +60,9 @@ def _bootstrap_clean(tmp_path: Path):
 def test_infrastructure_present_returns_absent_on_empty_dir(tmp_path):
     state, missing = infrastructure_present(tmp_path)
     assert state == BootstrapState.ABSENT
-    assert len(missing) == 30
+    # v2.1 Codex PR #50 P1.A: count is 31 after restamp-history-hook entry.
+    from lp_bootstrap import INFRASTRUCTURE_FILES
+    assert len(missing) == len(INFRASTRUCTURE_FILES)
 
 
 def test_infrastructure_present_returns_full_after_clean_bootstrap(tmp_path):
@@ -104,7 +106,9 @@ def test_infrastructure_present_module_const_inventory_size(tmp_path):
     # Empty cwd -> all 30 missing
     assert state == BootstrapState.ABSENT
     assert sorted(missing) == sorted(missing)
-    assert len(missing) == 30
+    # v2.1 Codex PR #50 P1.A: count is 31 after restamp-history-hook entry.
+    from lp_bootstrap import INFRASTRUCTURE_FILES
+    assert len(missing) == len(INFRASTRUCTURE_FILES)
 
 
 # --- Engine ordering: plugin-version FIRST (before tampering) -------------
@@ -140,7 +144,9 @@ def test_brownfield_auto_fast_path_on_clean_overlay(tmp_path):
     """A second run on an unmodified overlay should skip atomic writes for
     the 26 overwrite-if-unchanged paths."""
     first = run_bootstrap(tmp_path, mode="greenfield", identity=_identity())
-    assert first.files_written == 30  # all written first time
+    # v2.1 Codex PR #50 P1.A: count is 31 after restamp-history-hook entry.
+    from lp_bootstrap import INFRASTRUCTURE_FILES
+    assert first.files_written == len(INFRASTRUCTURE_FILES)  # all written first time
 
     second = run_bootstrap(tmp_path, mode="brownfield-auto", identity=_identity())
     assert second.outcome == "brownfield_auto_rendered"
@@ -194,9 +200,10 @@ def test_greenfield_pipeline_wires_bootstrap_after_kernel_render(tmp_path):
     # callable from the same import path that engine.py uses, AND a
     # greenfield run produces the manifest.
     from lp_bootstrap.engine import run_bootstrap as engine_run  # noqa
+    from lp_bootstrap import INFRASTRUCTURE_FILES  # noqa
     result = engine_run(tmp_path, mode="greenfield", identity=_identity())
     assert result.outcome == "success"
-    assert result.files_written == 30
+    assert result.files_written == len(INFRASTRUCTURE_FILES)
     assert (tmp_path / LAUNCHPAD_DIR_NAME / "bootstrap-manifest.json").is_file()
 
 

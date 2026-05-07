@@ -103,6 +103,52 @@ class KernelRenderer(RendererBase):
         source_path = Path(env.loader.get_source(env, template_name)[1])
         return hashlib.sha256(source_path.read_bytes()).hexdigest()
 
+    def compute_current_on_disk_state(self, cwd: Path) -> list[dict]:
+        """v2.1 Codex PR #50 Greptile #6 (D6): idempotent per-file SHA snapshot.
+
+        Read-only, side-effect-free, returns a fresh list on each call.
+        For each kernel file, returns:
+
+            {
+                "path": output_relpath,
+                "rendered_content_sha256": <on-disk sha or None>,
+                "source_template_sha256": <upstream template sha>,
+                "missing_on_disk": <bool>,
+                "user_has_drift": <bool — true if rendered_sha != template_sha>,
+            }
+
+        Used by Case E "y" path in `lp_update_identity` to seal
+        kernel_render_state WITHOUT overwriting user edits. The
+        consumer-side contract (lock-now, land-BL-267) is documented in
+        `docs/architecture/SCAFFOLD_OPERATIONS.md` §12: `--refresh
+        --accept-drift` opts into clobber with `.bak` fallback for files
+        whose `user_has_drift=true`.
+        """
+        out: list[dict] = []
+        for template_name, output_relpath in KERNEL_FILES:
+            target = cwd / output_relpath
+            template_sha = self._template_sha256(template_name)
+            entry: dict[str, Any]
+            if not target.is_file():
+                entry = {
+                    "path": output_relpath,
+                    "rendered_content_sha256": None,
+                    "source_template_sha256": template_sha,
+                    "missing_on_disk": True,
+                    "user_has_drift": False,
+                }
+            else:
+                rendered_sha = sha256_bytes(target.read_bytes())
+                entry = {
+                    "path": output_relpath,
+                    "rendered_content_sha256": rendered_sha,
+                    "source_template_sha256": template_sha,
+                    "missing_on_disk": False,
+                    "user_has_drift": rendered_sha != template_sha,
+                }
+            out.append(entry)
+        return out
+
     def render_all(
         self,
         cwd: Path,

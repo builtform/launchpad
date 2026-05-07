@@ -1,11 +1,13 @@
 commit-msg:
   commands:
-    # Per OPERATIONS §0 strip-back-aware Layer 9 P3-2 closure: the commit-msg
-    # hook is wired to a Python script (NOT shell) so subject-line injection
-    # defenses (\\n / \\r\\n rejection) are enforceable. Appends a
-    # restamp-history.jsonl entry on accept.
+    # v2.1 Codex PR #50 P1.A (D1): the commit-msg hook is the downstream
+    # template wrapper at scripts/hooks/restamp-history-hook.py, rendered
+    # by /lp-bootstrap. The wrapper enforces the conventional-commit
+    # subject-line allowlist (feat|fix|chore|docs|refactor|test|style|
+    # perf|ci|wip) and delegates newline-injection defense + JSONL append
+    # to the upstream plugin-restamp-history-hook.py.
     restamp-history:
-      run: python3 plugins/launchpad/scripts/plugin-restamp-history-hook.py {1}
+      run: python3 scripts/hooks/restamp-history-hook.py {1}
 
 pre-commit:
   commands:

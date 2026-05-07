@@ -608,6 +608,11 @@ ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS = (
     # (re_seal_decision_atomic) so /lp-update-identity inherits the same
     # atomic-replace primitive used by /lp-pick-stack's first-write path.
     "plugins/launchpad/scripts/lp_pick_stack/decision_writer.py",  # re_seal_decision_atomic
+    # v2.1 Codex PR #50 Slice E: pre-squash audit-log filter for
+    # restamp-history.jsonl (strips wip(slice-x): WIP-checkpoint entries
+    # before squash). Single atomic_write_replace at the end of the
+    # filter pipeline.
+    "plugins/launchpad/scripts/plugin-restamp-redact-wip.py",
 )
 ATOMIC_WRITE_REPLACE_NAMES = ("atomic_write_replace",)
 ATOMIC_WRITE_REPLACE_SCAN_GLOBS = (

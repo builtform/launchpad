@@ -65,9 +65,11 @@ def _identity(**overrides):
 # --- 30-path enumeration --------------------------------------------------
 
 def test_renders_all_30_paths(tmp_path):
+    # v2.1 Codex PR #50 P1.A: count is 31 after restamp-history-hook entry.
+    from lp_bootstrap import INFRASTRUCTURE_FILES
     r = InfrastructureRenderer()
     out = r.render_all(tmp_path, _identity())
-    assert len(out) == 30
+    assert len(out) == len(INFRASTRUCTURE_FILES)
     assert {p.relative_to(tmp_path).as_posix() for p, _ in out} == INFRASTRUCTURE_TARGETS
 
 
@@ -99,10 +101,11 @@ def test_only_paths_unknown_rejected(tmp_path):
 # --- File mode allowlist (harden B8) --------------------------------------
 
 def test_file_modes_inventory_split():
-    """11 paths are 0o755, 19 are 0o644 per harden B8."""
+    """v2.1 Codex PR #50 P1.A (D1): 12 paths 0o755 (was 11; restamp-history-hook
+    added) + 19 paths 0o644 per harden B8."""
     exe = sum(1 for m in FILE_MODES.values() if m == 0o755)
     non_exe = sum(1 for m in FILE_MODES.values() if m == 0o644)
-    assert exe == 11
+    assert exe == 12
     assert non_exe == 19
 
 

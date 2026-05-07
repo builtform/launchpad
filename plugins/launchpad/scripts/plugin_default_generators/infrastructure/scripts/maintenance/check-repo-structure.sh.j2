@@ -117,6 +117,7 @@ ALLOWED_CONFIGS=(
   "tsconfig.json"
   ".worktreeinclude"
   "greptile.json"
+  ".greptile.json"
 )
 
 ALLOWED_DIRS=(
@@ -183,7 +184,9 @@ while IFS= read -r item; do
       continue
     else
       # Allow common hidden config files and OS artifacts
-      if [[ "$item" =~ ^\.(env\.|editorconfig|gitignore|gitattributes|prettierrc|prettierignore|nvmrc|DS_Store) ]]; then
+      # v2.1 Codex PR #50 P1.C (D3): .greptile.json is a hidden config
+      # file (Greptile's documented convention); whitelist it here.
+      if [[ "$item" =~ ^\.(env\.|editorconfig|gitignore|gitattributes|prettierrc|prettierignore|nvmrc|DS_Store|greptile\.json) ]]; then
         continue
       fi
       echo "   ❌ Non-whitelisted hidden file at root: $item"
