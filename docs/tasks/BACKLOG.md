@@ -1328,3 +1328,17 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 **Effort estimate**: ~30-60 min across the 4 sub-items.
 
 **Default decision**: defer to v2.1.1. v2.1.0 ships unsigned per the documented posture; v2.1.1 closes the gap before any sustained v2.1.x usage period.
+
+#### BL-259 - v2.1.1: Codex PR #50 deferred findings (docstring + backup-dir + shell word-split)
+
+**Driver**: 2026-05-06 Codex automated review on PR #50 surfaced 5 findings; 2 P1 items were fixed in-PR (allowlist-aware early gate at `lp_define_runner.py` + reseal-after-refresh ordering at `lp_update_identity/engine.py`). The remaining 3 items are deferred:
+
+1. **(was Codex P1, demoted to P2)** `plugins/launchpad/scripts/plugin_default_generators/_renderer_base.py:526` — `write_batch()` docstring claims "atomically write batch" but post-scan writes are sequential per-file via `atomic_write_replace()`. The docstring's "atomic-batch-or-none invariant" refers to the scan→write transition, not cross-file rollback. Actual behavior matches the v2.0 sequential write pattern with no observed regression. Fix is a docstring clarification (downgrade contract to "per-file atomic; no cross-file rollback after scan passes") OR a 2-phase commit refactor (preflight all parents → write temp files → batch-rename with rollback). Default: docstring clarification; refactor only if a real partial-write incident materializes.
+
+2. **(Codex P2)** `plugins/launchpad/scripts/lp_update_identity/engine.py:465` — `_ensure_backup_dir()` builds the directory name from second-resolution timestamp + PID + `exist_ok=True`, so two `/lp-update-identity` invocations from the same process within one second can reuse the same backup directory and overwrite the prior `scaffold-decision.json` backup. Use the existing random-suffix + `exist_ok=False` pattern from `lp_bootstrap.policy.make_backup_dir()`.
+
+3. **(Codex P3)** `plugins/launchpad/scripts/plugin_default_generators/infrastructure/scripts/compound/analyze-report.sh.j2:78` — `for prd in $RECENT_PRDS` splits `find` output on whitespace. PRD paths containing spaces are misread. Fix: use `find ... -print0` with a `while IFS= read -r -d ''` NUL-delimited loop.
+
+**Effort estimate**: ~30-45 min total (~10 min docstring, ~15 min backup-dir, ~10-20 min shell rewrite).
+
+**Default decision**: defer to v2.1.1. None of the three are runtime-hot at v2.1.0 ship time; the docstring is over-specifying a property the implementation doesn't promise, the backup-dir collision requires same-process sub-second reinvocation (no current command path triggers this), and the shell word-split only fires when a downstream operator runs `compound/analyze-report.sh` against a path containing spaces.

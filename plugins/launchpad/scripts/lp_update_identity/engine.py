@@ -674,7 +674,28 @@ def run_update_identity(
     skipped: list[Path] = []
     template_drift_infos: list[str] = []
     try:
-        # Step 6: scaffold-decision atomic re-seal.
+        # Step 6: KernelRenderer.refresh() runs FIRST so any failure leaves
+        # scaffold-decision.json with the prior identity rather than a
+        # half-applied state where JSON has new identity but kernel files
+        # still hold old (Codex PR #50 P1).
+        # Phase 1+2 retroactive amendment A7: pass prior_kernel_render_state
+        # explicitly (renderer no longer reads scaffold-decision itself).
+        from plugin_default_generators.kernel_renderer import KernelRenderer
+        prior_state = (decision_payload or {}).get("kernel_render_state") or []
+        renderer = KernelRenderer()
+        result = renderer.refresh(
+            cwd, identity_input,
+            prior_kernel_render_state=prior_state,
+        )
+        rendered = [p for p, _sha in result.rendered]
+        skipped = list(result.skipped_user_edits)
+        template_drift_infos = list(result.template_drift_infos)
+
+        # Step 7: scaffold-decision atomic re-seal -- AFTER successful refresh.
+        # Combines identity update + kernel_render_state into one atomic
+        # write so the on-disk decision reflects the just-rendered state.
+        new_kernel_state = list(result.kernel_render_state) if result.kernel_render_state else None
+
         def _apply_identity_update(payload: dict) -> None:
             payload["identity"] = dict(identity_input)
             payload["identity_updated_at"] = _utc_iso8601_now()
@@ -698,33 +719,13 @@ def run_update_identity(
             })
             payload["version_drift_log"] = log
             payload["plugin_version"] = new_plugin_version
+            # Fold kernel_render_state into the same atomic write so the
+            # decision file never observes "new identity + stale render
+            # state" mid-flight.
+            if new_kernel_state is not None:
+                payload["kernel_render_state"] = new_kernel_state
 
         re_seal_decision_atomic(cwd, update_fn=_apply_identity_update)
-
-        # Step 7: KernelRenderer.refresh().
-        # Phase 1+2 retroactive amendment A7: pass prior_kernel_render_state
-        # explicitly (renderer no longer reads scaffold-decision itself).
-        from plugin_default_generators.kernel_renderer import KernelRenderer
-        prior_state = (decision_payload or {}).get("kernel_render_state") or []
-        renderer = KernelRenderer()
-        result = renderer.refresh(
-            cwd, identity_input,
-            prior_kernel_render_state=prior_state,
-        )
-        rendered = [p for p, _sha in result.rendered]
-        skipped = list(result.skipped_user_edits)
-        template_drift_infos = list(result.template_drift_infos)
-
-        # Phase 1+2 retroactive amendment A7: caller-side seal of the
-        # freshly-computed kernel_render_state (renderer no longer seals
-        # scaffold-decision itself).
-        if result.kernel_render_state:
-            new_state = list(result.kernel_render_state)
-
-            def _seal_kernel_render_state(payload: dict) -> None:
-                payload["kernel_render_state"] = new_state
-
-            re_seal_decision_atomic(cwd, update_fn=_seal_kernel_render_state)
     finally:
         # Step 8: clear sentinel even on exception so subsequent invocations
         # don't get blocked by a stale-but-not-yet-recovered marker.

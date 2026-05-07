@@ -239,18 +239,38 @@ def render_docs(
 # ---------------------------------------------------------------------------
 
 def scan_all(rendered: dict[str, str], repo_root: Path) -> dict[str, list]:
-    """Run secret-pattern scan on every rendered doc. Returns
-    `{out_path: [matches]}`; empty when clean."""
+    """Run secret-pattern scan WITH ALLOWLIST on every rendered doc.
+    Returns `{out_path: [matches]}` (rel-path keyed); empty when clean.
+
+    Routes through `RendererBase.scan_batch()` so `.launchpad/secret-allowlist.txt`
+    and template-marker allowlists apply at this early gate. Without this,
+    allowlisted false positives would abort the run before the writeable
+    subset reached `write_batch()`'s allowlist-aware gate (Codex PR #50 P1).
+    """
     patterns_file = repo_root / ".launchpad" / "secret-patterns.txt"
-    patterns = secret_scanner.load_patterns(
-        patterns_file if patterns_file.is_file() else None
+    allowlist_path = repo_root / ".launchpad" / "secret-allowlist.txt"
+
+    batch: dict[Path, bytes] = {
+        repo_root / out_path: content.encode("utf-8")
+        for out_path, content in rendered.items()
+    }
+
+    renderer = LpDefineRenderer()
+    findings_list = renderer.scan_batch(
+        batch,
+        patterns_file=patterns_file if patterns_file.is_file() else None,
+        allowlist_path=allowlist_path if allowlist_path.is_file() else None,
     )
-    findings: dict[str, list] = {}
-    for out_path, content in rendered.items():
-        matches = secret_scanner.scan(content, patterns=patterns)
-        if matches:
-            findings[out_path] = matches
-    return findings
+
+    grouped: dict[str, list] = {}
+    for finding in findings_list:
+        source = getattr(finding, "source", "") or ""
+        try:
+            rel = Path(source).relative_to(repo_root).as_posix()
+        except ValueError:
+            rel = source or "<unknown>"
+        grouped.setdefault(rel, []).append(finding)
+    return grouped
 
 
 # ---------------------------------------------------------------------------
