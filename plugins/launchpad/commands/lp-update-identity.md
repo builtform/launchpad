@@ -113,10 +113,19 @@ Yellow ANSI if TTY; uncolored otherwise. Print position: AFTER successful comple
 
 ## Diff summary format
 
-Phase 10 §3.12 literal mock:
+Phase 10 §3.12 literal mock. Note the PII WARN appears BEFORE the
+diff summary block per the "PII WARN" section above + `engine.py`
+print order. Greptile PR #50: prior versions of this mock placed the
+WARN below the kernel-files list, which contradicted both the prose
+contract and the `_print_pii_warn(...)` → `_format_diff_summary(...)`
+ordering in the engine. Mock now mirrors actual stdout/stderr stream
+order so a re-reading agent does not invert it.
 
 ```
 ✓ Identity updated.
+
+WARN: prior identity values persist in git history (LICENSE, CONTRIBUTING.md, ...).
+      See docs/guides/IDENTITY_AND_PII.md for removal options.
 
 Fields changed:
   project_name:     OldName  →  NewName
@@ -131,9 +140,6 @@ Kernel files re-rendered (5 of 7):
   ✓ CLAUDE.md
   ✗ CODE_OF_CONDUCT.md (skipped: USER_EDIT_BLOCKS_REFRESH)
   ✗ SECURITY.md (skipped: USER_EDIT_BLOCKS_REFRESH)
-
-WARN: prior identity values persist in git history (LICENSE, CONTRIBUTING.md, ...).
-      See docs/guides/IDENTITY_AND_PII.md for removal options.
 ```
 
 **Truncation rules**:

@@ -525,15 +525,16 @@ def run_update_identity(
         case = "B"
 
     if case == "A":
-        return UpdateIdentityResult(
-            status=None,
-            error_code=IdentityUpdateErrorCode.SCAFFOLD_DECISION_MISSING,
-            error_message="scaffold-decision.json absent",
-            remediation=(
-                "no scaffold-decision.json; run /lp-pick-stack first OR "
-                "/lp-update-identity --seed-brownfield for legacy v2.0 "
-                "migration"
-            ),
+        # Greptile PR #50: Case A is unreachable here -- _validate_preconditions
+        # raises SCAFFOLD_DECISION_MISSING when decision_payload is None and
+        # seed_brownfield is False, which is exactly the precondition for
+        # _detect_re_entry_case to return "A". A regression on the precondition
+        # path should fail loudly rather than be silently absorbed by this
+        # branch returning a structured error duplicate.
+        raise RuntimeError(
+            "Case A reached run_update_identity body; preconditions should "
+            "have raised SCAFFOLD_DECISION_MISSING. Check _validate_preconditions"
+            " for a regression."
         )
 
     # Case D brownfield seed gate: refuse if no flag.

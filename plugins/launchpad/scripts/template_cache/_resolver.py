@@ -236,16 +236,37 @@ def git_clone_depth_one(
             remediation=f"sha {sha!r} fails 40-char hex regex",
         )
     target.mkdir(parents=True, exist_ok=True)
-    safe_run_long(
+
+    def _run_or_raise(argv: list[str], cwd: Path, step: str) -> None:
+        # Codex PR #50 P1: safe_run_long returns CompletedProcess WITHOUT
+        # raising on non-zero. Without this guard, a failed git operation
+        # would let _store.fetch() mark the cache entry as ready over an
+        # empty/partial scaffold.
+        result = safe_run_long(argv, cwd=cwd)
+        if result.returncode != 0:
+            tail = (result.stderr or b"").decode("utf-8", errors="replace")[-512:]
+            raise ResolverError(
+                reason=f"git_{step}_failed",
+                path=target,
+                remediation=(
+                    f"git {step} exited {result.returncode} for "
+                    f"{repo_url}@{sha[:8]}: {tail.strip() or '(no stderr)'}"
+                ),
+            )
+
+    _run_or_raise(
         ["git", "clone", "--depth", "1", "--no-tags", repo_url, str(target)],
         cwd=target.parent,
+        step="clone",
     )
-    safe_run_long(
+    _run_or_raise(
         ["git", "fetch", "--depth", "1", "origin", sha],
         cwd=target,
+        step="fetch",
     )
-    safe_run_long(
+    _run_or_raise(
         ["git", "checkout", "--detach", sha],
         cwd=target,
+        step="checkout",
     )
     return True

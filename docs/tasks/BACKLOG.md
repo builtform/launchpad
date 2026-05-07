@@ -1342,3 +1342,19 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 **Effort estimate**: ~30-45 min total (~10 min docstring, ~15 min backup-dir, ~10-20 min shell rewrite).
 
 **Default decision**: defer to v2.1.1. None of the three are runtime-hot at v2.1.0 ship time; the docstring is over-specifying a property the implementation doesn't promise, the backup-dir collision requires same-process sub-second reinvocation (no current command path triggers this), and the shell word-split only fires when a downstream operator runs `compound/analyze-report.sh` against a path containing spaces.
+
+#### BL-260 - v2.1.1: Cross-command sentinel TOCTOU race + catalog-vs-active-enum integration polish
+
+**Driver**: Codex re-review on PR #50 (post-2dbf839 commit) flagged a check-then-write race between `/lp-bootstrap`, `/lp-scaffold-stack`, and `/lp-update-identity` sentinels, plus Greptile noted that v2.0 catalog short names like `supabase`, `expo`, `eleventy`, `hugo` can be picked from `/lp-pick-stack`'s manual-override menu but are not members of `STACK_ID_ACTIVE_ENUM` — leading to a `ValueError` at `/lp-review` time when those ids are persisted in `scaffold-decision.json.stacks`. Both items are real but neither blocks v2.1.0 ship: the sentinel race window is microseconds in a single-user CLI, and the catalog-vs-active-enum mismatch fails at `/lp-scaffold-stack` time with a clear "unknown_v21_stack_id" error rather than silently breaking review.
+
+**At v2.1.1 design time**:
+
+1. **Cross-command sentinel race** — Implement a single `.launchpad/.operation-lock` flock acquired by all three commands (`lp_bootstrap.engine`, `lp_scaffold_stack.engine`, `lp_update_identity.engine`) BEFORE any peer-sentinel check. The lock is held for the duration of the check + own-write sequence and released via the existing `try/finally` sentinel-clear path. Alternative considered: re-check peer sentinels after own-write succeeds (works but allows mutually-aborting "both lose" deadlock-like patterns under extreme luck). Locked path: shared lock, since it composes better with future commands joining the family.
+2. **Catalog-vs-active-enum integration** — Either (a) filter the `/lp-pick-stack` manual-override catalog to only present ids in `STACK_ID_ACTIVE_ENUM` ∪ `StackIdV22Candidate` (10 ids, hides supabase/expo/eleventy/hugo), or (b) add a resolution step in `manual_override_resolver.resolve_manual()` that maps catalog short names like `supabase` → `generic`, `expo` → `generic`, etc. before persistence. Path (b) preserves the v2.0 catalog UX; path (a) is simpler but narrows the picker. Pick path (b) at v2.1.1 design time so existing Astro/Hugo/Eleventy/Expo users aren't hit by a regression.
+3. Add regression tests asserting (1) two simultaneous slash-command invocations cannot both write peer sentinels even when timing is adversarial (use `multiprocessing.Barrier` to coordinate the race window), and (2) every catalog short-name from the v2.0 14-id `StackId` Literal resolves to a member of `STACK_ID_ACTIVE_ENUM` after `manual_override_resolver.resolve_manual()` runs.
+
+**Cross-link**: Codex PR #50 P1-C (cross-command race) + Greptile PR #50 catalog-vs-active-enum side-band concern.
+
+**Effort estimate**: ~2-3h across the lock implementation + catalog mapping + tests.
+
+**Default decision**: defer to v2.1.1. The race is theoretical; the catalog mismatch fails at scaffold-stack time with a clear error rather than silently breaking review.

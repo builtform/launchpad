@@ -248,18 +248,27 @@ Per pick-stack plan §3.4 + `SCAFFOLD_HANDSHAKE.md` §4 rule 4:
    eleventy, hugo, hono, fastapi, django, rails, supabase, expo) as a
    menu. Per stack: one-line description, pillar tag, default role.
 
-   **v2.2-candidate disclosure.** Five of the 10 stacks (`rails`,
-   `django`, `hono`, `supabase`, `expo`) are members of
-   `StackIdV22Candidate` at v2.1: detection groundwork has landed but
-   their stack-specific kernel adapters route through the `generic`
-   adapter at v2.1. Selecting one of these still produces a working
-   scaffold (via the v2.0 manual-override catalog routing), but the
-   resulting scaffold uses generic defaults rather than stack-aware
-   ones. Full stack-aware adapters for these five ids land in v2.2.
-   When presenting the menu, prefix the five ids with a `[v2.2-candidate]`
-   tag and offer the user an explicit `[continue with generic]` /
-   `[choose another stack]` confirmation step before resolving the
-   layer spec. Phase 11 hardening A7: this disclosure replaces the
+   **v2.2-candidate disclosure.** When a layer-spec selection resolves
+   to a member of `StackIdV22Candidate` at
+   `plugin_stack_adapters/contracts.py` (qualified ids: `python_django`,
+   `python_generic`, `nextjs_hono_cloudflare`, `nextjs_trpc_prisma`,
+   `rails`), detection groundwork has landed in v2.1 but a stack-aware
+   `Adapter` Protocol implementation has not — the layer routes through
+   the `generic` adapter at scaffold-stack time. Selecting such a stack
+   still produces a working scaffold via the v2.0 manual-override
+   catalog routing, but with generic defaults rather than stack-aware
+   ones. Full stack-aware adapters for these five qualified ids land in
+   v2.2.
+
+   When presenting the menu, prefix a layer entry with a
+   `[v2.2-candidate]` tag whenever its resolved kernel-adapter target
+   is in `StackIdV22Candidate`, and offer the user an explicit
+   `[continue with generic]` / `[choose another stack]` confirmation
+   step before resolving the layer spec. Catalog short names like
+   `django`, `hono`, `next` are mapped to their qualified candidate
+   forms during resolution; do NOT apply the disclosure to short names
+   directly — the qualified-name match in `StackIdV22Candidate` is
+   authoritative. Phase 11 hardening A7: this disclosure replaces the
    prior silent INFO-log fallthrough flagged in cross-phase review.
 
 2. Prompt user for `(stack, role, path, options)` triples per layer.
