@@ -105,7 +105,16 @@ def test_render_all_returns_path_and_sha256(tmp_path: Path) -> None:
     # Each kernel file has a corresponding render_state entry.
     assert len(kernel_render_state) == 7
     for entry in kernel_render_state:
-        assert set(entry.keys()) == {"path", "rendered_content_sha256", "source_template_sha256"}
+        # v2.1.0 Codex P1 #2 fold: render_all now seals an explicit
+        # `missing_on_disk: False` flag alongside the SHA fields so
+        # refresh() can branch on the disambiguating signal.
+        assert set(entry.keys()) == {
+            "path",
+            "rendered_content_sha256",
+            "source_template_sha256",
+            "missing_on_disk",
+        }
+        assert entry["missing_on_disk"] is False
 
 
 def test_license_mit_renders_canonical_text(tmp_path: Path) -> None:

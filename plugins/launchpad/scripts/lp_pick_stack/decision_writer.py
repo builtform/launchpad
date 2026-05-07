@@ -131,7 +131,7 @@ def write_rationale_atomic(
     target = cwd / ".launchpad" / RATIONALE_FILENAME
 
     try:
-        atomic_write_excl(target, encoded)
+        atomic_write_excl(target, encoded, trusted_root=cwd)
     except FileExistsError as exc:
         raise DecisionWriteError(
             f"{target} already exists; remove .launchpad/ and re-run /lp-pick-stack",
@@ -519,7 +519,7 @@ def write_decision_atomic(
     target = cwd / ".launchpad" / DECISION_FILENAME
 
     try:
-        atomic_write_excl(target, encoded)
+        atomic_write_excl(target, encoded, trusted_root=cwd)
     except FileExistsError as exc:
         raise DecisionWriteError(
             f"{target} already exists; remove .launchpad/ and re-run /lp-pick-stack",
@@ -598,7 +598,7 @@ def re_seal_decision_atomic(
         allow_nan=False,
     )
     target = cwd / ".launchpad" / DECISION_FILENAME
-    atomic_write_replace(target, line.encode("utf-8"), mode=0o600)
+    atomic_write_replace(target, line.encode("utf-8"), mode=0o600, trusted_root=cwd)
     return sealed
 
 

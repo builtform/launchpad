@@ -362,7 +362,7 @@ def _record_version_drift(
         json.dumps(decision_payload, indent=2, sort_keys=True) + "\n"
     ).encode("utf-8")
     from atomic_io import atomic_write_replace
-    atomic_write_replace(target, encoded, mode=0o644)
+    atomic_write_replace(target, encoded, mode=0o644, trusted_root=cwd)
 
 
 # --- Sentinel preflight (engine step 2) -----------------------------------
@@ -1103,6 +1103,7 @@ def _render_loop(
                 backup_dir=backup_dir,
                 target_relpath=target_relpath,
                 mode=file_mode,
+                cwd=cwd,
             )
             try:
                 os.chmod(target_path, file_mode)
@@ -1154,6 +1155,7 @@ def _render_loop(
                 rendered_bytes=rendered_bytes,
                 manifest_rendered_sha=manifest_sha,
                 mode=file_mode,
+                cwd=cwd,
             )
         elif policy is BootstrapPolicy.APPEND_ONLY:
             policy_result = apply_append_only(
@@ -1167,6 +1169,7 @@ def _render_loop(
                 target=target_path,
                 rendered_bytes=rendered_bytes,
                 mode=file_mode,
+                cwd=cwd,
                 serializer=_serializer_for(target_relpath),
                 yaml_dumper=_yaml_dumper,
             )

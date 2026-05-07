@@ -390,7 +390,7 @@ def write_manifest(
     """
     target = cwd / LAUNCHPAD_DIR_NAME / MANIFEST_FILENAME
     encoded = manifest_to_json_bytes(manifest)
-    atomic_write_replace(target, encoded, mode=0o644)
+    atomic_write_replace(target, encoded, mode=0o644, trusted_root=cwd)
     return target
 
 

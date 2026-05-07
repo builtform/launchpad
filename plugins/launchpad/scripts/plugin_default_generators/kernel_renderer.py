@@ -111,18 +111,21 @@ class KernelRenderer(RendererBase):
 
             {
                 "path": output_relpath,
-                "rendered_content_sha256": <on-disk sha or None>,
+                "rendered_content_sha256": <on-disk sha or template_sha placeholder>,
                 "source_template_sha256": <upstream template sha>,
                 "missing_on_disk": <bool>,
-                "user_has_drift": <bool — true if rendered_sha != template_sha>,
             }
 
         Used by Case E "y" path in `lp_update_identity` to seal
-        kernel_render_state WITHOUT overwriting user edits. The
-        consumer-side contract (lock-now, land-BL-267) is documented in
-        `docs/architecture/SCAFFOLD_OPERATIONS.md` §12: `--refresh
-        --accept-drift` opts into clobber with `.bak` fallback for files
-        whose `user_has_drift=true`.
+        kernel_render_state WITHOUT overwriting user edits.
+
+        v2.1.0 Codex P1 #2 fold: the prior `user_has_drift` field was
+        always-true on clean rendered files because it compared the
+        on-disk (post-Jinja-interpolation) SHA against the raw template
+        source SHA — different domains. The disambiguating signal is
+        `missing_on_disk`, already in the schema; missing files seal a
+        placeholder SHA equal to the template SHA, present files seal
+        the actual on-disk SHA. `refresh()` branches on `missing_on_disk`.
         """
         out: list[dict] = []
         for template_name, output_relpath in KERNEL_FILES:
@@ -132,10 +135,9 @@ class KernelRenderer(RendererBase):
             if not target.is_file():
                 entry = {
                     "path": output_relpath,
-                    "rendered_content_sha256": None,
+                    "rendered_content_sha256": template_sha,
                     "source_template_sha256": template_sha,
                     "missing_on_disk": True,
-                    "user_has_drift": False,
                 }
             else:
                 rendered_sha = sha256_bytes(target.read_bytes())
@@ -144,7 +146,6 @@ class KernelRenderer(RendererBase):
                     "rendered_content_sha256": rendered_sha,
                     "source_template_sha256": template_sha,
                     "missing_on_disk": False,
-                    "user_has_drift": rendered_sha != template_sha,
                 }
             out.append(entry)
         return out
@@ -182,6 +183,7 @@ class KernelRenderer(RendererBase):
         )
         self.write_batch(
             batch,
+            cwd=cwd,
             patterns_file=patterns_file,
             allowlist_path=allowlist_path,
         )
@@ -196,6 +198,7 @@ class KernelRenderer(RendererBase):
                 "path": output_relpath,
                 "rendered_content_sha256": sha256_bytes(target.read_bytes()),
                 "source_template_sha256": self._template_sha256(template_name),
+                "missing_on_disk": False,
             })
 
         return rendered, kernel_render_state
@@ -266,25 +269,37 @@ class KernelRenderer(RendererBase):
                 # so we should only land here in test fixtures).
                 write_subset[target] = new_content
                 continue
-            # v2.1 Codex PR #50 post-review-2 P1 #2: honor `user_has_drift`
-            # sealed by Case E "y" (`compute_current_on_disk_state`). When
-            # the prior state's rendered_content_sha256 is the user's edit
-            # SHA (not the canonical render SHA), the next on-disk read
-            # would observe `current_disk_sha == prior_rendered_sha` and
-            # falsely classify the file as "safe to overwrite" — silently
-            # destroying the user's edit. The drift flag forces the
-            # user-edit-detection branch live regardless of the SHA
-            # match. Backward-compat: prior states without the flag fall
-            # through to the existing SHA comparison.
-            if entry.get("user_has_drift") is True:
+            # v2.1.0 Codex P1 #2 fold: branch on existing `missing_on_disk`
+            # field instead of the always-wrong `user_has_drift` SHA-domain
+            # mismatch comparison. Two sub-cases when missing_on_disk: True:
+            if entry.get("missing_on_disk") is True:
+                if not target.is_file():
+                    # Still missing -> write fresh (Case E recovery happy path).
+                    write_subset[target] = new_content
+                    continue
+                # File exists NOW (intermediate render race between Case E
+                # seal and this refresh). The placeholder SHA equals the
+                # template SHA; SHA-compare would mis-classify the file
+                # as "safe to overwrite" because the actual on-disk SHA
+                # is the post-Jinja-interpolation SHA. Conservative: skip
+                # with template_drift_infos breadcrumb. Recovery path: user
+                # re-runs `/lp-bootstrap --refresh` which calls render_all
+                # and re-seals with `missing_on_disk: False`, unblocking
+                # subsequent /lp-update-identity refresh.
+                template_drift_infos.append(
+                    f"{output_relpath}: file exists with stale "
+                    f"missing_on_disk placeholder seal; re-run "
+                    f"/lp-bootstrap --refresh to re-seal"
+                )
                 skipped.append(target)
                 continue
+            # missing_on_disk: False -- standard rendered-seal path.
             prior_rendered_sha = entry.get("rendered_content_sha256")
             current_disk_sha = (
                 sha256_bytes(target.read_bytes()) if target.is_file() else None
             )
             if current_disk_sha is None:
-                # File is missing -> always render fresh.
+                # File deleted post-seal; render fresh.
                 write_subset[target] = new_content
                 continue
             if current_disk_sha != prior_rendered_sha:
@@ -306,6 +321,7 @@ class KernelRenderer(RendererBase):
             allowlist_path = cwd / ".launchpad" / "secret-allowlist.txt"
             self.write_batch(
                 write_subset,
+                cwd=cwd,
                 patterns_file=patterns_file,
                 allowlist_path=allowlist_path,
             )
@@ -341,19 +357,19 @@ class KernelRenderer(RendererBase):
                     and prior_entry.get("rendered_content_sha256")
                     and prior_entry.get("source_template_sha256")
                 ):
-                    preserved: dict[str, Any] = {
+                    # Preserve prior seal verbatim for skipped files so the
+                    # next refresh's user-edit-detection branch stays live
+                    # until the user explicitly resolves the drift. The
+                    # `missing_on_disk` flag round-trips naturally via
+                    # dict-spread (v2.1.0 Codex P1 #2 fold replaces the
+                    # prior `user_has_drift` sticky-preservation — the
+                    # missing_on_disk signal carries the same information).
+                    new_state_entries.append({
                         "path": output_relpath,
                         "rendered_content_sha256": prior_entry["rendered_content_sha256"],
                         "source_template_sha256": prior_entry["source_template_sha256"],
-                    }
-                    # v2.1 Codex PR #50 post-review-2 P1 #2: preserve the
-                    # `user_has_drift` flag across skipped refreshes so the
-                    # consent boundary stays live until the user explicitly
-                    # resolves the drift (e.g., via the deferred
-                    # `--accept-drift` flag in BL-267).
-                    if prior_entry.get("user_has_drift") is True:
-                        preserved["user_has_drift"] = True
-                    new_state_entries.append(preserved)
+                        "missing_on_disk": bool(prior_entry.get("missing_on_disk")),
+                    })
                     continue
                 # Defensive fallback (should not happen given how `skipped`
                 # is populated above): no prior_entry available, so we have
@@ -363,6 +379,7 @@ class KernelRenderer(RendererBase):
                 "path": output_relpath,
                 "rendered_content_sha256": sha256_bytes(target.read_bytes()),
                 "source_template_sha256": self._template_sha256(template_name),
+                "missing_on_disk": False,
             })
 
         return RefreshResult(

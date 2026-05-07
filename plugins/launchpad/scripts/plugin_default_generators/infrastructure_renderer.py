@@ -303,6 +303,7 @@ class InfrastructureRenderer(RendererBase):
         allowlist_path = cwd / ".launchpad" / "secret-allowlist.txt"
         self.write_batch(
             batch,
+            cwd=cwd,
             file_modes=target_to_mode,
             chmod_after_replace=True,
             patterns_file=patterns_file,

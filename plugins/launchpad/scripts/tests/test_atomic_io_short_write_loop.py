@@ -41,7 +41,7 @@ def test_write_all_handles_short_writes(
         return real_write(fd, data[:1])
 
     monkeypatch.setattr(atomic_io.os, "write", short_write)
-    atomic_io.atomic_write_excl(target, payload)
+    atomic_io.atomic_write_excl(target, payload, trusted_root=tmp_path)
     assert target.read_bytes() == payload
     assert call_count[0] >= len(payload), (
         f"expected ≥{len(payload)} short-write calls, got {call_count[0]}"

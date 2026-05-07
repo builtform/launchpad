@@ -37,6 +37,7 @@ import fcntl
 import os
 import sys
 import tempfile
+import warnings
 from pathlib import Path
 from typing import Iterator, Mapping
 
@@ -44,8 +45,90 @@ from typing import Iterator, Mapping
 __all__ = [
     "atomic_write_excl",
     "atomic_write_replace",
+    "atomic_write_replace_batch",
     "advisory_flock",
 ]
+
+
+def _assert_path_safe(
+    target: Path,
+    trusted_root: Path | None,
+) -> None:
+    """Reject `target` if a symlink redirection escapes `trusted_root`.
+
+    Three security checks (all load-bearing per the v2.1.0 atomic_io
+    symlink-rejection plan §2.1):
+
+      1. Reject if `target` itself is a symlink (closes the primary attack
+         vector where `cwd/.launchpad/scaffold-decision.json -> /tmp/loot`
+         defeats an ancestor-only walk).
+      2. Walk the parent chain from `target.parent` up to `trusted_root`
+         inclusive; reject if any ancestor is a symlink. Defeats
+         `.github -> /tmp/outside` and similar ancestor redirection.
+      3. Defense-in-depth: assert `target_abs.parent.resolve()` is a
+         descendant of `trusted_root.resolve()`. Catches the
+         absolute-path-through-symlink case where `target.parent` itself
+         is not a symlink but its resolved path escapes `trusted_root`.
+
+    When `trusted_root is None`, defaults to `Path.cwd().resolve()` and
+    emits a `RuntimeWarning` so production-path accidental misuse is loud.
+    Production callers MUST pass an explicit `trusted_root`.
+
+    Pure assertion; returns `None`. Threat model is workspace-boundary
+    protection (NOT multi-tenant filesystem-level attacker); TOCTOU
+    between this check and the subsequent mkdir/mkstemp/os.open is
+    acknowledged accept-residual at v2.1.0.
+    """
+    if trusted_root is None:
+        warnings.warn(
+            "atomic_io: trusted_root not passed; defaulting to Path.cwd() "
+            "-- production callers MUST pass explicit trusted_root.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+    trusted_abs = (trusted_root or Path.cwd()).resolve()
+    target_abs = target if target.is_absolute() else (trusted_abs / target)
+    # Check 1: target itself.
+    if target_abs.is_symlink():
+        raise OSError(
+            f"atomic_io: refused write through symlinked target "
+            f"{target!r}"
+        )
+    # Check 2: walk parent chain up to trusted_root inclusive. We compare
+    # `current.resolve()` against `trusted_abs` because the unresolved
+    # chain may traverse system-level symlinks (e.g., macOS
+    # `/var -> /private/var`); without the resolve-step the walk would
+    # never see the trusted_root sentinel and march all the way to `/`.
+    current = target_abs.parent
+    while True:
+        try:
+            current_resolved = current.resolve()
+        except OSError:
+            # Component disappeared mid-walk; refuse fail-closed.
+            raise OSError(
+                f"atomic_io: parent chain of {target!r} could not be "
+                f"resolved"
+            )
+        if not current_resolved.is_relative_to(trusted_abs):
+            # Walked above trusted_root — Check 3 below is the
+            # authoritative escape-detector, so leave that to it.
+            break
+        if current.is_symlink():
+            raise OSError(
+                f"atomic_io: refused write through symlinked ancestor "
+                f"{current!r} of target {target!r}"
+            )
+        if current_resolved == trusted_abs or current == current.parent:
+            break
+        current = current.parent
+    # Check 3: defense-in-depth (absolute-path-through-symlink case).
+    try:
+        target_abs.parent.resolve().relative_to(trusted_abs)
+    except (ValueError, OSError) as exc:
+        raise OSError(
+            f"atomic_io: target parent {target_abs.parent!r} escapes "
+            f"trusted_root {trusted_abs!r}"
+        ) from exc
 
 
 def _fsync_parent(target: Path) -> None:
@@ -115,6 +198,7 @@ def atomic_write_excl(
     encoded: bytes,
     *,
     mode: int = 0o600,
+    trusted_root: Path | None = None,
 ) -> None:
     """Atomically create a new file at `target` with O_CREAT|O_EXCL durability.
 
@@ -127,11 +211,18 @@ def atomic_write_excl(
     Raises FileExistsError if target already exists. Callers translate this
     into a domain-specific error (e.g., DecisionWriteError with reason
     `scaffold_decision_already_exists`).
+
+    Symlink-rejection: `_assert_path_safe(target, trusted_root)` runs
+    before mkdir to refuse writes through symlinked ancestors or a
+    symlinked target. `O_NOFOLLOW` is added to the open flags as
+    belt-and-braces (defends if the pre-check is bypassed). Production
+    callers MUST pass an explicit `trusted_root`.
     """
+    _assert_path_safe(target, trusted_root)
     target.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(
         str(target),
-        os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
         mode,
     )
     try:
@@ -152,6 +243,7 @@ def atomic_write_replace(
     encoded: bytes,
     *,
     mode: int = 0o600,
+    trusted_root: Path | None = None,
 ) -> None:
     """Atomically replace `target` via tempfile-in-same-dir plus os.replace.
 
@@ -162,7 +254,13 @@ def atomic_write_replace(
 
     Allows overwriting an existing `target`. The rename is atomic on POSIX
     — readers either see the old content or the new, never a partial write.
+
+    Symlink-rejection: `_assert_path_safe(target, trusted_root)` runs
+    before mkdir/mkstemp to refuse writes through symlinked ancestors or
+    a symlinked target. Production callers MUST pass an explicit
+    `trusted_root`.
     """
+    _assert_path_safe(target, trusted_root)
     target.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(
         prefix=f".{target.name}.",
@@ -194,6 +292,7 @@ def atomic_write_replace_batch(
     *,
     modes: "Mapping[Path, int] | None" = None,
     default_mode: int = 0o600,
+    trusted_root: Path | None = None,
 ) -> None:
     """Two-phase atomic write of `batch` (v2.1 Codex PR #50 post-review P1).
 
@@ -224,6 +323,11 @@ def atomic_write_replace_batch(
     in_flight_tmp: Path | None = None
     try:
         for target, content in batch.items():
+            # Symlink-rejection: refuse-all on first symlinked ancestor or
+            # target. Runs BEFORE mkstemp so no tempfiles are staged on
+            # rejection. Production callers MUST pass an explicit
+            # `trusted_root`; the optional default emits a RuntimeWarning.
+            _assert_path_safe(target, trusted_root)
             target.parent.mkdir(parents=True, exist_ok=True)
             mode = modes.get(target, default_mode)
             fd, tmp_name = tempfile.mkstemp(

@@ -221,7 +221,7 @@ def test_cross_device_replace_error_path(tmp_path):
     with mock.patch.object(os, "replace", side_effect=_stub_replace):
         with pytest.raises(OSError) as excinfo:
             from atomic_io import atomic_write_replace
-            atomic_write_replace(target, b"hello", mode=0o644)
+            atomic_write_replace(target, b"hello", mode=0o644, trusted_root=tmp_path)
         assert excinfo.value.errno == errno.EXDEV
 
 

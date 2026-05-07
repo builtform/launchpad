@@ -28,7 +28,7 @@ def test_successful_batch_writes_all_targets(tmp_path):
     a = tmp_path / "a.txt"
     b = tmp_path / "sub" / "b.txt"
     c = tmp_path / "c.txt"
-    atomic_write_replace_batch({a: b"alpha", b: b"bravo", c: b"charlie"})
+    atomic_write_replace_batch({a: b"alpha", b: b"bravo", c: b"charlie"}, trusted_root=tmp_path)
     assert a.read_bytes() == b"alpha"
     assert b.read_bytes() == b"bravo"
     assert c.read_bytes() == b"charlie"
@@ -40,6 +40,7 @@ def test_successful_batch_applies_per_file_modes(tmp_path):
     atomic_write_replace_batch(
         {exe: b"#!/bin/sh\n", plain: b"key: value\n"},
         modes={exe: 0o755, plain: 0o644},
+        trusted_root=tmp_path,
     )
     assert (exe.stat().st_mode & 0o777) == 0o755
     assert (plain.stat().st_mode & 0o777) == 0o644
@@ -68,7 +69,7 @@ def test_phase1_failure_leaves_originals_untouched(tmp_path):
 
     with patch("atomic_io.os.write", side_effect=fail_after_first):
         with pytest.raises(OSError, match="simulated stage failure"):
-            atomic_write_replace_batch({a: b"new-a", b: b"new-b", c: b"new-c"})
+            atomic_write_replace_batch({a: b"new-a", b: b"new-b", c: b"new-c"}, trusted_root=tmp_path)
 
     # P1 regression: ALL originals untouched (none of new-a, new-b, new-c
     # made it to its final target).
@@ -99,7 +100,7 @@ def test_phase2_mid_rename_failure_leaves_partial_state(tmp_path):
 
     with patch("atomic_io.os.replace", side_effect=fail_on_second_rename):
         with pytest.raises(OSError, match="simulated rename failure"):
-            atomic_write_replace_batch({a: b"alpha", b: b"bravo", c: b"charlie"})
+            atomic_write_replace_batch({a: b"alpha", b: b"bravo", c: b"charlie"}, trusted_root=tmp_path)
 
     # First target landed at its final path.
     assert a.read_bytes() == b"alpha"
@@ -114,6 +115,6 @@ def test_phase2_mid_rename_failure_leaves_partial_state(tmp_path):
 
 
 def test_empty_batch_is_no_op(tmp_path):
-    atomic_write_replace_batch({})
+    atomic_write_replace_batch({}, trusted_root=tmp_path)
     # tmp_path stays empty.
     assert list(tmp_path.iterdir()) == []

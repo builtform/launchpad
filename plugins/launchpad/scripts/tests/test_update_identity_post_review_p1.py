@@ -4,26 +4,25 @@ P1 #1 — Case D `--seed-brownfield` non-dry-run path returns a
         structured `BROWNFIELD_SEED_NOT_IMPLEMENTED` error rather than
         crashing with an unstructured FileNotFoundError.
 
-P1 #2 — `KernelRenderer.refresh()` honors `user_has_drift` from the
-        prior kernel_render_state. When the flag is True (sealed by
-        Case E "y" path), the file is skipped regardless of the
-        on-disk SHA — preventing the previously-discovered data-loss
-        regression where `current_disk_sha == prior_rendered_sha`
-        (because both are the user's edit SHA) caused the file to be
-        silently overwritten on the next refresh.
+v2.1.0 Codex P1 #2 fold (replaces prior `user_has_drift` tests): the
+prior `user_has_drift` boolean was always-true on clean rendered files
+(it compared the on-disk post-Jinja-interpolation SHA against the raw
+template source SHA — different domains), so refresh() permanently
+skipped every file. The fix drops `user_has_drift` and branches on
+`missing_on_disk` instead. These tests pin the new contract:
 
-P1 #2 — `user_has_drift` is preserved across skipped refreshes so the
-        consent boundary stays live until the user explicitly resolves
-        the drift.
+  * Files where the prior seal said `missing_on_disk: False` AND on-disk
+    SHA matches the prior `rendered_content_sha256` get re-rendered.
+  * Files where the prior seal said `missing_on_disk: False` AND on-disk
+    SHA differs from prior get skipped (user-edit detection).
+  * Files where the prior seal said `missing_on_disk: True` AND target
+    is now present (intermediate render race) get skipped with WARN.
 """
 from __future__ import annotations
 
 import io
-import json
 import sys
 from pathlib import Path
-
-import pytest
 
 _SCRIPTS = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS) not in sys.path:
@@ -89,43 +88,39 @@ def test_case_d_seed_brownfield_dry_run_still_works(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# P1 #2: refresh() honors user_has_drift
+# P1 #2 (v2.1.0 fold): refresh() branches on missing_on_disk
 # ---------------------------------------------------------------------------
 
 
-def test_refresh_skips_files_marked_user_has_drift(tmp_path):
-    """v2.1 Codex PR #50 post-review-2 P1 #2: refresh() must skip files
-    whose prior state has `user_has_drift: True`, regardless of
-    on-disk-sha vs prior-rendered-sha equality."""
+def test_refresh_skips_user_edited_files_via_sha_compare(tmp_path):
+    """v2.1.0 Codex P1 #2 fold: a present file whose on-disk SHA differs
+    from the prior `rendered_content_sha256` gets skipped (user-edit
+    detection). `missing_on_disk: False` + SHA mismatch ⇒ skip.
+    """
     from plugin_default_generators.kernel_renderer import KernelRenderer
 
-    # Seed kernel files via render_all so the templates land on disk.
     renderer = KernelRenderer()
     renderer.render_all(tmp_path, _identity_mit())
 
-    # User edits LICENSE (the drift simulation).
     license_path = tmp_path / "LICENSE"
     edited_content = b"USER EDITED CONTENT - MUST PRESERVE\n"
     license_path.write_bytes(edited_content)
 
-    # Build prior_state in the shape Case E "y" would seal: the user's
-    # edited SHA is recorded as `rendered_content_sha256` AND the
-    # `user_has_drift` flag is True. Without the flag, refresh() would
-    # see `current_disk_sha == prior_rendered_sha` (both the user's edit
-    # SHA) and falsely classify the file as "safe to overwrite".
+    # Prior state recorded the *clean* rendered SHA (the legitimate seal
+    # produced by render_all). The user has since edited; refresh's
+    # SHA-compare detects the divergence and skips.
     import hashlib
-    user_edit_sha = hashlib.sha256(edited_content).hexdigest()
     template_sha = renderer._template_sha256("LICENSE.j2")
+    # We don't know the clean rendered SHA without re-rendering; so seal a
+    # known-different placeholder and assert the SHA mismatch path.
+    sentinel_clean_sha = "0" * 64
     prior_state = [{
         "path": "LICENSE",
-        "rendered_content_sha256": user_edit_sha,
+        "rendered_content_sha256": sentinel_clean_sha,
         "source_template_sha256": template_sha,
-        "user_has_drift": True,
+        "missing_on_disk": False,
     }]
 
-    # New identity with a different copyright_holder so the rendered
-    # template content WOULD differ from the user's edit if refresh
-    # didn't refuse.
     new_identity = dict(_identity_mit())
     new_identity["copyright_holder"] = "New Owner"
 
@@ -135,32 +130,31 @@ def test_refresh_skips_files_marked_user_has_drift(tmp_path):
         prior_kernel_render_state=prior_state,
     )
 
-    # P1 #2 regression assertion: LICENSE was skipped (user_has_drift honored).
     assert license_path in result.skipped_user_edits
-    # User's edit preserved byte-for-byte.
     assert license_path.read_bytes() == edited_content
 
 
-def test_refresh_preserves_user_has_drift_across_skipped(tmp_path):
-    """v2.1 Codex PR #50 post-review-2 P1 #2: when refresh() skips a
-    file due to user_has_drift, the new kernel_render_state preserves
-    the flag so the consent boundary stays live across refreshes."""
+def test_refresh_missing_on_disk_true_with_present_file_skips_with_warn(tmp_path):
+    """v2.1.0 Codex P1 #2 fold (cycle-1 SF-P1-3 stale-placeholder race):
+    when prior seal said `missing_on_disk: True` but the target is now
+    present (intermediate render race wrote it between Case E seal and
+    this refresh), the file is skipped with a template_drift_infos
+    breadcrumb naming the recovery command.
+    """
     from plugin_default_generators.kernel_renderer import KernelRenderer
 
     renderer = KernelRenderer()
+    # Pre-seed LICENSE on disk (simulating the intermediate render race).
     renderer.render_all(tmp_path, _identity_mit())
-
     license_path = tmp_path / "LICENSE"
-    license_path.write_bytes(b"user edit\n")
+    assert license_path.is_file()
 
-    import hashlib
-    edit_sha = hashlib.sha256(b"user edit\n").hexdigest()
     template_sha = renderer._template_sha256("LICENSE.j2")
     prior_state = [{
         "path": "LICENSE",
-        "rendered_content_sha256": edit_sha,
+        "rendered_content_sha256": template_sha,  # placeholder seal
         "source_template_sha256": template_sha,
-        "user_has_drift": True,
+        "missing_on_disk": True,
     }]
 
     result = renderer.refresh(
@@ -169,37 +163,25 @@ def test_refresh_preserves_user_has_drift_across_skipped(tmp_path):
         prior_kernel_render_state=prior_state,
     )
 
-    # Find LICENSE in the new state.
-    license_state = next(
-        (e for e in result.kernel_render_state if e.get("path") == "LICENSE"),
-        None,
-    )
-    assert license_state is not None
-    # The flag is preserved.
-    assert license_state.get("user_has_drift") is True
+    assert license_path in result.skipped_user_edits
+    # Breadcrumb names the recovery command.
+    assert any(
+        "/lp-bootstrap --refresh" in info for info in result.template_drift_infos
+    ), f"missing recovery breadcrumb in {result.template_drift_infos!r}"
 
 
-def test_refresh_without_drift_flag_falls_through_to_sha_compare(tmp_path):
-    """Backward compat: prior state entries without `user_has_drift`
-    fall through to the existing SHA-comparison path."""
+def test_refresh_clean_files_with_missing_on_disk_false_get_rendered(tmp_path):
+    """v2.1.0 Codex P1 #2 fold: the originally-broken case. Clean files
+    sealed via render_all (`missing_on_disk: False`, on-disk SHA matches
+    prior) MUST be re-rendered on identity update. Pre-fix, the
+    always-true `user_has_drift` flag blocked this path entirely.
+    """
     from plugin_default_generators.kernel_renderer import KernelRenderer
 
     renderer = KernelRenderer()
-    renderer.render_all(tmp_path, _identity_mit())
-
-    license_path = tmp_path / "LICENSE"
-    rendered_sha_before_refresh = __import__("hashlib").sha256(
-        license_path.read_bytes()
-    ).hexdigest()
-    template_sha = renderer._template_sha256("LICENSE.j2")
-
-    # Prior state with NO user_has_drift flag (matches pre-fix v2.1.0
-    # state shape).
-    prior_state = [{
-        "path": "LICENSE",
-        "rendered_content_sha256": rendered_sha_before_refresh,
-        "source_template_sha256": template_sha,
-    }]
+    _rendered, kernel_state = renderer.render_all(tmp_path, _identity_mit())
+    # All seals carry missing_on_disk: False with the actual rendered SHA.
+    assert all(e.get("missing_on_disk") is False for e in kernel_state)
 
     new_identity = dict(_identity_mit())
     new_identity["copyright_holder"] = "Different Owner"
@@ -207,10 +189,12 @@ def test_refresh_without_drift_flag_falls_through_to_sha_compare(tmp_path):
     result = renderer.refresh(
         tmp_path,
         new_identity,
-        prior_kernel_render_state=prior_state,
+        prior_kernel_render_state=kernel_state,
     )
 
-    # SHA matches (no user edits) -> file gets re-rendered, NOT skipped.
-    assert license_path not in result.skipped_user_edits
-    rendered_paths = [p for p, _sha in result.rendered]
-    assert license_path in rendered_paths
+    # All 7 kernel files re-rendered (not skipped). This was the pre-fix
+    # failure mode: every clean file got skipped because user_has_drift
+    # was always True for post-Jinja-interpolation files.
+    rendered_paths = {p for p, _sha in result.rendered}
+    assert (tmp_path / "LICENSE") in rendered_paths
+    assert result.skipped_user_edits == []

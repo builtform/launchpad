@@ -389,6 +389,8 @@ class RendererBase:
         target: Path,
         identity: Mapping[str, Any],
         extra_context: Mapping[str, Any] | None = None,
+        *,
+        cwd: Path,
     ) -> tuple[str, str]:
         """Render and atomically write to `target` via the buffered-batch
         gate. Backwards-compat wrapper: callers that previously rendered
@@ -399,11 +401,13 @@ class RendererBase:
 
         Phase 8.5 plan section 3.11: render_to_path is a thin wrapper
         over `render_batch + write_batch` so the gate fires here too.
+        v2.1.0 atomic_io symlink-rejection plan §3.3: `cwd` is the
+        engine-boundary `trusted_root` propagated to atomic_io.
         """
         rendered = self.render_to_string(template_name, identity, extra_context)
         encoded = rendered.encode("utf-8")
         batch = {target: encoded}
-        self.write_batch(batch)
+        self.write_batch(batch, cwd=cwd)
         return rendered, sha256_bytes(encoded)
 
     # ------------------------------------------------------------------
@@ -489,6 +493,7 @@ class RendererBase:
         self,
         batch: Mapping[Path, bytes],
         *,
+        cwd: Path,
         file_modes: Mapping[Path, int] | None = None,
         chmod_after_replace: bool = False,
         patterns_file: Path | None = None,
@@ -553,7 +558,10 @@ class RendererBase:
         # Two-phase atomic write: stage all targets first, then rename.
         # See `atomic_write_replace_batch` in atomic_io.py for the
         # phase-1 (atomic) / phase-2 (best-effort) contract.
-        atomic_write_replace_batch(batch, modes=modes)
+        # v2.1.0 atomic_io symlink-rejection: thread `cwd` as
+        # `trusted_root` so any symlinked ancestor on the write path
+        # raises OSError before tempfiles are staged.
+        atomic_write_replace_batch(batch, modes=modes, trusted_root=cwd)
         if chmod_after_replace:
             for target_path in batch.keys():
                 mode = modes.get(target_path)

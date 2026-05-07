@@ -610,6 +610,7 @@ def generate(
         try:
             renderer.write_batch(
                 to_write,
+                cwd=repo_root,
                 patterns_file=patterns_file,
                 allowlist_path=allowlist_path,
             )
@@ -672,7 +673,7 @@ def redetect_stack(repo_root: Path, *, force: bool) -> int:
     config_path = repo_root / ".launchpad" / "config.yml"
     if not config_path.is_file():
         new_text = f"stacks: [{', '.join(detected)}]\n"
-        write_config_yaml_atomic(config_path, new_text)
+        write_config_yaml_atomic(config_path, new_text, cwd=repo_root)
         return 0
 
     text = config_path.read_text(encoding="utf-8")
@@ -690,7 +691,7 @@ def redetect_stack(repo_root: Path, *, force: bool) -> int:
         out.insert(0, new_stacks_line)
         out.insert(1, "")
     new_text = "\n".join(out) + ("\n" if text.endswith("\n") else "")
-    write_config_yaml_atomic(config_path, new_text)
+    write_config_yaml_atomic(config_path, new_text, cwd=repo_root)
     return 0
 
 

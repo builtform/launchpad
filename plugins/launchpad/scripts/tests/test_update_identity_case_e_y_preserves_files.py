@@ -1,9 +1,10 @@
 """v2.1 Codex PR #50 Greptile #6 (D6) regression: Case E "y" preserves files.
 
-Tests:
-  * compute_current_on_disk_state returns expected keys
-  * `user_has_drift` flag set correctly (rendered_sha != template_sha)
-  * `missing_on_disk` flag set when file absent
+Tests (v2.1.0 Codex P1 #2 fold updates):
+  * compute_current_on_disk_state returns expected keys (no user_has_drift)
+  * Missing files seal `missing_on_disk: True` AND placeholder
+    `rendered_content_sha256 == source_template_sha256`
+  * Idempotent (read-only, side-effect-free).
 """
 from __future__ import annotations
 
@@ -25,7 +26,8 @@ def test_compute_current_on_disk_state_returns_expected_keys(tmp_path):
         assert "rendered_content_sha256" in entry
         assert "source_template_sha256" in entry
         assert "missing_on_disk" in entry
-        assert "user_has_drift" in entry
+        # v2.1.0 Codex P1 #2 fold: user_has_drift dropped entirely.
+        assert "user_has_drift" not in entry
 
 
 def test_compute_current_on_disk_state_marks_missing_files(tmp_path):
@@ -33,7 +35,11 @@ def test_compute_current_on_disk_state_marks_missing_files(tmp_path):
     state = KernelRenderer().compute_current_on_disk_state(tmp_path)
     for entry in state:
         assert entry["missing_on_disk"] is True
-        assert entry["rendered_content_sha256"] is None
+        # v2.1.0 Codex P1 #2 fold: missing files now seal the template SHA
+        # as a placeholder (was `None`); the disambiguating signal is
+        # `missing_on_disk`. This keeps schema consumers happy by always
+        # having a 64-hex SHA in the field.
+        assert entry["rendered_content_sha256"] == entry["source_template_sha256"]
 
 
 def test_compute_current_on_disk_state_idempotent(tmp_path):

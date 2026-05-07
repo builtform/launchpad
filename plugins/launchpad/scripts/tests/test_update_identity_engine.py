@@ -447,6 +447,7 @@ def _seed_legacy_v1_0_envelope(
     atomic_write_excl(
         target,
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8"),
+        trusted_root=tmp_path,
     )
     return target
 

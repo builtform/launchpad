@@ -85,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
     sys.path.insert(0, str(args.repo_root / "plugins" / "launchpad" / "scripts"))
     from atomic_io import atomic_write_replace
 
-    atomic_write_replace(target, filtered.encode("utf-8"), mode=0o600)
+    atomic_write_replace(target, filtered.encode("utf-8"), mode=0o600, trusted_root=args.repo_root)
     print(
         f"plugin-restamp-redact-wip: redacted {dropped} wip(slice-...): "
         f"entries from {target}"

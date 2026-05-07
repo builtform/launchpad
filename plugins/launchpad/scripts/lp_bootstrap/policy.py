@@ -136,6 +136,7 @@ def write_backup_then_overwrite(
     backup_dir: Path,
     target_relpath: str,
     mode: int,
+    cwd: Path,
 ) -> PolicyResult:
     """Apply `overwrite-with-backup` policy for `--refresh` / `--refresh-all`.
 
@@ -167,7 +168,7 @@ def write_backup_then_overwrite(
 
     backup_path = backup_dir / target_relpath
     backup_path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_replace(backup_path, pre_edit_bytes, mode=0o644)
+    atomic_write_replace(backup_path, pre_edit_bytes, mode=0o644, trusted_root=cwd)
 
     verify_bytes = backup_path.read_bytes()
     if verify_bytes != pre_edit_bytes:
@@ -182,7 +183,7 @@ def write_backup_then_overwrite(
             ),
         )
 
-    atomic_write_replace(target, new_bytes, mode=mode)
+    atomic_write_replace(target, new_bytes, mode=mode, trusted_root=cwd)
     rendered_sha = sha256_bytes(new_bytes)
     return PolicyResult(
         action=PolicyAction.OVERWROTE_WITH_BACKUP,
@@ -200,6 +201,7 @@ def apply_overwrite_if_unchanged(
     rendered_bytes: bytes,
     manifest_rendered_sha: str | None,
     mode: int,
+    cwd: Path,
 ) -> PolicyResult:
     """Compare on-disk sha to manifest's `rendered_content_sha256`.
 
@@ -239,7 +241,7 @@ def apply_overwrite_if_unchanged(
     rendered_sha = sha256_bytes(rendered_bytes)
 
     if not target.exists():
-        atomic_write_replace(target, rendered_bytes, mode=mode)
+        atomic_write_replace(target, rendered_bytes, mode=mode, trusted_root=cwd)
         return PolicyResult(
             action=PolicyAction.WRITE,
             path=target,
@@ -265,7 +267,7 @@ def apply_overwrite_if_unchanged(
             rendered_sha256=rendered_sha,
         )
 
-    atomic_write_replace(target, rendered_bytes, mode=mode)
+    atomic_write_replace(target, rendered_bytes, mode=mode, trusted_root=cwd)
     return PolicyResult(
         action=PolicyAction.WRITE,
         path=target,
@@ -281,7 +283,7 @@ def apply_append_only(
     target: Path,
     rendered_bytes: bytes,
     mode: int,
-    cwd: Path | None = None,
+    cwd: Path,
 ) -> PolicyResult:
     """Append plugin-required entries that aren't already present.
 
@@ -344,7 +346,7 @@ def apply_append_only(
     new_text = existing_text + "\n".join(to_append) + "\n"
     new_bytes = new_text.encode("utf-8")
 
-    atomic_write_replace(target, new_bytes, mode=mode)
+    atomic_write_replace(target, new_bytes, mode=mode, trusted_root=cwd)
 
     verify_text = target.read_text(encoding="utf-8")
     verify_lines = {line.strip() for line in verify_text.splitlines()}
@@ -469,6 +471,7 @@ def apply_merge_keys(
     target: Path,
     rendered_bytes: bytes,
     mode: int,
+    cwd: Path,
     serializer: str = "json",
     yaml_dumper: Any = None,
 ) -> PolicyResult:
@@ -561,7 +564,7 @@ def apply_merge_keys(
         # append-only at the line level: every plugin line that is not
         # already present is appended in document order. User lines are
         # never reordered or deleted.
-        return apply_append_only(target=target, rendered_bytes=rendered_bytes, mode=mode)
+        return apply_append_only(target=target, rendered_bytes=rendered_bytes, mode=mode, cwd=cwd)
 
     else:
         raise BootstrapPolicyError(
@@ -571,7 +574,7 @@ def apply_merge_keys(
             remediation="caller must pass serializer in {'json','yaml','codeowners'}",
         )
 
-    atomic_write_replace(target, new_bytes, mode=mode)
+    atomic_write_replace(target, new_bytes, mode=mode, trusted_root=cwd)
     rendered_sha = sha256_bytes(new_bytes)
     return PolicyResult(
         action=PolicyAction.MERGED,
@@ -604,7 +607,7 @@ def record_warnings(cwd: Path, warnings: list[str]) -> None:
             payload = {"warnings": []}
     payload["warnings"].extend(warnings)
     encoded = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
-    atomic_write_replace(target, encoded, mode=0o644)
+    atomic_write_replace(target, encoded, mode=0o644, trusted_root=cwd)
 
 
 # --- Gitignore append helper for backups dir (harden A14) -----------------
@@ -641,7 +644,7 @@ def ensure_backups_in_gitignore(cwd: Path) -> None:
     if existing and not existing.endswith("\n"):
         existing += "\n"
     new_text = existing + entry + "\n"
-    atomic_write_replace(target, new_text.encode("utf-8"), mode=0o644)
+    atomic_write_replace(target, new_text.encode("utf-8"), mode=0o644, trusted_root=cwd)
     verify = target.read_text(encoding="utf-8")
     if entry not in {line.strip() for line in verify.splitlines()}:
         raise BootstrapPolicyError(
@@ -657,7 +660,7 @@ def ensure_backups_in_gitignore(cwd: Path) -> None:
 
 # --- Phase 6 v2.1 lp-define config.yml writer (DA6 + cycle-3 architecture P1-A) ----
 
-def write_config_yaml_atomic(path: Path, content: str) -> None:
+def write_config_yaml_atomic(path: Path, content: str, *, cwd: Path) -> None:
     """Atomically write `.launchpad/config.yml` for /lp-define.
 
     Wraps `atomic_write_replace` so `lp_define_runner.py` does NOT need to
@@ -679,7 +682,7 @@ def write_config_yaml_atomic(path: Path, content: str) -> None:
             ),
         )
     path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_replace(path, content.encode("utf-8"), mode=0o644)
+    atomic_write_replace(path, content.encode("utf-8"), mode=0o644, trusted_root=cwd)
 
 
 __all__ = [

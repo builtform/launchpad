@@ -133,7 +133,7 @@ def test_write_batch_writes_all_when_clean(tmp_path):
     no findings. KernelRenderer's 7 templates are all clean by default."""
     renderer = _kernel_renderer()
     batch = renderer.render_batch([{"cwd": tmp_path, "identity": _identity()}])
-    renderer.write_batch(batch)
+    renderer.write_batch(batch, cwd=tmp_path)
     # All 7 kernel files are now on disk.
     for target in batch:
         assert target.is_file(), f"write_batch did not write {target}"
@@ -158,7 +158,7 @@ def test_write_batch_atomic_all_or_none_on_secret_finding(tmp_path):
     }
     raised = False
     try:
-        renderer.write_batch(batch)
+        renderer.write_batch(batch, cwd=tmp_path)
     except SecretScannerViolation as exc:
         raised = True
         assert exc.refused_count == 2
@@ -190,7 +190,7 @@ def test_write_batch_uses_launchpad_secret_patterns(tmp_path):
     batch = {target: b"Internal token: DEMO-CUSTOM-ABCDEF\n"}
     raised = False
     try:
-        renderer.write_batch(batch, patterns_file=patterns_dir / "secret-patterns.txt")
+        renderer.write_batch(batch, cwd=tmp_path, patterns_file=patterns_dir / "secret-patterns.txt")
     except SecretScannerViolation:
         raised = True
     assert raised, (
@@ -217,6 +217,7 @@ def test_write_batch_falls_back_to_bundled_patterns(tmp_path):
     try:
         renderer.write_batch(
             batch,
+            cwd=tmp_path,
             patterns_file=tmp_path / "this-file-does-not-exist.txt",
         )
     except SecretScannerViolation:
@@ -262,7 +263,7 @@ def test_write_batch_perf_under_300ms_30file_scaffold(tmp_path):
         for i in range(30)
     }
     start = time.perf_counter()
-    renderer.write_batch(batch)
+    renderer.write_batch(batch, cwd=tmp_path)
     elapsed_ms = (time.perf_counter() - start) * 1000
     assert elapsed_ms < 300, (
         f"render_batch flow on 30-file scaffold took {elapsed_ms:.1f}ms; "

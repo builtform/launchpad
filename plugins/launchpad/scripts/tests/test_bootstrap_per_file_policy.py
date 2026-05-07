@@ -52,6 +52,7 @@ def test_overwrite_if_unchanged_writes_when_target_absent(tmp_path):
         rendered_bytes=body,
         manifest_rendered_sha=None,
         mode=0o755,
+        cwd=tmp_path,
     )
     assert result.action == PolicyAction.WRITE
     assert target.read_bytes() == body
@@ -70,6 +71,7 @@ def test_overwrite_if_unchanged_skips_when_on_disk_matches_rendered(tmp_path):
         rendered_bytes=body,
         manifest_rendered_sha=on_disk_sha,
         mode=0o644,
+        cwd=tmp_path,
     )
     assert result.action == PolicyAction.SKIP_UNCHANGED
 
@@ -83,6 +85,7 @@ def test_overwrite_if_unchanged_keeps_user_edits(tmp_path):
         rendered_bytes=rendered,
         manifest_rendered_sha="0" * 64,  # manifest says rendered was 0000...
         mode=0o755,
+        cwd=tmp_path,
     )
     assert result.action == PolicyAction.KEPT_USER_EDITS
     assert target.read_bytes() == b"# user edited content\n"
@@ -101,6 +104,7 @@ def test_overwrite_if_unchanged_writes_when_template_changed(tmp_path):
         rendered_bytes=new_body,
         manifest_rendered_sha=old_sha,
         mode=0o755,
+        cwd=tmp_path,
     )
     assert result.action == PolicyAction.WRITE
     assert target.read_bytes() == new_body
@@ -117,6 +121,7 @@ def test_overwrite_if_unchanged_rejects_symlink(tmp_path):
             rendered_bytes=b"x",
             manifest_rendered_sha=None,
             mode=0o755,
+            cwd=tmp_path,
         )
     assert excinfo.value.reason == BootstrapErrorCode.PATH_TRAVERSAL_REJECTED
 
@@ -126,7 +131,7 @@ def test_overwrite_if_unchanged_rejects_symlink(tmp_path):
 def test_append_only_creates_new_file(tmp_path):
     target = tmp_path / ".gitignore"
     rendered = b".launchpad/\nnode_modules/\n"
-    result = apply_append_only(target=target, rendered_bytes=rendered, mode=0o644)
+    result = apply_append_only(target=target, rendered_bytes=rendered, mode=0o644, cwd=tmp_path)
     assert result.action == PolicyAction.APPENDED
     text = target.read_text(encoding="utf-8")
     assert ".launchpad/" in text
@@ -137,7 +142,7 @@ def test_append_only_appends_only_missing_entries(tmp_path):
     target = tmp_path / ".gitignore"
     target.write_text("node_modules/\n.env\n", encoding="utf-8")
     rendered = b".launchpad/\nnode_modules/\ndist/\n"
-    result = apply_append_only(target=target, rendered_bytes=rendered, mode=0o644)
+    result = apply_append_only(target=target, rendered_bytes=rendered, mode=0o644, cwd=tmp_path)
     assert result.action == PolicyAction.APPENDED
     text = target.read_text(encoding="utf-8")
     # User's .env preserved
@@ -153,7 +158,7 @@ def test_append_only_no_op_when_all_present(tmp_path):
     target = tmp_path / ".gitignore"
     target.write_text(".launchpad/\nnode_modules/\n", encoding="utf-8")
     rendered = b".launchpad/\nnode_modules/\n"
-    result = apply_append_only(target=target, rendered_bytes=rendered, mode=0o644)
+    result = apply_append_only(target=target, rendered_bytes=rendered, mode=0o644, cwd=tmp_path)
     assert result.action == PolicyAction.SKIP_UNCHANGED
 
 
@@ -163,7 +168,7 @@ def test_append_only_rejects_symlink(tmp_path):
     target = tmp_path / ".gitignore"
     target.symlink_to(real)
     with pytest.raises(BootstrapPolicyError) as excinfo:
-        apply_append_only(target=target, rendered_bytes=b".launchpad/\n", mode=0o644)
+        apply_append_only(target=target, rendered_bytes=b".launchpad/\n", mode=0o644, cwd=tmp_path)
     assert excinfo.value.reason == BootstrapErrorCode.GITIGNORE_APPEND_FAILED
 
 
@@ -245,7 +250,7 @@ def test_apply_merge_keys_json_round_trip(tmp_path):
     target.write_text('{"user_key": "value"}\n', encoding="utf-8")
     rendered = b'{"plugin_key": 42, "user_key": "value"}'
     result = apply_merge_keys(
-        target=target, rendered_bytes=rendered, mode=0o644, serializer="json",
+        target=target, rendered_bytes=rendered, mode=0o644, cwd=tmp_path, serializer="json",
     )
     assert result.action == PolicyAction.MERGED
     payload = json.loads(target.read_text(encoding="utf-8"))
@@ -260,7 +265,7 @@ def test_apply_merge_keys_rejects_symlink(tmp_path):
     target.symlink_to(real)
     with pytest.raises(BootstrapPolicyError) as excinfo:
         apply_merge_keys(
-            target=target, rendered_bytes=b"{}", mode=0o644, serializer="json",
+            target=target, rendered_bytes=b"{}", mode=0o644, cwd=tmp_path, serializer="json",
         )
     assert excinfo.value.reason == BootstrapErrorCode.PATH_TRAVERSAL_REJECTED
 
@@ -270,7 +275,7 @@ def test_apply_merge_keys_codeowners_uses_append_only(tmp_path):
     target.write_text("docs/ @user\n", encoding="utf-8")
     rendered = b"plugins/ @plugin-team\ndocs/ @user\n"
     result = apply_merge_keys(
-        target=target, rendered_bytes=rendered, mode=0o644, serializer="codeowners",
+        target=target, rendered_bytes=rendered, mode=0o644, cwd=tmp_path, serializer="codeowners",
     )
     assert result.action == PolicyAction.APPENDED
     text = target.read_text(encoding="utf-8")
@@ -312,6 +317,7 @@ def test_write_backup_then_overwrite_round_trip(tmp_path):
         backup_dir=backup_dir,
         target_relpath="scripts/build.sh",
         mode=0o755,
+        cwd=tmp_path,
     )
 
     assert result.action == PolicyAction.OVERWROTE_WITH_BACKUP
@@ -333,6 +339,7 @@ def test_write_backup_then_overwrite_rejects_symlink(tmp_path):
             backup_dir=backup_dir,
             target_relpath="link.sh",
             mode=0o755,
+            cwd=tmp_path,
         )
     assert excinfo.value.reason == BootstrapErrorCode.PATH_TRAVERSAL_REJECTED
 

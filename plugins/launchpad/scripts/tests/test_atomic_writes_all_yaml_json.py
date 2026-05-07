@@ -35,7 +35,7 @@ from atomic_io import (  # noqa: E402
 
 def test_atomic_write_excl_creates_file(tmp_path: Path) -> None:
     target = tmp_path / "kernel" / "scaffold-decision.json"
-    atomic_write_excl(target, b'{"hello": "world"}')
+    atomic_write_excl(target, b'{"hello": "world"}', trusted_root=tmp_path)
 
     assert target.read_bytes() == b'{"hello": "world"}'
     # Parent directory was created
@@ -47,10 +47,10 @@ def test_atomic_write_excl_creates_file(tmp_path: Path) -> None:
 
 def test_atomic_write_excl_refuses_overwrite(tmp_path: Path) -> None:
     target = tmp_path / "scaffold-decision.json"
-    atomic_write_excl(target, b'{"first": 1}')
+    atomic_write_excl(target, b'{"first": 1}', trusted_root=tmp_path)
 
     with pytest.raises(FileExistsError):
-        atomic_write_excl(target, b'{"second": 2}')
+        atomic_write_excl(target, b'{"second": 2}', trusted_root=tmp_path)
 
     # Original content preserved
     assert target.read_bytes() == b'{"first": 1}'
@@ -58,8 +58,8 @@ def test_atomic_write_excl_refuses_overwrite(tmp_path: Path) -> None:
 
 def test_atomic_write_replace_overwrites(tmp_path: Path) -> None:
     target = tmp_path / "manifest.json"
-    atomic_write_replace(target, b'{"version": 1}')
-    atomic_write_replace(target, b'{"version": 2}')
+    atomic_write_replace(target, b'{"version": 1}', trusted_root=tmp_path)
+    atomic_write_replace(target, b'{"version": 2}', trusted_root=tmp_path)
 
     assert target.read_bytes() == b'{"version": 2}'
 
@@ -70,7 +70,7 @@ def test_atomic_write_replace_overwrites(tmp_path: Path) -> None:
 
 def test_atomic_write_replace_creates_when_absent(tmp_path: Path) -> None:
     target = tmp_path / "deep" / "nested" / "manifest.json"
-    atomic_write_replace(target, b'{"k": "v"}')
+    atomic_write_replace(target, b'{"k": "v"}', trusted_root=tmp_path)
 
     assert target.read_bytes() == b'{"k": "v"}'
     assert target.parent.is_dir()
