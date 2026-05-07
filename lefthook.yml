@@ -1,3 +1,19 @@
+pre-push:
+  commands:
+    # Slip-prevention gate added 2026-05-07. Catches BLs labeled for the
+    # current `plugin.json` version that lack a `**Status**:` close
+    # marker AND aren't referenced in the matching CHANGELOG block.
+    # Skips silently when CHANGELOG has no `## [<version>]` block yet
+    # (pre-tag development). See BL-236 slip rationale in BACKLOG.md.
+    backlog-orphan-check:
+      run: |
+        version=$(python3 -c "import json; print(json.load(open('plugins/launchpad/.claude-plugin/plugin.json'))['version'])")
+        if grep -q "^## \[$version\]" CHANGELOG.md 2>/dev/null; then
+          python3 plugins/launchpad/scripts/plugin-backlog-orphan-check.py --release "$version"
+        else
+          echo "backlog-orphan-check: skipped (no [$version] block in CHANGELOG.md yet)"
+        fi
+
 commit-msg:
   commands:
     # Per OPERATIONS §0 strip-back-aware Layer 9 P3-2 closure: the commit-msg

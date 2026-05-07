@@ -81,3 +81,22 @@ jobs:
 
       - name: Freshness advisory
         run: python plugins/launchpad/scripts/plugin-freshness-check.py
+
+      - name: Backlog orphan check
+        # Slip-prevention gate added 2026-05-07 after BL-236 (lefthook
+        # Python coverage) was discovered post-hoc to have been labeled
+        # for v2.1 in BACKLOG.md but never implemented or deferred. The
+        # script reads the running plugin version from plugin.json,
+        # then asserts every `BL-N - vX.Y.Z` header in BACKLOG.md
+        # labeled for that release has either a `**Status**:` close
+        # marker (shipped/closed/re-targeted/deferred/superseded) or a
+        # `BL-N` reference inside the matching `## [version]` block of
+        # CHANGELOG.md. Skips silently if no matching CHANGELOG block
+        # exists yet (e.g., pre-tag development cycles).
+        run: |
+          version=$(python -c "import json; print(json.load(open('plugins/launchpad/.claude-plugin/plugin.json'))['version'])")
+          if grep -q "^## \[$version\]" CHANGELOG.md; then
+            python plugins/launchpad/scripts/plugin-backlog-orphan-check.py --release "$version"
+          else
+            echo "backlog-orphan-check: skipped (no [$version] block in CHANGELOG.md yet)"
+          fi

@@ -4,6 +4,19 @@
 
 ---
 
+## Convention: BL ↔ CHANGELOG cross-reference (slip-prevention)
+
+Every BL header MUST tag the release it's labeled for: `#### BL-NNN - vMAJOR.MINOR[.PATCH]: Title`. When a BL ships, do exactly ONE of:
+
+1. **Reference `BL-NNN` in the matching `## [version]` block of `CHANGELOG.md`** (preferred — co-locates the human-readable closure with the change description), OR
+2. **Add a `**Status (YYYY-MM-DD)**: SHIPPED in vX.Y.Z` line directly under the BL header**.
+
+When a BL is intentionally deferred, change the header version label AND add `**Status (YYYY-MM-DD)**: RE-TARGETED vOLD → vNEW. <one-paragraph rationale>` directly under it.
+
+A pre-push lefthook hook + CI step run `plugin-backlog-orphan-check.py --release <plugin.json version>`, which fails when any BL labeled for that release lacks both the CHANGELOG cross-reference AND the status line. This gate exists because BL-236 (lefthook Python coverage) was labeled for v2.1 but never implemented or deferred during the v2.1 cycle — the slip went undetected until 2026-05-07 ship preparation. The gate prevents this category of scope-doc-to-implementation-plan handoff loss.
+
+---
+
 ## How to Use This File
 
 ### Adding a new task
@@ -489,7 +502,9 @@ Low risk; pure refactor with no functional change.
 
 ---
 
-#### BL-212 - v2.1 stack catalog expansion (10 deferred stacks)
+#### BL-212 - v2.2 stack catalog expansion (10 deferred stacks)
+
+**Status (2026-05-07)**: RE-TARGETED v2.1 → v2.2. The 10 deferred stacks (sveltekit, elysia, phoenix-liveview, convex, flutter, tauri, cloudflare-workers, nestjs, laravel, vite) are already covered by the CHANGELOG `[Unreleased]` block as v2.2 work. Discovered as an orphan during 2026-05-07 backlog audit (the script that surfaced BL-236).
 
 **Driver**: Layer 3 feasibility P1-1 + scope cluster 7. v2.0 ships with 10-entry catalog (handshake §11); v2.1 reintroduces the deferred stacks based on post-v2.0 telemetry signals.
 
@@ -606,7 +621,9 @@ Low risk; pure refactor with no functional change.
 
 **Replacement**: SCAFFOLD_HANDSHAKE §8 now documents the canonical brownfield sub-app workflow as "use a live Claude Code session to scaffold the new sub-app, matching existing monorepo conventions." LaunchPad's value-add stays in the workflow harness around live agentic work (review, learn, plan, build, design), not in re-implementing scaffolding capabilities a live session does better.
 
-#### BL-218 - v2.1: `LP_ALLOW_NONLOCAL_FS=1` env-var override (if downstream demand surfaces)
+#### BL-218 - v2.2: `LP_ALLOW_NONLOCAL_FS=1` env-var override (if downstream demand surfaces)
+
+**Status (2026-05-07)**: RE-TARGETED v2.1 → v2.2. This BL was always conditional ("if downstream demand surfaces"). No demand signal surfaced during the v2.1 cycle. Re-targeting to v2.2 pushes the conditional gate forward without committing to implementation.
 
 **Driver**: Layer 5 product-lens P1-PL5-1. Layer 4 hinted at this env var in `.first-run-marker` filesystem-whitelist rejection message, but never specified it. Layer 5 removed the phantom hint; v2.0 ships fail-closed for non-local filesystems (WSL2 9p, tmpfs, overlayfs, FUSE).
 
@@ -916,7 +933,9 @@ Trade-off: grep can be bypassed via `fromJSON(toJSON())` / bracket-notation / ex
 
 **Default decision**: defer. v2.0 ships simple positive-marker.
 
-#### BL-236 - v2.1: Lefthook Python coverage expansion (ruff + pytest + pyright + v2-handshake-lint pre-push)
+#### BL-236 - v2.1.1: Lefthook Python coverage expansion (ruff + pytest + pyright + v2-handshake-lint pre-push)
+
+**Status (2026-05-07)**: RE-TARGETED v2.1 → v2.1.1. The original v2.1 scope (post-v2.0.0 rebalance, 2026-05-02) was BL-236 + BL-237 (two contributor-experience BLs). v2.1 then expanded into "plugin-owns-everything" (composition wrapper, sealed identity, `/lp-bootstrap`, `/lp-update-identity`, kernel renderer, stack-aware dispatch — 12 implementation phases over 4 days). BL-236 was never folded into any phase plan and was not surfaced in any phase exit criterion or Phase 11 ship-readiness checklist. Discovered post-hoc on 2026-05-07 during PR #50 ship preparation when the user asked whether v2.1 had implemented Python lefthook coverage. Re-targeting to v2.1.1 alongside BL-255..260 rather than blocking v2.1.0 ship — adding ruff now would surface hundreds of pre-existing warnings and require a baseline auto-fix commit, both of which are inappropriate during a ship window. See "Backlog-slip prevention" notes appended to v2.1.1 patch lane after this entry.
 
 **Driver**: v2.0 ships ~25+ new Python modules (`lp_pick_stack/`, `lp_scaffold_stack/`, primitives, CLIs, hooks) with zero project-wide Python style/lint enforcement and zero pre-commit pytest gate. Today's lefthook covers the TypeScript side comprehensively (prettier-fix + `eslint-fix` + `typecheck` + structure-check + large-file/whitespace/EOL guards) but the Python side is essentially uncovered: (1) no style/lint, (2) no static type-check, (3) no test execution pre-commit, (4) no v2.0 contract validation pre-push. CI catches all four on PR push, but a contributor who breaks any of them locally only learns at PR time. The asymmetry was deliberately accepted at v2.0 (the v2.0 ship surface itself was the hot path); now that v2.0 has shipped, closing the symmetry is the natural v2.1 move.
 
@@ -976,7 +995,9 @@ These are the polish/hardening items the agent surfaced; ruff itself catches a s
 
 **Default decision**: defer to v2.1. v2.0 ships with `pytest` + custom lint as the Python gates; the lefthook expansion (ruff + pytest + pyright + v2-handshake-lint pre-push) lands as part of the v2.1 contributor-experience bundle alongside BL-237. The v2.0.1 documentation refresh (BL-240/241/242/243) ships earlier as docs+hotfixes only.
 
-#### BL-237 - v2.1: Tighten `V2_MODULES` scope to package-aware path-prefix matching
+#### BL-237 - v2.1.1: Tighten `V2_MODULES` scope to package-aware path-prefix matching
+
+**Status (2026-05-07)**: RE-TARGETED v2.1 → v2.1.1. Paired sibling of BL-236 in the original 2026-05-02 v2.1 scope rebalance (two contributor-experience BLs). Slipped through the same architecture-doc → master-plan handoff that lost BL-236. Re-targeting to v2.1.1 alongside BL-236 + BL-245 + BL-246 + BL-255..260.
 
 **Driver**: Phase 7.5 pre-ship Python review surfaced a CI-lint coverage hole. `plugin-v2-handshake-lint.py:147-159` defines `V2_MODULES` as a frozenset of top-level basenames only (e.g., `decision_integrity.py`, `safe_run.py`, `cwd_state.py`). The `check_no_raw_subprocess` and `check_no_shell_true` rules iterate over this set, so they silently SKIP every `.py` file under `lp_pick_stack/`, `lp_scaffold_stack/`, and `plugin_stack_adapters/` — the bulk of v2.0's Python surface. Result: a future regression introducing `subprocess.run` or `shell=True` in any package module would not be flagged.
 
@@ -994,7 +1015,9 @@ These are the polish/hardening items the agent surfaced; ruff itself catches a s
 
 **Default decision**: defer to v2.1. The v2.0 ship is clean (the fixed-argv mount call is not exploitable at single-maintainer scale); the lint-tightening is the correct fix and lands as a small configuration adjustment in v2.1.
 
-#### BL-245 - v2.1: Stack-aware `lefthook.yml` generation by `/lp-define` per-stack adapters
+#### BL-245 - v2.1.1: Stack-aware `lefthook.yml` generation by `/lp-define` per-stack adapters
+
+**Status (2026-05-07)**: RE-TARGETED v2.1 → v2.1.1. Companion to BL-236 (LaunchPad self-host side) per the original BL-245 driver paragraph ("BL-236 fixes the upstream side; BL-245 fixes the downstream side"). Slipped from v2.1 alongside BL-236.
 
 **Driver**: At v2.0, every project gets the same `lefthook.yml` whose hooks (`prettier-fix`, `eslint-fix`, `typecheck`, `structure-check`) are TS-monorepo-specific. v2.0 pipeline projects on Astro, Django, FastAPI, Rails, Hugo, Eleventy, Expo, Hono, Supabase, generic, and polyglot stacks inherit this TS-flavored `lefthook.yml` even though the hooks reference tools that aren't installed in those stacks (`prettier`, `eslint`, `tsc`). The kernel concept "every project ships a `lefthook.yml`" is sound, but its contents need to be stack-tuned for the gates to actually run.
 
@@ -1029,7 +1052,9 @@ These are the polish/hardening items the agent surfaced; ruff itself catches a s
 
 **Default decision**: ship in v2.1 alongside BL-236 (LaunchPad-side lefthook expansion) and BL-237 (V2_MODULES scope tightening). Shared theme: contributor-experience and stack-fidelity improvements. The v2.0.1 docs' "kernel applies universally" framing is structurally honest after BL-245 lands, since the universal claim is about file presence (true at v2.0) and stack-tuned contents (true after v2.1). Until then, the claim is conceptually accurate and operationally TS-only.
 
-#### BL-246 - v2.1: `/lp-release [version]` command — automate the manual ship ceremony
+#### BL-246 - v2.1.1: `/lp-release [version]` command — automate the manual ship ceremony
+
+**Status (2026-05-07)**: RE-TARGETED v2.1 → v2.1.1. v2.1.0 ship is using the manual runbook (tag → push → wait for verify-v2-ship → `gh release create`) inherited from v2.0.0. Automating into a `/lp-release` command was scoped for v2.1 but slipped through the architecture-doc → master-plan handoff. Manual ceremony is sound for v2.1.0; automation lands in v2.1.1.
 
 **Driver**: v2.0.0 ship was a manual 3-step ceremony (tag → push → wait for `verify-v2-ship` → `gh release create --notes-file`). Documented as a runbook in v2.0.1 (BL-241 §6); v2.1 promotes the runbook to an executable command so LaunchPad and growth-toolkit (and any downstream LaunchPad-managed plugin/CLI/library/spec project) ship versioned releases with a single command instead of running the runbook by hand each time.
 
@@ -1081,6 +1106,8 @@ The command is **NOT a fit for branch-triggered automation projects** (e.g., `ul
 
 #### BL-247 - v2.1: Remove deprecated template-clone infrastructure
 
+**Status (2026-05-07)**: SHIPPED in v2.1.0 (Phase 8 mechanical decommission, commit `39ca5df`, 2026-05-06). Removed `init-project.sh`, the 8 `*.template.*` files at root, `pull-upstream.launchpad.sh`, `lp-pull-launchpad`, and `test_init_agents_yml.py`. REPOSITORY_STRUCTURE.md / CLAUDE.md / AGENTS.md whitelist entries updated.
+
 **Driver**: v2.0 introduced the four-command greenfield pipeline (`/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`) that supersedes the pre-v2.0 template-clone flow (`git clone github.com/builtform/launchpad my-project` + `./scripts/setup/init-project.sh`). v2.0.1 deprecates the template-clone flow in user-facing docs. v2.1 removes the supporting infrastructure now that BL-248 ships the plugin-owns-everything implementation that replaces it.
 
 **Architectural decision context**: locked 2026-05-03 in [docs/plans/launchpad_plans/2026-05-03-v2.1-plugin-owns-everything-architecture.md](../plans/launchpad_plans/2026-05-03-v2.1-plugin-owns-everything-architecture.md). Per that plan, the LaunchPad repo stops doubling as plugin source AND user-cloneable template. Removing the infrastructure that supported the dual-purpose model is the structural enforcement of that decision; without removal, the template-clone flow remains accessible and the two-narrative problem persists.
@@ -1120,6 +1147,8 @@ The command is **NOT a fit for branch-triggered automation projects** (e.g., `ul
 **Default decision**: ship in v2.1 alongside BL-248 (mandatory same-release coupling). v2.0.1 has been folded into v2.1 per Decision 24; no v2.0.1 release.
 
 #### BL-248 - v2.1: Implement plugin-owns-everything architecture (Option 2)
+
+**Status (2026-05-07)**: SHIPPED in v2.1.0. The entire v2.1 release IS this BL (sealed identity contract under `schema_version: "1.1"`, `/lp-bootstrap`, `/lp-update-identity`, kernel renderer, render-batch flow with secret-scanner gate, stack-aware dispatch, composition wrapper, brownfield-safe re-runs). Phases 0-11 of the v2.1 implementation plan all rolled up under this BL. CHANGELOG `[2.1.0]` Added/Changed sections describe the user-visible surface.
 
 **Driver**: v2.0 shipped the four-command greenfield pipeline. v2.0.1 deprecated the legacy template-clone flow in docs. v2.1 implements the plugin-owns-everything architecture that makes the deprecation real: all canonical kernel files (README, LICENSE, CONTRIBUTING, CODE_OF_CONDUCT, CHANGELOG, ROADMAP, SECURITY, REPOSITORY_STRUCTURE) plus all architecture docs are rendered by plugin commands using Jinja2 templates bundled inside the plugin. No `init-project.sh`, no `.template.md` files at root, no dual-purpose repo.
 
@@ -1358,3 +1387,21 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 **Effort estimate**: ~2-3h across the lock implementation + catalog mapping + tests.
 
 **Default decision**: defer to v2.1.1. The race is theoretical; the catalog mismatch fails at scaffold-stack time with a clear error rather than silently breaking review.
+
+#### BL-261 - v2.1.1: Backlog-slip prevention mechanisms #2, #4, #5
+
+**Status (2026-05-07)**: NEW. Prevention mechanisms #1 (orphan-check script + lefthook + CI) and #3 (BL ↔ CHANGELOG cross-reference convention) shipped in v2.1.0 alongside the BL-236 retroactive re-target. Three further structural mechanisms are deferred to v2.1.1.
+
+**Driver**: 2026-05-07 root-cause investigation of how BL-236 slipped (originally labeled v2.1, never implemented, never deferred, undetected until ship preparation) surfaced a 5-mechanism prevention design. Mechanisms #1 + #3 ship in v2.1.0 because the orphan-check script + convention update were small enough not to disrupt the ship window. Mechanisms #2/#4/#5 require larger changes (plan template updates, new agent, phase-checklist amendment) and are batched as v2.1.1 contributor-experience work alongside BL-236 (lefthook Python coverage), BL-237 (V2_MODULES tightening), BL-245 (downstream stack-aware lefthook), BL-246 (`/lp-release` automation).
+
+**At v2.1.1 design time**:
+
+1. **Mechanism #2 — Mandatory BL coverage matrix in master plan template.** Every master implementation plan (e.g., `YYYY-MM-DD-vX.Y-implementation-plan.md`) MUST include a section titled "BL coverage matrix" — a table listing every BL labeled for the release × phase that owns it × shipped/deferred status. Update `/lp-harden-plan` Step 2 (document quality pre-check) to flag plans missing the matrix or containing BLs without phase ownership as a P1 finding. Estimated effort: ~45-60 min (template doc + lp-harden-plan check + 1 regression test).
+
+2. **Mechanism #4 — `lp-backlog-auditor` agent for cross-cutting hardening.** When `/lp-harden-plan` runs in cross-cutting mode (the 14-agent pass used for v2.1 final hardening), include a new agent that reads BACKLOG.md + master plan + release notes + CHANGELOG and reports backlog-coverage drift as P1/P2 findings. Distinct from the orphan-check script (which is a binary CI gate); the agent provides advisory analysis at plan time. Estimated effort: ~1-2h (author agent under `plugins/launchpad/agents/research/` + wire into harden_plan_agents list in `.launchpad/agents.yml`).
+
+3. **Mechanism #5 — Phase exit-criteria template amendment.** Every phase plan's exit-criteria checklist gains: `[ ] BACKLOG.md audit: every BL labeled for this release is either closed in this phase, planned for a later phase in this release, or explicitly deferred with status note.` Estimated effort: ~15 min (one-line addition to the phase-plan template).
+
+**Cross-link**: BL-236 slip RCA (root cause: scope-doc-to-implementation-plan handoff was lossy + no reconciliation gate); orphan-check script at `plugins/launchpad/scripts/plugin-backlog-orphan-check.py` (mechanism #1, shipped v2.1.0); BACKLOG.md "Convention: BL ↔ CHANGELOG cross-reference" header section (mechanism #3, shipped v2.1.0).
+
+**Default decision**: defer to v2.1.1. Mechanisms #1 + #3 close the immediate gap (an orphan in BACKLOG.md will now fail CI). Mechanisms #2 + #4 + #5 are belt-and-suspenders defenses that make slip impossible at multiple stages of the planning chain rather than only at ship time.
