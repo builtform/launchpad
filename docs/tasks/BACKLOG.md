@@ -1447,3 +1447,53 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 **Status (2026-05-07)**: NEW — deferred to v2.2 from v2.1.0 Codex PR #50 P0 (D9.1). v2.1.0 rejects ALL non-regular non-directory entries in fetched template trees (symlink, block/char devices, FIFOs, sockets). If real upstream monorepo workspaces use legitimate symlinks, BL-268 considers an allowlist that distinguishes intra-tree symlinks (allowed) from escape-target symlinks (rejected).
 
 **Default decision**: defer to v2.2. v2.1.0 ships the conservative all-reject posture; allowlist work is dependent on real-world demand.
+
+#### BL-269 - v2.1.1: safe_run regex extension for git ls-remote ^{} dereference
+
+**Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 post-review-2 P1 #3. `template_cache/_resolver.py:142` invokes `git ls-remote refs/tags/<tag>^{}` to dereference annotated tags to their commit SHA. `safe_run._validate_argv()` rejects the argv because `^`, `{`, `}` are not in `_ARGV_SAFE_RE`. The fallback returns the tag-object SHA while GitHub REST returns the commit SHA → false `dual_resolution_mismatch`.
+
+**Driver**: tag drift detector (cve-watch.yml) + future template-cache-fetched annotated tags would surface false-mismatch errors in CI. Workaround at v2.1.0: `template_cache.fetch()` only sees pre-resolved SHAs from `pin_registry.py`, so the path is not exercised in the canonical scaffold flow. The `resolve_sha()` helper is exercised only by tests and future drift detection.
+
+**At v2.1.1 design time**: extend `safe_run._ARGV_SAFE_RE` to allow safe literal `^{}` refspec OR add a dedicated annotated-tag dereference helper that uses `git ls-remote --refs` and parses the tag-object referent inline. Estimated effort: ~30-60 min.
+
+**Default decision**: defer to v2.1.1. Not exercised on the v2.1.0 canonical scaffold path.
+
+#### BL-270 - v2.1.1: safe_run env-passthrough for GH_TOKEN/GITHUB_TOKEN
+
+**Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 post-review-2 P1 #4. `template_cache/_resolver.py:167` calls `gh api` through `safe_run`, but `safe_run` strips `GH_TOKEN`/`GITHUB_TOKEN` from the subprocess environment per its sandboxing posture. Workflows set `GH_TOKEN`, but the resolver behaves unauthenticated (5000 req/hr → 60 req/hr) or fails outright in clean CI.
+
+**Driver**: same as BL-269 — `resolve_sha()` is not exercised on the v2.1.0 canonical scaffold path; only future drift detection + tests would hit it.
+
+**At v2.1.1 design time**: add a resolver-specific minimal env-passthrough that allows ONLY `GH_TOKEN` + `GITHUB_TOKEN` through to `gh` subprocess invocations (NOT broadening env exposure for all scaffolders). Estimated effort: ~30-60 min.
+
+**Default decision**: defer to v2.1.1. Same scope rationale as BL-269.
+
+#### BL-271 - v2.1.1: Case D `--seed-brownfield` non-dry-run create path
+
+**Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 post-review-2 P1 #1. `/lp-update-identity --seed-brownfield` (non-dry-run) currently returns a structured `BROWNFIELD_SEED_NOT_IMPLEMENTED` error rather than crashing with `FileNotFoundError`, but the actual seed-from-scratch behavior the documentation advertises is not implemented.
+
+**At v2.1.1 design time**: implement the create path via `write_decision_file()` from a fresh seed, OR add a dedicated seed writer that constructs a minimal valid v1.1 envelope from the supplied identity + git config. Add an integration test (BL-272 below) covering the full create-and-seal flow.
+
+**Default decision**: defer to v2.1.1. v2.1.0 fail-closed prevents the unstructured crash; the actual seed flow is meaningful design work.
+
+#### BL-272 - v2.1.1: Case D non-dry-run integration test
+
+**Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 post-review-2 P3. `tests/test_update_identity_engine.py:341` explicitly avoids exercising the non-dry-run Case D brownfield seed flow. Once BL-271 implements the create path, add an integration test that runs the actual create-and-seal path end-to-end.
+
+**Default decision**: ship alongside BL-271 in v2.1.1.
+
+#### BL-273 - v2.1.1: signpost stub UX — Permission denied vs migration message
+
+**Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 post-review-2 P2. `scripts/setup/init-project.sh` and `scripts/setup/pull-upstream.launchpad.sh` are signpost stubs at `mode 0o644` (`chmod -x` per Phase 8 deliberate design — `tests/test_decommissioning_paths_removed.py:67-70` enforces). Users invoking `./scripts/setup/init-project.sh` get `Permission denied` rather than the migration message embedded in the script. Two design tradeoffs in tension: (a) Phase 8 chose `chmod -x` to prevent accidental sourcing/invocation from CI; (b) Codex prefers the migration message reaching the user.
+
+**At v2.1.1 design time**: replace the bash signpost stubs with a `README.md` in `scripts/setup/` that documents the v2.1 plugin install. Delete the bash stubs entirely (per Codex's "remove them entirely and update references" alternative). Update `tests/test_decommissioning_paths_removed.py` accordingly. Estimated effort: ~30 min.
+
+**Default decision**: defer to v2.1.1. The Phase 8 design choice ships at v2.1.0 unchanged.
+
+#### BL-274 - v2.1.1: cve-watch tag-drift detector noise reduction
+
+**Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 post-review-2 P2. `.github/workflows/cve-watch.yml:93` checks whether each pinned SHA appears in the first 5 lines of `git ls-remote`. Many valid pins won't appear there (the tag they pin may be older than 5 ls-remote rows), and moved tags are not specifically checked.
+
+**At v2.1.1 design time**: extend `pin_registry.py` to record the source tag/ref alongside each SHA; have the detector resolve THAT exact ref via `git ls-remote refs/tags/<tag>` and compare expected vs resolved SHA. Estimated effort: ~1h.
+
+**Default decision**: defer to v2.1.1. The current detector emits soft `::warning ::` advisories that don't fail CI; noise is tolerable until the structured tag/ref recording lands.

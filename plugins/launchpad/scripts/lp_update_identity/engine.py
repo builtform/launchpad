@@ -620,6 +620,32 @@ def run_update_identity(
             fields_changed=fields_changed,
         )
 
+    # v2.1 Codex PR #50 post-review-2 P1 #1: Case D --seed-brownfield
+    # non-dry-run create path is not yet implemented. Without this
+    # fail-closed guard, the engine would call `re_seal_decision_atomic`
+    # (Step 7) which reads a non-existent scaffold-decision.json and
+    # raises an unstructured FileNotFoundError. The full create path
+    # (write_decision_file from a fresh seed) is filed as v2.1.1 BL-271.
+    # Surface a structured error here so the user sees remediation rather
+    # than a stack trace.
+    if case == "D" and seed_brownfield:
+        return UpdateIdentityResult(
+            status=None,
+            error_code=IdentityUpdateErrorCode.BROWNFIELD_SEED_NOT_IMPLEMENTED,
+            error_message=(
+                "Case D --seed-brownfield non-dry-run create path is not "
+                "implemented at v2.1.0; the engine cannot write a fresh "
+                "scaffold-decision.json from scratch"
+            ),
+            remediation=(
+                "Run /lp-pick-stack to generate a fresh "
+                "scaffold-decision.json, then re-run /lp-update-identity. "
+                "OR wait for v2.1.1 (BL-271) which adds the seed-brownfield "
+                "create path. Use --dry-run to validate preconditions "
+                "without writing."
+            ),
+        )
+
     # Step 5: validate strict + sentinel write.
     from lp_pick_stack.decision_writer import (
         IdentityValidationError,

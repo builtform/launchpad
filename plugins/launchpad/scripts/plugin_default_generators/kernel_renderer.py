@@ -266,6 +266,19 @@ class KernelRenderer(RendererBase):
                 # so we should only land here in test fixtures).
                 write_subset[target] = new_content
                 continue
+            # v2.1 Codex PR #50 post-review-2 P1 #2: honor `user_has_drift`
+            # sealed by Case E "y" (`compute_current_on_disk_state`). When
+            # the prior state's rendered_content_sha256 is the user's edit
+            # SHA (not the canonical render SHA), the next on-disk read
+            # would observe `current_disk_sha == prior_rendered_sha` and
+            # falsely classify the file as "safe to overwrite" — silently
+            # destroying the user's edit. The drift flag forces the
+            # user-edit-detection branch live regardless of the SHA
+            # match. Backward-compat: prior states without the flag fall
+            # through to the existing SHA comparison.
+            if entry.get("user_has_drift") is True:
+                skipped.append(target)
+                continue
             prior_rendered_sha = entry.get("rendered_content_sha256")
             current_disk_sha = (
                 sha256_bytes(target.read_bytes()) if target.is_file() else None
@@ -328,11 +341,19 @@ class KernelRenderer(RendererBase):
                     and prior_entry.get("rendered_content_sha256")
                     and prior_entry.get("source_template_sha256")
                 ):
-                    new_state_entries.append({
+                    preserved: dict[str, Any] = {
                         "path": output_relpath,
                         "rendered_content_sha256": prior_entry["rendered_content_sha256"],
                         "source_template_sha256": prior_entry["source_template_sha256"],
-                    })
+                    }
+                    # v2.1 Codex PR #50 post-review-2 P1 #2: preserve the
+                    # `user_has_drift` flag across skipped refreshes so the
+                    # consent boundary stays live until the user explicitly
+                    # resolves the drift (e.g., via the deferred
+                    # `--accept-drift` flag in BL-267).
+                    if prior_entry.get("user_has_drift") is True:
+                        preserved["user_has_drift"] = True
+                    new_state_entries.append(preserved)
                     continue
                 # Defensive fallback (should not happen given how `skipped`
                 # is populated above): no prior_entry available, so we have

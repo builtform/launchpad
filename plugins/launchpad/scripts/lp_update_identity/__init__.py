@@ -62,6 +62,11 @@ class IdentityUpdateErrorCode(StrEnum):
     IDENTITY_VALIDATION_FAILED = "identity_validation_failed"
     GIT_CONFIG_EMAIL_MISMATCH = "git_config_email_mismatch"
     BROWNFIELD_SEED_REFUSED = "brownfield_seed_refused"
+    # v2.1 Codex PR #50 post-review-2 P1 #1: structured fail-closed when
+    # Case D `--seed-brownfield` reaches the non-dry-run create path
+    # without an existing scaffold-decision.json. The full create path
+    # is v2.1.1 BL-271.
+    BROWNFIELD_SEED_NOT_IMPLEMENTED = "brownfield_seed_not_implemented"
 
 
 class IdentityUpdateStatus(StrEnum):
