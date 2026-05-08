@@ -30,7 +30,9 @@ pipeline:
 commands:
   test:
     - "pnpm test"
-    - "cd plugins/launchpad/scripts && python -m pytest -x -q"
+    # pytest moved to direct pre-push lefthook entry in same Phase 3
+    # commit (R1-T1-8). See lefthook.yml `pre-push:commands:pytest:` block.
+    # Per master plan D7: pytest in pre-PUSH, not pre-commit.
   typecheck:
     - "pnpm typecheck"
   lint:

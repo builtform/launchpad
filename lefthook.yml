@@ -14,6 +14,18 @@ pre-push:
           echo "backlog-orphan-check: skipped (no [$version] block in CHANGELOG.md yet)"
         fi
 
+    # Phase 3 R1-T1-8 + R2-T1-1: pytest direct-binary pre-push entry per
+    # master plan D7. Self-host-only by construction: skips silently if
+    # plugins/launchpad/scripts/ is absent (downstream consumers cargo-
+    # culting this YAML). Phase 4 lint stack additions (bandit, ruff,
+    # pyright, semgrep) join the same priority-10 pre-push block.
+    pytest:
+      glob: "**/*.py"
+      priority: 10
+      run: |
+        [ -d plugins/launchpad/scripts ] || exit 0
+        cd plugins/launchpad/scripts && python -m pytest -x -q
+
 commit-msg:
   commands:
     # Per OPERATIONS §0 strip-back-aware Layer 9 P3-2 closure: the commit-msg
@@ -41,9 +53,25 @@ pre-commit:
       priority: 2
 
     # ---- Read-only checks (block on failure) ----
+    # Phase 3 (R1-T1-2 + R1-T1-3 + R2-T1-2): three stages route through
+    # build-runner; doublestar glob filters skip on doc-only commits. The
+    # lint → typecheck → test order is cheap-fail-fast (lint fastest, test
+    # slowest). Doublestar form works in both shallow-default and
+    # doublestar-default lefthook glob modes.
+
+    lint:
+      glob: "**/*.{js,jsx,ts,tsx,mjs,cjs,py}"
+      run: python3 plugins/launchpad/scripts/plugin-build-runner.py --stage=lint
+      priority: 10
 
     typecheck:
-      run: pnpm typecheck
+      glob: "**/*.{ts,tsx,py}"
+      run: python3 plugins/launchpad/scripts/plugin-build-runner.py --stage=typecheck
+      priority: 10
+
+    test:
+      glob: "**/*.{ts,tsx,js,jsx,mjs,cjs,py}"
+      run: python3 plugins/launchpad/scripts/plugin-build-runner.py --stage=test
       priority: 10
 
     structure-check:

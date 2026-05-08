@@ -140,22 +140,57 @@ PR_TARGET_FORBIDDEN_PATTERNS = (
 
 PYTHON_FILES = list(PLUGINS_SCRIPTS.rglob("*.py"))
 
-# v2.0 contract scope — modules introduced in v2.0 must use safe_run() per
-# OPERATIONS §1. v1 modules predate the contract and are out of scope for
-# the no-raw-subprocess + no-shell-true checks. Listed by basename so test
-# harness scaffolds + similar v1 utilities aren't flagged.
-V2_MODULES = frozenset({
-    "decision_integrity.py",
-    "knowledge_anchor_loader.py",
-    "path_validator.py",
-    "cwd_state.py",
-    "safe_run.py",
-    "telemetry_writer.py",
-    "pid_identity.py",
-    "plugin-v2-handshake-lint.py",
-    "plugin-scaffold-receipt-loader.py",
-    "plugin-freshness-check.py",
-    "plugin-scaffold-stack.py",
+# v2.0 contract scope — all Python under plugins/launchpad/scripts/ uses
+# safe_run() per OPERATIONS §1, EXCEPT vendored third-party code, test
+# harnesses, and Jinja templates (which are emitted to downstream projects,
+# not LaunchPad runtime code). v2.1.1 Phase 3 broadens scope from a 11-
+# basename frozenset (BL-237) to a path-prefix matcher; new violations
+# trigger lint failure unless added to LINT_RAW_SUBPROCESS_ALLOWLIST with
+# docstring justification.
+V2_SCOPE_ROOT = "plugins/launchpad/scripts/"
+V2_SCOPE_EXCLUDE_PREFIXES = (
+    "plugins/launchpad/scripts/_vendor/",
+    "plugins/launchpad/scripts/plugin_stack_adapters/_vendor/",
+    "plugins/launchpad/scripts/tests/",
+)
+V2_SCOPE_EXCLUDE_SUFFIXES = (".j2",)
+
+# Audited raw-subprocess exemptions. Each entry is a FULL relative path
+# from repo root (NOT a basename — there are 4 distinct engine.py files in
+# scope: lp_update_identity/, lp_pick_stack/, lp_scaffold_stack/,
+# lp_bootstrap/. Basename allowlist would silently exempt all four,
+# defeating future enforcement). Adding to this list requires PR review;
+# auditors verify the justification and BL-track migration if appropriate.
+LINT_RAW_SUBPROCESS_ALLOWLIST = frozenset({
+    # Self-allowlist — IS the runner. Subprocess is its purpose.
+    # (cf. safe_run.py inline skip; both are canonical helpers.)
+    "plugins/launchpad/scripts/plugin-build-runner.py",
+    # macOS /sbin/mount filesystem introspection — fixed argv, no shell.
+    # Internal FS check (NOT scaffolder-emitting subprocess); safe_run is
+    # for caller code paths. Documented inline at nonce_ledger.py:152-155.
+    "plugins/launchpad/scripts/lp_scaffold_stack/nonce_ledger.py",
+    # Best-effort git config + python subprocess for audit-log forensics;
+    # FileNotFoundError-tolerant, fixed argv. Migration to safe_run is
+    # BL-<TBD> (Phase 5 stash-pop seeds the concrete number).
+    "plugins/launchpad/scripts/plugin-audit-log.py",
+    # Best-effort git invocations for autonomous-guard ack check;
+    # FileNotFoundError + non-repo tolerant. Migration BL-<TBD>.
+    "plugins/launchpad/scripts/plugin_stack_adapters/autonomous_guard.py",
+    # Stack detector subprocess invocation; bounded env (LP_REPO_ROOT pin
+    # only). Migration BL-<TBD>.
+    "plugins/launchpad/scripts/lp_define_runner.py",
+    # git config user.email read (best-effort; fail-closed empty per
+    # cycle-3 security P2-A). Migration BL-<TBD>.
+    "plugins/launchpad/scripts/lp_update_identity/engine.py",
+})
+
+# shell=True allowlist — currently a single entry. plugin-build-runner.py:336
+# uses shell=True for serial command execution in test/typecheck/lint stages;
+# the user-supplied cmd string from commands.<stage> is intentionally shell-
+# parsed for pipe / redirection / env-var support. v2.1.x BL: extend
+# safe_run_long_shell from --stage=dev to all stages.
+LINT_SHELL_TRUE_ALLOWLIST = frozenset({
+    "plugins/launchpad/scripts/plugin-build-runner.py",
 })
 
 # Private-origin leakage patterns (HANDSHAKE §12 verify-v2-ship #5; v2.0 hard-
@@ -326,34 +361,44 @@ def _emit(failures: list[str], rule: str, hits: list[str]) -> None:
 # --- read-only checks ---
 
 def _is_v2_module(path: str) -> bool:
-    """A path is in the v2.0 contract scope iff its basename is listed in
-    V2_MODULES. v1 modules predate the v2.0 subprocess contract and are out
-    of scope until they are individually migrated."""
-    return Path(path).name in V2_MODULES
+    """A path is in the v2.0 contract scope iff it lives under
+    plugins/launchpad/scripts/, NOT under _vendor/ or tests/, and is NOT
+    a Jinja template (.j2 — emitted code, not runtime code)."""
+    if not path.startswith(V2_SCOPE_ROOT):
+        return False
+    if any(path.startswith(p) for p in V2_SCOPE_EXCLUDE_PREFIXES):
+        return False
+    if any(path.endswith(s) for s in V2_SCOPE_EXCLUDE_SUFFIXES):
+        return False
+    return True
 
 
 def check_no_raw_subprocess(failures: list[str]) -> None:
-    """All subprocess calls in v2.0 MODULES must go through `safe_run()`
-    (OPERATIONS §1). v1 modules predate the contract and are exempt; the
-    v2-modules list in V2_MODULES is the authoritative scope."""
+    """All subprocess calls in v2.0 contract scope (path-prefix-matched)
+    must go through `safe_run()` (OPERATIONS §1). Audited exceptions live
+    in `LINT_RAW_SUBPROCESS_ALLOWLIST` (full-path strings)."""
     bad = []
     for hit in _git_grep(r"^[^#]*subprocess\.(run|Popen|call|check_output|check_call)",
                          "plugins/launchpad/scripts/", regex=True):
         path = hit.split(":", 1)[0]
         if not _is_v2_module(path):
-            continue  # v1 module — out of v2.0 contract scope
+            continue
+        if path in LINT_RAW_SUBPROCESS_ALLOWLIST:
+            continue  # audited exemption with docstring justification
         if path.endswith("safe_run.py"):
             continue  # safe_run is the helper itself
         if path.endswith("plugin-v2-handshake-lint.py"):
             continue  # this script IS the enforcement
         if "/tests/" in path:
-            continue
+            continue  # already excluded by _is_v2_module; defense-in-depth
         bad.append(hit)
     _emit(failures, "no-raw-subprocess", bad)
 
 
 def check_no_shell_true(failures: list[str]) -> None:
-    """shell=True is forbidden in v2.0 modules. v1 modules out of scope.
+    """shell=True is forbidden in v2.0 contract scope (path-prefix-matched).
+    Audited exceptions live in `LINT_SHELL_TRUE_ALLOWLIST` (full-path
+    strings).
 
     Allow lines that only mention shell=True as documentation/prohibition
     (heuristic: comment-marker before the match, or contains "no shell=True"
@@ -365,6 +410,8 @@ def check_no_shell_true(failures: list[str]) -> None:
         path = hit.split(":", 1)[0]
         if not _is_v2_module(path):
             continue
+        if path in LINT_SHELL_TRUE_ALLOWLIST:
+            continue  # audited exemption with docstring justification
         if path.endswith("plugin-v2-handshake-lint.py"):
             continue
         # Phase 5 v2.1 (cycle-1 security-lens F-SEC-LENS-2 + cycle-2
