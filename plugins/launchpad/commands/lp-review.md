@@ -10,11 +10,15 @@ Multi-agent parallel code review with confidence-based false-positive suppressio
 ## Usage
 
 ```
-/lp-review                    → interactive mode (default)
-/lp-review --headless         → programmatic mode (no interactive output, no report)
+/lp-review                              → interactive mode (default)
+/lp-review --headless                   → programmatic mode (no interactive output, no report)
+/lp-review --no-context                 → bias-stripped mode (skips PR intent, harness context, agent specialty framing)
+/lp-review --headless --no-context      → both (used by /lp-commit Step 2.5 in Phase 2)
 ```
 
-**Arguments:** `$ARGUMENTS` (parse for `--headless` flag)
+**Standalone usage:** `--no-context` runs in append mode and does NOT clear `.harness/todos/`. To run blind-only review without accumulation, manually `rm -f .harness/todos/*.md` first OR run `/lp-review --headless` first to reset, then `/lp-review --no-context`.
+
+**Arguments:** `$ARGUMENTS` (parse for `--headless` AND `--no-context` flags; both independent and may co-exist; order-independent; duplicate-flag idempotent)
 
 ---
 
@@ -36,6 +40,8 @@ git diff --name-only origin/main...HEAD
 - Check for Prisma changes (files matching `packages/db/**`, `prisma/**`, `*.prisma`) → set `db_changes = true/false`
 
 ## Step 1.5: Read PR Intent Context (best-effort)
+
+**IF `--no-context` flag is set: skip this entire step. Set `intent_context = empty` and proceed to Step 2.**
 
 - IF a PR exists for current branch: run `gh pr view --json title,body,labels`
   - Extract PR title, body, linked issue number/description
@@ -86,10 +92,17 @@ wire-through). See plan §1 transparency note.
 
 For each survivor agent in `review_agents`:
 
-- Spawn agent with: diff content + changed file list + files they directly import (1-hop) + review context from `.harness/harness.local.md`
+- Spawn agent with: diff content + changed file list + files they directly import (1-hop)
+- Review context source:
+  - DEFAULT: pass review context extracted from `.harness/harness.local.md` (Step 0 step 5)
+  - `--no-context` mode: pass empty string for review context
 - Agents use Grep/Glob for broader pattern checks — do NOT Read every file in the repo
-- For `lp-code-simplicity-reviewer`: additionally pass "Changed Files: {list}. Suggest changes only to these files. Return observation text for anything outside this list."
-- Prompt: "Review this code diff for issues in your domain. Return findings as structured list with file:line, severity (P1/P2/P3), and description."
+- For `lp-code-simplicity-reviewer`:
+  - DEFAULT: additionally pass "Changed Files: {list}. Suggest changes only to these files. Return observation text for anything outside this list."
+  - `--no-context` mode: DROP this constraint — the simplicity reviewer may flag findings outside changed files (no `feature_scope` narrowing)
+- Per-agent prompt:
+  - DEFAULT: "Review this code diff for issues in your domain. Return findings as structured list with file:line, severity (P1/P2/P3), and description."
+  - `--no-context` mode: "Review this code diff for bugs at P0/P1. You have NO project context. The diff and file tree are all you have. Flag bugs you can identify from the code alone." (APPENDED to the agent's base specialty prompt — agent identity persists; context-stripping is partial per master plan D3 honest-naming)
 
 ## Step 4: Conditional DB Agent Dispatch (sequential-then-parallel)
 
@@ -179,7 +192,22 @@ Score each finding 0.00-1.00 using this rubric:
 
 ## Step 6: Write Outputs
 
+**Lifecycle (DEFAULT vs `--no-context`):**
+
+| Artifact                       | DEFAULT mode             | `--no-context` mode                                                            |
+| ------------------------------ | ------------------------ | ------------------------------------------------------------------------------ |
+| `.harness/todos/` (directory)  | clear-and-write (v2.1.0) | create-if-missing-else-append                                                  |
+| `.harness/observations/` (dir) | clear-and-write          | create-if-missing-else-append                                                  |
+| `.harness/review-summary.md`   | overwrite (v2.1.0)       | APPEND `## --no-context (blind) findings` section; create-fresh if file absent |
+
+Single-file vs directory artifacts have different "append" semantics — intentional. The summary file uses APPEND-section because a single file with multiple sections is the natural shape; directories use create-if-missing-else-append because each finding is a separate file.
+
 1. Clear `.harness/todos/` directory (remove all existing `.md` files — idempotent on retry)
+   - **EXCEPTION (`--no-context` mode):** DO NOT clear. Append mode preserves specialist-pass findings for dual-pass orchestration in Phase 2's `/lp-commit` Step 2.5.
+   - **Create-if-missing-else-append semantics:** if `.harness/todos/` does not exist (clean checkout, never run before), `--no-context` mode CREATES the directory and writes new finding files. "Append mode" means "preserve existing files and add new ones," not "skip writes when no prior content exists."
+   - **MANDATORY sequential invocation — `/lp-review` CONTRACT:** ALL `/lp-review` callers (Phase 2 `/lp-commit`, future async wrappers, third-party consumers) MUST run specialist pass to completion BEFORE invoking `--no-context` pass. Parallel invocation is undefined behavior — specialist's clear would race with blind's writes, silently dropping blind findings. Phase 1 has NO runtime guard against parallel invocation; enforcement is process-level (Phase 2's `/lp-commit` Step 2.5 spec encodes sequential ordering). v2.2 BL candidate for sentinel-based mutex (mirror `lp_update_identity/sentinel.py` pattern).
+   - **Standalone caller contract:** if a caller invokes `--no-context` standalone, prior `.harness/todos/` content from any previous run persists. Manual cleanup is caller's responsibility (see Standalone Usage in Usage block).
+   - **Repeated `--no-context` runs:** running blind twice consecutively standalone produces blind-vs-blind filename collisions at identical slugs. Tolerated for Phase 1; Phase 2 callers MUST run blind exactly once per `/lp-commit` invocation (NOT per re-triage loop within a single invocation).
 2. For EACH finding above 0.60 threshold, create:
 
    `.harness/todos/{id}-{description}.md`
@@ -188,7 +216,7 @@ Score each finding 0.00-1.00 using this rubric:
    ---
    status: pending
    priority: P1|P2|P3
-   agent_source: <agent-name>
+   agent_source: <agent-name>     # specialist pass
    confidence: 0.XX
    ---
 
@@ -202,7 +230,22 @@ Score each finding 0.00-1.00 using this rubric:
    [How to fix it]
    ```
 
+   **`--no-context` mode:** `agent_source` is suffixed with literal `-blind`:
+
+   ```yaml
+   agent_source: <agent-name>-blind # blind / no-context pass
+   ```
+
+   **Consumer contract for `-blind` suffix:** all consumers of `agent_source` (current + future v2.1.x/v2.2 consumers) MUST `removesuffix("-blind")` before any agent-name resolution (e.g., `Task(subagent_type=...)`). Failure to strip results in "agent not found" — Task tool fails closed (NOT silent execution), so no security risk, but coordination bug if consumers don't strip. Consumers that present `agent_source` for human triage (e.g., `/lp-triage`'s display) may show the suffix as-is for transparency. Existing consumers verified in v2.1.1 Phase 1 (`/lp-triage`, `/lp-resolve-todo-parallel`, `lp-harness-todo-resolver`) are read-only display or update-in-place; no agent-name dispatch via `agent_source`. Existing `agent_source` writers (`lp-defer.md` writes literal `manual`; `lp-test-browser.md` writes literal `test-browser`) are never `-blind`-suffixed.
+
+   **Edge case — empty/missing `agent_source`:** if a finding lacks `agent_source` (defensive code path), suffix logic produces `unknown-blind` (NOT bare `-blind`). Default mode preserves v2.1.0 behavior on missing `agent_source` (no defensive `unknown` fallback added in Phase 1 — non-regression posture). Symmetric handling is a v2.1.x BL candidate.
+
 3. Write `.harness/review-summary.md`:
+   - **DEFAULT mode (specialist pass):** overwrite `.harness/review-summary.md` (v2.1.0 behavior).
+   - **`--no-context` mode:** APPEND a `## --no-context (blind) findings` section to the existing file. If the file does not exist (standalone `--no-context`, no prior specialist pass), CREATE it with a single `## --no-context (blind) findings` section.
+   - **Section body schema:** the appended `## --no-context (blind) findings` section uses identical body schema to the `## Findings (N)` section below — one bullet per finding with file:line, severity (P1/P2/P3), description, and `agent_source` (with `-blind` suffix). Identical structure prevents downstream parser drift if Phase 2's `/lp-triage` or v2.1.2 corpus reviewer reads by section.
+
+   DEFAULT-mode body (v2.1.0):
 
    ```markdown
    ## Findings ({N})
@@ -227,6 +270,8 @@ Score each finding 0.00-1.00 using this rubric:
    - YAML frontmatter: `status: observation`, `priority: p3`, `issue_id: "obs-{N}"`, `tags: [simplification]`, `observed_in: "path/to/file"`, `feature_scope: "{changed files list}"`
    - Body: Observation description + "Why Not Actioned: Outside the current feature scope."
    - Agents return observation text — `/lp-review` owns all file writes
+   - **DEFAULT mode:** clear-and-write (matches `.harness/todos/` default).
+   - **`--no-context` mode:** create-if-missing-else-append (matches `.harness/todos/` `--no-context` lifecycle). `agent_source` field gets `-blind` suffix (e.g., `agent_source: lp-code-simplicity-reviewer-blind`). The `feature_scope` field is OMITTED (or empty string) since the constraint was dropped at dispatch per Step 3.
 
 ## Step 7: Report (SKIPPED in --headless mode)
 
