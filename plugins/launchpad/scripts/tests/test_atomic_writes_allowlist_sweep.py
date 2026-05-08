@@ -148,11 +148,16 @@ def test_allowlist_constant_byte_for_byte_match() -> None:
     # harmonized to O_CREAT|O_EXCL and dropped its atomic_write_replace
     # dependency, mirroring the other two sentinels). Order matches the
     # source listing.
+    #
+    # v2.1 Codex PR #50 cycle 6 F9: `lp_bootstrap/engine.py` REMOVED after
+    # `_record_version_drift` was refactored to route through
+    # `re_seal_decision_atomic` in `lp_pick_stack.decision_writer`. The
+    # decision_writer entry (already in the list) covers the resealed
+    # scaffold-decision write; engine.py no longer holds the primitive.
     expected = (
         "plugins/launchpad/scripts/atomic_io.py",
         "plugins/launchpad/scripts/plugin_default_generators/_renderer_base.py",
         "plugins/launchpad/scripts/lp_bootstrap/policy.py",
-        "plugins/launchpad/scripts/lp_bootstrap/engine.py",
         "plugins/launchpad/scripts/lp_bootstrap/manifest_writer.py",
         "plugins/launchpad/scripts/lp_pick_stack/decision_writer.py",
         # v2.1 Codex PR #50 Slice E: pre-squash audit-log filter.

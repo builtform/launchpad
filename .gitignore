@@ -15,6 +15,7 @@
 *.pyc
 *.tsbuildinfo
 .launchpad/audit.log
+.launchpad/backups/
 __pycache__/
 .DS_Store
 .cache/

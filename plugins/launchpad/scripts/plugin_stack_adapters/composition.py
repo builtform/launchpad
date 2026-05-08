@@ -39,13 +39,17 @@ Sequential render (Codex PR #50 P1-B harden):
 """
 from __future__ import annotations
 
+import errno
 import hashlib
+import json
 import logging
 import os
 import shutil
 import stat
+import sys
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import StrEnum
 from pathlib import Path
 from typing import Iterable
@@ -675,6 +679,322 @@ def _check_no_residual_moved_subtree(
         )
 
 
+# --- v2.1 Codex PR #50 cycle 6 F8: atomic backup relocation -------------
+#
+# Cycle 5's success-path used `shutil.rmtree(backup_path)` to clean up
+# `.pre-composition-<sha8>/` siblings AFTER composition succeeded. That
+# was a destructive write that PERMANENTLY DELETED user content on
+# brownfield runs. Cycle 6 replaces deletion with atomic relocation to
+# `.launchpad/backups/<ts>-<PID>-<rand4>/<relpath>/` so the user's
+# pre-existing content is forensically recoverable.
+#
+# Naming scheme + dir creation reuse `make_backup_dir()` from
+# `lp_bootstrap.policy`; the helper allocates the path empty, we rmdir
+# it, stage in a sibling `<basename>.staging/`, then atomic-rename
+# staging -> final on success (single os.rename = atomic commit boundary).
+
+
+def _validate_backup_relpath(relpath: Path) -> None:
+    """Per DA-F8.4: traversal-safe relpath check.
+
+    Reject `..`, empty parts, null bytes, embedded path separators, and
+    absolute paths. Defense-in-depth against adapter-manifest-supplied
+    path injection.
+    """
+    if relpath.is_absolute():
+        raise CompositionAbortError(
+            reason=(
+                CompositionRejectionCode
+                .PATH_TRAVERSAL_IN_WORKSPACE_MAP.value
+            ),
+            path=relpath,
+            remediation=(
+                f"backup relpath {relpath!r} is absolute; v2.1 requires "
+                f"relative paths under composition_root for backup "
+                f"relocation"
+            ),
+        )
+    for part in relpath.parts:
+        if part in ("", ".."):
+            raise CompositionAbortError(
+                reason=(
+                    CompositionRejectionCode
+                    .PATH_TRAVERSAL_IN_WORKSPACE_MAP.value
+                ),
+                path=relpath,
+                remediation=(
+                    f"backup relpath {relpath!r} contains forbidden "
+                    f"component {part!r}; v2.1 forbids path-traversal "
+                    f"in adapter-supplied paths (defense against "
+                    f"attacker-controlled path traversal)"
+                ),
+            )
+        if "\x00" in part or "/" in part or "\\" in part:
+            raise CompositionAbortError(
+                reason=(
+                    CompositionRejectionCode
+                    .PATH_TRAVERSAL_IN_WORKSPACE_MAP.value
+                ),
+                path=relpath,
+                remediation=(
+                    f"backup relpath {relpath!r} contains null byte or "
+                    f"path-separator artifact in component {part!r}"
+                ),
+            )
+
+
+def _count_tree(path: Path) -> tuple[int, int]:
+    """Return (file_count, total_bytes) under `path`.
+
+    Used to populate the per-target backup manifest (DA-F8.5). Best-effort:
+    OSErrors during stat are skipped so a partially-readable backup tree
+    doesn't fail the manifest write.
+
+    Cycle 6 hardening: uses `os.lstat` + `stat.S_ISREG` so symlinks within
+    a user-controlled backup tree do NOT contribute to the byte count
+    (defense-in-depth — without this, a symlink to `/dev/zero` planted in
+    a prior backup could distort the disk-space WARN threshold).
+    """
+    file_count = 0
+    total_bytes = 0
+    for dirpath, _dirnames, filenames in os.walk(str(path), followlinks=False):
+        for name in filenames:
+            child = Path(dirpath) / name
+            try:
+                st = os.lstat(str(child))
+            except OSError:
+                continue
+            if not stat.S_ISREG(st.st_mode):
+                # Skip symlinks, devices, fifos — only regular files count.
+                continue
+            file_count += 1
+            total_bytes += st.st_size
+    return file_count, total_bytes
+
+
+def _read_plugin_version_for_manifest(composition_root: Path) -> str:
+    """Best-effort read of plugin_version from scaffold-decision.json.
+
+    Returns "unknown" if the decision file is missing or malformed.
+    Manifest write must not fail because of decision-file unavailability.
+    """
+    decision_path = (
+        composition_root / ".launchpad" / "scaffold-decision.json"
+    )
+    try:
+        text = decision_path.read_text(encoding="utf-8")
+        payload = json.loads(text)
+        if isinstance(payload, dict):
+            version = payload.get("plugin_version")
+            if isinstance(version, str) and version:
+                return version
+    except (OSError, json.JSONDecodeError, ValueError):
+        pass
+    return "unknown"
+
+
+def _relocate_backups_to_launchpad(
+    backups: list[tuple[Path, Path]],
+    composition_root: Path,
+) -> Path | None:
+    """Atomically relocate `.pre-composition-<sha8>/` backups to
+    `.launchpad/backups/<ts>-<PID>-<rand4>/<relpath>/` on composition success.
+
+    DA-F8.1: reuses `make_backup_dir()` naming scheme (rmdirs the eagerly-
+    created dir to free the path for atomic-rename commit).
+    DA-F8.2: uses `os.replace` (atomic same-FS); EXDEV refuses-loud.
+    DA-F8.3: stage-then-commit pattern. Phase A relocates per-target into
+    `<basename>.staging/`; Phase B is a single `os.rename` that commits the
+    entire staged tree atomically. On Phase A failure, every already-staged
+    item is rolled back to its workspace `.pre-composition-<sha8>/` slot.
+    DA-F8.5: writes `_manifest.json` listing per-target metadata.
+
+    Returns the final `<ts>-<PID>-<rand4>/` directory (or None if `backups`
+    is empty — greenfield placement). Mode 0o700 on the staging dir per
+    T2-5; preserved across the atomic rename to the final dir.
+    """
+    if not backups:
+        return None
+
+    # Deferred import to keep `composition` module light at import time.
+    from lp_bootstrap.policy import make_backup_dir
+
+    # DA-F8.1 naming via shared helper. The helper creates the dir empty
+    # (`mkdir(parents=True, exist_ok=False)`); rmdir it so the path is
+    # free for the atomic-rename commit below. The `<ts>-<PID>-<rand4>`
+    # naming is collision-resistant and same-process, so the rmdir-then-
+    # rename window cannot be observed by another concurrent caller.
+    final_dir = make_backup_dir(composition_root)
+    final_dir.rmdir()
+    staging_dir = final_dir.parent / (final_dir.name + ".staging")
+    staging_dir.mkdir()
+    # T2-5: explicit chmod after mkdir; some umask values defeat mkdir mode.
+    os.chmod(staging_dir, 0o700)
+
+    # Phase A: stage all backups. Track for rollback on partial failure.
+    staged: list[tuple[Path, Path, Path]] = []  # (workspace_backup, staged_dest, original_target)
+    try:
+        for target, workspace_backup in backups:
+            relpath = target.relative_to(composition_root)
+            _validate_backup_relpath(relpath)
+            dest = staging_dir / relpath
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            _assert_within(
+                dest,
+                staging_dir,
+                field_name=(
+                    f"backup-relocation dest for relpath "
+                    f"{relpath.as_posix()!r}"
+                ),
+            )
+            try:
+                os.replace(str(workspace_backup), str(dest))
+            except OSError as exc:
+                if exc.errno == errno.EXDEV:
+                    raise CompositionAbortError(
+                        reason="cross_filesystem_backup_relocation",
+                        path=workspace_backup,
+                        remediation=(
+                            f".launchpad/backups/ must be on the same "
+                            f"filesystem as composition_root="
+                            f"{composition_root!r}; got EXDEV relocating "
+                            f"{workspace_backup} -> {dest}. If you "
+                            f"bind-mounted .launchpad/, undo the mount "
+                            f"and re-run /lp-scaffold-stack."
+                        ),
+                    ) from exc
+                raise
+            staged.append((workspace_backup, dest, target))
+    except BaseException:
+        # Rollback Phase A: return staged items to their workspace
+        # `.pre-composition-<sha8>/` slots. On rollback failure, log
+        # loud — user gets stale-backup error on next composition run.
+        for workspace_backup, staged_dest, _target in reversed(staged):
+            try:
+                os.replace(str(staged_dest), str(workspace_backup))
+            except OSError as restore_err:
+                LOG.error(
+                    "Phase A backup-relocation rollback failed: %s -> %s; "
+                    "manual cleanup required (the next composition run "
+                    "will refuse with STALE_PRE_COMPOSITION_BACKUP "
+                    "and surface the leak): %s",
+                    staged_dest,
+                    workspace_backup,
+                    restore_err,
+                )
+        try:
+            shutil.rmtree(staging_dir, ignore_errors=False)
+        except OSError as cleanup_err:
+            LOG.error(
+                "staging cleanup failed at %s; manual rm -rf required: %s",
+                staging_dir,
+                cleanup_err,
+            )
+        raise
+
+    # Build manifest while paths are still under staging_dir.
+    manifest_targets: list[dict[str, object]] = []
+    for _workspace_backup, staged_dest, target in staged:
+        relpath_posix = target.relative_to(composition_root).as_posix()
+        file_count, size_bytes = _count_tree(staged_dest)
+        manifest_targets.append({
+            "original_path": relpath_posix,
+            "size_bytes": size_bytes,
+            "file_count": file_count,
+        })
+    composition_run_id = hashlib.sha256(
+        "|".join(sorted(
+            str(t["original_path"]) for t in manifest_targets
+        )).encode("utf-8")
+    ).hexdigest()[:8]
+    manifest = {
+        "schema_version": "1.0",
+        "created_at": datetime.now(timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        ),
+        "composition_run_id": composition_run_id,
+        "targets": manifest_targets,
+        "plugin_version": _read_plugin_version_for_manifest(composition_root),
+        "caller": "/lp-scaffold-stack",
+    }
+    (staging_dir / "_manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    # Phase B: atomic single-rename commit. After this succeeds, the entire
+    # staged tree (including manifest) becomes visible at `final_dir` in one
+    # syscall. If this rename fails, workspace state is already consumed
+    # (Phase A succeeded) — we surface the failure with structured error +
+    # loud stderr notice so the operator knows where to recover from
+    # (rather than discovering an orphan `.staging/` dir via `du -sh`).
+    try:
+        os.rename(str(staging_dir), str(final_dir))
+    except OSError as exc:
+        sys.stderr.write(
+            f"error: composition succeeded but backup commit failed at "
+            f"{final_dir}; staged content preserved at {staging_dir}/. "
+            f"Manual recovery: mv {staging_dir} {final_dir}\n"
+        )
+        raise CompositionAbortError(
+            reason="backup_relocation_commit_failed",
+            path=staging_dir,
+            remediation=(
+                f"composition succeeded but backup-relocation commit "
+                f"(os.rename {staging_dir} -> {final_dir}) failed: {exc}. "
+                f"Workspace state is already consumed (the new scaffold IS "
+                f"at the original target locations). Pre-existing user "
+                f"content is preserved at {staging_dir}/; recover via "
+                f"`mv {staging_dir} {final_dir}` before re-running "
+                f"/lp-scaffold-stack."
+            ),
+        ) from exc
+    return final_dir
+
+
+def _emit_backup_relocation_notice(final_dir: Path) -> None:
+    """DA-F8.8: stderr surface backup location post-success.
+
+    Without this, user discovers `.launchpad/backups/` only via `du -sh`
+    audit — hostile UX.
+
+    Cycle 6 hardening: parity with `_rollback`'s "may contain
+    secrets-shaped files" warning so operators tarballing backups for
+    forensic review know NOT to commit / share without a sweep.
+    """
+    sys.stderr.write(
+        f"note: previous workspace content preserved at {final_dir}/ "
+        f"(recovery: cp -r {final_dir}/<relpath>/ <original-target>/). "
+        f"May contain secrets-shaped files like .env or .env.example; "
+        f"do NOT commit or share without auditing.\n"
+    )
+
+
+def _warn_if_backups_dir_large(composition_root: Path) -> None:
+    """DA-F8.9: stderr WARN when `.launchpad/backups/` exceeds 50 entries
+    or 1 GB. Pointer to manual cleanup; v2.1.1 BL-287 lands an automated
+    `/lp-cleanup-backups [--older-than=N-days]` retention command.
+    """
+    backups_root = composition_root / ".launchpad" / "backups"
+    if not backups_root.is_dir():
+        return
+    try:
+        entries = [e for e in backups_root.iterdir() if e.is_dir()]
+    except OSError:
+        return
+    total_bytes = 0
+    for entry in entries:
+        _, sz = _count_tree(entry)
+        total_bytes += sz
+    one_gb = 1024 ** 3
+    if len(entries) > 50 or total_bytes > one_gb:
+        sys.stderr.write(
+            f"warn: .launchpad/backups/ contains {len(entries)} backup "
+            f"entries totalling {total_bytes // (1024 * 1024)} MB. "
+            f"Consider manual cleanup: rm -rf .launchpad/backups/<older-entries>\n"
+        )
+
+
 def compose(
     adapters: list[Adapter],
     composition_root: Path,
@@ -874,18 +1194,18 @@ def compose(
         )
         raise
 
-    for _target, backup_path in backups:
-        try:
-            if backup_path.is_dir():
-                shutil.rmtree(backup_path)
-            elif backup_path.exists():
-                backup_path.unlink()
-        except OSError:
-            LOG.warning(
-                "failed to clean up composition backup %s; "
-                "remove manually to prevent STALE_PRE_COMPOSITION_BACKUP",
-                backup_path,
-            )
+    # v2.1 Codex PR #50 cycle 6 F8: replace destructive `shutil.rmtree`
+    # cleanup (which permanently deleted user code on brownfield runs)
+    # with atomic relocation to `.launchpad/backups/<ts>-<PID>-<rand4>/`.
+    # The relocation preserves the user's pre-existing tree forensically
+    # AND lifts it OUT of workspace globs (`apps/*`, `packages/*`) so the
+    # next composition run cannot trigger `STALE_PRE_COMPOSITION_BACKUP`.
+    final_backup_dir = _relocate_backups_to_launchpad(
+        backups, composition_root
+    )
+    if final_backup_dir is not None:
+        _emit_backup_relocation_notice(final_backup_dir)
+        _warn_if_backups_dir_large(composition_root)
 
     return CompositionResult(
         composition_root=composition_root,

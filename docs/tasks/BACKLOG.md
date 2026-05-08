@@ -1505,3 +1505,65 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 **At v2.1.1 design time**: quote the variable or switch to a `while IFS= read -r` loop consuming `find -print0` output. Add a test with space-containing paths.
 
 **Default decision**: defer to v2.1.1+. Low severity (P3); the generated script is advisory and rarely encounters paths with spaces in practice.
+
+#### BL-284 - v2.1.1: tier-2-nightly composition matrix not consumed
+
+**Status (2026-05-08)**: NEW — deferred from v2.1.0 Codex PR #50 cycle 5 P2. `.github/workflows/tier-2-nightly.yml:30` declares two canonical stack compositions in the matrix, but the test command at `:70` does not consume `matrix.composition.stacks` or run the composition suite. Both matrix jobs run identical adapter/template-cache tests, so the advertised hot-path compositions are not actually exercised.
+
+**At v2.1.1 design time**: pass the matrix stacks into a composition/dispatch smoke runner, or include the relevant composition tests filtered per matrix entry. Folds into v2.1.1's universal-lefthook + CI parity work (Phase 4).
+
+**Default decision**: defer to v2.1.1. CI hygiene only; doesn't affect runtime correctness.
+
+#### BL-285 - v2.1.1: backup secret-scan gate
+
+**Status (2026-05-08)**: NEW — deferred from v2.1.0 PR #50 cycle 6 hardening (security-lens P1-1). `.launchpad/backups/<ts>-<PID>-<rand4>/` may contain user content with secrets-shaped files (e.g., `.env.example`). v2.1 secret-scanner does NOT walk this directory.
+
+**At v2.1.1 design time**: extend the secret-scanner walker to include `.launchpad/backups/` OR document explicitly in IDENTITY_AND_PII.md that backups are out-of-scope and operators must sweep manually before sharing tarballs.
+
+**Default decision**: defer to v2.1.1. Backups are short-lived runtime artifacts, gitignored; risk surfaces only if operator copies them off-machine.
+
+#### BL-286 - v2.1.1: `.launchpad/backups/` at-rest encryption + GDPR + retention compliance docs
+
+**Status (2026-05-08)**: NEW — deferred from v2.1.0 PR #50 cycle 6 hardening (security-lens P3-1, P3-2, P3-3). Three doc additions:
+
+- IDENTITY_AND_PII.md: at-rest encryption posture for `.launchpad/backups/` (typically inherited from disk encryption; document the assumption).
+- IDENTITY_AND_PII.md: GDPR right-to-erasure note — backups MUST be included in user-erasure workflows.
+- IDENTITY_AND_PII.md: SOC2/ISO27001/HIPAA retention enumeration — document that v2.1 ships with NO automated retention; operators with compliance obligations must add their own.
+
+**At v2.1.1 design time**: ~30-line addition to IDENTITY_AND_PII.md; no code changes.
+
+**Default decision**: defer to v2.1.1. Documentation hygiene; doesn't block ship.
+
+#### BL-287 - v2.1.1: `/lp-cleanup-backups` retention command
+
+**Status (2026-05-08)**: NEW — deferred from v2.1.0 PR #50 cycle 6 (DA-F8.11; perf, scope-guardian, product-lens reviews concurred).
+
+`/lp-cleanup-backups [--older-than=N-days] [--keep-last=N]` enumerates `.launchpad/backups/<ts>-<PID>-<rand4>/_manifest.json` entries, applies retention policy, and removes matching entries. Manifest schema (v2.1) already supports this.
+
+**At v2.1.1 design time**: ~150 LOC new command + 3-4 tests. Reuses the manifest written by composition.
+
+**Default decision**: defer to v2.1.1. v2.1.0 ships with stderr WARN at 50 entries / 1 GB; manual `rm -rf` is acceptable for early forensic use.
+
+#### BL-288 - v2.1.1: backup tamper-detection (audit.log integrity hash)
+
+**Status (2026-05-08)**: NEW — deferred from v2.1.0 PR #50 cycle 6 hardening (security P2-2). When backups are relocated, log a sha256 of the relocated tree to `.launchpad/audit.log` so operators can detect post-hoc tampering.
+
+**At v2.1.1 design time**: extend `_relocate_backups_to_launchpad` to write an audit-log entry with `{run_id, target_path, sha256, timestamp}`. ~30 LOC + 1 test.
+
+**Default decision**: defer to v2.1.1. Sealed-envelope variant possible at v2.2+ if formal integrity contracts are added.
+
+#### BL-289 - v2.1.1: full handshake-lint allowlist sweep post-F9
+
+**Status (2026-05-08)**: NEW — partially closed in v2.1.0 PR #50 cycle 6. The F9 fix routed `_record_version_drift` through `re_seal_decision_atomic`, so the `lp_bootstrap/engine.py` entry was REMOVED from `ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS` (the in-tree allowlist-sweep test mechanically demanded the removal). Remaining v2.1.1 work: audit other allowlisted modules (`policy.py`, `manifest_writer.py`, `_renderer_base.py`) for similar narrowing opportunities.
+
+**At v2.1.1 design time**: per-module audit of remaining allowlisted callers; consolidate atomic-write call sites where helper-routing is feasible.
+
+**Default decision**: defer to v2.1.1. Hygiene; doesn't affect runtime. Cycle 6 closed the engine.py portion; v2.1.1 covers the rest.
+
+#### BL-290 - v2.1.1: `read_decision_atomic_or_recover()` for corrupt files
+
+**Status (2026-05-08)**: NEW — deferred from v2.1.0 PR #50 cycle 6 (DA-F9.3). `re_seal_decision_atomic` currently raises `VERSION_DRIFT_RESEAL_FAILED` when scaffold-decision.json is missing or corrupt. The user-facing remediation says "run /lp-bootstrap --refresh", but `--accept-plugin-version-drift` is the canonical recovery flag — circular.
+
+**At v2.1.1 design time**: introduce `read_decision_atomic_or_recover()` that gracefully handles already-corrupted files (the recovery scenario `--accept-plugin-version-drift` is meant to address).
+
+**Default decision**: defer to v2.1.1. Edge case; v2.1.0 ships with refuse-loud + actionable error.

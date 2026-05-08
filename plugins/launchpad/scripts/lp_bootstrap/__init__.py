@@ -97,6 +97,9 @@ class BootstrapErrorCode(StrEnum):
 
     # Plugin-version-class
     PLUGIN_VERSION_MISMATCH = "plugin_version_mismatch"
+    # v2.1 Codex PR #50 cycle 6 F9: --accept-plugin-version-drift could not
+    # reseal scaffold-decision.json (file missing, hand-edited, or corrupt).
+    VERSION_DRIFT_RESEAL_FAILED = "version_drift_reseal_failed"
 
     # Concurrency-class
     SENTINEL_BLOCKING = "sentinel_blocking"

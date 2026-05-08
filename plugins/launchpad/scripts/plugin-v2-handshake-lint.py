@@ -602,7 +602,11 @@ ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS = (
     # `O_CREAT|O_EXCL` (mirroring lp_scaffold_stack + lp_update_identity
     # sentinels), eliminating its `atomic_write_replace` dependency.
     "plugins/launchpad/scripts/lp_bootstrap/policy.py",  # per-file policy dispatcher
-    "plugins/launchpad/scripts/lp_bootstrap/engine.py",  # run_bootstrap orchestration
+    # v2.1 Codex PR #50 cycle 6 F9: `lp_bootstrap/engine.py` was REMOVED from
+    # this allowlist after `_record_version_drift` was refactored to route
+    # through `re_seal_decision_atomic()` in `lp_pick_stack.decision_writer`.
+    # Engine no longer holds the primitive directly; the decision_writer
+    # entry below covers the resealed scaffold-decision write.
     "plugins/launchpad/scripts/lp_bootstrap/manifest_writer.py",  # bootstrap manifest writer
     # Phase 10 v2.1: scaffold-decision atomic re-seal lives in decision_writer
     # (re_seal_decision_atomic) so /lp-update-identity inherits the same

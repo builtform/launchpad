@@ -312,7 +312,7 @@ def _record_version_drift(
     from_version: str,
     to_version: str,
 ) -> None:
-    """Append a `version_drift_log[]` entry on scaffold-decision.json.
+    """Append a `version_drift_log[]` entry and reseal scaffold-decision.json.
 
     v2.1 Codex PR #50 Greptile #7 (D7): canonical 5-key shape via the
     shared `compute_identity_fields_changed` helper. Bootstrap version-
@@ -322,6 +322,20 @@ def _record_version_drift(
     Sealed identity preserved (the original `plugin_version` field stays
     pointing at the originally-recorded version; future readers see the
     drift in the audit trail rather than via overwrite).
+
+    LOAD-BEARING INVARIANT (DA-F9.2): this function MUST be called under
+    `advisory_flock(lock_path)` from `_check_plugin_version_pin`. Calling
+    it outside the locked region creates a read-mutate-write race where
+    concurrent `--accept-plugin-version-drift` invocations can lose log
+    entries. The flock is acquired at engine.py:669; do NOT refactor this
+    call out of the locked region.
+
+    v2.1 Codex PR #50 cycle 6 F9: routes the mutation through
+    `re_seal_decision_atomic()` so the on-disk `sha256` envelope is
+    recomputed after the drift-log append. Cycle 5's direct
+    `atomic_write_replace` left the hash stale, breaking subsequent
+    decision validation. File mode tightens 0o644 -> 0o600 via the
+    helper's contract (DA-F9.1, intentional posture-tightening).
     """
     from datetime import datetime, timezone
     from lp_bootstrap.version_drift import (
@@ -334,7 +348,9 @@ def _record_version_drift(
     # Bootstrap drift always touches `plugin_version` only; route through
     # the shared helper so writer-side serialization (Names ->
     # fields_changed; Fingerprint -> fields_changed_fingerprint) matches
-    # the identity-update writer exactly.
+    # the identity-update writer exactly. `pii_opt_in` is read from the
+    # in-memory payload (the flock invariant above prevents skew between
+    # this read and the disk re-read inside `re_seal_decision_atomic`).
     pii_opt_in = bool(
         ((decision_payload.get("identity") or {}) or {}).get("pii_opt_in")
     )
@@ -353,16 +369,34 @@ def _record_version_drift(
         entry["fields_changed"] = list(changed.names)
     elif isinstance(changed, Fingerprint):
         entry["fields_changed_fingerprint"] = changed.digest
-    log = decision_payload.get("version_drift_log") or []
-    log.append(entry)
-    decision_payload["version_drift_log"] = log
 
-    target = cwd / LAUNCHPAD_DIR_NAME / "scaffold-decision.json"
-    encoded = (
-        json.dumps(decision_payload, indent=2, sort_keys=True) + "\n"
-    ).encode("utf-8")
-    from atomic_io import atomic_write_replace
-    atomic_write_replace(target, encoded, mode=0o644, trusted_root=cwd)
+    def _apply_drift_log(payload: dict[str, Any]) -> None:
+        log = payload.get("version_drift_log") or []
+        log.append(entry)
+        payload["version_drift_log"] = log
+
+    from lp_pick_stack.decision_writer import re_seal_decision_atomic
+    try:
+        re_seal_decision_atomic(cwd, update_fn=_apply_drift_log)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        # OSError covers FileNotFoundError (missing decision file) AND the
+        # write-side surface of `atomic_write_replace` (disk full / EACCES /
+        # EROFS / EXDEV / FileExistsError on sentinel collision). Catching
+        # the broader class ensures every reseal-side failure surfaces with
+        # the structured VERSION_DRIFT_RESEAL_FAILED code rather than
+        # leaking a raw OSError past the engine boundary.
+        raise BootstrapEngineError(
+            f"--accept-plugin-version-drift could not reseal "
+            f"scaffold-decision.json: {exc}",
+            reason=BootstrapErrorCode.VERSION_DRIFT_RESEAL_FAILED,
+            remediation=(
+                "Verify .launchpad/scaffold-decision.json exists and is "
+                "not hand-edited; check available disk space and "
+                "filesystem permissions; run /lp-bootstrap --refresh to "
+                "regenerate the sealed envelope before retrying "
+                "--accept-plugin-version-drift."
+            ),
+        ) from exc
 
 
 # --- Sentinel preflight (engine step 2) -----------------------------------

@@ -217,7 +217,20 @@ def test_drift_unaccepted_aborts_with_plugin_version_mismatch(tmp_path):
 
 def test_drift_accepted_records_in_scaffold_decision(tmp_path):
     """`--accept-plugin-version-drift` writes a `version_drift_log[]` entry
-    and preserves the originally-sealed `plugin_version` field."""
+    and preserves the originally-sealed `plugin_version` field.
+
+    v2.1 Codex PR #50 cycle 6 T1-4 (F9 regression-prevention): also asserts
+    the on-disk `sha256` envelope is valid post-mutation. Cycle 5 left the
+    hash stale because `_record_version_drift` wrote directly via
+    `atomic_write_replace`; cycle 6 routes through `re_seal_decision_atomic`
+    so the hash is recomputed.
+    """
+    import sys as _sys
+    _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
+    if str(_SCRIPTS_DIR) not in _sys.path:
+        _sys.path.insert(0, str(_SCRIPTS_DIR))
+    from lp_pick_stack.decision_writer import seal_decision_payload
+
     (tmp_path / LAUNCHPAD_DIR_NAME).mkdir()
     decision = {
         "schema_version": "1.1",
@@ -234,9 +247,10 @@ def test_drift_accepted_records_in_scaffold_decision(tmp_path):
     )
     assert result.outcome == "success"
     # Drift log written
-    written = json.loads(
-        (tmp_path / LAUNCHPAD_DIR_NAME / "scaffold-decision.json").read_text(encoding="utf-8")
+    decision_path = (
+        tmp_path / LAUNCHPAD_DIR_NAME / "scaffold-decision.json"
     )
+    written = json.loads(decision_path.read_text(encoding="utf-8"))
     assert "version_drift_log" in written
     assert len(written["version_drift_log"]) == 1
     entry = written["version_drift_log"][0]
@@ -245,6 +259,26 @@ def test_drift_accepted_records_in_scaffold_decision(tmp_path):
     assert "accepted_at" in entry
     # Sealed plugin_version preserved
     assert written["plugin_version"] == "1.0.0-test"
+
+    # T1-4 / F9: hash-chain validity post-mutation. seal_decision_payload
+    # over (payload-minus-sha256) MUST equal the on-disk sha256 envelope.
+    on_disk_sha = written.pop("sha256", None)
+    assert on_disk_sha is not None, (
+        "F9 regression: sha256 missing post-drift-accept "
+        "(cycle 5 wrote unsealed JSON; cycle 6 re-seals via "
+        "re_seal_decision_atomic)"
+    )
+    resealed = seal_decision_payload(written)
+    assert resealed["sha256"] == on_disk_sha, (
+        "F9 regression: on-disk sha256 does not match "
+        "seal_decision_payload(payload-minus-sha256). "
+        "decision_validator will reject this file on next /lp-bootstrap."
+    )
+
+    # T0-2 / DA-F9.1: file mode tightened 0o644 -> 0o600 via re-seal helper.
+    assert (os.stat(decision_path).st_mode & 0o777) == 0o600, (
+        "DA-F9.1 contract: re_seal_decision_atomic writes mode 0o600"
+    )
 
 
 def test_drift_accepted_auto_triggers_refresh_all(tmp_path):
