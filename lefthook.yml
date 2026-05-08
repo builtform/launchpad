@@ -58,15 +58,7 @@ pre-commit:
     # The gate scans both LaunchPad's own workflows and the .j2 workflow
     # templates emitted by /lp-bootstrap.
     workflow-action-sha-pin:
-      run: |
-        violations=$(grep -rE '@v[0-9]+(\s|$)' .github/workflows/ \
-          plugins/launchpad/scripts/plugin_default_generators/infrastructure/github/workflows/ \
-          2>/dev/null || true)
-        if [ -n "$violations" ]; then
-          echo "ERROR: tag-pinned GitHub Actions detected (must be SHA-pinned):"
-          echo "$violations"
-          exit 1
-        fi
+      run: python3 plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py
       priority: 10
 
     large-file-guard:

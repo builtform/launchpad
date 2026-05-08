@@ -438,18 +438,19 @@ acceptance ladder. The canonical reader is
     {
       "path": "<relpath e.g. LICENSE>",
       "rendered_content_sha256": "<hex sha256 of the file as written>",
-      "source_template_sha256": "<hex sha256 of the .j2 template source>"
+      "source_template_sha256": "<hex sha256 of the .j2 template source>",
+      "missing_on_disk": false
     }
   ],
   // version_drift_log appended by /lp-update-identity on each successful
   // identity update (DA8). Absent on the original /lp-pick-stack write.
   "version_drift_log": [
     {
-      "from": "<plugin_version before this update>",
-      "to":   "<plugin_version after this update>",
-      "via":  "/lp-update-identity",
+      "from_version": "<plugin_version before this update>",
+      "to_version":   "<plugin_version after this update>",
+      "via":          "/lp-update-identity",
       "fields_changed": ["<identity field name>"],
-      "at":   "<ISO 8601 UTC>"
+      "accepted_at":  "<ISO 8601 UTC>"
     }
   ],
 
@@ -492,17 +493,20 @@ acceptance ladder. The canonical reader is
   `KernelRenderer.refresh()` reads this list from the caller, computes
   on-disk sha for each kernel file, and refuses individual files whose
   sha drifted from the recorded value (`USER_EDIT_BLOCKS_REFRESH` per
-  §3.7). Phase 1+2 retroactive amendment A7 made the seal a
-  caller-side responsibility to remove the renderer's prior dependency
-  on `lp_pick_stack.decision_writer`.
+  §3.7). `missing_on_disk` (boolean, default `false`) is set to `true`
+  when `KernelRenderer.refresh()` finds the file absent from disk;
+  controls the re-render branch in `compute_current_on_disk_state()`.
+  Phase 1+2 retroactive amendment A7 made the seal a caller-side
+  responsibility to remove the renderer's prior dependency on
+  `lp_pick_stack.decision_writer`.
 - `version_drift_log`: append-only audit trail of plugin-version
   transitions captured by `/lp-update-identity`. Each entry records the
-  `from`/`to` `plugin_version`, the calling command (`via`), the list
-  of identity field NAMES that changed (NOT the values, per Phase 10
-  DA8 PII rule), and the UTC timestamp. Empty/absent on the original
-  `/lp-pick-stack` write; `/lp-update-identity` appends one entry per
-  successful update (no-op fast-path skips the append per adversarial
-  P3).
+  `from_version`/`to_version` `plugin_version`, the calling command
+  (`via`), the list of identity field NAMES that changed (NOT the
+  values, per Phase 10 DA8 PII rule), and the `accepted_at` UTC
+  timestamp. Empty/absent on the original `/lp-pick-stack` write;
+  `/lp-update-identity` appends one entry per successful update (no-op
+  fast-path skips the append per adversarial P3).
 
 ### Validation rules (orchestration MUST enforce all of them before any subprocess executes)
 

@@ -1497,3 +1497,11 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 **At v2.1.1 design time**: extend `pin_registry.py` to record the source tag/ref alongside each SHA; have the detector resolve THAT exact ref via `git ls-remote refs/tags/<tag>` and compare expected vs resolved SHA. Estimated effort: ~1h.
 
 **Default decision**: defer to v2.1.1. The current detector emits soft `::warning ::` advisories that don't fail CI; noise is tolerable until the structured tag/ref recording lands.
+
+#### BL-283 - v2.1.1+: `analyze-report.sh.j2` word-split bug
+
+**Status (2026-05-07)**: NEW — deferred from v2.1.0 Codex PR #50 cycle 4 P3. `plugins/launchpad/scripts/plugin_default_generators/infrastructure/scripts/compound/analyze-report.sh.j2:78` uses `for prd in $RECENT_PRDS` which word-splits paths returned from `find`, breaking on file paths containing spaces.
+
+**At v2.1.1 design time**: quote the variable or switch to a `while IFS= read -r` loop consuming `find -print0` output. Add a test with space-containing paths.
+
+**Default decision**: defer to v2.1.1+. Low severity (P3); the generated script is advisory and rarely encounters paths with spaces in practice.

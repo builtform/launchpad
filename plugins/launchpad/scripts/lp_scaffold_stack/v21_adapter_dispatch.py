@@ -122,8 +122,26 @@ def resolve_adapter(
     )
 
 
+def _build_workspace_path_overrides(
+    adapter: Adapter,
+    layer_paths: dict[str, str] | None,
+) -> dict[str, str]:
+    """Map workspace names to output paths using layer path allocations."""
+    if not layer_paths:
+        return {}
+    mapping: dict[str, str] = getattr(adapter, "layer_stack_to_workspace", {})
+    overrides: dict[str, str] = {}
+    for stack_id, workspace_name in mapping.items():
+        if stack_id in layer_paths:
+            overrides[workspace_name] = layer_paths[stack_id]
+    return overrides
+
+
 def _dispatch_single_adapter_into_apps(
-    adapter: Adapter, project_root: Path
+    adapter: Adapter,
+    project_root: Path,
+    *,
+    layer_paths: dict[str, str] | None = None,
 ) -> Path:
     """Single-adapter mode for adapters declaring a non-empty
     `workspace_source_map_single`.
@@ -147,19 +165,28 @@ def _dispatch_single_adapter_into_apps(
     apps_root = project_root / "apps"
     apps_root.mkdir(parents=True, exist_ok=True)
 
-    # Per harden P1-ε re-run idempotency: refuse-loud if any declared
-    # destination already contains user content. composition_root is
-    # whole-project-replace by contract; single-adapter dispatch is NOT,
-    # so we cannot blindly rmtree-then-replace.
+    path_overrides = _build_workspace_path_overrides(adapter, layer_paths)
+
+    def _resolve_target(ws_name: str) -> Path:
+        if ws_name in path_overrides:
+            t = project_root / path_overrides[ws_name]
+            _assert_within(
+                t, project_root,
+                field_name=f"path_override[{ws_name!r}]",
+            )
+            t.parent.mkdir(parents=True, exist_ok=True)
+            return t
+        return apps_root / ws_name
+
     for workspace_name in adapter.workspace_source_map_single:
-        target = apps_root / workspace_name
+        target = _resolve_target(workspace_name)
         if target.exists() and any(target.iterdir()):
             raise ScaffoldStepFailedError(
                 reason="workspace_target_already_populated",
                 path=target,
                 remediation=(
                     f"{target} already contains user content; "
-                    f"delete apps/{workspace_name}/ or use --force "
+                    f"delete {target.relative_to(project_root)}/ or use --force "
                     f"to re-scaffold"
                 ),
             )
@@ -213,11 +240,11 @@ def _dispatch_single_adapter_into_apps(
                     ),
                 )
             _reject_symlinks_in_subtree(src)
-            workspace_target_raw = apps_root / workspace_name
+            workspace_target_raw = _resolve_target(workspace_name)
             workspace_target = _assert_within(
                 workspace_target_raw,
                 project_root,
-                field_name=f"apps/{workspace_name}",
+                field_name=str(workspace_target_raw.relative_to(project_root)),
             )
             # Idempotency pre-check above already verified the target is
             # empty/missing; safe to rmdir an empty placeholder if one
@@ -314,7 +341,10 @@ def _dispatch_single_adapter_into_apps(
 
 
 def dispatch_single_adapter(
-    adapter: Adapter, workspace_dir: Path
+    adapter: Adapter,
+    workspace_dir: Path,
+    *,
+    layer_paths: dict[str, str] | None = None,
 ) -> Path:
     """Single-adapter mode dispatch.
 
@@ -334,7 +364,9 @@ def dispatch_single_adapter(
             raise bridge_to_scaffold_error(exc) from exc
         return workspace_dir
     try:
-        return _dispatch_single_adapter_into_apps(adapter, workspace_dir)
+        return _dispatch_single_adapter_into_apps(
+            adapter, workspace_dir, layer_paths=layer_paths,
+        )
     except CompositionAbortError:
         raise
     except Exception as exc:
@@ -361,6 +393,7 @@ def dispatch_by_stack_ids(
     workspace_dir: Path,
     *,
     accept_v22_fallback: bool = False,
+    layer_paths: dict[str, str] | None = None,
 ) -> CompositionResult | Path:
     """One entrypoint for callers that have stack_ids and want a uniform
     return surface. Single-id: returns the populated workspace_dir.
@@ -382,7 +415,9 @@ def dispatch_by_stack_ids(
         adapter = resolve_adapter(
             stack_ids[0], accept_v22_fallback=accept_v22_fallback
         )
-        return dispatch_single_adapter(adapter, workspace_dir)
+        return dispatch_single_adapter(
+            adapter, workspace_dir, layer_paths=layer_paths,
+        )
     adapters = [
         resolve_adapter(sid, accept_v22_fallback=accept_v22_fallback)
         for sid in stack_ids

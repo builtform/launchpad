@@ -447,116 +447,12 @@ def run_pipeline(
     if marker_present(repo_root):
         consume_marker(repo_root)
 
-    # --- Step 3: v2.1 adapter-protocol dispatch ---
-    # Replaces the legacy v2.0 per-layer scaffolders.yml-driven dispatch
-    # with the single-call `dispatch_by_stack_ids` path. Composition vs.
-    # single-adapter mode is decided inside the dispatch helper based on
-    # `len(stacks)`. Cleanup contract on failure (per v2.1.0 completion
-    # plan §3.3):
-    #   - Composition mode (CompositionAbortError): composition._rollback
-    #     drains placed_paths + .lp-tmp/ on its own failure path.
-    #   - Single-adapter mode (ScaffoldStepFailedError): the adapter's
-    #     own scaffold_into is responsible for tempdir cleanup. Engine
-    #     logs the path in `recovery_action` for forensic inspection but
-    #     does NOT auto-clean (preserves user's ability to inspect
-    #     partial state).
-    install_start = time.monotonic()
-    install_seconds = 0.0
-    try:
-        dispatch_result = dispatch_by_stack_ids(
-            stacks, cwd, accept_v22_fallback=accept_v22_fallback,
-        )
-    except (ScaffoldStepFailedError, CompositionAbortError) as exc:
-        elapsed = time.monotonic() - start
-        if isinstance(exc, CompositionAbortError):
-            recovery_path = str(getattr(exc, "path", None) or cwd)
-        else:
-            recovery_path = (
-                str(exc.path) if exc.path is not None
-                else f"<adapter dispatch for stacks={stacks!r}>"
-            )
-        return _record_partial_failure(
-            repo_root=repo_root,
-            decision_path=decision_path,
-            materialized_files=[],
-            failed_layer_index=None,
-            reason=exc.reason,
-            # Cycle-4 SF-P1-A lock: emit `exc.remediation` (canonical
-            # user-facing copy) NOT `str(exc)` (debug surface) so the
-            # engine-level Outcome.ABORTED message field matches the
-            # validator-level Rejected.message shape on parity tests.
-            message=exc.remediation,
-            elapsed=elapsed,
-            install_seconds=time.monotonic() - install_start,
-            write_telemetry_flag=write_telemetry_flag,
-            recovery_action=(
-                f"Adapter dispatch failed for stacks={stacks!r}. The "
-                f"composition layer's existing rmtree-with-backup-and-"
-                f"restore (per composition._rollback) cleans placed_paths "
-                f"on its own failure path; for single-adapter "
-                f"ScaffoldStepFailedError, inspect the partial workspace "
-                f"at {recovery_path} and address the underlying cause "
-                f"before re-running."
-            ),
-            recovery_layer_path=recovery_path,
-        )
-
-    materialized_files = enumerate_files(cwd, dispatch_result)
-    install_seconds = time.monotonic() - install_start
-
-    # --- Step 4: cross-cutting wiring + secret-scan ---
-    try:
-        wiring = wire_cross_cutting(cwd, layers, materialized_files)
-    except CrossCuttingError as exc:
-        elapsed = time.monotonic() - start
-        # PR #41 cycle 7 #5: pass through any cross-cutting files written
-        # before the collision so the recovery record names them. Otherwise
-        # a rerun would collide again on the orphans (lefthook.yml succeeds
-        # before pnpm-workspace.yaml fails, etc.).
-        partial_cross_cutting = getattr(exc, "cross_cutting_files_written", []) or []
-        return _record_partial_failure(
-            repo_root=repo_root,
-            decision_path=decision_path,
-            materialized_files=materialized_files,
-            failed_layer_index=None,
-            reason="cross_cutting_wiring_collision",
-            message=str(exc),
-            elapsed=elapsed,
-            install_seconds=install_seconds,
-            write_telemetry_flag=write_telemetry_flag,
-            cross_cutting_files=list(partial_cross_cutting) or None,
-            recovery_action=(
-                "Cross-cutting wiring (pnpm-workspace.yaml / turbo.json / "
-                "lefthook.yml) collided with existing files. Resolve the "
-                "collision and re-run /lp-scaffold-stack."
-            ),
-        )
-
-    if not wiring.secret_scan_passed:
-        elapsed = time.monotonic() - start
-        return _record_partial_failure(
-            repo_root=repo_root,
-            decision_path=decision_path,
-            materialized_files=materialized_files,
-            failed_layer_index=None,
-            reason="secret_scan_failed",
-            message=f"secret-scan findings: {wiring.secret_scan_findings}",
-            elapsed=elapsed,
-            install_seconds=install_seconds,
-            write_telemetry_flag=write_telemetry_flag,
-            cross_cutting_files=list(wiring.cross_cutting_files),
-            recovery_action=(
-                "Secret-scan flagged content in materialized files. Investigate "
-                "the findings, remove sensitive material, and re-run."
-            ),
-        )
-
-    # --- Sentinel acquisition (Phase 10 cycle-2 F9 + cycle-3 P2-2 closure) ---
-    # Acquired BEFORE any scaffold-decision re-seal or bootstrap-manifest
-    # write. Bidirectional cross-detect in lp_bootstrap._sentinel_preflight
-    # and lp_update_identity._validate_preconditions reads this sentinel
-    # and refuses on a live PID. Clearing happens in the finally block
-    # below regardless of success/failure path.
+    # --- Sentinel acquisition (before any filesystem materialization) ---
+    # Prevents concurrent /lp-scaffold-stack invocations from both passing
+    # the greenfield gate and dispatching adapters in parallel. Bidirectional
+    # cross-detect in lp_bootstrap._sentinel_preflight and
+    # lp_update_identity._validate_preconditions reads this sentinel and
+    # refuses on a live PID.
     from lp_scaffold_stack.sentinel import (  # noqa: PLC0415
         clear_sentinel as _scaffold_stack_clear_sentinel,
         write_sentinel as _scaffold_stack_write_sentinel,
@@ -588,6 +484,99 @@ def run_pipeline(
         return result
 
     try:
+        # --- Step 3: v2.1 adapter-protocol dispatch ---
+        layer_paths: dict[str, str] = {}
+        for layer in layers:
+            lid = layer.get("stack")
+            lpath = layer.get("path")
+            if lid and lpath:
+                layer_paths[lid] = lpath
+
+        install_start = time.monotonic()
+        install_seconds = 0.0
+        try:
+            dispatch_result = dispatch_by_stack_ids(
+                stacks, cwd,
+                accept_v22_fallback=accept_v22_fallback,
+                layer_paths=layer_paths or None,
+            )
+        except (ScaffoldStepFailedError, CompositionAbortError) as exc:
+            elapsed = time.monotonic() - start
+            if isinstance(exc, CompositionAbortError):
+                recovery_path = str(getattr(exc, "path", None) or cwd)
+            else:
+                recovery_path = (
+                    str(exc.path) if exc.path is not None
+                    else f"<adapter dispatch for stacks={stacks!r}>"
+                )
+            return _record_partial_failure(
+                repo_root=repo_root,
+                decision_path=decision_path,
+                materialized_files=[],
+                failed_layer_index=None,
+                reason=exc.reason,
+                message=exc.remediation,
+                elapsed=elapsed,
+                install_seconds=time.monotonic() - install_start,
+                write_telemetry_flag=write_telemetry_flag,
+                recovery_action=(
+                    f"Adapter dispatch failed for stacks={stacks!r}. The "
+                    f"composition layer's existing rmtree-with-backup-and-"
+                    f"restore (per composition._rollback) cleans placed_paths "
+                    f"on its own failure path; for single-adapter "
+                    f"ScaffoldStepFailedError, inspect the partial workspace "
+                    f"at {recovery_path} and address the underlying cause "
+                    f"before re-running."
+                ),
+                recovery_layer_path=recovery_path,
+            )
+
+        materialized_files = enumerate_files(cwd, dispatch_result)
+        install_seconds = time.monotonic() - install_start
+
+        # --- Step 4: cross-cutting wiring + secret-scan ---
+        try:
+            wiring = wire_cross_cutting(cwd, layers, materialized_files)
+        except CrossCuttingError as exc:
+            elapsed = time.monotonic() - start
+            partial_cross_cutting = getattr(exc, "cross_cutting_files_written", []) or []
+            return _record_partial_failure(
+                repo_root=repo_root,
+                decision_path=decision_path,
+                materialized_files=materialized_files,
+                failed_layer_index=None,
+                reason="cross_cutting_wiring_collision",
+                message=str(exc),
+                elapsed=elapsed,
+                install_seconds=install_seconds,
+                write_telemetry_flag=write_telemetry_flag,
+                cross_cutting_files=list(partial_cross_cutting) or None,
+                recovery_action=(
+                    "Cross-cutting wiring (pnpm-workspace.yaml / turbo.json / "
+                    "lefthook.yml) collided with existing files. Resolve the "
+                    "collision and re-run /lp-scaffold-stack."
+                ),
+            )
+
+        if not wiring.secret_scan_passed:
+            elapsed = time.monotonic() - start
+            return _record_partial_failure(
+                repo_root=repo_root,
+                decision_path=decision_path,
+                materialized_files=materialized_files,
+                failed_layer_index=None,
+                reason="secret_scan_failed",
+                message=f"secret-scan findings: {wiring.secret_scan_findings}",
+                elapsed=elapsed,
+                install_seconds=install_seconds,
+                write_telemetry_flag=write_telemetry_flag,
+                cross_cutting_files=list(wiring.cross_cutting_files),
+                recovery_action=(
+                    "Secret-scan flagged content in materialized files. Investigate "
+                    "the findings, remove sensitive material, and re-run."
+                ),
+            )
+
         return _run_pipeline_after_sentinel(
             cwd=cwd,
             repo_root=repo_root,
@@ -625,9 +614,9 @@ def _run_pipeline_after_sentinel(
 ) -> PipelineResult:
     """Steps 4.5 through 5b, executed inside the scaffold-stack sentinel.
 
-    Extracted from `run_pipeline` so the sentinel-protected zone can be
-    expressed as a single try/finally without restructuring the prior
-    Step 0-4 early-return ladder.
+    Extracted from `run_pipeline` for readability. Steps 3-4 (dispatch +
+    cross-cutting) are also inside the sentinel-protected try/finally in
+    `run_pipeline`, so the full sentinel window covers Steps 3 through 5b.
     """
     # --- Step 4.5: Kernel render (v1.1 envelopes only) ---
     # V3 plan §17.1 Phase 2: render the 7 stack-agnostic identity-bearing

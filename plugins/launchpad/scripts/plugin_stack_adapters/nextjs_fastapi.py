@@ -107,6 +107,10 @@ class NextjsFastapiAdapter:
         "api": "api",
     })
     package_workspace_paths: tuple[str, ...] = _EMPTY_PACKAGE_PATHS
+    layer_stack_to_workspace: dict[str, str] = {
+        "next": "app",
+        "fastapi": "api",
+    }
 
     def __init__(
         self, *, fetcher: Callable[[Path], None] | None = None

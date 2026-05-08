@@ -463,10 +463,19 @@ def _format_diff_summary(
 
 
 def _ensure_backup_dir(cwd: Path) -> Path:
-    """Create `.launchpad/backups/<ts>-<pid>/` and return the path."""
+    """Create `.launchpad/backups/<ts>-<pid>-<rand4>/` and return the path.
+
+    Mirrors `lp_bootstrap.policy.make_backup_dir`: 4-char hex random
+    suffix prevents same-second + same-PID collisions; `exist_ok=False`
+    raises on collision rather than silently overwriting.
+    """
+    import secrets
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    backup_dir = cwd / LAUNCHPAD_DIR_NAME / "backups" / f"{ts}-{os.getpid()}"
-    backup_dir.mkdir(parents=True, exist_ok=True)
+    rand4 = secrets.token_hex(2)
+    backup_dir = (
+        cwd / LAUNCHPAD_DIR_NAME / "backups" / f"{ts}-{os.getpid()}-{rand4}"
+    )
+    backup_dir.mkdir(parents=True, exist_ok=False)
     return backup_dir
 
 

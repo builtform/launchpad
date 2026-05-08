@@ -874,6 +874,19 @@ def compose(
         )
         raise
 
+    for _target, backup_path in backups:
+        try:
+            if backup_path.is_dir():
+                shutil.rmtree(backup_path)
+            elif backup_path.exists():
+                backup_path.unlink()
+        except OSError:
+            LOG.warning(
+                "failed to clean up composition backup %s; "
+                "remove manually to prevent STALE_PRE_COMPOSITION_BACKUP",
+                backup_path,
+            )
+
     return CompositionResult(
         composition_root=composition_root,
         workspaces=workspace_map,
