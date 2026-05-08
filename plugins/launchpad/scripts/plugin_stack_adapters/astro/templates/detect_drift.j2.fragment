@@ -1,0 +1,4 @@
+{% raw %}
+# detect-structure-drift fragment for astro
+echo "adapter=astro drift-check ok"
+{% endraw %}

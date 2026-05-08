@@ -116,6 +116,47 @@ def _is_ci_environment() -> bool:
     return any(os.environ.get(v) for v in _CI_VENDOR_ENV_VARS)
 
 
+# v2.1 Codex PR #50 P1.B (D2): minimum acceptable prefix length for
+# LP_CONFIG_REVIEWED. Shorter values are rejected to defeat brute-force
+# pre-image search on truncated hashes (16 hex chars = 64 bits of search
+# space, deemed adequate for a non-authenticated trust signal).
+PREFIX_MIN_LENGTH = 16
+
+
+class ResolveReviewStateError(ValueError):
+    """v2.1 Codex PR #50 P1.B (D2) structured error for prefix-matching.
+
+    Trust-signal only: LP_CONFIG_REVIEWED is set by the operator, not
+    authenticated. compare_digest defends against accidental log-leak
+    timing channels, not active probing. Per OWASP, attacker-controlled
+    value is on the LEFT of the compare.
+    """
+
+    def __init__(
+        self,
+        *,
+        reason: str,
+        min_required: int | None = None,
+        matches: list[str] | None = None,
+    ) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.min_required = min_required
+        self.matches = matches
+
+
+def _prefix_matches(prefix: str, known_hash: str) -> bool:
+    """Constant-time prefix-equality check.
+
+    Per OWASP, the attacker-controlled value (the prefix the operator
+    set) goes on the LEFT of compare_digest so its length leakage
+    cannot be measured by the attacker.
+    """
+    if len(prefix) > len(known_hash):
+        return False
+    return hmac.compare_digest(prefix, known_hash[:len(prefix)])
+
+
 def resolve_review_state(config_path: Path) -> tuple[str, str]:
     """Apply the 5-branch LP_CONFIG_REVIEWED migration UX truth table per
     HANDSHAKE §3.
@@ -123,6 +164,12 @@ def resolve_review_state(config_path: Path) -> tuple[str, str]:
     Returns (outcome, new_hash) — caller decides what to print/return.
     Outcomes: ACCEPTED, REPROMPT, REPROMPT_FIRST_TIME,
     REPROMPT_AUTO_REVIEW_OUTSIDE_CI.
+
+    v2.1 Codex PR #50 P1.B (D2): LP_CONFIG_REVIEWED accepts 16-char-or-
+    longer prefixes via constant-time compare. Shorter prefixes raise
+    `ResolveReviewStateError(reason="prefix_too_short")`. Ambiguous
+    prefixes (matching multiple known hashes) raise
+    `ResolveReviewStateError(reason="prefix_ambiguous")`.
     """
     commands = commands_section(config_path)
     new_hash = canonical_hash(commands)
@@ -137,15 +184,16 @@ def resolve_review_state(config_path: Path) -> tuple[str, str]:
             return REPROMPT_AUTO_REVIEW_OUTSIDE_CI, new_hash
         return REPROMPT_FIRST_TIME, new_hash
 
-    # Cells A + C: current scheme matches (silent ACCEPTED).
-    if hmac.compare_digest(reviewed, new_hash):
-        return ACCEPTED, new_hash
-
-    # Cell B: legacy YAML match (soft-warn; non-blocking).
+    # Compute the legacy YAML hash up-front for the prefix-ambiguity check.
     try:
         legacy_hash = _legacy_yaml_canonical_hash(commands)
     except Exception:
         legacy_hash = ""
+
+    # Cells A + C / B: full-length match short-circuit (covers both 64-char
+    # full-hash and prior-behavior hardcoded-equal).
+    if hmac.compare_digest(reviewed, new_hash):
+        return ACCEPTED, new_hash
     if legacy_hash and hmac.compare_digest(reviewed, legacy_hash):
         print(
             "LaunchPad v2.0 changed how config-review hashes are computed (v1.x\n"
@@ -159,6 +207,32 @@ def resolve_review_state(config_path: Path) -> tuple[str, str]:
             file=sys.stderr,
         )
         return ACCEPTED, new_hash
+
+    # Prefix-matching path (v2.1 Codex PR #50 P1.B). Only fires when the
+    # operator-supplied value is shorter than the canonical 64-char hash.
+    if 0 < len(reviewed) < len(new_hash):
+        if len(reviewed) < PREFIX_MIN_LENGTH:
+            raise ResolveReviewStateError(
+                reason="prefix_too_short",
+                min_required=PREFIX_MIN_LENGTH,
+            )
+        new_match = _prefix_matches(reviewed, new_hash)
+        legacy_match = bool(legacy_hash) and _prefix_matches(reviewed, legacy_hash)
+        if new_match and legacy_match and new_hash != legacy_hash:
+            raise ResolveReviewStateError(
+                reason="prefix_ambiguous",
+                matches=[new_hash, legacy_hash],
+            )
+        if new_match:
+            return ACCEPTED, new_hash
+        if legacy_match:
+            print(
+                "LaunchPad v2.0 changed how config-review hashes are computed; "
+                "your prefix matched the legacy YAML hash. Re-export "
+                f"LP_CONFIG_REVIEWED={new_hash} to dismiss this notice.",
+                file=sys.stderr,
+            )
+            return ACCEPTED, new_hash
 
     # Cell D: neither matches — config genuinely changed since last review.
     return REPROMPT, new_hash
@@ -189,6 +263,22 @@ def main() -> int:
         else:
             print(canonical_hash(commands_section(cfg)))
             return 0
+    except ResolveReviewStateError as e:
+        print(f"LP_CONFIG_REVIEWED rejected: {e.reason}", file=sys.stderr)
+        if e.reason == "prefix_too_short":
+            print(
+                f"  minimum prefix length is {e.min_required} hex chars; "
+                f"export the full 64-char hash or a prefix at least "
+                f"{e.min_required} chars long",
+                file=sys.stderr,
+            )
+        elif e.reason == "prefix_ambiguous":
+            print(
+                "  prefix matched both current and legacy hashes; export "
+                "the full 64-char hash to disambiguate",
+                file=sys.stderr,
+            )
+        return 2
     except (yaml.YAMLError, ValueError) as e:
         print(f"error hashing commands section: {e}", file=sys.stderr)
         return 1

@@ -1,0 +1,4 @@
+# lefthook.yml stack-aware overlay (union-merge first-declared-wins)
+{% for stack_id in selected_stack_ids %}
+{% include stack_id ~ "/templates/lefthook.j2.fragment" %}
+{% endfor %}

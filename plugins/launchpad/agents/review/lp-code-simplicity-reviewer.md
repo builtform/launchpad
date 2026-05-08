@@ -1,6 +1,7 @@
 ---
 name: lp-code-simplicity-reviewer
 description: Final review pass to ensure code is as simple and minimal as possible. Identifies YAGNI violations and simplification opportunities within the current feature scope.
+stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
 ---

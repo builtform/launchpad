@@ -282,7 +282,7 @@ git log feat/v2-greenfield-pipeline..main --since=7.days.ago -- \
 
 If non-empty, opens GitHub issue `v2-merge-overdue` listing the specific commits + which handshake-touched files they touched. Issue auto-closes when `git log` for the listed paths is empty. The PR template at v2.0 ship includes "list of `v2-merge-overdue` issues opened during dev; all closed at ship time" as a checkbox.
 
-- **`.launchpad/secret-patterns.txt` tracking**: this file is intentionally tracked (not gitignored) at v2.0. The file lives outside the plugin tree (`.launchpad/`, not `plugins/launchpad/`) so it does not ship as part of the plugin distribution; tracking it preserves the patterns across `init-project.sh` flows. The HANDSHAKE §12 verify-v2-ship #5 reference to "gitignored config" describes the intended end-state for downstream-project copies of the file (each downstream maintains its own private-origin patterns), not for the upstream LaunchPad repo's own copy.
+- **`.launchpad/secret-patterns.txt` tracking**: this file is intentionally tracked (not gitignored) at v2.0. The file lives outside the plugin tree (`.launchpad/`, not `plugins/launchpad/`) so it does not ship as part of the plugin distribution; tracking it preserves the patterns across upstream/downstream syncs. (v2.1 BL-247 decommissioned the legacy `init-project.sh` flow that historically populated this file; v2.x downstream projects receive the patterns via the kernel renderer.) The HANDSHAKE §12 verify-v2-ship #5 reference to "gitignored config" describes the intended end-state for downstream-project copies of the file (each downstream maintains its own private-origin patterns), not for the upstream LaunchPad repo's own copy.
 - **Working-tree cleanliness advisory before bump commit** (Layer 2 P1-1 case 3): every contributor on `feat/v2-greenfield-pipeline` MUST verify `git status` is clean AND `find . -name 'scaffold-*.json'` returns no untracked test fixtures BEFORE the v2.0.0 bump commit lands. Uncommitted `0.x-test`-stamped fixtures in a developer's working tree on bump day will, on next session, get regenerated against `"1.0"` writer constants and fail the now-strict validator. The advisory is captured in `docs/releases/v2.0.0.md` pre-flight checklist.
 - **Effort budget**: 6-19h of conflict resolution amortized across the v2.0 dev window. Counted in the joint v2.0 effort estimate.
 
@@ -681,8 +681,286 @@ When implementation reveals a contract bug or scope-evolution forces a change to
 - `plugins/launchpad/scripts/plugin_stack_adapters/contracts.py` — `StackId` Literal widened in HANDSHAKE §12
 - `plugins/launchpad/scripts/plugin-stack-detector.py` — shares `BROWNFIELD_MANIFESTS` per HANDSHAKE §8
 - v2.2 deferred stacks: [`ROADMAP.md` v2.2 section](../../ROADMAP.md#v22)
-- BL-100 through BL-106: `docs/tasks/BACKLOG.md` (v2.1 deferred work)
+- BL-100 through BL-104: `docs/tasks/BACKLOG.md` (v2.2 deferred-stack restorations)
+
+## 10. `/lp-bootstrap` operations matrix entry (v2.1 Phase 3)
+
+`/lp-bootstrap` is the v2.1 entry point for the 30-path infrastructure overlay. The command is invoked in three contexts:
+
+- Greenfield: invoked AFTER `/lp-scaffold-stack` Step 4.5 kernel render, in-process (`lp_scaffold_stack/engine.py` Step 4.6 wiring) with `mode="greenfield"`. Failure routes through the existing `_record_partial_failure` envelope with `reason="bootstrap_failed"`.
+- Brownfield-auto: invoked from `/lp-define` (Step 1.5 in lp-define.md) after the doc generator returns, when `cwd_state.infrastructure_present(cwd)` returns one of: `PARTIAL_MISSING`, `PARTIAL_STALE`, `ABSENT`. A consent prompt MUST be surfaced before any write fires; `--accept-bootstrap` non-interactively satisfies the gate for CI / scripted contexts.
+- Direct: end users invoke `/lp-bootstrap` directly to refresh, recover, or accept plugin-version drift. Always serializes on `.launchpad/.bootstrap.lock`.
+
+### 10.1 Flag semantics
+
+| Flag                            | Behavior                                                                                                                                                                                                                     |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)                          | Full bootstrap. Per-file policy decides each file. Fast-path skips paths whose on-disk sha matches the manifest sha and the rendered sha.                                                                                    |
+| `--refresh <path>`              | Re-render a single infrastructure path with `overwrite-with-backup`. Repeatable. Path must be in the v2.1 30-path inventory; kernel paths rejected.                                                                          |
+| `--refresh-all`                 | Re-render every infrastructure path with `overwrite-with-backup`. If no manifest exists, silently degrades to full bootstrap with INFO `no_manifest_to_refresh`.                                                             |
+| `--accept-plugin-version-drift` | Override the plugin-version pin abort. Records the drift in `scaffold-decision.json` `version_drift_log[]`. Auto-triggers `--refresh-all` to align manifest shas with the new plugin's templates. Sealed identity preserved. |
+| `--recover`                     | Inspect sentinel snapshot. Auto-completes an interrupted run if state is consistent; fails with structured guidance if state diverges.                                                                                       |
+| `--accept-bootstrap`            | Non-interactive consent flag for brownfield auto-invocation. Required by `/lp-define` brownfield dispatch in CI / scripted contexts.                                                                                         |
+
+Glob in `--refresh <path>`, `--refresh-paths` comma-sep variant, and `--prune-backups-older-than <N>d` are v2.2 backlog.
+
+### 10.2 Brownfield consent gate
+
+Before any write fires, the brownfield path surfaces:
+
+```
+LaunchPad will create N files in your project, including 7 executable
+bash scripts that run on git commit. Files: [list].
+Proceed? [Y/n]
+```
+
+Default Y so the happy path is single-keystroke. CI / scripted contexts must pass `--accept-bootstrap` to satisfy the gate without a TTY. Refusal leaves the project unmodified and records an INFO log; re-running `/lp-define` retries the prompt.
+
+### 10.3 Failure recovery
+
+Two recovery surfaces:
+
+- `/lp-bootstrap --recover`: inspects sentinel snapshot (`.launchpad/.bootstrap-in-progress`), confirms PID liveness via `os.kill(pid, 0)`, and either auto-completes the interrupted run OR fails with structured guidance.
+- Manual `rm .launchpad/.bootstrap-in-progress` after confirming no `/lp-bootstrap` PID is alive (last resort; `--recover` should handle most cases).
+
+### 10.4 Backup directory accumulation
+
+`.launchpad/backups/<ts>-<PID>-<rand4>/` is created on every `--refresh` or `--refresh-all` invocation. After 100 invocations, 100 subdirs. v2.1 does NOT auto-prune (user-owned data). `--prune-backups-older-than <N>d` is v2.2 backlog if user feedback demands.
+
+### 10.5 Telemetry instrumentation
+
+Every `/lp-bootstrap` invocation emits a `.harness/observations/v2-pipeline-*.jsonl` event via `write_telemetry_entry`. Honors `.launchpad/config.yml` `telemetry: off` opt-out. Payload fields:
+
+- `command: "lp-bootstrap"`
+- `mode`: `greenfield` | `brownfield-auto` | `refresh` | `refresh-all` | `recover`
+- `outcome`: canonical (`completed` | `aborted` | `failed`) per OPERATIONS section 5
+- `bootstrap_outcome`: fine-grained code (`success`, `sentinel_blocked`, `manifest_tampered`, `manifest_corrupt`, `plugin_version_mismatch`, `policy_collision`, `brownfield_auto_rendered`, `render_failed`)
+- `files_processed`, `files_written`, `files_skipped`, `files_kept_user_edits`
+
+Cross-references: HANDSHAKE §14 (manifest contract), Phase 3 implementation plan sections 3.4, 3.5, 3.7.
 
 ---
 
-**Status**: This document is the operations layer for v2.0 implementation as of 2026-04-30. The companion `SCAFFOLD_HANDSHAKE.md` covers the contracts layer. Both v2.0 plans reduce to references against these two documents. Plan Hardening Notes appendices must not contradict them; if they do, the contracts doc wins.
+## 11. v2.1 adapter dispatch + composition sequencing + cache lifecycle + SIGINT semantics
+
+### 11.1 Adapter dispatch entrypoints
+
+The v2.1 dispatch surface lives in
+`plugins/launchpad/scripts/lp_scaffold_stack/v21_adapter_dispatch.py`:
+
+- `resolve_adapter(stack_id) -> Adapter`: closed-enum lookup over the 5
+  active stack ids; raises `ScaffoldStepFailedError` for unknown ids with
+  the structured triple `reason / path / remediation`.
+- `dispatch_single_adapter(adapter, workspace_dir)`: invokes
+  `Adapter.scaffold_into(workspace_dir)` followed by
+  `Adapter.apply_overlay(workspace_dir)`. The `bridge_to_scaffold_error`
+  helper from `contracts.py` normalizes any per-module exception to
+  `ScaffoldStepFailedError` while preserving the structured triple per
+  Phase 3 §3.11.5(b) inheritance.
+- `dispatch_composition(adapters, composition_root)`: wraps
+  `composition.compose` with the §3.12 N=2 cap rejection surfaced verbatim
+  via `CompositionAbortError`.
+- `dispatch_by_stack_ids(stack_ids, workspace_dir)`: one-shot entrypoint
+  returning `Path` for single-id input or `CompositionResult` for multi-id.
+
+### 11.2 Composition sequencing
+
+`compose(adapters, composition_root)`:
+
+1. `validate_pair(adapters)` enforces N=2 cap, ts_monorepo + \* catch-all
+   rejection (collapses 4 of the 10 C(5,2) pairs), duplicate rejection,
+   and partner-missing-from-composes_with rejection.
+2. `resolve_workspace_allocation` builds the `workspace_dir -> adapter`
+   mapping with collision-suffix logic. The only v2.1 pair that triggers
+   the `app -> app-fe` rename is `nextjs_standalone + nextjs_fastapi`; the
+   verbatim §3.12 INFO log fires when the rename runs.
+3. Same-FS pre-flight via `st_dev` comparison between `composition_root`
+   and `composition_root/.tmp/`. Cross-FS aborts with the verbatim §3.12
+   message and exit 1.
+4. Per-adapter `scaffold_into + apply_overlay` runs into a tempdir under
+   `composition_root/.tmp/lp-<stack_id>-<uuid>/`.
+5. After all adapters complete, atomic `os.replace` into
+   `composition_root/apps/<workspace_name>/` for each.
+6. On any per-adapter failure, rollback runs `shutil.rmtree` on every
+   rendered tempdir. Errors during cleanup log the verbatim secrets-warning
+   recommendation per harden P0 ("manual cleanup required (may contain
+   secrets-shaped files like .env.example)").
+
+### 11.3 Template cache lifecycle
+
+`plugins/launchpad/scripts/template_cache/` (hoisted out of
+`plugin_stack_adapters/` per Slice B):
+
+- Cache root resolves to `~/.launchpad/template-cache/` by default;
+  override via `LAUNCHPAD_CACHE_DIR` (test + sandbox path; not user-facing
+  documented at v2.1 per plan §8).
+- Pre-flight: cache root must be a regular directory (not a symlink),
+  mode 0o700, owned by `os.getuid()`. Failures emit the verbatim §3.12
+  message and exit 1.
+- Validation-before-flock ordering: malformed inputs (sha regex, repo URL
+  shape) MUST raise BEFORE any lock file is created.
+- Per-entry lockfile at `.locks/<slug>-<sha>.lock` (mode 0o600). Lockfile
+  survives entry purge so concurrent fetchers race-safely against a
+  recently-evicted entry.
+- `MAX_CONCURRENT_FETCHES=3` process-local semaphore caps simultaneous
+  fetches.
+- 500MB LRU eviction is lazy on-fetch (NOT background-swept; per-rotation
+  rationale in plan §8 deferred items).
+- 90-day TTL re-validation triggers full-tree re-verify against
+  `pin_registry.py`; tag-replay defense lives in the nightly
+  tag-drift-detector workflow at `.github/workflows/cve-watch.yml`.
+- `.compromised` sentinel auto-purges on next verify; the verbatim §3.12
+  WARN message points the user at the GitHub Security Advisory and the
+  `--refresh-all` recovery path.
+
+### 11.4 SIGINT semantics
+
+`safe_run.safe_run_long(argv, cwd, sigint_timeout_s=2.0,
+sigterm_timeout_s=3.0)`:
+
+- `subprocess.Popen(argv, start_new_session=True, ...)` puts the child in
+  its own process group (`os.setsid`).
+- On `KeyboardInterrupt`: `os.killpg(child_pgid, SIGINT)`, then
+  `psutil.Process(pid).children(recursive=True)` SIGTERM sweep after
+  `sigint_timeout_s`, then SIGKILL after `sigterm_timeout_s`.
+- `LAUNCHPAD_SIGINT_TIMEOUT_S` env override (DA5 lock; opt-in 1s for fast
+  CI matrices).
+- Returns `CompletedProcess` on clean exit, raises `SafeRunInterrupted`
+  on user SIGINT after cleanup, raises `SafeRunTimedOut` if descendants
+  survive the SIGKILL ladder (rare).
+- Lint exemption: `plugin-v2-handshake-lint.py` allowlists the
+  `subprocess.Popen + start_new_session=True` pattern via the
+  path-prefix check on `safe_run.py`.
+- Cross-platform: macOS + Linux (POSIX-only). Windows is out of scope at
+  v2.1 per plan §8.
+
+### 11.5 Trust banner placement
+
+Both `/lp-pick-stack` and `/lp-scaffold-stack` print the verbatim §3.12
+trust-model banner BEFORE any cache fetch runs. The banner lists each
+upstream (`<repo>@<sha-prefix>`) plus license + attestation status. Cache
+miss + offline aborts with exit 75 (`EX_TEMPFAIL`) and the verbatim §3.12
+"Cannot fetch upstream ..." message.
+
+### 11.6 CVE rotation policy and tag-drift detector
+
+`docs/maintainers/upstream-pin-rotations.md` is the append-only audit log.
+Every modification of a `sha` value in `pin_registry.py` requires a
+same-commit entry; `plugin-v2-handshake-lint.py
+--check-pin-registry-rotation-audit-log` enforces.
+
+`.github/workflows/cve-watch.yml` runs nightly at 02:00 UTC (osv-scanner
+over `pin_registry.py` SHAs + tag-drift-detector). Manual
+`workflow_dispatch` is the documented test path; scheduled-run
+verification is post-ship monitoring per plan DoD.
+
+`.github/workflows/tier-2-nightly.yml` runs at 04:00 UTC (cron stagger).
+Real-network end-to-end of canonical compositions; failures auto-open a
+GitHub Issue with the `nightly-failure` label per §3.12. Non-blocking on
+PR merges per DA4 = c separate-fault-domain rationale.
+
+---
+
+## 12. `/lp-update-identity` re-entry case table (v2.1 Phase 10)
+
+`/lp-update-identity` re-enters against an existing `.launchpad/scaffold-decision.json`. The engine detects which of five re-entry cases (A-E) applies and routes accordingly. The canonical source of truth for both the case table and the error-code map is the command spec at [`plugins/launchpad/commands/lp-update-identity.md`](../../plugins/launchpad/commands/lp-update-identity.md); §12.1 and §12.2 below mirror that spec. If they disagree, the command spec wins.
+
+Migration of pre-v2.1 envelopes from `schema_version: "1.0"` to `"1.1"` happens transparently as in-memory preprocessing before the A-E matrix runs (the legacy reader was retired in Phase 8.5; Phase 1+2 retroactive amendments absorbed the migration into `lp_update_identity/engine.py`). The migrated envelope routes through Case B (seed-as-first-time) so the resulting kernel render starts from prompted identity values rather than legacy fields. Migration is in-memory-first; failure halts before any disk write and surfaces as `scaffold_decision_missing` or `identity_validation_failed` per the canonical error-code set below.
+
+### 12.1 The 5-case re-entry detection
+
+Detection order: flag → file → schema → identity → state-block. Case D fires before Case A when `--seed-brownfield` is passed and `scaffold-decision.json` is absent.
+
+| Case | Trigger                                                                                                                  | Action                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A    | scaffold-decision.json absent AND `--seed-brownfield` NOT passed                                                         | refuse with `scaffold_decision_missing`; remediation points at `/lp-pick-stack` OR `--seed-brownfield`                                                                                                                                                                                                                                                                                                                                                               |
+| B    | scaffold-decision present, schema 1.1, identity absent (or transparently migrated from `schema_version: "1.0"`)          | seed-as-first-time: prompt all 5 fields + PII opt-in + conditional `Other`-body; render kernels; atomic re-seal; status `seeded_first_time`                                                                                                                                                                                                                                                                                                                          |
+| C    | All prompts return current values                                                                                        | no-op: skip writes; status `no_op`; print current sealed identity values verbatim                                                                                                                                                                                                                                                                                                                                                                                    |
+| D    | scaffold-decision absent AND `--seed-brownfield` passed                                                                  | emit P1 console banner naming all 6 fields about to be seeded; banner + brownfield Continue prompt + `--allow-email-mismatch` WARN are NOT suppressed by `--quiet`. Cross-check proposed `email` vs `git config user.email`. Empty/unset email = mismatch (fail-closed). Mismatch + no override = REFUSE with `git_config_email_mismatch`. Mismatch + `--allow-email-mismatch` = WARN, proceed. Without `--seed-brownfield` = REFUSE with `brownfield_seed_refused`. |
+| E    | scaffold-decision present, identity present, but `kernel_render_state` field missing (pre-Phase-10 v2.0/v2.1.0 scaffold) | one-time prompt `[N/diff/y]` (default N; recommends diff). On `diff`: show on-disk vs freshly-rendered template per file. On `y`: seed `kernel_render_state` from current on-disk content. On `N`: refuse with branched remediation (`git checkout HEAD -- <file>` for tracked; `rm <file>` followed by re-running `/lp-bootstrap` for untracked).                                                                                                                   |
+
+### 12.2 Error-code map
+
+`IdentityUpdateErrorCode` is a closed 8-code enum sourced at `plugins/launchpad/scripts/lp_update_identity/__init__.py`. Casing in the table below matches the lowercase string values raised by the engine.
+
+| Error code                    | User category        | Trigger                                                                                                             | Remediation                                                                                                                                                                                |
+| ----------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `scaffold_decision_missing`   | Cannot start         | scaffold-decision.json absent / unreadable / malformed legacy envelope that fails in-memory migration               | run `/lp-pick-stack` to seed greenfield, or rerun with `--seed-brownfield` for an existing project                                                                                         |
+| `identity_update_in_progress` | Cannot start         | sentinel detects concurrent `/lp-update-identity` (live PID) OR sentinel JSON corrupt                               | wait for the other run; if the sentinel is stale, the engine auto-recovers on next invocation (dead-PID auto-clear with INFO log)                                                          |
+| `bootstrap_in_progress`       | Cannot start         | sentinel detects concurrent `/lp-bootstrap` OR `/lp-scaffold-stack`                                                 | wait for the other run; cross-detect is bidirectional and same-PID-guarded so legitimate in-process re-entry does not self-block                                                           |
+| `permission_denied`           | Cannot start         | `.launchpad/` directory not writable                                                                                | check filesystem permissions on `.launchpad/`                                                                                                                                              |
+| `user_edit_blocks_refresh`    | Blocked by user edit | per-file: on-disk sha ≠ prior `rendered_content_sha256` (user edited post-render)                                   | revert the edit (`git checkout HEAD -- <file>` for tracked; `rm <file>` for untracked) so the prior sha matches, OR accept the edit by leaving as-is — the next refresh will skip it again |
+| `identity_validation_failed`  | Validation failure   | identity field fails allowlist regex / forbidden chars / license enum / `license_other_body` byte-allowlist         | check that `email`, `copyright_holder`, `repo_url`, etc. match the documented patterns in `lp_pick_stack/__init__.py`                                                                      |
+| `git_config_email_mismatch`   | Brownfield refused   | Case D email cross-check failed (proposed email differs from `git config user.email`, or git config email is empty) | re-run with `--allow-email-mismatch` after confirming the project email is intentionally different                                                                                         |
+| `brownfield_seed_refused`     | Brownfield refused   | scaffold-decision absent without `--seed-brownfield` flag                                                           | re-run with `--seed-brownfield` if the project already exists, or run `/lp-pick-stack` to seed greenfield                                                                                  |
+
+Status codes (info-class returns; not errors): `updated`, `no_op`, `seeded_first_time`.
+
+Plugin-version drift is recorded automatically in `version_drift_log` whenever the running plugin version differs from the value sealed in `scaffold-decision.json`; no flag is required and no error code fires unless the migration itself rejects the envelope shape.
+
+### 12.3 On-disk artifacts touched
+
+Every successful re-entry run touches:
+
+- `.launchpad/scaffold-decision.json` (atomic re-seal via `re_seal_decision_atomic`; `generated_at` preserved byte-identical; `identity_updated_at` and `version_drift_log` updated)
+- 0 to 7 of LICENSE, CONTRIBUTING.md, CODE_OF_CONDUCT.md, README.md, SECURITY.md, AGENTS.md, CLAUDE.md (whichever have a changed `rendered_content_sha256`)
+- `.launchpad/backups/<ts>-<PID>-<rand4>/` (per-invocation backup of touched files written before the atomic replace)
+- `.harness/observations/v2-pipeline-*.jsonl` (telemetry event; opt-out via `.launchpad/config.yml: telemetry: off`)
+
+Sentinel files (`.launchpad/.identity-update-in-progress`, `.launchpad/.bootstrap-in-progress`, `.launchpad/.scaffold-stack-in-progress`) are created with `O_CREAT|O_EXCL` at the start of their respective commands and cleared at the end.
+
+### 12.4 Failure modes and remediation
+
+| Failure mode                                                         | Detection                                                                         | Remediation                                                                                                                        |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Crashed mid-render (sentinel left behind, no SIGTERM cleanup)        | next `/lp-update-identity` finds stale sentinel; PID-liveness check returns false | engine auto-clears the stale sentinel on next invocation with an INFO log entry — no flag required                                 |
+| Atomic re-seal write fails partway                                   | `re_seal_decision_atomic` raises; on-disk envelope unchanged                      | re-run; partial state was never committed                                                                                          |
+| User-edit detected mid-run                                           | `KernelRenderer.refresh` compares prior + current `rendered_content_sha256`       | refuse with `user_edit_blocks_refresh`; user reviews diff per the per-file remediation in §12.2                                    |
+| Schema 1.0 to 1.1 migration triggers but legacy fields are malformed | `_migrate_legacy_envelope_in_memory` raises                                       | abort with `scaffold_decision_missing` or `identity_validation_failed`; on-disk file unchanged; restore from git history if needed |
+
+### 12.5 Privilege model
+
+`/lp-update-identity` requires no elevated privileges beyond write access to `.launchpad/`, `.harness/`, and the 7 kernel paths under the project root. The engine never invokes `sudo`, never writes outside the `bound_cwd` realpath triple, and never performs network requests. Identity values are written to disk via `atomic_write_replace` with mode `0o644` for kernel files and `0o600` for `scaffold-decision.json`.
+
+The bidirectional sentinel cross-detect ensures that two concurrent `/lp-bootstrap` and `/lp-update-identity` runs cannot both believe they own the scaffold-decision atomic re-seal. The first to acquire its sentinel wins; the second halts cleanly with a structured error and exits without touching disk.
+
+Cross-references: HANDSHAKE §14 (manifest contract), Phase 10 implementation plan §3.4 to §3.6.
+
+---
+
+## 12.6 Canonical version_drift_log schema (v2.1 Codex PR #50 D7)
+
+Both `/lp-bootstrap` and `/lp-update-identity` emit a unified 5-key shape into `scaffold-decision.json["version_drift_log"]`:
+
+```json
+{
+  "from_version": "2.0.1",
+  "to_version": "2.1.0",
+  "via": "bootstrap", // OR "/lp-update-identity"
+  "fields_changed": ["plugin_version"],
+  "accepted_at": "2026-05-07T12:34:56Z"
+}
+```
+
+### PII redaction policy
+
+`compute_identity_fields_changed` (in `lp_bootstrap/version_drift.py`) is the **single owner** of the redaction decision. Callers never choose which field name appears in the entry; the helper returns a tagged variant:
+
+| Variant       | Sealed field                 | When                |
+| ------------- | ---------------------------- | ------------------- |
+| `Names`       | `fields_changed`             | `pii_opt_in: true`  |
+| `Fingerprint` | `fields_changed_fingerprint` | `pii_opt_in: false` |
+
+Fingerprint format: `sha256:<16-char-prefix>` over the canonicalized comma-joined sorted set of changed-field names.
+
+### Writer-side canonicalization
+
+Writers emit the canonical 5-key shape directly. v2.1.0 ships zero reader-side normalization (no readers exist yet); reader API + version_drift_log accessor are deferred to v2.1.1 BL-264.
+
+### --recover multi-command contract (D4)
+
+`/lp-bootstrap --recover` clears the bootstrap sentinel and unlinks a provably-stale manifest (`manifest.created_at < sentinel.acquired_at`). The deferred reconciliation (auto-completing partial runs) lives at v2.1.1 BL-262. `/lp-update-identity` does NOT participate in `--recover` semantics; its sentinel is independently owned and recovered via dead-PID auto-clear in `_validate_preconditions`.
+
+---
+
+**Status**: This document is the operations layer for v2.0 implementation as of 2026-04-30, extended by §10 for v2.1 Phase 3 and §12.6 for v2.1 Codex PR #50 follow-up (2026-05-07). The companion `SCAFFOLD_HANDSHAKE.md` covers the contracts layer. Both v2.0 plans reduce to references against these two documents. Plan Hardening Notes appendices must not contradict them; if they do, the contracts doc wins.

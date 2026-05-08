@@ -1,6 +1,7 @@
 ---
 name: lp-architecture-strategist
 description: Analyzes code changes from an architectural perspective for SOLID compliance, coupling, cohesion, and design integrity in TypeScript monorepos.
+stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
 ---

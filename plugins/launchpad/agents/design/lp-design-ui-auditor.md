@@ -1,6 +1,7 @@
 ---
 name: lp-design-ui-auditor
 description: "Quick UI audit: 5 checks covering visual hierarchy, density, consistency, Jobs filter, and responsive behavior. Returns findings with P1/P2/P3 severity and file:line fix locations. Does NOT modify code."
+stack_scope: design_quality
 model: inherit
 tools: Read, Grep, Glob
 ---

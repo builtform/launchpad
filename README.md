@@ -9,11 +9,25 @@
 
 ![LaunchPad Architectural Outline](.github/assets/hero-image.png)
 
-AI coding assistants generate code without memory, conventions, or quality gates. LaunchPad fixes that.
+Most AI coding plugins are recipe packs — agents and prompts that produce a single PR and forget everything by the next session. LaunchPad is different: it installs a **governance kernel** that persists across sessions, so the AI's next run is informed by the last one instead of starting cold.
 
-It drops 38 slash commands, 36 sub-agents, and 16 skills into any repository, giving Claude Code full project context, structured execution loops, and multi-agent review before anything reaches `main`. Works on brownfield projects (add the plugin and go) and greenfield (clone the template, get a monorepo scaffold with LaunchPad pre-installed).
+The kernel is five files and one runtime directory, dropped into any repository:
+
+- **`docs/architecture/REPOSITORY_STRUCTURE.md` whitelist** — every file path the project allows, enforced by a pre-commit gate. Blocks structure-drift PRs before reviewer time is wasted.
+- **`lefthook.yml` pre-commit hooks** — secret-scan, structure-drift, typecheck, lint run on every commit. Catches `.env.local` leaks and broken types before they reach `git push`.
+- **`.launchpad/config.yml`** — single source of truth for slash-command behavior (test/typecheck/lint commands, paths, pipeline gates). `/lp-build`, `/lp-define`, and `/lp-commit` read from here, so semantics stay consistent across sessions and machines.
+- **`.harness/`** — runtime workspace where review findings, observations, and design artifacts accumulate. Past mistakes inform the next review agent automatically; nothing has to be re-discovered.
+- **`docs/architecture/` core docs** (PRD, TECH_STACK, BACKEND_STRUCTURE, APP_FLOW + 4 supporting docs) — living architecture, refreshed by `/lp-define` re-runs. Every AI session starts with these loaded as context.
+
+On top of that kernel, LaunchPad ships 38 slash commands, 36 sub-agents, and 16 skills (collectively referred to as the LaunchPad plugin). The agents are productive _because_ the kernel is in place. Without it, recipe-pack plugins regenerate the same boilerplate every session and silently drift away from project conventions.
+
+**Where it fits.** LaunchPad is built on top of the best agentic coding practices such as Compound Engineering Plugin, Compound Product, Spec-Driven Development, Ralph Loop, and more (read below for the full attribution). What makes it unique is the structural foundation that makes agent recipes productive across sessions. Run the plugin alongside the kernel.
+
+Works on both **brownfield** projects (add the plugin to an existing repo, run `/lp-define`, get the kernel retrofitted) and **greenfield** (run the `/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define` pipeline for a fresh project with the kernel materialized from scratch).
 
 LaunchPad ships under the **BuiltForm** marketplace at [github.com/builtform](https://github.com/builtform) — the umbrella brand for plugins and tools by Foad Shafighi.
+
+For the full pipeline narrative and how each kernel component is used during a real build, see [HOW_IT_WORKS.md](docs/guides/HOW_IT_WORKS.md). For the architecture and design principles behind the kernel, see [METHODOLOGY.md](docs/guides/METHODOLOGY.md).
 
 ---
 
@@ -25,27 +39,36 @@ LaunchPad ships under the **BuiltForm** marketplace at [github.com/builtform](ht
 
 ### Path 1 — Add to any repo (Best for Brownfield)
 
-Inside Claude Code, in the project where you want the commands:
+Inside Claude Code, in the project where you want the commands, register the BuiltForm marketplace and install the plugin:
 
 ```
+/plugin marketplace add builtform/launchpad
 /plugin install launchpad@builtform
 ```
 
 Restart Claude Code. All `/lp-*` commands are now available. Run `/lp-kickoff` to start.
 
-BuiltForm is a public marketplace in the Anthropic plugin registry — no additional marketplace setup required.
+The marketplace registration step is required today because BuiltForm is awaiting confirmation in the Anthropic public plugin registry. Once Anthropic confirms BuiltForm, `/plugin install launchpad@builtform` will work on its own and the `marketplace add` line above will no longer be necessary. Until then, run both lines.
 
-### Path 2 — Fresh monorepo with LaunchPad pre-installed (Best for Greenfield)
+### Path 2 — Fresh monorepo (Best for Greenfield)
 
-If you want a new TypeScript + Next.js + Hono monorepo with LaunchPad and the whole scaffold (apps/, packages/, pre-commit hooks, CI, etc.):
+Inside Claude Code, with the plugin installed via Path 1, run the four-command greenfield pipeline:
 
-```bash
-git clone https://github.com/builtform/launchpad my-project
-cd my-project
-./scripts/setup/init-project.sh
+```
+/lp-brainstorm  →  /lp-pick-stack  →  /lp-scaffold-stack  →  /lp-define
 ```
 
-The wizard prompts for project name, description, copyright holder, and license; replaces placeholders; sets up git remotes; and auto-installs the plugin at project scope. Full template walkthrough: [HOW_IT_WORKS.md → The template path](docs/guides/HOW_IT_WORKS.md#the-template-path-greenfield-only).
+The pipeline scaffolds a fresh monorepo with `package.json`, `lefthook.yml`, the architecture docs, and project config rendered natively by the plugin's kernel renderer. No `git clone` step is required; the plugin is the canonical source for all scaffold content.
+
+**If you need legacy v0/v1 install behavior** (the `init-project.sh` wizard): pin to v2.0.x:
+
+```
+git checkout v2.0.x
+```
+
+The `init-project.sh` script and 7 `*.template.*` swap files were decommissioned in v2.1 (BL-247). See `docs/maintainers/decommission-history.md` for the canonical audit log; see CHANGELOG.md (v2.1.0) for the user-facing migration note.
+
+**Upgrading from v2.0?** The v2.1 plugin auto-migrates v2.0 scaffold artifacts to `schema_version: "1.1"` on first contact. For the migration walkthrough, rollback policy, plugin-pinning recommendation, and trust-model summary, see [docs/releases/v2.1.0.md](docs/releases/v2.1.0.md).
 
 ---
 
@@ -65,6 +88,7 @@ Each orchestrator checks a section's status before proceeding — you can run th
 - **`/lp-define`** — seeds your architecture docs (PRD, tech stack, design system, app flow, backend, CI/CD) and section specs. Stack-aware: detects TypeScript / Python / polyglot projects and seeds `.launchpad/agents.yml` and `.launchpad/config.yml` accordingly.
 - **`/lp-plan`** — design workflow (when UI is involved) → `/lp-pnf` (Plan Next Feature) → `/lp-harden-plan` (multi-agent plan stress-test) → human approval gate.
 - **`/lp-build`** — fully autonomous: `/lp-inf` (execute the plan) → `/lp-review` (multi-agent review with confidence scoring and FP suppression) → `/lp-resolve-todo-parallel` (fix findings) → `/lp-test-browser` → `/lp-ship` (opens PR, never merges) → `/lp-learn` (captures learnings).
+- **`/lp-update-identity`** — update sealed identity (project rename, license change, copyright holder, email, repo URL fill-in) without re-scaffolding. Re-renders the 7 kernel files via `KernelRenderer.refresh()`.
 
 Full workflow guide: [HOW_IT_WORKS.md](docs/guides/HOW_IT_WORKS.md).
 
@@ -89,14 +113,13 @@ LaunchPad/
 │   └── marketplace.json        # name=builtform, source="./plugins/launchpad"
 ├── plugins/launchpad/          # the plugin itself
 │   ├── .claude-plugin/
-│   │   └── plugin.json         # name=launchpad, version=1.0.0
+│   │   └── plugin.json         # name=launchpad, version=2.1.0
 │   ├── commands/               # /lp-* slash commands
 │   ├── agents/                 # 36 sub-agents across 6 namespaces
 │   ├── skills/                 # reusable instruction sets (lp-*/SKILL.md)
 │   └── scripts/                # runtime: plugin-*.py/.sh + stack adapters + _vendor/
 ├── .launchpad/                 # project-local harness config (agents.yml, audit.log)
-├── docs/                       # architecture, reports, handoffs, releases
-└── scripts/setup/              # init-project.sh (template path only)
+└── docs/                       # architecture, reports, handoffs, releases
 ```
 
 </details>
@@ -154,8 +177,8 @@ LaunchPad does not bundle either tool, does not auto-install them, and does not 
 
 - [How It Works](docs/guides/HOW_IT_WORKS.md) — day-to-day operator's manual
 - [Methodology](docs/guides/METHODOLOGY.md) — architecture, design principles, credits
-- [Release notes](docs/releases/v1.0.0.md)
-- [Repository structure](docs/architecture/REPOSITORY_STRUCTURE.md) — file-placement decision tree (applies to the template path)
+- [Release notes](docs/releases/v2.1.0.md)
+- [Repository structure](docs/architecture/REPOSITORY_STRUCTURE.md) — file-placement decision tree
 - [Contributing](CONTRIBUTING.md)
 
 ---

@@ -1,6 +1,7 @@
 ---
 name: lp-deployment-verification-agent
 description: Produces Go/No-Go deployment checklists with verification queries, rollback procedures, and monitoring plans.
+stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
 ---

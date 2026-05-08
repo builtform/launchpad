@@ -1,6 +1,7 @@
 ---
 name: lp-security-lens-reviewer
 description: Reviews plans and specifications for security implications, threat surface expansion, and missing security requirements.
+stack_scope: core_pipeline
 tools: Read
 model: inherit
 ---

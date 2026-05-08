@@ -91,6 +91,12 @@ EXCLUDED_DIRS = frozenset([
 # 1MB cap per manifest — anything larger is almost certainly not what we expect.
 MAX_MANIFEST_BYTES = 1 * 1024 * 1024
 
+# Phase 6 v2.1 Rails detection: matches `gem "rails"` or `gem 'rails'` lines
+# in a Gemfile. Module-level compile (cycle-3 perf P1-2 mirror).
+import re as _re
+
+_GEMFILE_RAILS_REGEX = _re.compile(r"""(?m)^\s*gem\s+["']rails["']""")
+
 
 class DetectorError(Exception):
     """Raised when detection fails in a way the caller should surface."""
@@ -411,7 +417,13 @@ def detect_from_manifest(path: Path) -> dict[str, Any]:
         return {"stack": "generic", "frameworks": ["rust"], "evidence": str(path)}
 
     if name == "Gemfile":
-        # v1 has no ruby adapter; fall through to generic
+        # Phase 6 v2.1: detect Rails when `gem "rails"` is present. Without
+        # rails (Sinatra etc.) → fallthrough to generic so Phase 6 ships
+        # detection groundwork only; Rails-specific reviewer + framework-axis
+        # wire-through arrive in v2.2 BL.
+        raw = content.get("raw", "")
+        if isinstance(raw, str) and _GEMFILE_RAILS_REGEX.search(raw):
+            return {"stack": "rails", "frameworks": ["rails"], "evidence": str(path)}
         return {"stack": "generic", "frameworks": ["ruby"], "evidence": str(path)}
 
     if name == "composer.json":

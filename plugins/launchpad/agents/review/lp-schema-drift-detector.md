@@ -1,6 +1,7 @@
 ---
 name: lp-schema-drift-detector
 description: Detects schema.prisma changes without corresponding migrations, migration files without schema changes, and other Prisma drift patterns.
+stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
 ---

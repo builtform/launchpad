@@ -1,6 +1,7 @@
 ---
 name: lp-design-responsive-auditor
 description: "Responsive design audit: 6 checks covering breakpoints, mobile-first patterns, touch targets, overflow, container queries, and WCAG responsive requirements. Returns findings with P1/P2/P3 severity. Does NOT modify code."
+stack_scope: design_quality
 model: inherit
 tools: Read, Grep, Glob
 ---

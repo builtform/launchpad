@@ -174,6 +174,32 @@ audit:
     return errors
 
 
+def test_commands_dev_round_trip() -> list[str]:
+    """Phase 5 v2.1 (DA1): `_coerce_commands` accepts `dev` and round-trips
+    `commands.dev: ["pnpm dev"]` through the loader."""
+    errors = []
+    fixture = make_fixture("""
+commands:
+  dev:
+    - "pnpm dev"
+""")
+    try:
+        cfg = load(fixture)
+        cmds = cfg["commands"]
+        if cmds.get("dev") != ["pnpm dev"]:
+            errors.append(
+                f"commands.dev round-trip: got {cmds.get('dev')!r}, "
+                "expected ['pnpm dev']"
+            )
+        if cfg["__errors__"]:
+            errors.append(
+                f"commands.dev round-trip: unexpected errors: {cfg['__errors__']!r}"
+            )
+    finally:
+        cleanup(fixture)
+    return errors
+
+
 def main() -> int:
     all_errors = []
     for name, test in [
@@ -184,6 +210,7 @@ def main() -> int:
         ("section_isolation", test_section_isolation),
         ("overwrite_validation", test_overwrite_validation),
         ("audit_committed_opt_in", test_audit_committed_opt_in),
+        ("commands_dev_round_trip", test_commands_dev_round_trip),
     ]:
         errs = test()
         if errs:
@@ -197,7 +224,7 @@ def main() -> int:
             print(e)
         return 1
 
-    print("PASS: config loader (7 tests)")
+    print("PASS: config loader (8 tests)")
     return 0
 
 

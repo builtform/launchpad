@@ -109,7 +109,7 @@ This project is LaunchPad-scaffolded. Most structured workflows live in `plugins
 | Capture a learning                      | Read `plugins/launchpad/commands/lp-learn.md` and follow it   |
 | Triage review findings                  | Read `plugins/launchpad/commands/lp-triage.md` and follow it  |
 
-See `plugins/launchpad/commands/` for the full inventory (38 workflows).
+See `plugins/launchpad/commands/` for the full inventory (42 workflows).
 
 ### Known degradation: parallel sub-agent dispatch
 
@@ -210,3 +210,7 @@ Agents are organized into 6 namespace subdirectories under `plugins/launchpad/ag
 **In Claude Code** these agents are dispatched via the plugin's `Task` tool from within commands.
 
 **In other CLIs** the agent markdown files are just plain prompt templates — your CLI won't auto-dispatch them. When a LaunchPad command instructs "dispatch N agents in parallel," your CLI runs the reviews sequentially instead. See the "Known degradation" note in the bridge section above.
+
+### v2.1 stack-aware dispatch
+
+Each agent file carries a `stack_scope:` frontmatter field used by `/lp-review` and `/lp-harden-plan` to filter agents per the detected stack(s). Values: `core_pipeline` (always loaded), `stack:any` (loaded for any non-empty stack list), `stack:<id>` (v2.2 forward-compat; not used at v2.1), `design_quality` (loaded when design artifacts exist), `skill_quality` (loaded for `/lp-create-skill` and `/lp-update-skill`). On a Python-only project, the TypeScript reviewer is filtered out at dispatch time.

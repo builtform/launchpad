@@ -1,0 +1,64 @@
+{
+  "version": "1.0",
+  "schema_version": "1.1",
+  "plugin_version": "2.1.0",
+  "layers": [
+    {
+      "options": {
+        "template": "blog"
+      },
+      "path": ".",
+      "role": "frontend",
+      "stack": "astro"
+    }
+  ],
+  "stacks": ["astro"],
+  "monorepo": false,
+  "matched_category_id": "static-blog-astro",
+  "rationale_path": ".launchpad/rationale.md",
+  "rationale_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "rationale_summary": [
+    {
+      "bullets": ["v2.1 fixture for cross-version interop matrix."],
+      "section": "project-understanding"
+    },
+    {
+      "bullets": ["static-blog-astro: Static blog (Astro)."],
+      "section": "matched-category"
+    },
+    {
+      "bullets": ["astro as frontend at ."],
+      "section": "stack"
+    },
+    {
+      "bullets": ["TypeScript-first islands match preference."],
+      "section": "why-this-fits"
+    },
+    {
+      "bullets": ["static-blog-eleventy: not selected."],
+      "section": "alternatives"
+    },
+    {
+      "bullets": ["v2.1 envelope for testing."],
+      "section": "notes"
+    }
+  ],
+  "identity": {
+    "pii_opt_in": false,
+    "project_name": "<project-name>",
+    "email": "<email>",
+    "copyright_holder": "<copyright-holder>",
+    "repo_url": "<repo-url>",
+    "license": "Other",
+    "license_other_body": ""
+  },
+  "generated_by": "/lp-pick-stack",
+  "generated_at": "2026-05-04T12:00:00Z",
+  "nonce": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "bound_cwd": {
+    "realpath": "/tmp/lp-fixture-v21",
+    "st_dev": 16777220,
+    "st_ino": 2345678
+  },
+  "sha256": "5e6b9cdb6ca240db41220b1a9a670d320320dd7be24c80a4f551a183e3a89b51"
+}

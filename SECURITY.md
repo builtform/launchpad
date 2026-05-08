@@ -10,10 +10,13 @@ This document is honest about what the harness solves and what it does not. If y
 
 | Version | Supported     |
 | ------- | ------------- |
-| 1.x     | Yes (current) |
+| 2.x     | Yes (current) |
+| 1.x     | Best-effort   |
 | Pre-1.0 | No            |
 
 Security fixes are released as patch versions on the latest minor. Older minors are not back-patched.
+
+**Tag signing posture.** Tags before v2.2 are unsigned; verify ship integrity via release SHA against the tag annotation. Signed tags arrive in v2.2 (BL-214).
 
 ## What the harness controls
 
@@ -123,3 +126,11 @@ Use GitHub Private Vulnerability Reporting:
 ### What to expect
 
 We aim to acknowledge new reports within **72 hours** and to share an initial assessment within **7 days**. Confirmed vulnerabilities ship as patch releases as soon as a fix is verified, with a coordinated public advisory. Reporters who request credit are named in the advisory and the corresponding `CHANGELOG.md` entry.
+
+## Supply-chain defenses (v2.1)
+
+`/lp-pick-stack`'s template fetcher (`plugins/launchpad/scripts/template_cache/`) walks every freshly-fetched upstream tree and rejects non-regular non-directory entries (symlinks, block devices, char devices, FIFOs, sockets) before any sentinel artifact lands on disk. v2.1 Codex PR #50 P0 (D9.1) introduced this gate to defend against attacker-controlled path traversal where a poisoned upstream template could `os.replace` a symlink to `/etc/passwd` (or worse) into the project tree.
+
+The `tmp_dir` is created at mode `0o700` BEFORE the fetcher writes; the read-side `_entry_files_match_manifest()` mirrors the rejection so a post-mount mirror attack via tmpfs symlink swap also fails the cache-hit check. Audit-log target rendering is capped at `MAX_REJECTION_TARGET_BYTES = 256` to defend against attacker-crafted long-target-name DoS through repeated fetches.
+
+Allowlisting legitimate symlinks (e.g., monorepo workspace symlinks) is deferred to v2.2 BL-268.

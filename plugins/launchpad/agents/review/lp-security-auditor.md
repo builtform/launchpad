@@ -1,6 +1,7 @@
 ---
 name: lp-security-auditor
 description: Performs security audits for vulnerabilities, input validation, auth/authz, hardcoded secrets, and OWASP compliance in TypeScript/Next.js/Hono applications.
+stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
 ---

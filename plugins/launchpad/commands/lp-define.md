@@ -51,44 +51,117 @@ forbids.
 
 ## Step 1: Run the generator
 
-Invoke `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-doc-generator.py`:
+Invoke `${CLAUDE_PLUGIN_ROOT}/scripts/lp_define_runner.py`:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plugin-doc-generator.py \
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_define_runner.py \
   --repo-root=$PWD \
   --product-name="<user-provided name, or existing PRD H1 if re-running>"
 ```
 
-The generator does:
+The runner emits the trust-model banner BEFORE the gate fires:
+
+> "This command will render and atomically write the LaunchPad infrastructure
+> overlay. All rendered content is scanned against `.launchpad/secret-patterns.txt`
+> before any disk write; if any secret pattern matches, all writes are refused."
+
+The runner does:
 
 1. **Detect** — runs the stack detector (manifest allowlist, 1MB cap, bounded walk)
-2. **Compose** — single-stack adapter OR polyglot composer (multi-language path)
-3. **Render** — 4 canonical docs + section registry + config.yml through Jinja2
-   with `select_autoescape(enabled_extensions=('html','htm','xml'), default=False)`
-   so HTML / XML templates autoescape (no template here today, door open for
-   v1.1) but Markdown and YAML render variable content verbatim. Variable
-   values are strings, never re-parsed as Jinja syntax — the SSTI guard
-   was always Jinja's template model, not HTML autoescape, which on
-   Markdown only corrupted benign text like `R&D <Pilot>`. YAML safety
-   relies on `tojson` / explicit yaml-safe quoting in template bodies.
-   `StrictUndefined` is preserved so missing variables fail loudly
-4. **Scan** — every rendered doc passed through `.launchpad/secret-patterns.txt`
-   (with conservative built-in fallback); any match blocks the write. The
-   doc generator does not interpolate parsed manifest CONTENT into template
-   output (it renders manifest paths only), so there is no per-field strip
-   step here today; a `manifest_stripper` helper exists for the case where
-   a future template needs to embed a manifest value, at which point it
-   would be wired at that interpolation boundary
+2. **Compose** — single-stack adapter OR polyglot composer (multi-language path);
+   applies `polyglot_path_rewriter._rewrite_adapter_paths` against
+   `.launchpad/scaffold-receipt.json` so receipt-driven paths flow into the
+   rendered docs
+3. **Render** — 5 canonical docs + section registry + config.yml + agents.yml
+   through Jinja2 with `select_autoescape(enabled_extensions=('html','htm','xml'),
+default=False)`. Markdown and YAML render variable content verbatim;
+   variable values are strings, never re-parsed as Jinja syntax, so the SSTI
+   guard is the template model itself rather than HTML autoescape (which would
+   only corrupt benign text like `R&D <Pilot>`). YAML safety relies on `tojson`
+   / explicit yaml-safe quoting in template bodies. `StrictUndefined` makes
+   missing variables fail loudly
+4. **Buffered batch + scan** — `RendererBase.render_batch` accumulates
+   the full output in memory; `scan_batch` runs `.launchpad/secret-patterns.txt`
+   (with `BUNDLED_DEFAULT_PATTERNS` as the fresh-greenfield fallback) over every
+   rendered file. Any match aborts the run BEFORE any disk write — the
+   atomic-batch-or-none invariant per Phase 8.5 plan section 3.11 (DA1' = a2)
 5. **Apply overwrite menu** per existing file:
    `[k]eep / [o]verwrite / [d]iff preview / [a]ll-overwrite / [s]kip-all`
    - `.launchpad/config.yml` and `.launchpad/agents.yml` are **never**
      included in `[a]ll-overwrite` — always individual prompt with mandatory
      diff (user-tuned state is too costly to lose)
-6. **Write** — writes the new files to disk at their canonical paths
+6. **Write** — atomic-all-or-none via `RendererBase.write_batch` on the
+   accepted subset; the gate re-scans (cache-fast) before any write lands
 
-The generator is non-interactive-safe: if stdin isn't a TTY and `--force`
+The runner is non-interactive-safe: if stdin isn't a TTY and `--force`
 isn't passed, it defaults every existing-file prompt to `keep`. This makes
 re-runs in CI safe by default.
+
+### Stack persistence (v2.1 Phase 6 §3.6)
+
+`/lp-define` writes the resolved stack id(s) to `.launchpad/config.yml`
+at the **top level** as `stacks: [<id>]` (matches Phase 4
+`auto_promote_stack_to_stacks()` write location). Atomic writes route
+through `lp_bootstrap.policy.write_config_yaml_atomic` (Phase 8.5
+`atomic_write_replace` lint allowlist surface). On re-run, the persisted
+stacks are read via `plugin_config_loader.read_stacks()` which layers
+over `auto_promote_stack_to_stacks()` and discards the returned warnings
+list (caller-side tuple-discard; no helper modification).
+
+To re-detect the stack id after refactoring (e.g., adding Rails to a
+project that previously detected as generic Ruby):
+
+```bash
+# Bare flag: aborts with exit 65 (EX_DATAERR) if detected id differs
+# from persisted; safe sanity check.
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_define_runner.py \
+  --repo-root=$PWD --redetect-stack
+
+# --force is the confirmation token (no Y/N prompt; safe in CI). Detector
+# runs ONCE; persisted stacks: line is overwritten via atomic write.
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_define_runner.py \
+  --repo-root=$PWD --redetect-stack --force
+```
+
+Pipeline / commands / paths sections of `config.yml` are preserved
+(only the `stacks:` line is rewritten).
+
+---
+
+## Step 1.5: Brownfield infrastructure auto-invoke (v2.1 Phase 3 §3.9)
+
+**Brownfield only.** After the generator returns, classify the
+infrastructure overlay state via `cwd_state.infrastructure_present(cwd)`.
+The 5-state enum dispatches as follows:
+
+| State               | Action                                                            |
+| ------------------- | ----------------------------------------------------------------- |
+| `FULL`              | skip `/lp-bootstrap`                                              |
+| `PARTIAL_MISSING`   | auto-invoke `/lp-bootstrap` to fill (with consent prompt)         |
+| `PARTIAL_STALE`     | auto-invoke `/lp-bootstrap --refresh-all` (with consent prompt)   |
+| `PRESENT_UNMANAGED` | adopt: write manifest from current disk shas without re-rendering |
+| `ABSENT`            | auto-invoke `/lp-bootstrap` (with consent prompt)                 |
+
+Before any write fires, surface the consent prompt:
+
+```
+LaunchPad will create N files in your project, including 7 executable bash
+scripts that run on git commit. Files: [list].
+Proceed? [Y/n]
+```
+
+Default Y. CI / scripted contexts must pass `--accept-bootstrap` so the
+non-interactive flow honors the consent gate without a TTY (per harden
+A11). Refusing the prompt leaves the project in its current state and
+records an INFO log; `/lp-define` may be re-run to retry the consent.
+
+The bootstrap call is in-process: `lp_bootstrap.engine.run_bootstrap(cwd,
+mode="brownfield-auto", refresh_paths=...)`. Failure surfaces a
+structured `BootstrapResult` with `outcome != "success"`; the prompt
+echoes the remediation field of the first error so the user knows the
+next step.
+
+---
 
 ## Step 2: Verify + Transition
 

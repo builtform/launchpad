@@ -1,0 +1,4 @@
+{% raw %}
+# check-repo-structure fragment for nextjs_standalone
+echo "adapter=nextjs_standalone"
+{% endraw %}

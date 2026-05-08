@@ -1,0 +1,26 @@
+# v2.2 Candidate Stacks (advisory)
+
+> v2.1 Codex PR #50 Greptile #5 (D5): zero-roadmap-commitment advisory.
+
+These stack ids were resolved to v2.1.0 active fallbacks at scaffold time.
+To re-evaluate when canonical support lands, run
+`/lp-pick-stack --redetect-stack`.
+
+The mapping below records the catalog short-name you picked alongside the
+fallback id that was sealed into `.launchpad/scaffold-decision.json`:
+
+{% for entry in v2_2_candidates -%}
+- `{{ entry.short_name }}` → `{{ entry.fallback_active_id }}`
+{% endfor %}
+
+## Why this file exists
+
+LaunchPad v2.1.0 ships with a closed `STACK_ID_ACTIVE_ENUM` of 10 ids
+backed by adapter dispatch. Catalog short-names not in that enum are
+resolved to a structurally-equivalent active fallback (e.g., `django` →
+`python_generic`, `next` → `nextjs_standalone`). This advisory file
+documents the substitution so future v2.2+ migrations are explicit
+rather than silent.
+
+This file is purely informational. It does NOT promise that v2.2 will
+add canonical support for any id named here.

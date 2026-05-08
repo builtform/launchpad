@@ -1,0 +1,25 @@
+# {{ identity.project_name }} harness context
+
+> Project-specific review context surfaced to /lp-review and /lp-harden-plan.
+> Edit this file to record local conventions, known sharp edges, and
+> reviewer guidance that is too situational for `docs/architecture/`.
+
+## Local conventions
+
+  * (add project-specific rules here, e.g., "all DB writes go through
+    packages/db/, never raw queries")
+
+## Known sharp edges
+
+  * (failure modes reviewers should look out for, e.g., "X breaks if Y
+    is null because of legacy column nullability")
+
+## Review priorities
+
+  * (where to focus extra attention, e.g., "auth boundaries", "billing
+    state transitions")
+
+## Out of scope for review
+
+  * (drift the team has accepted, e.g., "CSS hex colors instead of
+    tokens are tech-debt, not blockers")

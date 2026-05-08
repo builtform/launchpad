@@ -12,6 +12,12 @@
 # Plugin source — the heart of LaunchPad
 /plugins/launchpad/                @builtform/core
 
+# Phase 6 v2.1 stack_scope frontmatter on plugin agents. Pre-merge gate
+# defense against malicious upstream PR rewriting stack_scope to disable
+# security review. See docs/plans/launchpad_plans/2026-05-05-v2.1-phase6-implementation-plan.md
+# §3.0 Security Posture.
+/plugins/launchpad/agents/**       @builtform/core
+
 # Runtime scripts and stack adapters
 /plugins/launchpad/scripts/        @builtform/core
 
@@ -42,3 +48,51 @@
 /docs/architecture/                @builtform/core
 /docs/guides/                      @builtform/core
 /docs/releases/                    @builtform/core
+
+# Schema-source files for the v2.1 schema-CODEOWNERS gate (V3 plan §11.6 +
+# §11.7, locked in HANDSHAKE §10.v2.1). Changes here MUST be paired with
+# a SCAFFOLD_HANDSHAKE.md update in the same PR; the gate is enforced by
+# `plugin-v2-handshake-lint.py --check-schema-codeowners-gate` running in
+# v2-handshake-lint.yml. CODEOWNERS rules below ensure @builtform/core is
+# pulled into review on every schema-source change so the gate result
+# lands in front of an owner who can interpret it.
+/plugins/launchpad/scripts/lp_pick_stack/__init__.py        @builtform/core
+/plugins/launchpad/scripts/lp_pick_stack/decision_writer.py @builtform/core
+/plugins/launchpad/scripts/plugin-config-loader.py          @builtform/core
+/plugins/launchpad/scripts/lp_bootstrap/                    @builtform/core
+/docs/architecture/SCAFFOLD_HANDSHAKE.md                    @builtform/core
+/docs/architecture/SCAFFOLD_OPERATIONS.md                   @builtform/core
+
+# Phase 4 v2.1 schema-source files (Adapter Protocol + pin registry +
+# composition wrapper + template cache). Same gate as the schema-CODEOWNERS
+# block above: every modification of an `_UPSTREAM_SHA` value in
+# pin_registry.py also requires a same-commit append-only entry in the audit
+# log at docs/maintainers/upstream-pin-rotations.md (enforced by the
+# rotation-detector lint rule in plugin-v2-handshake-lint.py).
+/plugins/launchpad/scripts/plugin_stack_adapters/contracts.py        @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/pin_registry.py     @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/composition.py      @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/ts_monorepo.py      @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/nextjs_standalone.py @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/nextjs_fastapi.py   @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/astro.py            @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/generic.py          @builtform/core
+/plugins/launchpad/scripts/template_cache/                           @builtform/core
+/docs/maintainers/upstream-pin-rotations.md                          @builtform/core
+
+# Phase 8.5 v2.1 schema-source files (DA1' = a2 buffered batch + scanner
+# gate + DA2 path-rewriter + DA3 pattern cache + DA4 allowlist + DA5
+# bundled patterns). The render-batch flow + secret-scanner gate are the
+# v2.1 security-positive surface; CODEOWNERS protects the source-of-truth
+# constants (BUNDLED_DEFAULT_PATTERNS) + the gate logic. The audit-log
+# enforcement rule in plugin-v2-handshake-lint.py requires every deletion
+# under plugins/launchpad/scripts/ to carry a same-commit append in
+# docs/maintainers/decommission-history.md.
+/plugins/launchpad/scripts/plugin_default_generators/_renderer_base.py     @builtform/core
+/plugins/launchpad/scripts/plugin_default_generators/secret_allowlist.py   @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/polyglot_path_rewriter.py @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/secret_scanner.py         @builtform/core
+/plugins/launchpad/scripts/lp_define_runner.py                             @builtform/core
+/.github/workflows/release-notes-check.yml                                 @builtform/core
+/.launchpad/secret-patterns.txt                                            @builtform/core
+/docs/maintainers/decommission-history.md                                  @builtform/core

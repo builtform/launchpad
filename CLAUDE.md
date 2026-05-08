@@ -220,3 +220,7 @@ Agents are organized into 6 namespace subdirectories under `plugins/launchpad/ag
 | `lp-design-ui-auditor`              | Quick 5-check UI audit with P1/P2/P3 severity                  |
 | `lp-design-responsive-auditor`      | 6-check responsive audit with P1/P2/P3 severity                |
 | `lp-design-alignment-checker`       | 14-dimension design alignment audit against DESIGN_SYSTEM.md   |
+
+### v2.1 stack-aware dispatch
+
+Each agent file carries a `stack_scope:` frontmatter field used by `/lp-review` and `/lp-harden-plan` to filter agents per the detected stack(s). Values: `core_pipeline` (always loaded), `stack:any` (loaded for any non-empty stack list), `stack:<id>` (v2.2 forward-compat; not used at v2.1), `design_quality` (loaded when design artifacts exist), `skill_quality` (loaded for `/lp-create-skill` and `/lp-update-skill`). On a Python-only project, the TypeScript reviewer is filtered out at dispatch time.

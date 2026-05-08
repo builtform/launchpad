@@ -1,0 +1,5 @@
+# lefthook fragment for adapter `nextjs_fastapi`
+pre-commit:
+  commands:
+    nextjs_fastapi-noop:
+      run: 'true'

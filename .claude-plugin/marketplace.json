@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "launchpad",
-      "description": "Autonomous software-engineering harness. Brownfield-safe adaptation pipeline (detect → define → plan → build) across TypeScript, Python, Go, Django, and polyglot codebases.",
+      "description": "Autonomous AI coding harness for end-to-end software delivery across greenfield and brownfield codebases: picks the right stack for your new idea or detects your current stack if in brownfield. Scaffolds the infrastructure, then drives spec-driven development through the full pipeline (brainstorm → pick-stack → scaffold → define → plan → build → ship). Backed by a persistent governance kernel: context, quality gates, and learnings carry across sessions so each run starts informed instead of cold.",
       "category": "development",
       "source": "./plugins/launchpad",
       "homepage": "https://github.com/builtform/launchpad"

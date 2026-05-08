@@ -35,6 +35,7 @@ import errno
 import fcntl
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -54,6 +55,23 @@ MAX_RETRIES = 5
 SCHEMA_VERSION = "1.0"
 
 
+# Cycle-5 lock per 2026-05-08-v2.1.0-completion-plan.md §3.1: strip C0
+# controls (except \t/\n) + DEL + C1 + ANSI escapes from every string field
+# emitted into the forensic JSON. CR is rejected because it is the primary
+# log-line-splice vector when remediation copy is rendered to a terminal.
+_REJECT_CHARS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+_ANSI = re.compile(
+    r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-_]"
+)
+
+
+def _sanitize_string(s: str) -> str:
+    """Strip control characters and ANSI escapes from a user-visible
+    string. Order is load-bearing: ANSI consumes its own ESC byte first
+    (which IS in C0); the second pass then strips remaining controls."""
+    return _REJECT_CHARS.sub("", _ANSI.sub("", s))
+
+
 def _harness_obs_dir(repo_root: Path) -> Path:
     return repo_root / ".harness" / "observations"
 
@@ -69,24 +87,40 @@ def _utc_now_iso_sec() -> str:
 def _build_payload(
     *,
     reason: str,
+    message: str | None,
     field_name: str | None,
     seen_version: str | None,
     extra: Mapping[str, Any] | None,
 ) -> dict:
+    """Assemble the forensic-log JSON payload.
+
+    Per 2026-05-08-v2.1.0-completion-plan.md §3.1: applies
+    `_sanitize_string` to every string field. Until cycle-3, `message`
+    was discarded (Rejected.message landed nowhere in user-facing
+    `scaffold-failed-<ts>.json`); cycle-3 wires it through. Order here
+    is intentional: sanitize on entry, never on exit, so downstream
+    serializers see only safe content.
+    """
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
-        "reason": reason,
+        "reason": _sanitize_string(reason),
         "timestamp": _utc_now_iso_sec(),
         "pid": os.getpid(),
         "pid_start_time": get_pid_start_time(),
     }
+    if message is not None:
+        payload["message"] = _sanitize_string(message)
     if field_name is not None:
-        payload["field_name"] = field_name
+        payload["field_name"] = _sanitize_string(field_name)
     if seen_version is not None:
-        payload["seen_version"] = seen_version
+        payload["seen_version"] = _sanitize_string(seen_version)
     if extra:
         for k, v in extra.items():
-            if k not in payload:
+            if k in payload:
+                continue
+            if isinstance(v, str):
+                payload[k] = _sanitize_string(v)
+            else:
                 payload[k] = v
     return payload
 
@@ -156,6 +190,26 @@ _REASON_HINTS: dict[str, str] = {
         ".launchpad/scaffold-receipt.json already exists; check for "
         "concurrent invocation or remove and re-run"
     ),
+    # v2.1.0 completion plan §3.1 — transitional hints for the 4 reasons
+    # introduced by this release. Full ScaffoldRejectionCode(StrEnum) is
+    # deferred to v2.2 BL-275; this table is the v2.1.x typo guard.
+    "v22_candidate_unsupported": (
+        "stack_id is a v2.2-candidate without specialized v2.1 adapter; "
+        "pass --accept-v22-fallback to scaffold via the generic adapter "
+        "(framework-agnostic shell), or wait for v2.2"
+    ),
+    "schema_1_0_unsupported": (
+        "schema_version=1.0 (v2.0 layers-only) decisions are not "
+        "supported by v2.1; run /lp-pick-stack to regenerate"
+    ),
+    "dispatch_walk_too_large": (
+        "adapter dispatch produced more files than the enumeration cap; "
+        "likely a runaway adapter or unexpected dependency install"
+    ),
+    "unknown_meta_field": (
+        "decision/receipt payload contains an *_meta sibling key not in "
+        "the v1.1 allowlist; new *_meta keys require a schema_version bump"
+    ),
 }
 
 
@@ -209,6 +263,7 @@ def write_rejection(
     repo_root: Path,
     *,
     reason: str,
+    message: str | None = None,
     field_name: str | None = None,
     seen_version: str | None = None,
     extra: Mapping[str, Any] | None = None,
@@ -231,6 +286,7 @@ def write_rejection(
 
     payload = _build_payload(
         reason=reason,
+        message=message,
         field_name=field_name,
         seen_version=seen_version,
         extra=extra,
@@ -312,5 +368,6 @@ __all__ = [
     "REJECTION_FILENAME_PREFIX",
     "REJECTION_FILENAME_SUFFIX",
     "SCHEMA_VERSION",
+    "_sanitize_string",
     "write_rejection",
 ]

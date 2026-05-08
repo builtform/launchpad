@@ -1,0 +1,5 @@
+# lefthook fragment for adapter `ts_monorepo`
+pre-commit:
+  commands:
+    ts_monorepo-noop:
+      run: 'true'

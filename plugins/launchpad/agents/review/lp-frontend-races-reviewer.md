@@ -1,6 +1,7 @@
 ---
 name: lp-frontend-races-reviewer
 description: Reviews JavaScript and React code for race conditions, timing issues, and DOM lifecycle problems.
+stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
 ---

@@ -1,6 +1,7 @@
 ---
 name: lp-kieran-foad-ts-reviewer
 description: Reviews TypeScript code with an extremely high quality bar for type safety, modern patterns, and maintainability.
+stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
 ---

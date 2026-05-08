@@ -1,0 +1,5 @@
+# lefthook fragment for adapter `generic`
+pre-commit:
+  commands:
+    generic-noop:
+      run: 'true'

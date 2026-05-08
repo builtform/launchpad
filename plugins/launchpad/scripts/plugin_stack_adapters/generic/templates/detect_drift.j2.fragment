@@ -1,0 +1,4 @@
+{% raw %}
+# detect-structure-drift fragment for generic
+echo "adapter=generic drift-check ok"
+{% endraw %}

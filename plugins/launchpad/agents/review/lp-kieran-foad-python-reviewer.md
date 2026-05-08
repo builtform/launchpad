@@ -1,6 +1,7 @@
 ---
 name: lp-kieran-foad-python-reviewer
 description: Reviews Python code with high quality bar for type hints, Pythonic patterns, and maintainability.
+stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
 ---

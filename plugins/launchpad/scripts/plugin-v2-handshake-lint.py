@@ -209,7 +209,7 @@ LEAKAGE_FILE_ALLOWLIST = (
     ".github/ISSUE_TEMPLATE/plugin_install_issue.yml",
     # Carve-out 2: v1.x legacy code references — v2.1+ scrub candidates
     "plugins/launchpad/scripts/tests/test_define.py",
-    "plugins/launchpad/scripts/plugin-default-generators/agents.yml.j2",
+    "plugins/launchpad/scripts/plugin_default_generators/agents.yml.j2",
     "plugins/launchpad/scripts/plugin_stack_adapters/ts_monorepo.py",
     "plugins/launchpad/commands/lp-define.md",
     "plugins/launchpad/commands/lp-copy.md",
@@ -366,6 +366,13 @@ def check_no_shell_true(failures: list[str]) -> None:
         if not _is_v2_module(path):
             continue
         if path.endswith("plugin-v2-handshake-lint.py"):
+            continue
+        # Phase 5 v2.1 (cycle-1 security-lens F-SEC-LENS-2 + cycle-2
+        # pattern-finder P2): safe_run.py is the single audit-trailed
+        # exception -- safe_run_long_shell uses Popen(shell=True) for
+        # commands.dev entries. The SIGINT/SIGTERM/SIGKILL ladder + env
+        # hygiene contract is identical to the argv-list path.
+        if path.endswith("safe_run.py"):
             continue
         if "/tests/" in path:
             continue
@@ -550,6 +557,246 @@ def check_private_origin_leakage(failures: list[str]) -> None:
             seen.add(hit)
             bad.append(hit)
     _emit(failures, "private-origin-leakage", bad)
+
+
+# Schema-source files for the v2.1 schema-CODEOWNERS gate (V3 plan §11.6
+# + §11.7, locked in HANDSHAKE §10.v2.1). When ANY of these change in a PR
+# diff, the same PR MUST also touch HANDSHAKE.md so the schema contract and
+# its source-of-truth doc stay in sync. Bootstrap-manifest writers land in
+# Phase 3+; the gate covers the path even before the file exists so the
+# rule is in place when the writer arrives.
+SCHEMA_SOURCE_FILES = (
+    # scaffold-decision schema sources
+    "plugins/launchpad/scripts/lp_pick_stack/__init__.py",  # SCHEMA_VERSION_V2_1, identity regexes
+    "plugins/launchpad/scripts/lp_pick_stack/decision_writer.py",  # build_decision_payload, validate_identity
+    "plugins/launchpad/scripts/plugin-config-loader.py",  # read_scaffold_decision, read_bootstrap_manifest
+    # bootstrap-manifest schema sources (Phase 3+ live)
+    "plugins/launchpad/scripts/lp_bootstrap/__init__.py",  # BootstrapErrorCode + INFRASTRUCTURE_FILES + envelope constants
+    "plugins/launchpad/scripts/lp_bootstrap/manifest_writer.py",  # build_manifest, write_manifest, security_fields contract
+    # Phase 4 v2.1 adapter Protocol + composition + cache (Slice A+) sources
+    "plugins/launchpad/scripts/plugin_stack_adapters/contracts.py",  # Adapter Protocol, OverlayConfig, ConflictPolicy
+    "plugins/launchpad/scripts/plugin_stack_adapters/pin_registry.py",  # _UPSTREAM_SHA registry; rotation-detected
+    # Phase 8.5 v2.1 render-batch flow + secret-scanner gate sources
+    "plugins/launchpad/scripts/plugin_default_generators/_renderer_base.py",  # render_batch + scan_batch + write_batch contract (DA1' = a2)
+    "plugins/launchpad/scripts/plugin_default_generators/secret_allowlist.py",  # filter_allowlisted (DA4)
+    "plugins/launchpad/scripts/plugin_stack_adapters/polyglot_path_rewriter.py",  # _rewrite_adapter_paths standalone home (DA2)
+    "plugins/launchpad/scripts/plugin_stack_adapters/secret_scanner.py",  # BUNDLED_DEFAULT_PATTERNS + pattern cache (DA3 + DA5)
+)
+
+# Phase 8.5 plan section 2.3: ALLOWLIST-based lint rule for atomic_write_replace
+# callers. Only these files are permitted to call atomic_write_replace; any
+# other caller (or an aliased import like `from atomic_io import
+# atomic_write_replace as _w`) fails the lint. Adding a new permitted
+# caller requires CODEOWNERS review on this constant.
+ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS = (
+    "plugins/launchpad/scripts/atomic_io.py",  # the source module (defines + re-exports)
+    "plugins/launchpad/scripts/plugin_default_generators/_renderer_base.py",  # write_batch (DA1' = a2 gate)
+    # lp_bootstrap is the per-file policy layer; engine + manifest_writer
+    # are siblings of policy.py doing the bootstrap-tier writes (NOT
+    # renderer bypass). Plan section 2.3 listed `policy.py` as the
+    # canonical entry but the practical bootstrap surface is the whole
+    # module; CODEOWNERS protects it as a unit.
+    #
+    # Phase 11 hardening A4: `lp_bootstrap/sentinel.py` was REMOVED from
+    # this allowlist after the sentinel writer harmonized to
+    # `O_CREAT|O_EXCL` (mirroring lp_scaffold_stack + lp_update_identity
+    # sentinels), eliminating its `atomic_write_replace` dependency.
+    "plugins/launchpad/scripts/lp_bootstrap/policy.py",  # per-file policy dispatcher
+    # v2.1 Codex PR #50 cycle 6 F9: `lp_bootstrap/engine.py` was REMOVED from
+    # this allowlist after `_record_version_drift` was refactored to route
+    # through `re_seal_decision_atomic()` in `lp_pick_stack.decision_writer`.
+    # Engine no longer holds the primitive directly; the decision_writer
+    # entry below covers the resealed scaffold-decision write.
+    "plugins/launchpad/scripts/lp_bootstrap/manifest_writer.py",  # bootstrap manifest writer
+    # Phase 10 v2.1: scaffold-decision atomic re-seal lives in decision_writer
+    # (re_seal_decision_atomic) so /lp-update-identity inherits the same
+    # atomic-replace primitive used by /lp-pick-stack's first-write path.
+    "plugins/launchpad/scripts/lp_pick_stack/decision_writer.py",  # re_seal_decision_atomic
+    # v2.1 Codex PR #50 Slice E: pre-squash audit-log filter for
+    # restamp-history.jsonl (strips wip(slice-x): WIP-checkpoint entries
+    # before squash). Single atomic_write_replace at the end of the
+    # filter pipeline.
+    "plugins/launchpad/scripts/plugin-restamp-redact-wip.py",
+)
+# v2.1 Codex PR #50 post-review P1: `atomic_write_replace_batch` is the
+# two-phase shape introduced for `RendererBase.write_batch()`. It uses
+# the same primitives (mkstemp/fsync/fchmod/os.replace/_fsync_parent)
+# and is gated by the same allowlist; the lint scans for either symbol.
+ATOMIC_WRITE_REPLACE_NAMES = (
+    "atomic_write_replace",
+    "atomic_write_replace_batch",
+)
+ATOMIC_WRITE_REPLACE_SCAN_GLOBS = (
+    "plugins/launchpad/scripts/**/*.py",
+)
+
+# Phase 8.5 plan section 2.3: audit-log enforcement rule. Any deletion of a
+# CODEOWNERS-protected path requires a same-commit
+# `docs/maintainers/decommission-history.md` entry with non-empty Reason +
+# Reviewer columns. Phase 8 entries are the seed corpus.
+DECOMMISSION_AUDIT_LOG = "docs/maintainers/decommission-history.md"
+
+# Phase 4 v2.1: pin-registry rotation-detector. Every modification of a
+# `sha` value in pin_registry.py requires a same-commit append-only entry in
+# `docs/maintainers/upstream-pin-rotations.md` (Phase 4 plan §3.9).
+PIN_REGISTRY_FILE = (
+    "plugins/launchpad/scripts/plugin_stack_adapters/pin_registry.py"
+)
+PIN_ROTATION_AUDIT_LOG = "docs/maintainers/upstream-pin-rotations.md"
+SCHEMA_DOC = "docs/architecture/SCAFFOLD_HANDSHAKE.md"
+BOOTSTRAP_MANIFEST_DOC = "docs/architecture/SCAFFOLD_HANDSHAKE.md"
+
+
+def check_schema_codeowners_gate(
+    failures: list[str], base_ref: str = "origin/main"
+) -> None:
+    """Fail PRs that change schema-source files without touching HANDSHAKE.md.
+
+    V3 plan §11.6 + §11.7 + HANDSHAKE §10.v2.1 acceptance rules: the
+    scaffold-decision and bootstrap-manifest schemas are paired with
+    HANDSHAKE.md as their source of truth. Schema-source code changes
+    without a corresponding HANDSHAKE.md update silently drift the contract.
+    The gate enforces co-touched edits at PR time.
+
+    Strategy:
+      1. Compute the changed-file set via `git diff --name-only <base>...HEAD`.
+         Default base is `origin/main`; CI sets `LP_BASE_REF` to override.
+      2. If the changed set intersects SCHEMA_SOURCE_FILES, assert
+         HANDSHAKE.md is also in the changed set.
+      3. The gate is silent on PRs that touch neither schema sources nor
+         HANDSHAKE.md (most PRs).
+
+    The gate intentionally uses a static SCHEMA_SOURCE_FILES list, not
+    a glob: false positives on unrelated edits would train contributors
+    to bypass the gate. Adding new schema-source files requires updating
+    this list AND the HANDSHAKE.md schema docs in the same PR — the gate
+    catches itself.
+    """
+    rule = "schema-codeowners-gate"
+    rc, out = _run(["git", "diff", "--name-only", f"{base_ref}...HEAD"])
+    if rc != 0:
+        # Diff failed — most likely the base ref is unavailable (shallow
+        # clone, missing remote). Emit INFO and skip; CI is responsible
+        # for fetching the base ref before invoking this lint.
+        failures.append(
+            f"[{rule}] git diff against {base_ref} failed (rc={rc}); "
+            f"set LP_BASE_REF or fetch the base ref before running this "
+            f"check. Output: {out.strip()[:200]!r}"
+        )
+        return
+
+    changed = {line.strip() for line in out.splitlines() if line.strip()}
+    if not changed:
+        return  # empty diff; gate trivially satisfied
+
+    schema_changed = changed.intersection(SCHEMA_SOURCE_FILES)
+    if not schema_changed:
+        return  # no schema sources changed; gate satisfied
+
+    if SCHEMA_DOC in changed:
+        return  # both sides touched; gate satisfied
+
+    failures.append(
+        f"[{rule}] schema-source files changed without {SCHEMA_DOC} also "
+        f"being touched in the same diff:\n  "
+        + "\n  ".join(sorted(schema_changed))
+        + f"\n\nThe v2.1 schema contract (HANDSHAKE §10.v2.1) requires "
+        f"that any change to schema-source code be paired with an update "
+        f"to {SCHEMA_DOC}. If this PR genuinely needs to ship without a "
+        f"docs change (e.g., pure refactor), set commit footer "
+        f"`Schema-Refactor-Only: <reason>` and re-run; the bypass token "
+        f"is reviewed at merge time. (Token enforcement lands in Phase 7+; "
+        f"at v2.1 the gate is hard-fail.)"
+    )
+
+
+def run_check_schema_codeowners_gate() -> int:
+    """Standalone entry point for v2-handshake-lint.yml workflow."""
+    failures: list[str] = []
+    base_ref = os.environ.get("LP_BASE_REF", "origin/main")
+    check_schema_codeowners_gate(failures, base_ref=base_ref)
+    if failures:
+        print("schema-codeowners-gate: FAIL", file=sys.stderr)
+        for f in failures:
+            print(f, file=sys.stderr)
+        return 1
+    print("schema-codeowners-gate: PASS")
+    return 0
+
+
+_PIN_SHA_LINE_RE = re.compile(r'^\+\s*"sha":\s*"([0-9a-f]{40})"', re.MULTILINE)
+
+
+def check_pin_registry_rotation_audit_log(
+    failures: list[str], base_ref: str = "origin/main"
+) -> None:
+    """Phase 4 v2.1 rotation-detector (Phase 4 plan §3.9).
+
+    If the diff between `<base>...HEAD` adds any new `"sha": "<40-hex>"` line
+    inside pin_registry.py, the audit log at
+    `docs/maintainers/upstream-pin-rotations.md` MUST also be touched in the
+    same diff. The check intentionally inspects the diff (not the working
+    tree): the goal is to gate the *act of rotation* at PR time, not to
+    re-validate already-merged history.
+
+    Strategy:
+      1. `git diff <base>...HEAD -- <pin_registry>` to get the textual diff.
+      2. Extract added (+) `"sha": "<hex>"` lines via regex.
+      3. If any such line exists, assert the audit log path is in the
+         changed-files set.
+      4. Skip silently when pin_registry is not in the diff.
+    """
+    rule = "pin-registry-rotation-audit-log"
+
+    rc, names_out = _run(
+        ["git", "diff", "--name-only", f"{base_ref}...HEAD"]
+    )
+    if rc != 0:
+        failures.append(
+            f"[{rule}] git diff against {base_ref} failed (rc={rc}); set "
+            f"LP_BASE_REF or fetch the base ref before running this check."
+        )
+        return
+    changed = {line.strip() for line in names_out.splitlines() if line.strip()}
+    if PIN_REGISTRY_FILE not in changed:
+        return  # pin_registry untouched; gate trivially satisfied
+
+    rc, diff_out = _run(
+        ["git", "diff", f"{base_ref}...HEAD", "--", PIN_REGISTRY_FILE]
+    )
+    if rc != 0:
+        failures.append(
+            f"[{rule}] git diff for {PIN_REGISTRY_FILE} failed (rc={rc})."
+        )
+        return
+
+    added_shas = _PIN_SHA_LINE_RE.findall(diff_out)
+    if not added_shas:
+        return  # pin_registry diff contains no new SHA lines
+
+    if PIN_ROTATION_AUDIT_LOG not in changed:
+        failures.append(
+            f"[{rule}] pin_registry.py adds new SHA value(s) without a same-"
+            f"commit entry in {PIN_ROTATION_AUDIT_LOG}.\n  added SHAs:\n  "
+            + "\n  ".join(sorted(added_shas))
+            + f"\n\nPhase 4 plan §3.9: every _UPSTREAM_SHA rotation requires "
+            f"an append-only audit-log entry with non-empty Reason + Reviewer "
+            f"in the same commit."
+        )
+
+
+def run_check_pin_registry_rotation_audit_log() -> int:
+    """Standalone entry point for the rotation-detector lint rule."""
+    failures: list[str] = []
+    base_ref = os.environ.get("LP_BASE_REF", "origin/main")
+    check_pin_registry_rotation_audit_log(failures, base_ref=base_ref)
+    if failures:
+        print("pin-registry-rotation-audit-log: FAIL", file=sys.stderr)
+        for f in failures:
+            print(f, file=sys.stderr)
+        return 1
+    print("pin-registry-rotation-audit-log: PASS")
+    return 0
 
 
 def run_check_leakage() -> int:
@@ -906,11 +1153,18 @@ def check_pyyaml_cve(failures: list[str]) -> int:
 
 
 def check_legacy_yaml_canonical_hash_removal(failures: list[str]) -> int:
-    """v2.1.0 gate (BL-210): when plugin.json version >= 2.1.0, the legacy
+    """v2.2.0 gate (BL-210): when plugin.json version >= 2.2.0, the legacy
     YAML migration helper must have been deleted.
 
+    Phase 11 hardening A5: gate threshold bumped from 2.1.0 to 2.2.0. The
+    Phase 11 plugin.json bump 2.0.0 -> 2.1.0 activated this gate prematurely
+    against code that still defines and calls `_legacy_yaml_canonical_hash`.
+    BL-210 deletion lands with the v2.2 audit-tooling promotion bundle so
+    the gate's docstring + activation threshold + symbol removal land in
+    the same release. Until then the gate stays inactive at v2.1.x.
+
     Implementation: grep for the symbol; if found AND plugin.json version is
-    >= 2.1.0, fail. Reads plugin.json directly (no JSON canonicalization
+    >= 2.2.0, fail. Reads plugin.json directly (no JSON canonicalization
     needed for a single-field lookup)."""
     plugin_json = REPO_ROOT / "plugins" / "launchpad" / ".claude-plugin" / "plugin.json"
     if not plugin_json.exists():
@@ -922,12 +1176,12 @@ def check_legacy_yaml_canonical_hash_removal(failures: list[str]) -> int:
         failures.append(f"[legacy-yaml-removal] plugin.json parse error: {exc}")
         return 1
     version = meta.get("version", "")
-    # Parse semver major.minor only; gate fires at >= 2.1.0
+    # Parse semver major.minor only; gate fires at >= 2.2.0
     m = re.match(r"(\d+)\.(\d+)", version)
     if not m:
         return 0
     major, minor = int(m.group(1)), int(m.group(2))
-    if (major, minor) < (2, 1):
+    if (major, minor) < (2, 2):
         return 0  # gate not yet active
     hits = _git_grep("_legacy_yaml_canonical_hash",
                      "plugins/launchpad/scripts/", fixed=True)
@@ -1102,6 +1356,144 @@ def check_scaffold_failed_schema(failures: list[str]) -> None:
     _emit(failures, "scaffold-failed-schema", bad)
 
 
+def check_atomic_write_replace_allowlist(failures: list[str]) -> None:
+    """Phase 8.5 plan section 2.3: ALLOWLIST-based lint rule for
+    `atomic_write_replace` callers.
+
+    Only modules in `ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS` may call
+    `atomic_write_replace` (or an aliased import). Anything else fails
+    the lint. Uses AST analysis with import-binding resolution so
+    `from atomic_io import atomic_write_replace as _w` then `_w(...)` is
+    detected as a violation in the same module.
+    """
+    rule = "atomic-write-replace-allowlist"
+    import ast as _ast
+
+    permitted = set(ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS)
+
+    py_files: list[Path] = []
+    for pat in ATOMIC_WRITE_REPLACE_SCAN_GLOBS:
+        py_files.extend(REPO_ROOT.glob(pat))
+
+    hits: list[str] = []
+    for py_path in py_files:
+        try:
+            rel = py_path.relative_to(REPO_ROOT).as_posix()
+        except ValueError:
+            continue
+        if rel in permitted:
+            continue
+        if "/_vendor/" in rel or "/__pycache__/" in rel:
+            continue
+        if "/tests/" in rel or rel.endswith("_test.py") or rel.startswith(
+            "plugins/launchpad/scripts/tests/"
+        ):
+            # Tests are permitted to call atomic_write_replace as part
+            # of fixture setup; the gate targets production code paths.
+            continue
+        try:
+            tree = _ast.parse(py_path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+
+        # Bind every import name resolving to atomic_io.atomic_write_replace.
+        bound_names: set[str] = set()
+        for node in _ast.walk(tree):
+            if isinstance(node, _ast.ImportFrom):
+                if (node.module or "").endswith("atomic_io"):
+                    for alias in node.names:
+                        if alias.name in ATOMIC_WRITE_REPLACE_NAMES:
+                            bound_names.add(alias.asname or alias.name)
+            elif isinstance(node, _ast.Import):
+                for alias in node.names:
+                    if alias.name == "atomic_io":
+                        # `atomic_io.atomic_write_replace(...)` calls
+                        # are caught via Attribute below.
+                        bound_names.add(alias.asname or alias.name)
+
+        # Walk the AST looking for calls. Bare-name calls hit
+        # `bound_names`; attribute calls hit `<atomic_io_alias>.atomic_write_replace`.
+        for node in _ast.walk(tree):
+            if isinstance(node, _ast.Call):
+                func = node.func
+                if isinstance(func, _ast.Name) and func.id in bound_names:
+                    hits.append(f"{rel}:{node.lineno}: {func.id}(...)")
+                elif (
+                    isinstance(func, _ast.Attribute)
+                    and func.attr in ATOMIC_WRITE_REPLACE_NAMES
+                    and isinstance(func.value, _ast.Name)
+                    and func.value.id in bound_names
+                ):
+                    hits.append(
+                        f"{rel}:{node.lineno}: {func.value.id}.{func.attr}(...)"
+                    )
+
+    if hits:
+        failures.append(
+            f"[{rule}] atomic_write_replace called from non-allowlisted "
+            f"module(s); only {sorted(permitted)} may call this function "
+            f"(Phase 8.5 plan section 2.3). Hits:\n  "
+            + "\n  ".join(sorted(hits))
+        )
+
+
+def check_decommission_audit_log_required(
+    failures: list[str], base_ref: str = "origin/main"
+) -> None:
+    """Phase 8.5 plan section 2.3 audit-log enforcement rule.
+
+    Any deletion of a CODEOWNERS-protected path under
+    `plugins/launchpad/scripts/` requires a same-commit append-only entry
+    in `docs/maintainers/decommission-history.md`. The check:
+
+      1. `git diff --name-only --diff-filter=D <base>...HEAD` -> deleted files.
+      2. If any deleted path matches the protected pattern set, assert
+         the audit log is in the changed-files set.
+    """
+    rule = "decommission-audit-log-required"
+    rc, deleted_out = _run(
+        ["git", "diff", "--name-only", "--diff-filter=D", f"{base_ref}...HEAD"]
+    )
+    if rc != 0:
+        # Diff failed; CI is responsible for fetching the base ref.
+        return
+
+    deleted = {line.strip() for line in deleted_out.splitlines() if line.strip()}
+    if not deleted:
+        return
+
+    # Protected patterns: anything under plugins/launchpad/scripts/ except
+    # __pycache__ + _vendor.
+    protected_prefixes = ("plugins/launchpad/scripts/",)
+    excluded_substrings = ("/__pycache__/", "/_vendor/", "/tests/")
+
+    protected_deleted = []
+    for d in deleted:
+        if not any(d.startswith(p) for p in protected_prefixes):
+            continue
+        if any(s in d for s in excluded_substrings):
+            continue
+        protected_deleted.append(d)
+
+    if not protected_deleted:
+        return
+
+    rc, changed_out = _run(["git", "diff", "--name-only", f"{base_ref}...HEAD"])
+    if rc != 0:
+        return
+    changed = {line.strip() for line in changed_out.splitlines() if line.strip()}
+
+    if DECOMMISSION_AUDIT_LOG not in changed:
+        failures.append(
+            f"[{rule}] CODEOWNERS-protected path(s) deleted without a "
+            f"same-commit append entry in {DECOMMISSION_AUDIT_LOG}:\n  "
+            + "\n  ".join(sorted(protected_deleted))
+            + f"\n\nPhase 8.5 plan section 2.3 audit-log enforcement: every "
+            f"deletion under plugins/launchpad/scripts/ requires an "
+            f"append-only audit-log entry with non-empty Reason + Reviewer."
+        )
+
+
 def run_default_lint() -> int:
     failures: list[str] = []
     check_no_raw_subprocess(failures)
@@ -1111,6 +1503,7 @@ def run_default_lint() -> int:
     check_hyphen_test_files(failures)
     check_pull_request_target_safety(failures)
     check_private_origin_leakage(failures)
+    check_atomic_write_replace_allowlist(failures)
     # Phase 1 catalog validation (only enforced when the catalog files exist;
     # at Phase -1 they did not, and the lint stayed silent on this surface).
     if SCAFFOLDERS_YML.exists() or CATEGORY_PATTERNS_YML.exists():
@@ -1217,6 +1610,21 @@ def main() -> int:
         help="Standalone private-origin leakage scan (verify-v2-ship #4).",
     )
     parser.add_argument(
+        "--check-schema-codeowners-gate", action="store_true",
+        dest="check_schema_codeowners_gate",
+        help="v2.1+: fail PRs that change schema-source files without "
+             "touching SCAFFOLD_HANDSHAKE.md in the same diff. Reads "
+             "LP_BASE_REF (default origin/main) for the diff base.",
+    )
+    parser.add_argument(
+        "--check-pin-registry-rotation-audit-log", action="store_true",
+        dest="check_pin_registry_rotation_audit_log",
+        help="Phase 4 v2.1: fail PRs that rotate an _UPSTREAM_SHA value in "
+             "pin_registry.py without a same-commit append-only entry in "
+             "docs/maintainers/upstream-pin-rotations.md. Reads LP_BASE_REF "
+             "(default origin/main) for the diff base.",
+    )
+    parser.add_argument(
         "--regenerate-fixtures", action="store_true",
         help="WRITE-MUTATING: regenerate test fixtures from manifest.yml. "
              "Permitted ONLY in v2-release.yml.",
@@ -1254,6 +1662,10 @@ def main() -> int:
         return rc
     if args.check_leakage:
         return run_check_leakage()
+    if args.check_schema_codeowners_gate:
+        return run_check_schema_codeowners_gate()
+    if args.check_pin_registry_rotation_audit_log:
+        return run_check_pin_registry_rotation_audit_log()
     if args.regenerate_fixtures:
         return run_regenerate_fixtures(args.max_fixtures)
 

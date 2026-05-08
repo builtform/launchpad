@@ -2,7 +2,7 @@
 
 > **Audience:** LaunchPad maintainers shipping new versions of the plugin and template.
 >
-> **Not for downstream projects** scaffolded from LaunchPad — `scripts/setup/init-project.sh` removes the entire `docs/maintainers/` directory during project initialization. Downstream projects choose their own release process (or none).
+> **Not for downstream projects** scaffolded from LaunchPad. The v2.x kernel renderer never ships `docs/maintainers/` to downstream projects (the directory exists only in the LaunchPad source tree). Downstream projects choose their own release process (or none). v2.1 (BL-247) decommissioned the legacy `init-project.sh` flow that historically stripped this directory at init time; pin to v2.0.x for that flow.
 
 LaunchPad ships versioned releases via the GitHub release flow. Every release follows this exact sequence to ensure each tag has hand-authored release notes published as a durable artifact in the repo.
 
@@ -107,4 +107,4 @@ Downstream projects scaffolded from LaunchPad may have:
 - Different visibility (private projects shouldn't have maintainer process docs visible)
 - No need for the `release-notes-check.yml` workflow
 
-Imposing LaunchPad's release process on downstream would be a workflow tax we have no right to charge. `init-project.sh` removes both the `release-notes-check.yml` workflow and the entire `docs/maintainers/` directory at init time, so downstream projects start clean and choose their own process.
+Imposing LaunchPad's release process on downstream would be a workflow tax we have no right to charge. The v2.x kernel renderer never ships `release-notes-check.yml` or `docs/maintainers/` to downstream projects (those exist only in the LaunchPad source tree), so downstream starts clean and chooses its own process. (v2.1 BL-247 decommissioned the legacy `init-project.sh` flow that previously achieved the same result via init-time deletion.)

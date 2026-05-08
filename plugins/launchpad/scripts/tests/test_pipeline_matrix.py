@@ -43,7 +43,12 @@ import tempfile
 from pathlib import Path
 
 PLUGIN_SCRIPTS = Path(__file__).resolve().parent.parent
-GENERATOR = str(PLUGIN_SCRIPTS / "plugin-doc-generator.py")
+# Phase 8.5 Slice D: migrated from plugin-doc-generator.py to the v2.1
+# /lp-define orchestrator. CLI surface is identical (--repo-root, --force,
+# --product-name, --only, --dry-run); --no-trust-banner suppresses the
+# Phase 8.5 plan section 3.12 banner so subprocess stderr stays clean
+# for test assertions.
+GENERATOR = str(PLUGIN_SCRIPTS / "lp_define_runner.py")
 DETECTOR = str(PLUGIN_SCRIPTS / "plugin-stack-detector.py")
 LOADER = str(PLUGIN_SCRIPTS / "plugin-config-loader.py")
 PREREQ = str(PLUGIN_SCRIPTS / "plugin-prereq-check.sh")
@@ -154,7 +159,7 @@ def step_A_detector(fixture: Path, expected_stacks: set[str], expected_framework
 
 def step_B_generator(fixture: Path) -> list[str]:
     errors = []
-    r = _run([sys.executable, GENERATOR, f"--repo-root={fixture}", "--force", "--product-name=TestApp"])
+    r = _run([sys.executable, GENERATOR, f"--repo-root={fixture}", "--no-trust-banner", "--force", "--product-name=TestApp"])
     if r.returncode != 0:
         errors.append(f"generator exited {r.returncode}: {r.stderr[:400]}")
         return errors

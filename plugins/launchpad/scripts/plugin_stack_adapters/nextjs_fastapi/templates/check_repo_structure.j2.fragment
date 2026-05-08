@@ -1,0 +1,4 @@
+{% raw %}
+# check-repo-structure fragment for nextjs_fastapi
+echo "adapter=nextjs_fastapi"
+{% endraw %}

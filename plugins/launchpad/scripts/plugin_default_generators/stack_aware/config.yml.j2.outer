@@ -1,0 +1,4 @@
+# .launchpad/config.yml stack-aware overlay
+{% for stack_id in selected_stack_ids %}
+{% include stack_id ~ "/templates/config.j2.fragment" %}
+{% endfor %}

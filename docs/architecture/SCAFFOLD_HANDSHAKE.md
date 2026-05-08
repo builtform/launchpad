@@ -371,9 +371,18 @@ Layer 4 introduced `.harness/observations/security-events.jsonl` as the audit tr
 
 `/lp-pick-stack` writes `.launchpad/scaffold-decision.json`. `/lp-scaffold-stack` reads it.
 
+The v1.1 envelope (v2.1+) is additive on top of the v1.0 envelope (v2.0):
+new fields (`schema_version`, `plugin_version`, `stacks`, `identity`,
+`identity_updated_at`) are added; legacy fields (`version`, `layers`,
+`monorepo`, etc.) are preserved verbatim. v2.0 readers ignore the new
+fields. v2.1+ readers key off `schema_version` per the §10.v2.1
+acceptance ladder. The canonical reader is
+`plugin-config-loader.py:read_scaffold_decision()`.
+
 ```json
 {
-  "version": "0.x-test",
+  // v1.0 envelope — unchanged from v2.0
+  "version": "1.0",
   "layers": [
     {
       "stack": "<id-from-scaffolders.yml>",
@@ -406,9 +415,98 @@ Layer 4 introduced `.harness/observations/security-events.jsonl` as the audit tr
     "st_dev":   <integer device id>,
     "st_ino":   <integer inode number>
   },
+
+  // v1.1 envelope additions (v2.1+) — see §10.v2.1 acceptance rules
+  "schema_version": "1.1",
+  "plugin_version": "2.1.0",
+  "stacks": ["<stack-id>", "..."],
+  "identity": {
+    "pii_opt_in": false,
+    "project_name": "<project-name-or-placeholder>",
+    "email": "<email-or-placeholder>",
+    "copyright_holder": "<copyright-holder-or-placeholder>",
+    "repo_url": "<repo-url-or-placeholder>",
+    "license": "<MIT|Apache-2.0|GPL-3.0|BSD-3-Clause|ISC|MPL-2.0|Other>",
+    "license_other_body": ""  // only populated when license=="Other"
+  },
+  // identity_updated_at present only after /lp-update-identity has run
+  "identity_updated_at": "<ISO 8601 UTC, optional>",
+  // kernel_render_state sealed by lp_scaffold_stack engine after a
+  // successful KernelRenderer.render_all (Phase 10 DA7-flipped). Updated
+  // by /lp-update-identity on each refresh per §3.7.
+  "kernel_render_state": [
+    {
+      "path": "<relpath e.g. LICENSE>",
+      "rendered_content_sha256": "<hex sha256 of the file as written>",
+      "source_template_sha256": "<hex sha256 of the .j2 template source>",
+      "missing_on_disk": false
+    }
+  ],
+  // version_drift_log appended by /lp-update-identity on each successful
+  // identity update (DA8). Absent on the original /lp-pick-stack write.
+  "version_drift_log": [
+    {
+      "from_version": "<plugin_version before this update>",
+      "to_version":   "<plugin_version after this update>",
+      "via":          "/lp-update-identity",
+      "fields_changed": ["<identity field name>"],
+      "accepted_at":  "<ISO 8601 UTC>"
+    }
+  ],
+
   "sha256": "<hex of canonical_hash over all fields above except sha256 itself>"
 }
 ```
+
+**v1.1 envelope field semantics**:
+
+- `schema_version`: indicator field for the §10.v2.1 acceptance ladder.
+  Absent or `"1.0"` reads as legacy 1.0 with UNSET identity sentinels;
+  `"1.1"` reads in full v2.1 mode.
+- `plugin_version`: the running plugin version captured at
+  `/lp-pick-stack`. `/lp-scaffold-stack` and `/lp-bootstrap` abort with
+  a structured error if the running plugin version differs from this
+  recorded value, preventing a `/plugin update` between pipeline steps
+  from invalidating the manifest's hash chain (V3 plan §11.1).
+- `stacks`: flat dedup'd array derived from `layers[].stack` with
+  first-occurrence order preserved. Fast-access summary so consumers do
+  not need to walk `layers` to enumerate stacks.
+- `identity`: sealed at `/lp-pick-stack` time per §10.v2.1 input
+  allowlist regexes; the `pii_opt_in: false` posture writes placeholders
+  for `email`, `copyright_holder`, and `repo_url` (always-placeholder
+  for `repo_url` until the user fills it in via `/lp-update-identity`).
+  License `"Other"` carries a free-form `license_other_body` constrained
+  by §10.v2.1 sanitization rules (max 10KB, printable ASCII, no Jinja
+  delimiters, no HTML tags). The canonical reader
+  (`plugin-config-loader.read_scaffold_decision()`) validates the
+  identity block on read against the §10.v2.1 allowlist regexes
+  (Phase 1+2 retroactive amendment A5), so a hand-edited or tampered
+  envelope is rejected before downstream renderers run.
+- `identity_updated_at`: ISO 8601 UTC timestamp written by
+  `/lp-update-identity` (Phase 10+) on each successful identity update.
+  Absent on the original `/lp-pick-stack` write.
+- `kernel_render_state`: per-file sha256 record of the last successful
+  kernel render. Sealed by `lp_scaffold_stack` engine (greenfield) and
+  re-sealed by `lp_update_identity` engine (refresh) so the renderer's
+  per-file sha is the single source of truth at refresh time
+  (architecture-strategist P2-A; eliminates asymmetric coupling).
+  `KernelRenderer.refresh()` reads this list from the caller, computes
+  on-disk sha for each kernel file, and refuses individual files whose
+  sha drifted from the recorded value (`USER_EDIT_BLOCKS_REFRESH` per
+  §3.7). `missing_on_disk` (boolean, default `false`) is set to `true`
+  when `KernelRenderer.refresh()` finds the file absent from disk;
+  controls the re-render branch in `compute_current_on_disk_state()`.
+  Phase 1+2 retroactive amendment A7 made the seal a caller-side
+  responsibility to remove the renderer's prior dependency on
+  `lp_pick_stack.decision_writer`.
+- `version_drift_log`: append-only audit trail of plugin-version
+  transitions captured by `/lp-update-identity`. Each entry records the
+  `from_version`/`to_version` `plugin_version`, the calling command
+  (`via`), the list of identity field NAMES that changed (NOT the
+  values, per Phase 10 DA8 PII rule), and the `accepted_at` UTC
+  timestamp. Empty/absent on the original `/lp-pick-stack` write;
+  `/lp-update-identity` appends one entry per successful update (no-op
+  fast-path skips the append per adversarial P3).
 
 ### Validation rules (orchestration MUST enforce all of them before any subprocess executes)
 
@@ -814,13 +912,13 @@ def refuse_if_not_greenfield(cwd: Path, command_name: str) -> None:
 | `brownfield` | Write summary `greenfield: false`; suggest `/lp-define`    | **Refuse before asking questions** with structured error pointing at `/lp-define` | Refuse: "cwd is brownfield; pick-stack not applicable" |
 | `ambiguous`  | Prompt user; default to brownfield path on no-answer       | Prompt user (proceed at user's confirmation)                                      | Refuse and ask user to clean cwd                       |
 
-### Brownfield sub-app workflow (no v2.0 escape hatch)
+### Brownfield sub-app workflow
 
-A user wanting to add a sub-app inside an existing brownfield monorepo has no in-pipeline path in v2.0. The "refuse before asking questions" is correct behavior — `/lp-pick-stack`'s contract is "scaffold a fresh project," not "extend an existing one."
+A user wanting to add a sub-app inside an existing brownfield monorepo (e.g., adding `apps/admin` next to an existing `apps/web`) does not use the four-command pipeline. The "refuse before asking questions" behavior of `/lp-pick-stack` is correct — its contract is "scaffold a fresh project," not "extend an existing one."
 
-**Documented workaround for v2.0**: `cd` into a fresh empty subdirectory (outside the monorepo or in a temp dir), run `/lp-pick-stack` there to scaffold the new sub-app, then manually copy the scaffolded layer into the monorepo (verify path, update root manifests, run lefthook to confirm structure-drift is happy).
+**Canonical workflow**: use a live Claude Code session. Have a regular conversation about whether you need a separate sub-app or just a route in the existing app. When you've decided, ask Claude to scaffold the new sub-app, matching existing monorepo conventions read live from the parent (shared `@repo/*` packages, ESLint inheritance, tsconfig path aliases, lefthook config, `pnpm-workspace.yaml`, `turbo.json`). LaunchPad's value-add for this task is the workflow harness around live agentic work (`/lp-review`, `/lp-learn`, `/lp-plan`, `/lp-build`, `/lp-design-review`), not the file-creation step itself — the catalog scaffolder cannot read parent-monorepo conventions, so a live Claude session is structurally better suited to producing output that integrates cleanly.
 
-**Native sub-app workflow** is a v2.1 candidate tracked at `docs/tasks/BACKLOG.md` (BL-106; would introduce `/lp-add-subapp` with explicit user attestation). No `--allow-brownfield` flag is added to v2.0 because that pattern normalizes "edit safety check locally."
+No `--allow-brownfield` flag is added to the four-command pipeline because that pattern normalizes "edit safety check locally."
 
 ## 9. `rationale.md` summary extractor + knowledge-anchor read-and-verify
 
@@ -973,6 +1071,7 @@ Lifecycle:
 - **In-flight test fixtures** (Layer 2 P1-1): any `scaffold-decision.json` / `scaffold-receipt.json` files written during testing with `version: "0.x-test"` are regenerated AND re-signed (SHA-256 envelopes recomputed against `"1.0"`) by `plugin-v2-handshake-lint.py --regenerate-fixtures` (folded into the lint CLI per Layer 3 simplicity P1-F + architecture P2-6 — was a separate `regenerate-fixtures.py` script in Layer 2 spec, consolidated into the existing lint CLI as a `--regenerate-fixtures` flag mode for SRP coherence — read-only verification + write-mutating regeneration both share the §10 bump-list awareness). The script is **2-pass atomic** (Layer 3 spec-flow P1-2): pass 1 (validate) parses every fixture in the manifest, computes target hashes in memory, exits non-zero if any fixture is malformed; pass 2 (atomic write) writes regenerated files via temp-file + atomic-rename. `--dry-run` flag runs pass 1 only.
 - **Working-tree advisory** (Layer 2 P1-1 case 3): pre-merge of the v2.0.0 ship commit, every contributor on `feat/v2-greenfield-pipeline` MUST verify `git status` is clean and `find . -name 'scaffold-*.json'` returns no untracked fixtures. OPERATIONS §3 branch-drift discipline carries this advisory.
 - **Post-ship breaking changes** (v2.1+): bump to `"1.1"` only if forward-compatible with `"1.0"`; bump to `"2.0"` for breaking changes.
+- **v2.1 envelope (additive minor)**: v2.1 keeps the legacy `version` field at `"1.0"` for v2.0-reader compat and adds a NEW `schema_version` field carrying `"1.1"` as the v2.1 reader indicator. Acceptance ladder lives in §10.v2.1 (next sub-section). The §4 schema documents both the v1.0 and v1.1 fields side by side. New v2.1 fields (`schema_version`, `plugin_version`, `stacks`, `identity`, `identity_updated_at`) are all additive; v2.0 readers ignore them. Bootstrap-manifest envelope uses an independent `manifest_schema_version` field (rename closes the cross-envelope name collision) — see §10.v2.1 acceptance rules.
 
 Both `scaffold-decision.json` and `scaffold-receipt.json` carry their own version field independently — they may diverge in future versions, subject to the receipt-version-≥-decision-version constraint (Layer 3 architecture P3-5): receipt cannot be older-versioned than the decision it acknowledges.
 
@@ -989,6 +1088,52 @@ The full forward-compat matrix (consumer-superset rule, producer-floor rule, per
 **Tag immutability** (Layer 3 deployment P1-B + Layer 4 deployment N2 + adversarial P2-RT4-G + Layer 5 adversarial P1-A1 + security-lens P2-S3 hardened): GitHub repo settings MUST enable Tag protection rules matching the **broadened pattern** `v[0-9]+.[0-9]+.[0-9]+(-(yanked|recalled|rc[0-9]+|dryrun))?` (Layer 5 adversarial P1-A1: extended from `v[0-9]+.[0-9]+.[0-9]+` to also cover `-recalled`/`-yanked`/`-rc*`/`-dryrun` suffixes — closes namespace-squatting attack where a hostile contributor pre-creates `vX.Y.Z-recalled` BEFORE the maintainer needs to use that name in §7.0 procedure). Forbids deletion + force-push by anyone except admins. Tag protection rule creation is a **Phase -1 manual step** documented in `docs/runbooks/branch-protection-token.md` (so the rule is in place during the entire 22-34-week dev window, not just at ship). **Phase -1 acceptance gate verifies rule CONTENT, not just existence** (Layer 5 security-lens P2-S3 — closes admin-misclick gap where rule exists but force-push exception is enabled): `gh api repos/:owner/:repo/tags/protection --jq '.[] | select(.pattern == "v[0-9]+.[0-9]+.[0-9]+(-(yanked|recalled|rc[0-9]+|dryrun))?") | {pattern, allow_deletions, ...}'` MUST assert `allow_deletions: false`, no force-push exceptions, admins-only override. Phase 7.5 verification battery asserts the rule exists + content; the nightly `branch-protection-watchdog.yml` workflow extends to also assert tag-protection-rule existence + content daily. On endpoint deprecation: the watchdog probes `repos/:owner/:repo/rulesets` first (current GitHub standard) and falls back to legacy `tags/protection` for backward compat. **Yanked releases get a NEW `-yanked` suffix tag (per OPERATIONS §7); v2.0.0 is never reused against a different SHA. The §7.0 pre-launch tag-deletion exception was REMOVED in Layer 4 — see OPERATIONS §7.0.**
 
 **Tag GPG signing — DEFERRED to v2.1** (Layer 4 simplicity P3 + scope P2-1 + deployment N1 + security-lens P2-S3 + feasibility P2-4 — collectively concluded the GPG signing infrastructure is over-spec for v2.0 single-maintainer + low-fork-PR threat model; tag protection rule alone suffices). Tracked at BACKLOG entry **BL-214**. v2.0 ships without GPG-signed tags; `verify-v2-ship` does NOT run `git verify-tag`. v2.1 reintroduces GPG signing only if external-contributor / fork-PR volume creates a real tag-impersonation threat. Drops: SIGNING.md doc, GPG-key-on-laptop maintainer overhead, `git verify-tag` step in verify-v2-ship (Layer 7 strip-back: v2.0 verify-v2-ship ships 4 checks per §1.5 — tag SHA / plugin.json / `0.x-test` residual / leakage regex; the Layer 5 8-check battery defers to v2.2 per BL-226/BL-227/BL-232; the Layer 4 "7 checks, not 8" phrase referenced an intermediate state and is moot under strip-back), key-rotation runbook, lost-key recovery procedure.
+
+### 10.v2.1 — v2.1 schema acceptance rules + design-time decisions (Phase 0.3 lock)
+
+**Canonical source**: [docs/plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md](../plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md) §11.3 + §11.7 + §17 Phase 0.3 + §22.
+
+**`scaffold-decision.json` schema acceptance rules** (v2.1 reader; canonical at `plugin-config-loader.py:read_scaffold_decision()`):
+
+| `schema_version`    | Behavior                                                                                                                                                                                                                                                                                                                                            |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| absent OR `"1.0"`   | Treat as 1.0; identity defaults to UNSET sentinels; stacks defaults to [detected]; emit WARN. `/lp-update-identity` transparently migrates legacy 1.0 envelopes to 1.1 on first invocation (Phase 1+2 retroactive amendment A3) by seeding `default_unset_identity()` if absent and bumping `schema_version` to `"1.1"` in the same atomic re-seal. |
+| `"1.1"`             | Full read; identity required if present MUST validate against allowlist regex; stacks required (array). Known top-level fields include `kernel_render_state` and `version_drift_log` (Phase 10 + Phase 1+2 amendment A8).                                                                                                                           |
+| `"1.x"` where x > 1 | Forward-compat: read known fields, ignore unknown, emit INFO                                                                                                                                                                                                                                                                                        |
+| Major `>= 2`        | Fail closed: `"scaffold-decision.json schema 2.0+ requires plugin v3+"`                                                                                                                                                                                                                                                                             |
+| Malformed           | Fail closed with clear error                                                                                                                                                                                                                                                                                                                        |
+
+**`bootstrap-manifest.json` schema acceptance rules** (v2.1 reader; canonical at `plugin-config-loader.py:read_bootstrap_manifest()`):
+
+| `manifest_schema_version` | Behavior                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| absent OR `"1.0"`         | Full read; required fields: `plugin_version`, `last_render_timestamp`, `files[]` |
+| `"1.1+"`                  | Read known fields, ignore unknown, emit INFO                                     |
+| Major `>= 2`              | Fail closed                                                                      |
+| Malformed                 | Fail closed with clear error                                                     |
+
+**v2.0 reader behavior on schema 1.1** (Round 3 closure of adversarial P3-8): v2.0 reader does NOT recognize `schema_version: "1.1"`. If a v2.0-era tool encounters a 1.1 envelope, the v2.0 reader's strict-equality `EXPECTED_DECISION_VERSION = frozenset({"1.0"})` check rejects with `version_unsupported`. The user-facing remediation: `"your plugin is too old; update via /plugin update"`.
+
+**License enum starter set** (Phase 0.3 lock; canonical for v2.1 `/lp-pick-stack` identity questions):
+
+```
+MIT, Apache-2.0, GPL-3.0, BSD-3-Clause, ISC, MPL-2.0, Other
+```
+
+Future additions require schema 1.x bump + HANDSHAKE update in same PR (CODEOWNERS gate).
+
+**"Other" license body sanitization** (Phase 0.3 lock): max 10 KB; printable ASCII only; reject Jinja delimiters (`{{`, `{%`, `{#`); reject HTML tags; reject control characters except `\n` + `\t`. Implemented in `/lp-pick-stack` Step 0.3 input validation.
+
+**Identity input allowlist regex** (canonical for v2.1 + Round 2 #16 supply-chain hardening):
+
+- `project_name`: `^[A-Za-z][A-Za-z0-9_.-]{0,63}$` (must start with ASCII letter; the literal strings `.` and `..` are also explicitly rejected at validate_identity as defense-in-depth against path-traversal injection — Phase 1+2 retroactive amendment A2)
+- `email`: RFC5322-lite (no whitespace, no quotes, must contain `@` + valid domain)
+- `copyright_holder`: printable-ASCII; no backticks, quotes, dollar-signs, semicolons, newlines, Jinja delimiters (`{`, `}`), HTML angle brackets (`<`, `>`), or format-string `%`; max 200 chars (regex `^[\x20-\x7E]{1,200}$` plus a forbidden-chars deny list)
+- `repo_url`: `^https?://[\w./%-]{1,512}$`
+
+**Plugin version pin in scaffold-decision 1.1** (Round 3 P1 closure for `/plugin update` mid-pipeline): `/lp-pick-stack` records running plugin version into scaffold-decision.json `plugin_version` field. `/lp-scaffold-stack` and `/lp-bootstrap` ABORT with structured error if running plugin version differs from recorded version (prevents the §10.7 manifest-tampering check from rejecting freshly-sealed manifest because templates changed mid-flow). `/lp-update-identity` updates the field forward to running plugin version on each invocation.
+
+**CODEOWNERS gate operationalization** (canonical at `.github/CODEOWNERS` + `plugin-v2-handshake-lint.py`): PRs that change `scaffold-decision.json` schema OR `bootstrap-manifest.json` schema OR `AdapterManifest` TypedDict definitions FAIL CI lint unless this `SCAFFOLD_HANDSHAKE.md` §10 / §10.v2.1 is also touched in the SAME PR. Single-developer caveat: gate enforces self-discipline at the commit boundary; even when the user is the only reviewer, schema changes + handshake doc updates ride together.
 
 ## 11. Stack catalog (v2.0 — 10 entries)
 
@@ -1103,6 +1248,197 @@ Tests for each module live in `plugins/launchpad/scripts/tests/`. Test discovery
 - Path C state (memory): `~/.claude/projects/.../memory/project_v2_0_path_c_state.md`
 - v2.2 deferred stacks: [`ROADMAP.md` v2.2 section](../../ROADMAP.md#v22)
 
+## 14. Bootstrap manifest contract (v2.1 Phase 3)
+
+`/lp-bootstrap` (v2.1) materializes the 30-path infrastructure overlay
+into a project root and writes `.launchpad/bootstrap-manifest.json` as
+the audit trail that makes idempotency, refresh, and tampering detection
+possible. This section pins the contract that every consumer of the
+manifest, including Phase 4 adapters and Phase 10 `/lp-update-identity`,
+must honor.
+
+### 14.1 Envelope (schema 1.0)
+
+```json
+{
+  "manifest_schema_version": "1.0",
+  "plugin_version": "<semver from plugin.json>",
+  "last_render_timestamp": "<UTC ISO-8601, second precision, Z suffix>",
+  "files": [
+    {
+      "path": "<POSIX-relative-to-project-root>",
+      "source_template_sha256": "<hex>",
+      "rendered_content_sha256": "<hex>",
+      "policy": "overwrite-if-unchanged | merge-keys | append-only",
+      "mode": 420
+    }
+  ],
+  "security_fields": []
+}
+```
+
+Fields:
+
+- `manifest_schema_version` is the v2.1 reader indicator. The Phase 1 canonical reader (`plugin-config-loader.read_bootstrap_manifest`) routes via the 4-rule ladder: missing or `1.0` -> full read, `1.x where x > 0` -> forward-compat with INFO on unknown fields, major >= 2 -> fail-closed.
+- `plugin_version` matches `plugins/launchpad/.claude-plugin/plugin.json` `version` at render time. The engine's plugin-version pin check (Phase 3 §3.4) compares the running plugin's version against this field; mismatches abort with `plugin_version_mismatch` unless `--accept-plugin-version-drift` is passed.
+- `last_render_timestamp` round-trips through git diffs as a human-readable signal of when the manifest was last rebuilt.
+- `files[]` is a stable-sorted list of per-target entries. The path inventory MUST equal `lp_bootstrap.INFRASTRUCTURE_TARGETS`; missing entries trigger `manifest_tampered`.
+- `mode` is stored as an integer (octal-style, e.g. `420` for `0o644`) so JSON round-trips cleanly.
+- `security_fields` is reserved for forward-compat security extensions in v2.2 (e.g., signed-template attestations). The v2.1 reader treats a non-empty `security_fields` as `unsupported_security_extension` abort, pre-empting the v2.2 signature-field downgrade attack at zero v2.1 cost (harden B9).
+
+Adding a new infrastructure file is additive (a new entry in `files[]` plus extending `INFRASTRUCTURE_FILES`); no `manifest_schema_version` bump. Removing or renaming an entry IS a schema change (bumps to 1.1 + canonical reader migration rule per the §10 ladder).
+
+### 14.2 Per-file conflict policies
+
+v2.1 ships three active policies plus one `--refresh`-mode variant. The two policies named in the original V3 contract (`skip-if-exists`, `overwrite-always`) are NOT shipped in v2.1; they defer to Phase 4 if an adapter overlay demands them, else to v2.2.
+
+| Policy                   | Behavior                                                                                                                                                                                                                                                                                          | Used by                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `overwrite-if-unchanged` | Compare on-disk sha to manifest's `rendered_content_sha256`. Match -> write new content. Mismatch -> skip with `kept-user-edits` action message.                                                                                                                                                  | 26 of 30 paths                                                       |
+| `merge-keys`             | YAML / JSON / CODEOWNERS only. Plugin can ADD top-level keys; CANNOT delete user keys. Conflict on duplicate-key value-type -> user wins, structured warning to `bootstrap-warnings.json`. Within an existing user-defined list, plugin appends new items but never deletes user-defined entries. | `lefthook.yml`, `scripts/compound/config.json`, `.github/CODEOWNERS` |
+| `append-only`            | Read existing content; append plugin-required entries that aren't already present. NEVER reorders, deduplicates, or removes user entries. Symlink target rejected fail-closed.                                                                                                                    | `.gitignore`                                                         |
+| `overwrite-with-backup`  | Reserved for `--refresh` and `--refresh-all`. Writes pre-edit content to `.launchpad/backups/<ts>-<PID>-<rand4>/<relpath>` before atomic-write. Backup contents must be byte-equal pre-edit; symlink rejected.                                                                                    | (refresh-only)                                                       |
+
+### 14.3 Tampering check
+
+The engine performs two distinct integrity validations on every run:
+
+- **(a) Plugin-shipped template integrity** (mandatory): compares each manifest entry's `source_template_sha256` against a module-load cached map of plugin-shipped `.j2` shas. Mismatch -> `manifest_tampered` abort with structured remediation pointing at `--accept-plugin-version-drift` or manifest deletion.
+- **(b) On-disk content fidelity** (advisory): recompute the on-disk sha against `rendered_content_sha256`. The manifest's `rendered_content_sha256` is updated at the END of every successful `/lp-bootstrap` run; partial-failure runs do NOT write the manifest, preserving the prior shas for the next attempt (harden B16).
+
+`manifest_corrupt` (malformed JSON / wrong envelope shape) is distinct from `manifest_tampered` (sha mismatch). Both abort the run, but the remediation differs: `manifest_corrupt` is "delete and rebuild"; `manifest_tampered` is "accept plugin-version drift OR delete + rebuild".
+
+### 14.4 Plugin-version pin + `--accept-plugin-version-drift`
+
+`/lp-bootstrap` aborts when the recorded `plugin_version` in `scaffold-decision.json` does not match the running plugin's `plugin.json` version. Override path: `/lp-bootstrap --accept-plugin-version-drift` accepts the drift, records a `(from_version, to_version, accepted_at)` tuple in scaffold-decision's `version_drift_log[]` array, auto-triggers `--refresh-all` so manifest shas align with the new plugin's templates, and preserves the originally sealed `plugin_version` field (overwrite would erase the audit trail).
+
+The original "re-run /lp-pick-stack" remediation is REMOVED; sealed identity precludes that path.
+
+### 14.5 `--refresh` semantics
+
+- `--refresh <path>` accepts ONE OR MORE infrastructure paths from the `lp_bootstrap.INFRASTRUCTURE_TARGETS` set (repeatable flag). Path validation rejects `..`, absolute paths, and off-inventory entries via `path_traversal_rejected` and `unknown_refresh_path` codes.
+- Kernel paths (LICENSE, CONTRIBUTING.md, CODE_OF_CONDUCT.md, README.md, etc.) are NOT accepted; kernel refresh goes through `KernelRenderer.refresh()` directly via `/lp-update-identity` (Day 1 decision D2).
+- `--refresh-all` re-renders every infrastructure path with `overwrite-with-backup`. If no manifest exists, silently degrades to full bootstrap with INFO `no_manifest_to_refresh`.
+- `--refresh-paths` comma-separated form is v2.2 backlog; glob support in `--refresh <path>` is v2.2 backlog.
+
+### 14.6 What the manifest does and does not prove
+
+- PROVES: on-disk files match what was rendered. `rendered_content_sha256` is recomputed at the END of every `/lp-bootstrap` run and compared against pre-write content via the per-file policy applicator.
+- DOES NOT PROVE: the rendering plugin was authentic. v2.1 trusts the plugin-shipped template bytes; v2.2-backlog `gh attestation verify` work would close that surface.
+- DOES NOT PROVE: the templates rendered were the templates the user expected. A `/plugin update` between bootstraps changes the `source_template_sha256` for every entry; the manifest catches this via `manifest_tampered` only when the next bootstrap runs (the user must explicitly accept via `--accept-plugin-version-drift`).
+
+Cross-references: §4 (envelope contract), §10 (atomic writes), Phase 3 implementation plan sections 3.1, 3.2, 3.5, 3.7, 3.8, 6.1, 6.2.
+
 ---
 
-**Status**: This document is the binding contract layer for v2.0 implementation as of 2026-04-30. The companion `SCAFFOLD_OPERATIONS.md` covers the operations layer. Both v2.0 plans reduce to references against these documents. Plan Hardening Notes appendices must not contradict them; if they do, these documents win.
+## 15. v2.1 adapter Protocol + composition pair-table + template cache (Phase 4)
+
+### 15.1 Adapter Protocol contract
+
+Every v2.1 active stack id resolves to an `Adapter` Protocol implementation
+under `plugins/launchpad/scripts/plugin_stack_adapters/<stack>.py`. The
+Protocol is runtime-checkable (via `typing.runtime_checkable`) and coexists
+with the existing `AdapterOutput` TypedDict family from
+`contracts.py`: TypedDicts model adapter _data_ output (consumed by the
+Jinja2 generator); the Protocol models adapter _behavior_ (consumed by the
+v2.1 dispatch helper at `lp_scaffold_stack/v21_adapter_dispatch.py` and by
+the composition wrapper).
+
+```python
+@runtime_checkable
+class Adapter(Protocol):
+    stack_id: StackIdActive
+    upstream: UpstreamTemplate | None
+    manifest_schema_version: str
+    workspace_name: str | None
+    unwrap_strategy: Literal["none", "nested_turborepo"]
+    composes_with: dict[StackIdActive, CompositionRule]
+
+    def scaffold_into(self, tempdir: Path) -> None: ...
+    def apply_overlay(self, tempdir: Path) -> None: ...
+```
+
+Closed-enum `StackIdActive` covers the 5 v2.1 stack ids: `ts_monorepo`,
+`nextjs_standalone`, `nextjs_fastapi`, `astro`, `generic`. Detector
+encounters of v2.2-candidate stack ids (rails, python_django,
+python_generic, nextjs_hono_cloudflare, nextjs_trpc_prisma) route to
+`generic` with the verbatim INFO log per Phase 4 §3.12.
+
+### 15.2 Composition pair-table-from-data
+
+The composition wrapper (`plugin_stack_adapters/composition.py`) computes
+the pair table at runtime from each adapter's `composes_with: dict[...]`
+declaration. Adding a v2.2 adapter only requires adding entries to its own
+`composes_with`; `composition.py` does NOT change. The 10 C(5,2) pairs
+collapse to 6 substantive rows + 4 ts_monorepo+\* rejections + 2
+duplicate-rejection rules outside C(5,2).
+
+| Row                                  | Combined workspaces                            | Notes                               |
+| ------------------------------------ | ---------------------------------------------- | ----------------------------------- |
+| `ts_monorepo + *`                    | REJECT                                         | catch-all collapsing 4 C(5,2) pairs |
+| `nextjs_standalone + astro`          | `app/` + `content/`                            | canonical hot-path #1               |
+| `nextjs_standalone + nextjs_fastapi` | `app-fe/` + `api/` (collision suffix on `app`) | canonical hot-path #2               |
+| `nextjs_standalone + generic`        | `app/` + `extra/`                              |                                     |
+| `nextjs_fastapi + astro`             | `app/` + `api/` + `content/`                   | 3-workspace single composition      |
+| `nextjs_fastapi + generic`           | `app/` + `api/` + `extra/`                     |                                     |
+| `astro + generic`                    | `content/` + `extra/`                          |                                     |
+| `astro + astro`                      | REJECT                                         | duplicate (outside C(5,2))          |
+| `generic + generic`                  | REJECT                                         | duplicate (outside C(5,2))          |
+
+### 15.3 Per-adapter `unwrap_strategy`
+
+Each adapter declares `unwrap_strategy: Literal["none", "nested_turborepo"]`.
+At v2.1 only `nextjs_standalone` declares `nested_turborepo` (next-forge
+IS a Turborepo). The composition wrapper handles the unwrap algorithm:
+
+1. Render root `package.json` + `turbo.json` + `pnpm-workspace.yaml` first.
+2. Adapter `scaffold_into` materializes upstream into a tempdir.
+3. Detect upstream Turborepo via `<tempdir>/turbo.json` AND
+   `<tempdir>/pnpm-workspace.yaml` (dual signal).
+4. Hoist `<tempdir>/apps/*` and `<tempdir>/packages/*` into composition root.
+5. WARN on any unknown top-level directory.
+6. DROP `<tempdir>/{package.json,turbo.json,pnpm-workspace.yaml}`.
+7. Apply `OverlayConfig.replace`/`remove`/`add`.
+8. Atomic `os.replace` of populated `apps/*` workspace dirs into final tree.
+
+### 15.4 Template cache contract
+
+`plugins/launchpad/scripts/template_cache/` is the SHA-pinned upstream tree
+storage. Public API: `fetch(repo_url, sha) -> Path` and
+`verify(repo_url, sha) -> bool`. Adapters call `template_cache.fetch` from
+`scaffold_into`; the production fetcher is a depth-1 git clone via
+`safe_run.safe_run_long`.
+
+10 cache rules govern integrity (see Phase 4 plan §3.7 for the per-rule
+test mapping):
+
+1. SHA-pinned cache key (the SHA already comes pre-resolved from
+   `pin_registry.py`).
+2. Cache-hit verification via `.ready` sentinel + commit-object sha
+   verify (~5ms, <20ms perf budget).
+3. Atomic writes: tempdir then rename; `.ready` sentinel is the durable
+   commit point. No per-file fsync; cold-fill 1k files <3s budget.
+4. Per-entry `fcntl.flock` at `.locks/<slug>-<sha>.lock` (mode 0o600);
+   `MAX_CONCURRENT_FETCHES=3` semaphore.
+5. Validation-before-flock ordering (Phase 3 §3.11.5(c) inheritance).
+6. 500MB LRU + lazy on-fetch eviction.
+7. 90-day TTL re-validation; tag-replay defense in nightly tag-drift
+   detector workflow.
+8. Auto-purge on missing/extra files OR missing `.ready` OR
+   `.compromised` sentinel.
+9. Symlink rejection at root + per-entry.
+10. Filesystem-full cleanup via try/finally on `<sha>.tmp.<uuid>/`.
+
+### 15.5 Pin registry as single source of truth
+
+`plugin_stack_adapters/pin_registry.py` is the CODEOWNERS-protected single
+source of truth for upstream commit SHAs. Per-adapter SHA constants are
+forbidden (`tests/test_no_floating_tag_pins.py` greps for the 40-char hex
+regex and verifies dual-resolution evidence in
+`docs/maintainers/upstream-pin-rotations.md`). Every modification of a
+`sha` value requires a same-commit append-only audit-log entry; the
+rotation-detector lint rule in `plugin-v2-handshake-lint.py` enforces.
+
+---
+
+**Status**: This document is the binding contract layer for v2.0 implementation as of 2026-04-30, extended by §14 for v2.1 Phase 3. The companion `SCAFFOLD_OPERATIONS.md` covers the operations layer. Both v2.0 plans reduce to references against these documents. Plan Hardening Notes appendices must not contradict them; if they do, these documents win.

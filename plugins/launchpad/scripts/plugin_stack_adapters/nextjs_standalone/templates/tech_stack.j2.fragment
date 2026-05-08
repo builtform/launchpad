@@ -1,0 +1,4 @@
+### nextjs_standalone
+
+- Stack: Next.js standalone (next-forge wrap-and-overlay; Auth.js v5)
+- Adapter: `nextjs_standalone`

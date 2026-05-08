@@ -98,35 +98,47 @@ stale marker; not a hard error at v2.0).
 Retain at most 5 most-recent `.first-run-marker.consumed.<ts>` files;
 older ones unlinked under no lock (single-process invocation model).
 
-## Phase 3: Layer materialization
+## Phase 3: v2.1 adapter dispatch
 
-For each layer in `decision.layers`:
+v2.1.0 ships the **v2.1 Adapter Protocol** in production. The engine
+calls `dispatch_by_stack_ids(decision["stacks"], cwd,
+accept_v22_fallback=...)` from
+`lp_scaffold_stack.v21_adapter_dispatch`; the legacy v2.0 per-layer
+`scaffolders.yml`-driven dispatch (`type: "orchestrate"` / `"curate"`)
+and the `layer_materializer` module are **deleted** per the v2.1.0
+completion plan §3.6.
 
-- Look up scaffolder entry by `layer.stack`.
-- For `type: "orchestrate"`: build argv from scaffolder's `command` +
-  `destination_argv` + `headless_flags` + per-layer `options`. Validate
-  every argv element matches `^[A-Za-z0-9@._\-/=:]+$` via
-  `safe_run._validate_argv()`. Run via `safe_run.safe_run()` from the
-  resolved layer path.
-  - **Known v2.0 limitation (BL-239 v2.1)**: when `layer.path == "."`,
-    the scaffolder runs in cwd, which already contains
-    `.launchpad/scaffold-decision.json` + `rationale.md` from
-    `/lp-pick-stack`. Most modern CLIs (`create-next-app`, `rails new`,
-    `npm create astro@latest`) tolerate hidden directories like
-    `.launchpad/` and proceed normally. If your chosen scaffolder
-    refuses on a non-empty directory, run `/lp-scaffold-stack` from a
-    fresh sibling subdirectory and move the `.launchpad/` state across
-    afterward. v2.1 closes this gap with temp-dir-merge semantics.
-- For `type: "curate"` (eleventy, fastapi): load the knowledge-anchor
-  pattern doc via `knowledge_anchor_loader.read_and_verify()` (sha256
-  pinned per scaffolders.yml). Drop a placeholder file (`README.scaffold.md`
-  with the verified bytes) at the layer target — the full curate-mode
-  templating happens in `/lp-define`'s Phase 0.5 adapter.
-- On materialization failure: STOP. Do NOT continue. Materialized files of
-  prior successful layers REMAIN (no auto-cleanup, per Layer 4 partial-
-  cleanup contract).
+Behavior:
 
-Capture per-layer `files_created` (relative paths from cwd).
+- `len(stacks) == 1` → `dispatch_single_adapter(adapter, workspace_dir)`.
+  The adapter handles its own workspace shape (e.g. `nextjs_fastapi`'s
+  `workspace_source_map_single` lifts subtrees to `apps/`).
+- `len(stacks) >= 2` → `dispatch_composition(adapters, composition_root)`.
+  N=2 cap enforced upstream by `composition.validate_pair`.
+- v2.2-candidate stack-ids (`python_django`, `python_generic`,
+  `nextjs_hono_cloudflare`, `nextjs_trpc_prisma`, `rails`) hard-fail
+  by default with `Rejected(reason="v22_candidate_unsupported")`.
+  Pass `accept_v22_fallback=True` (kwarg only — `/lp-scaffold-stack`
+  is invoked from Claude Code's slash-command machinery, no shell CLI
+  flag) to route via the `generic` adapter; the receipt records the
+  fallback in `adapter_dispatch_meta.fallback_ids`.
+
+Cleanup contract on dispatch failure:
+
+- **Composition mode** (`CompositionAbortError`): `composition._rollback`
+  drains `placed_paths` + the `.lp-tmp/` tempdir on its own failure
+  path. No engine-side cleanup needed.
+- **Single-adapter mode** (`ScaffoldStepFailedError`): the adapter's
+  own `scaffold_into` is responsible for tempdir cleanup. The engine
+  logs the path in the recovery record for forensic inspection but
+  does NOT auto-clean (preserves the user's ability to inspect
+  partial state).
+
+`materialized_files` is captured by walking the post-dispatch
+workspace via `lp_scaffold_stack.dispatch_enumeration.enumerate_files`
+— symlink-escape, oversized walks, and out-of-tree paths are filtered
+or rejected, never silently included. Trust boundary: adapter output
+is treated as untrusted.
 
 ## Phase 4: Cross-cutting wiring + secret-scan
 
@@ -148,6 +160,24 @@ Always:
   matches (OpenAI keys, AWS keys, GitHub PATs, PEM blocks): emit
   `scaffold-failed-<ts>.json` with `reason: "secret_scan_failed"`.
 
+## Phase 4.5: Kernel render + scaffold-decision re-seal (Phase 10 v2.1 DA7-flipped)
+
+After Phase 4 cross-cutting wiring lands and BEFORE Phase 5a receipt
+write, the engine writes the `.scaffold-stack-in-progress` sentinel
+(via `lp_scaffold_stack/sentinel.py:write_sentinel`) and invokes
+`KernelRenderer.render_all(cwd, identity)`. The engine then re-seals
+`scaffold-decision.json` with the populated `kernel_render_state` via a
+single `re_seal_decision_atomic` invocation routed through
+`mark_kernel_seeded()` (the single-owner ratchet helper) — see
+`engine.py` `_seal_kernel_render_state` closure. Per the v2.1.0
+completion plan §3.5 single-seal prescription: there is exactly ONE
+`re_seal_decision_atomic` call per pipeline run; the sentinel is
+cleared in the `finally` block AFTER the receipt is written.
+
+Bidirectional cross-detect: `/lp-bootstrap` and `/lp-update-identity`
+refuse on a live scaffold-stack sentinel (per Phase 10 cycle-2 F9 +
+cycle-3 P2-2 lock).
+
 ## Phase 5a: Receipt write
 
 Build the payload per HANDSHAKE §5 schema:
@@ -159,10 +189,14 @@ Build the payload per HANDSHAKE §5 schema:
   "decision_sha256": "<sha256 of input scaffold-decision.json bytes>",
   "decision_nonce": "<UUID4 hex from input>",
   "layers_materialized": [
-      {"stack": ..., "path": ..., "scaffolder_used": "orchestrate" | "curate",
+      {"stack": ..., "path": ..., "role": ...,
+       "adapter_used": "<resolved adapter id>",  # "generic" when v2.2-candidate fallback
        "files_created": [...]},
       ...
   ],
+  # When `accept_v22_fallback=True` and any v2.2-candidate stack-id
+  # routed via the generic adapter, the receipt also carries:
+  "adapter_dispatch_meta": {"fallback_ids": [...]},
   "cross_cutting_files": ["pnpm-workspace.yaml", "turbo.json", "lefthook.yml", ...],
   "toolchains_detected": ["node", "python", ...],
   "secret_scan_passed": True | False,
@@ -295,3 +329,61 @@ succeeds.
   load-bearing for partial-cleanup recovery.
 - The user can re-run after a partial failure once the cause is fixed —
   the unconsumed nonce remains valid for the 4h replay window.
+
+---
+
+## v2.1 Trust-model banner + cold-cache progress (Phase 4 §3.12 verbatim)
+
+When the scaffold step is about to fetch an upstream template,
+`/lp-scaffold-stack` prints the trust-model banner BEFORE any cache fetch
+runs. Banner text matches `/lp-pick-stack` verbatim (substitution glossary
+identical). The banner gives the user a final read on what is about to be
+fetched so they can abort cleanly before any disk activity.
+
+```
+This project will fetch the following pinned upstream templates:
+  - <repo>@<sha-prefix> (license: MIT, attestation: <verified|unsigned>)
+  - <repo>@<sha-prefix> (license: MIT, attestation: <verified|unsigned>)
+  ...
+SHAs are dual-resolved (git ls-remote + GitHub REST). Audit log: docs/maintainers/upstream-pin-rotations.md.
+```
+
+### Cold-cache progress lines
+
+When the template_cache reports a miss, `/lp-scaffold-stack` emits the
+following progress lines (heartbeat cadence is one `.` every 5 seconds via
+carriage-return repaint, single newline at completion):
+
+```
+Fetching <repo>@<sha-prefix> (cold cache, ~30s)…
+```
+
+then 5-second `.` heartbeats appended to the same line, then a newline at
+completion. Subsequent stages emit:
+
+```
+Verifying sha256…
+Rendering overlay…
+```
+
+### Network-bound failure exit codes
+
+- Cache miss + offline: exit 75 (`EX_TEMPFAIL`) with the verbatim message
+  "Cannot fetch upstream <repo>@<sha-prefix> (network unreachable). Connect
+  to network and re-run, or pick a different stack."
+- TMPDIR cross-FS: exit 1 with "TMPDIR is on a different filesystem than
+  your project. Set TMPDIR to a path under <project_root> and re-run."
+- Disk-full during cache write: exit 28 (`ENOSPC`) with "Out of disk space
+  while caching <repo>@<sha-prefix>. Free space and re-run, or set
+  LAUNCHPAD_CACHE_DIR to a different volume."
+- SIGINT received: exit 130 with "Aborted by user; cleaning up partial
+  scaffold..." then "Cleanup complete." after the SIGINT/SIGTERM/SIGKILL
+  ladder finishes per `safe_run.safe_run_long`.
+
+### What the trust banner does and does not prove
+
+The banner proves the SHA was dual-resolved at Slice A0b time AND that the
+audit log records the dual-resolution evidence. It does NOT prove the
+upstream is malware-free; users who require additional supply-chain
+assurance should pin LaunchPad to a known-good version and review
+`docs/maintainers/upstream-pin-rotations.md` before re-running.

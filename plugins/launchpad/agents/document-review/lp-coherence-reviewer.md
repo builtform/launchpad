@@ -1,6 +1,7 @@
 ---
 name: lp-coherence-reviewer
 description: Checks document consistency, flow, and internal agreement across sections of plans and specifications.
+stack_scope: core_pipeline
 tools: Read
 model: inherit
 ---

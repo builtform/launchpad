@@ -4,9 +4,11 @@ name: Release Notes Check
 # docs/releases/v<VERSION>.md file. See docs/maintainers/RELEASE_PROCESS.md
 # for the why and the full release process.
 #
-# This workflow is LaunchPad-internal only — `scripts/setup/init-project.sh`
-# removes it from downstream projects scaffolded via the LaunchPad template,
-# because the per-version release-notes-file convention is a maintainer
+# This workflow is LaunchPad-internal only. v0/v1 init-project.sh used to
+# strip it from downstream projects scaffolded via the LaunchPad template;
+# v2.1 decommissioned that flow (BL-247). Downstream projects scaffolded by
+# the v2.x kernel renderer never receive this workflow, so no strip step is
+# needed. The per-version release-notes-file convention is a maintainer
 # choice, not something we impose on downstream projects whose release
 # practices we cannot predict.
 
@@ -68,3 +70,42 @@ jobs:
           fi
 
           echo "::notice::Release notes file ${NOTES_FILE} exists and is non-empty. ✓"
+
+      - name: v2.1 co-ship invariant (Phase 8 / 8.5 / 9)
+        if: ${{ startsWith(github.ref, 'refs/tags/v2.1.') }}
+        env:
+          TAG_VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Per Phase 8 plan §3.7: tag pushes for v2.1.* must NOT land if the
+          # decommission audit log carries Phase-8 or Phase-8.5 entries that
+          # are not yet announced in CHANGELOG.md (the user-facing surface).
+          # This prevents accidental tagging of a partial decommission state
+          # where the source tree removes the v0/v1 install path but the
+          # release notes / CHANGELOG fail to communicate it to users.
+
+          AUDIT_LOG="docs/maintainers/decommission-history.md"
+          CHANGELOG="CHANGELOG.md"
+
+          if [[ ! -f "${AUDIT_LOG}" ]]; then
+            echo "::error file=${AUDIT_LOG}::Decommission audit log is missing for a v2.1.* tag push."
+            exit 1
+          fi
+          if [[ ! -f "${CHANGELOG}" ]]; then
+            echo "::error file=${CHANGELOG}::CHANGELOG.md is missing for a v2.1.* tag push."
+            exit 1
+          fi
+
+          # Phase-8 + Phase-8.5 entries must be announced under a v2.1.* heading
+          # in CHANGELOG.md. The heading regex matches Keep-a-Changelog convention:
+          # ## [v2.1.0] - YYYY-MM-DD or ## v2.1.0 - YYYY-MM-DD.
+          if grep -qE '^\| [0-9-]+ \| .* \| BL-247 \| 8(\.5)? \|' "${AUDIT_LOG}"; then
+            if ! grep -qE '^## (\[)?v2\.1\.[0-9]+(\])?' "${CHANGELOG}"; then
+              echo "::error file=${CHANGELOG}::Phase-8 or Phase-8.5 audit-log entries exist but no v2.1.* CHANGELOG heading found. Co-ship invariant violated; release notes must announce decommissions before tagging."
+              echo "::error::Audit log: ${AUDIT_LOG}"
+              echo "::error::Add a 'v2.1.*' heading to CHANGELOG.md describing the BL-247 + BL-248 decommissions before pushing the tag."
+              exit 1
+            fi
+          fi
+
+          echo "::notice::v2.1 co-ship invariant satisfied for ${TAG_VERSION}. ✓"

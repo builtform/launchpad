@@ -1,6 +1,7 @@
 ---
 name: lp-learnings-researcher
 description: Searches docs/solutions/ for relevant past solutions by frontmatter metadata. Returns top matches to inform plan hardening and problem resolution.
+stack_scope: core_pipeline
 tools: Read, Grep, Glob, LS
 model: inherit
 ---

@@ -1,6 +1,7 @@
 ---
 name: lp-skill-evaluator
 description: Evaluates generated skills against quality criteria using 3 evaluation passes. Call the skill-evaluator agent when you need to validate a skill's quality before shipping. Produces structured pass/fail reports with specific fix instructions.
+stack_scope: skill_quality
 tools: Read, Grep, Glob, LS
 model: inherit
 ---

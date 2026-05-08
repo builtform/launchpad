@@ -1,6 +1,7 @@
 ---
 name: lp-code-analyzer
 description: Analyzes codebase implementation details. Call the code-analyzer agent when you need to find detailed information about specific components. As always, the more detailed your request prompt, the better! :)
+stack_scope: core_pipeline
 tools: Read, Grep, Glob, LS
 model: inherit
 ---

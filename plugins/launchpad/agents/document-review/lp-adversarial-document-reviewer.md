@@ -1,6 +1,7 @@
 ---
 name: lp-adversarial-document-reviewer
 description: Challenges assumptions, finds logical flaws, and stress-tests claims in plan and specification documents.
+stack_scope: core_pipeline
 tools: Read
 model: inherit
 ---

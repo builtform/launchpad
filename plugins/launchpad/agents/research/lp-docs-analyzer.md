@@ -1,6 +1,7 @@
 ---
 name: lp-docs-analyzer
 description: Analyzes documentation to extract high-value insights — decisions made, approaches rejected, constraints discovered, lessons learned, and promoted patterns. Call the docs-analyzer agent when you need to understand what the project's knowledge base says about a topic. As always, the more detailed your request prompt, the better! :)
+stack_scope: core_pipeline
 tools: Read, Grep, Glob, LS
 model: inherit
 ---

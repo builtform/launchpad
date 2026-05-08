@@ -1,6 +1,7 @@
 ---
 name: lp-testing-reviewer
 description: Reviews code changes to ensure behavioral changes have corresponding test coverage. Flags new branches, state mutations, and API changes with zero test additions.
+stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
 ---

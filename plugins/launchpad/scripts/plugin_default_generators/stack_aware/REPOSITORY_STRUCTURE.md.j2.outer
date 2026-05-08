@@ -1,0 +1,7 @@
+# Repository Structure
+
+## Workspaces
+
+{% for stack_id in selected_stack_ids %}
+{% include stack_id ~ "/templates/repository_structure.j2.fragment" %}
+{% endfor %}

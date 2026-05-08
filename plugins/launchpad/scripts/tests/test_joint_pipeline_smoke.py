@@ -120,8 +120,15 @@ def _simulate_brainstorm(cwd: Path, *, project_description: str) -> dict:
     launchpad = cwd / ".launchpad"
     launchpad.mkdir(parents=True, exist_ok=True)
     summary = launchpad / "brainstorm-summary.md"
+    # Per v2.0.1 BL-244 #3: brainstorm-summary frontmatter must include all
+    # 4 required keys (generated_at, generated_by, greenfield,
+    # cwd_state_when_generated). Pre-fix this test wrote only 2 fields and
+    # the engine silently accepted; post-fix it would refuse with
+    # brainstorm_summary_invalid_frontmatter.
     summary.write_text(
         "---\n"
+        "generated_at: 2026-05-02T12:00:00Z\n"
+        "generated_by: /lp-brainstorm\n"
         "greenfield: true\n"
         "cwd_state_when_generated: empty\n"
         "---\n"

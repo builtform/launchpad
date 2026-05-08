@@ -1,6 +1,6 @@
 # Repository Structure & File Placement
 
-**Last Updated**: 2026-04-07
+**Last Updated**: 2026-05-02
 **Status**: Active
 **Version**: 2.0
 
@@ -16,38 +16,37 @@ The repo root is clean and predictable. Only whitelisted files and directories b
 
 ### Allowed Files at Root
 
-| File                                  | Purpose                                                                  |
-| ------------------------------------- | ------------------------------------------------------------------------ |
-| `README.md`, `README.template.md`     | Project overview (template for downstream)                               |
-| `CLAUDE.md`                           | AI agent operating rules for Claude Code                                 |
-| `AGENTS.md`                           | OpenAI Codex agent configuration                                         |
-| `CONTRIBUTING.md` / `.template.md`    | Contribution guidelines                                                  |
-| `CODE_OF_CONDUCT.md` / `.template.md` | Code of conduct                                                          |
-| `SECURITY.md` / `.template.md`        | Security policy                                                          |
-| `CHANGELOG.md` / `.template.md`       | Changelog                                                                |
-| `ROADMAP.md` / `.template.md`         | Roadmap of upcoming work                                                 |
-| `LICENSE` / `.template`               | MIT license (Thinking Hand Studio LLC)                                   |
-| `package.json`                        | Root workspace config, shared devDependencies                            |
-| `pnpm-workspace.yaml`                 | Workspace globs: `apps/*`, `packages/*`                                  |
-| `pnpm-lock.yaml`                      | Lockfile (auto-generated, never edit)                                    |
-| `turbo.json`                          | Turborepo task pipeline                                                  |
-| `prettier.config.js`                  | Root Prettier config (must be at root)                                   |
-| `lefthook.yml`                        | Git hook config (lint, format, structure)                                |
-| `vitest.config.ts`                    | Root Vitest config with project references                               |
-| `eslint.config.mjs`                   | Root ESLint 9 flat config                                                |
-| `.prettierignore`                     | Prettier exclusions                                                      |
-| `.env.example`                        | Template for `.env.local` — no real secrets                              |
-| `.env.local`                          | Real environment variables (gitignored)                                  |
-| `.env.consultant`                     | Consultant env reference (gitignored, read-only subset credentials only) |
-| `.editorconfig`                       | Cross-editor indent/line-ending baseline                                 |
-| `.nvmrc`                              | Pins Node.js version (22.x)                                              |
-| `.gitignore`                          | Standard ignore rules                                                    |
-| `.gitattributes`                      | Git attribute rules, line endings (optional — created when needed)       |
-| `.worktreeinclude`                    | Claude Code worktree env file declarations (which `.env*` files to copy) |
-| `greptile.json`                       | Greptile AI code-reviewer config (must be at root per Greptile's spec)   |
-| `greptile.template.json`              | Template version of `greptile.json`; init-project.sh swaps in            |
+| File                           | Purpose                                                                       |
+| ------------------------------ | ----------------------------------------------------------------------------- |
+| `README.md`                    | Project overview                                                              |
+| `CLAUDE.md`                    | AI agent operating rules for Claude Code                                      |
+| `AGENTS.md`                    | OpenAI Codex agent configuration                                              |
+| `CONTRIBUTING.md`              | Contribution guidelines                                                       |
+| `CODE_OF_CONDUCT.md`           | Code of conduct                                                               |
+| `SECURITY.md`                  | Security policy                                                               |
+| `CHANGELOG.md`                 | Changelog (user-authored)                                                     |
+| `ROADMAP.md`                   | Roadmap of upcoming work (user-authored)                                      |
+| `LICENSE` / `LICENSE.template` | MIT license (Thinking Hand Studio LLC); `.template` is kernel-renderer source |
+| `package.json`                 | Root workspace config, shared devDependencies                                 |
+| `pnpm-workspace.yaml`          | Workspace globs: `apps/*`, `packages/*`                                       |
+| `pnpm-lock.yaml`               | Lockfile (auto-generated, never edit)                                         |
+| `turbo.json`                   | Turborepo task pipeline                                                       |
+| `prettier.config.js`           | Root Prettier config (must be at root)                                        |
+| `lefthook.yml`                 | Git hook config (lint, format, structure)                                     |
+| `vitest.config.ts`             | Root Vitest config with project references                                    |
+| `eslint.config.mjs`            | Root ESLint 9 flat config                                                     |
+| `.prettierignore`              | Prettier exclusions                                                           |
+| `.env.example`                 | Template for `.env.local` (no real secrets)                                   |
+| `.env.local`                   | Real environment variables (gitignored)                                       |
+| `.env.consultant`              | Consultant env reference (gitignored, read-only subset credentials only)      |
+| `.editorconfig`                | Cross-editor indent/line-ending baseline                                      |
+| `.nvmrc`                       | Pins Node.js version (22.x)                                                   |
+| `.gitignore`                   | Standard ignore rules                                                         |
+| `.gitattributes`               | Git attribute rules, line endings (optional, created when needed)             |
+| `.worktreeinclude`             | Claude Code worktree env file declarations (which `.env*` files to copy)      |
+| `greptile.json`                | Greptile AI code-reviewer config (must be at root per Greptile's spec)        |
 
-Note: Files marked with `.template` or `.template.md` are used by `init-project.sh` to scaffold downstream projects. Agents do not create or modify template files.
+Note: v2.1 (BL-247) decommissioned the `*.template.*` root files. The v2.x kernel renderer at `plugins/launchpad/scripts/plugin_default_generators/kernel_renderer/` ships templated equivalents for `README`, `CONTRIBUTING`, `CODE_OF_CONDUCT`, `SECURITY`, and `LICENSE`. `CHANGELOG.md`, `ROADMAP.md`, and `greptile.json` are now user-authored; no v2.x kernel template ships for them (v2.2 BL). See `docs/maintainers/decommission-history.md`.
 
 ### Allowed Directories at Root
 
@@ -128,7 +127,7 @@ scripts/
 ├── compound/                                # Compound Product pipeline scripts
 ├── hooks/                                   # Claude Code hook scripts (PostToolUse)
 ├── maintenance/                             # Structure checks, repo hygiene
-└── setup/                                   # Project init and upstream sync
+└── setup/                                   # v2.1 (BL-247) signpost stubs only; install via marketplace
 
 docs/                                        # See Decision Tree (Section 6.1) for routing
 ├── architecture/                            # System design, ADRs (decisions/ created when needed), tech stack
@@ -203,6 +202,29 @@ docs/                                        # See Decision Tree (Section 6.1) f
 ├── observations/                            # Deferred observations for backlog (ephemeral)
 ├── screenshots/                             # Browser test / feature-video screenshots (ephemeral)
 └── todos/                                   # Review findings to triage (ephemeral)
+
+plugins/launchpad/                           # The LaunchPad plugin source
+├── .claude-plugin/plugin.json               # Plugin manifest (name, version, marketplace metadata)
+├── commands/                                # /lp-* slash command markdown definitions
+├── agents/                                  # Sub-agents (research/, review/, resolve/, design/, skills/, document-review/)
+├── skills/                                  # Plugin skills (lp-*/SKILL.md + references/ + evals/)
+├── scaffolders/                             # v2.0 per-stack pattern docs with knowledge-anchor `last_validated:` + sha256 pins
+│                                            #   (astro/django/eleventy/expo/fastapi/hono/hugo/next/rails/supabase)
+└── scripts/                                 # Plugin runtime — Python helpers + adapters + tests
+    ├── plugin-*.py / plugin-*.sh            # Top-level plugin entry points (build runner, config hash, doc generator,
+    │                                        #   prereq check, scaffold receipt loader, stack detector, v2 handshake lint, ...)
+    ├── lp_pick_stack/                       # v2.0 pick-stack consumer — 5-question funnel, category match,
+    │                                        #   rationale generation, brainstorm-summary frontmatter validation,
+    │                                        #   sealed scaffold-decision.json write
+    ├── lp_scaffold_stack/                   # v2.0 scaffold-stack consumer — decision validation (12 rules),
+    │                                        #   marker consumption, layer materialization, receipt write,
+    │                                        #   nonce ledger, rejection logger
+    ├── plugin_stack_adapters/               # v2.0 per-stack /lp-define adapters (10 stacks: astro, next,
+    │                                        #   python_django, fastapi, rails, hugo, eleventy, expo, hono,
+    │                                        #   supabase + generic + polyglot composer)
+    ├── _vendor/                             # Vendored Python deps (pinned, no network at runtime)
+    └── tests/                               # pytest suites — adapter coverage, joint pipeline smoke,
+                                             #   handshake invariants, layer materializer, build runner
 ```
 
 ---
@@ -328,7 +350,7 @@ Walk through in order. Stop at the first match.
 - AI agent hydration → `scripts/agent_hydration/`
 - Claude Code hook → `scripts/hooks/`
 - Compound Product pipeline → `scripts/compound/`
-- Project init or upstream sync → `scripts/setup/`
+- Project init or upstream sync → `scripts/setup/` is v2.1-decommissioned (signpost stubs only); install via marketplace + `/lp-brainstorm`-pipeline (BL-247)
 - Frontend-specific → `apps/web/scripts/`
 - Backend-specific → `apps/api/scripts/`
 - **Never put scripts at the repo root.**
@@ -407,6 +429,21 @@ Create `packages/<name>/` with `package.json` (`@repo/<name>`), `tsconfig.json`,
 - Skill evals → `plugins/launchpad/skills/<skill-name>/evals/`
 - Prompt template → `.claude/Prompts/` (project-local, not plugin content)
 - Profile → `.claude/profiles/` (project-local, not plugin content)
+
+### 6.14 v2.0 pipeline modules (plugin-internal Python)
+
+The v2.0 greenfield pipeline (`/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`) is implemented as Python modules under `plugins/launchpad/scripts/`. New runtime code for the pipeline goes here, not at root, not in `apps/`, not in `packages/`.
+
+- Pick-stack consumer logic (5-question funnel, category match, rationale rendering, brainstorm-summary validation, sealed `scaffold-decision.json` write) → `plugins/launchpad/scripts/lp_pick_stack/`
+- Scaffold-stack consumer logic (decision validation, marker consumption, layer materialization, receipt write, nonce ledger, rejection logger) → `plugins/launchpad/scripts/lp_scaffold_stack/`
+- Per-stack `/lp-define` adapter (one of: `astro`, `next`, `python_django`, `fastapi`, `rails`, `hugo`, `eleventy`, `expo`, `hono`, `supabase`) → `plugins/launchpad/scripts/plugin_stack_adapters/<stack>_adapter.py` (or `<stack>.py` for the generic/polyglot composers)
+- Pipeline-wide primitives shared across consumers (`cwd_state.py`, `path_validator.py`, `safe_run.py`, `decision_integrity.py`, `pid_identity.py`, `telemetry_writer.py`, `knowledge_anchor_loader.py`) → `plugins/launchpad/scripts/` top level
+- Per-stack pattern doc with `last_validated:` knowledge anchor and sha256 pins → `plugins/launchpad/scaffolders/<stack>-pattern.md`
+- Pytest suite for any of the above → `plugins/launchpad/scripts/tests/test_<area>.py`
+
+**Bind-via-receipt rule.** Cross-cutting wiring between layers happens through `scaffold-receipt.json` and the bound_cwd triple, NOT through inter-module imports across the consumer boundary. `lp_pick_stack/` writes the sealed decision; `lp_scaffold_stack/` reads it via `plugin-scaffold-receipt-loader.py`. Adding a direct import from `lp_scaffold_stack` into `lp_pick_stack` (or vice-versa) breaks the chain-of-custody invariant — route through the receipt instead.
+
+**Vendoring boundary.** Python dependencies for plugin runtime live under `plugins/launchpad/scripts/_vendor/` (pinned, no network at install time). `plugin_stack_adapters/_vendor/` is permitted for adapter-specific vendored deps. Never `pip install` at runtime.
 
 ### If none match:
 

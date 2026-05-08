@@ -63,7 +63,7 @@ LaunchPad already uses three dot-directories for different runtime concerns:
 
 Putting MemPalace's storage at the same level keeps a clean mental model: each tool owns one dot-directory, all of them are gitignored, all of them can be reset independently.
 
-Newly initialized LaunchPad projects (via `init-project.sh`) include `.mempalace/` in the gitignore template by default, so users who choose to install MemPalace later have one less step.
+Pin to v2.0.x to use the legacy `init-project.sh` flow that auto-seeded `.mempalace/` into the project `.gitignore`. v2.x kernel-renderer scaffolds do not auto-seed it; if you adopt MemPalace later, append `.mempalace/` to `.gitignore` manually (one-line). The Phase 9 release-notes migration tip documents the parity gap.
 
 ### What to point `mempalace mine` at
 

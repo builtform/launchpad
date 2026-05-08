@@ -1,0 +1,5 @@
+# Backend Structure
+
+{% for stack_id in selected_stack_ids %}
+{% include stack_id ~ "/templates/backend_structure.j2.fragment" %}
+{% endfor %}

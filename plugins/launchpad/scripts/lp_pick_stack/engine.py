@@ -38,9 +38,15 @@ if str(_SCRIPTS) not in sys.path:
 from cwd_state import refuse_if_not_greenfield  # noqa: E402
 from telemetry_writer import write_telemetry_entry  # noqa: E402
 
+from lp_pick_stack.brainstorm_summary_validator import (  # noqa: E402
+    BrainstormSummaryError,
+    validate_brainstorm_summary,
+)
 from lp_pick_stack.decision_writer import (  # noqa: E402
     DecisionWriteError,
     EMPTY_FILE_SHA256,
+    IdentityValidationError,
+    validate_identity,
     write_decision_file,
     write_rationale_atomic,
 )
@@ -153,6 +159,7 @@ def run_pipeline(
     skip_greenfield_gate: bool = False,
     write_telemetry: bool = True,
     monorepo: bool | None = None,
+    identity: Mapping[str, Any] | None = None,
 ) -> PipelineResult:
     """Execute the 6-step pick-stack pipeline.
 
@@ -183,11 +190,40 @@ def run_pipeline(
       unit tests that exercise the engine on non-greenfield tmp dirs).
     - `write_telemetry`: emit the OPERATIONS §5 v2-pipeline-*.jsonl entry.
     - `monorepo`: override the monorepo bool (defaults to len(layers) > 1).
+    - `identity`: v2.1 envelope identity block (V3 plan §11.1). When None
+      the engine writes the default PII-opt-out placeholders per
+      `decision_writer.default_unset_identity()`. When supplied, it is
+      validated against the V3 plan §10.v2.1 allowlist regexes BEFORE any
+      Step-5/6 work runs; an invalid identity returns
+      PipelineResult(reason="identity_validation_failed").
     """
     start = time.monotonic()
     cwd = Path(cwd)
 
-    # --- Step 0: greenfield gate ---
+    # --- Identity pre-validation (early failure before any I/O) ---
+    if identity is not None:
+        try:
+            validate_identity(identity)
+        except IdentityValidationError as exc:
+            elapsed = time.monotonic() - start
+            return PipelineResult(
+                success=False,
+                outcome=Outcome.ABORTED,
+                reason="identity_validation_failed",
+                message=f"identity.{exc.field}: {exc}",
+                elapsed_seconds=elapsed,
+            )
+
+    # --- Step 0: greenfield gate + brainstorm-summary frontmatter validation ---
+    # Per v2.0.1 BL-244 #3 closure (PR #41 cycle-12 #3): the lp-pick-stack.md
+    # spec requires both the cwd greenfield check AND brainstorm-summary.md
+    # frontmatter validation. The pre-fix engine only ran the cwd check, so a
+    # stale or malformed brainstorm-summary was silently ignored.
+    #
+    # The two checks are independent: skip_greenfield_gate is a test hook
+    # for cwd_state bypass (used by unit tests on non-greenfield tmp dirs),
+    # but it must NOT bypass the brainstorm-summary validation since that
+    # check is about the user-supplied summary's shape, not the cwd's state.
     if not skip_greenfield_gate:
         try:
             refuse_if_not_greenfield(cwd, COMMAND_NAME)
@@ -203,6 +239,21 @@ def run_pipeline(
             if write_telemetry:
                 _emit_telemetry(cwd, result, cwd_state_value=None)
             return result
+
+    try:
+        validate_brainstorm_summary(cwd)
+    except BrainstormSummaryError as exc:
+        elapsed = time.monotonic() - start
+        result = PipelineResult(
+            success=False,
+            outcome=Outcome.ABORTED,
+            reason=exc.reason,
+            message=str(exc),
+            elapsed_seconds=elapsed,
+        )
+        if write_telemetry:
+            _emit_telemetry(cwd, result, cwd_state_value=None)
+        return result
 
     # --- Step 2: validate answers (defensive re-validation) ---
     try:
@@ -247,6 +298,7 @@ def run_pipeline(
             monorepo=monorepo,
             start=start,
             write_telemetry=write_telemetry,
+            identity=identity,
         )
 
     catalog = _load_category_patterns(category_patterns_path)
@@ -337,6 +389,7 @@ def run_pipeline(
         monorepo=monorepo,
         start=start,
         write_telemetry=write_telemetry,
+        identity=identity,
     )
 
 
@@ -353,6 +406,7 @@ def _run_manual_override_branch(
     monorepo: bool | None,
     start: float,
     write_telemetry: bool,
+    identity: Mapping[str, Any] | None = None,
 ) -> PipelineResult:
     """Execute Step 4 + Step 5 + Step 6 for the manual-override branch."""
     try:
@@ -395,6 +449,7 @@ def _run_manual_override_branch(
         monorepo=monorepo,
         start=start,
         write_telemetry=write_telemetry,
+        identity=identity,
     )
 
 
@@ -414,6 +469,7 @@ def _finalize_decision(
     monorepo: bool | None,
     start: float,
     write_telemetry: bool,
+    identity: Mapping[str, Any] | None = None,
 ) -> PipelineResult:
     """Run Step 5 (rationale + extract_summary) + Step 6 (integrity envelope
     + atomic write).
@@ -443,11 +499,21 @@ def _finalize_decision(
             rationale_path, rationale_sha256 = write_rationale_atomic(rendered, cwd)
         except DecisionWriteError as exc:
             elapsed = time.monotonic() - start
+            # Phase 10 §3.13 discoverability item 1: when scaffold-decision
+            # already exists, the user's intent is almost certainly to
+            # update identity in-place; surface /lp-update-identity in
+            # the refusal message.
+            message = str(exc)
+            if exc.reason == "scaffold_decision_already_exists":
+                message = (
+                    f"{message}; identity already sealed -- use "
+                    f"/lp-update-identity to update individual fields"
+                )
             result = PipelineResult(
                 success=False,
                 outcome=Outcome.ABORTED,
                 reason=exc.reason,
-                message=str(exc),
+                message=message,
                 elapsed_seconds=elapsed,
             )
             if write_telemetry:
@@ -478,6 +544,7 @@ def _finalize_decision(
             rationale_sha256=rationale_sha256,
             cwd=cwd,
             monorepo=monorepo,
+            identity=identity,
         )
     except DecisionWriteError as exc:
         elapsed = time.monotonic() - start

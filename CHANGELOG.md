@@ -6,7 +6,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Tracked in [ROADMAP.md](ROADMAP.md). v2.1 is documentation-only (METHODOLOGY/HOW_IT_WORKS refresh); v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks.
+Tracked in [ROADMAP.md](ROADMAP.md). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` (BL-251 through BL-254) for v2.2-deferred items captured during v2.1 ship.
+
+## [2.1.0]
+
+`/lp-scaffold-stack` now actually scaffolds via specialized v2.1 adapters — the v2.1 Adapter Protocol's `dispatch_by_stack_ids` is wired in production for the 5 active stacks (`ts_monorepo`, `nextjs_standalone`, `nextjs_fastapi`, `astro`, `generic`). The 5 v2.2-candidate stacks (`python_django`, `python_generic`, `nextjs_hono_cloudflare`, `nextjs_trpc_prisma`, `rails`) require explicit opt-in via `--accept-v22-fallback`; v2.2 ships dedicated support. Schema 1.0 decisions are now hard-rejected at validate time — v2.0 reached zero in-the-wild adoption before v2.1 ship; the rejection message names the regeneration recipe verbatim.
+
+Full release notes in [docs/releases/v2.1.0.md](docs/releases/v2.1.0.md).
+
+### Added (v2.1.0 ship)
+
+- `dispatch_by_stack_ids` wired in `/lp-scaffold-stack`'s production pipeline; legacy `materialize_layer` orchestrate/curate path deleted (`layer_materializer.py` removed)
+- `--accept-v22-fallback` kwarg surface on `run_pipeline` for v2.2-candidate stack-ids; receipt records `adapter_dispatch_meta.fallback_ids` when used
+- `dispatch_enumeration.py` module: post-dispatch workspace walker with symlink rejection, cwd-containment check, `.git*` + credential-dotdir exclusion, 50k-file cap
+- Receipt schema gains `LayerReceiptEntry` TypedDict (replaces deleted `MaterializationResult` dataclass) + `adapter_dispatch_meta` allowlisted sibling
+- Decision schema_1.1 envelope gains `_META_KEY_REGEX` + `_ALLOWED_DECISION_META_KEYS` allowlist; new `*_meta` keys require schema_version bump
+
+### Bug fixes (v2.1.0 ship)
+
+- `atomic_io._write_all` POSIX short-write loop at all 3 atomic-write call sites (was `os.write` once; could silently truncate)
+- Case E "y" all-files-missing schema corruption fix: signal moves from `_meta` smuggled into `kernel_render_state` (corrupted per-file uniform shape) to a top-level `kernel_render_state_meta` sibling
+- Workflow SHA-pinning at all 8 sites (root + `.j2` templates) with new lefthook grep gate enforcing the pin
+- Downstream `.j2` workflows gain `permissions: { contents: read }` and `persist-credentials: false` on `actions/checkout`
+- `--seed-brownfield` reframed as `--dry-run`-only at v2.1.0; non-dry-run create path lands at v2.1.1 BL-271
+- `lp-scaffold-stack.md` doc drift reconciled to the new v2.1 dispatch surface
+
+### Added
+
+- Sealed identity contract: 7-field identity block (`pii_opt_in`, `project_name`, `email`, `copyright_holder`, `repo_url`, `license`, `license_other_body`) sealed under `schema_version: "1.1"` envelope at `/lp-pick-stack` time
+- `/lp-bootstrap` command: bootstraps the harness configuration from plugin-bundled defaults with sentinel-protected execution
+- `/lp-update-identity` command: edits sealed identity values atomically with byte-identical preservation of `generated_at` across re-seal; 5-case re-entry detection (A through E) with transparent legacy v1.0 envelope migration
+- Composition wrapper at `plugin_stack_adapters/composition.py`: pair-table-from-data resolution at runtime, per-stack tempdir isolation, N=2 cap on multi-stack scaffolds
+- 7 stack-agnostic kernel templates (LICENSE, CONTRIBUTING.md, CODE_OF_CONDUCT.md, README.md, SECURITY.md, AGENTS.md, CLAUDE.md) with full canonical license bodies for MIT, Apache-2.0, GPL-3.0, BSD-3-Clause, ISC, MPL-2.0
+- Stack-aware review dispatch: 36 review agents gain `stack_scope` frontmatter (16 `core_pipeline`, 13 `stack:any`, 6 `design_quality`, 1 `skill_quality`); `/lp-review` and `/lp-harden-plan` filter agents per detected stack
+- `StackIdV22Candidate` forward-compat enum: 5 v2.2-candidate stack ids (`python_django`, `python_generic`, `nextjs_hono_cloudflare`, `nextjs_trpc_prisma`, `rails`) routed to `generic` with verbatim INFO log
+- `lp_define_runner.py` render-batch flow: `render_batch` + `scan_batch` + `write_batch` gates every kernel and adapter render through a full-batch secret scanner; any finding refuses the entire batch atomically
+- `secret_allowlist.py` with three suppression mechanisms (Jinja-comment, file-path-glob, regex) plus `BUNDLED_DEFAULT_PATTERNS` fallback when `.launchpad/secret-patterns.txt` is absent
+- `docs/guides/SECRET_SCANNER_TUNING.md`: tuning guide for the secret-scanner gate
+
+### Changed
+
+- v2.0 scaffold artifacts auto-migrate to `schema_version: "1.1"` on first contact with the v2.1 plugin via in-memory-first transparent migration
+- Bidirectional sentinel cross-detect across `/lp-bootstrap`, `/lp-update-identity`, `/lp-scaffold-stack` so two concurrent operations cannot corrupt each other's state
+- ALLOWLIST-based handshake-lint over `atomic_write_replace` callers via AST + import-binding resolution; alias-rename bypasses caught at lint time
+- CODEOWNERS extended with 8 v2.1 schema-source entries; modifications to schema constants require same-commit append-only audit-log entries
+
+### Deferred
+
+- v2.2: composition wrapper test stress harness (3 tests under `test_composition_wrapper.py` family); template cache concurrency hardening; brainstorm Python runner extraction; `pip-audit` and `osv-scanner` promotion from advisory to required gates; 4 manifest tampering scenarios (NullByteInjection, UnicodeNormalizationAttack, ZIP-bomb, ConcurrentModification); GPG-signed tags
+- See `docs/tasks/BACKLOG.md` BL-251 through BL-254
 
 ## [2.0.0] — 2026-05-01
 
@@ -131,7 +179,8 @@ Carried forward into v1.1:
 
 Full v1.1 scope in [ROADMAP.md](ROADMAP.md).
 
-[Unreleased]: https://github.com/builtform/launchpad/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/builtform/launchpad/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/builtform/launchpad/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/builtform/launchpad/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/builtform/launchpad/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/builtform/launchpad/compare/v1.0.0...v1.0.1

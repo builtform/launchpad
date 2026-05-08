@@ -1,4 +1,4 @@
-"""Secret scanner — post-render pass across every canonical doc before write.
+"""Secret scanner -- post-render pass across every canonical doc before write.
 
 Complements manifest_stripper.py: stripping removes known-secret-bearing
 FIELDS at parse time; scanning catches remaining PATTERNS in the rendered
@@ -6,16 +6,25 @@ output (e.g. a user-written README excerpt that happens to contain an AWS
 key).
 
 Patterns come from `.launchpad/secret-patterns.txt` (one regex per line,
-blank lines and lines starting with `#` ignored). If that file doesn't
-exist, a conservative built-in set fires.
+blank lines and lines starting with `#` ignored). When that file is absent,
+the plugin-shipped `BUNDLED_DEFAULT_PATTERNS` constant is the fallback so
+the gate never silently degrades to "no patterns to apply" on a fresh
+greenfield first render (Phase 8.5 plan section 3.10 DA5 lock).
+
+Compiled patterns are cached at module level (Phase 8.5 plan section 3.8
+DA3 lock): `_load_patterns_cached(file, mtime_ns)` re-compiles only when
+the patterns file's mtime changes. Cumulative gate cost on a 30-file
+scaffold stays under 300ms (asserted by
+test_phase8_5_decommission.test_write_batch_perf_under_300ms_30file_scaffold).
 
 Behavior:
-  - Return list of matches (pattern, line number, matched text preview)
+  - Return list of matches (pattern, line number, redacted preview)
   - Empty list = safe to write
   - Non-empty list = caller decides: refuse, warn-and-prompt, or allow with confirmation
 """
 from __future__ import annotations
 
+import functools
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,7 +32,13 @@ from pathlib import Path
 
 # Conservative built-in patterns. Lower risk of false negatives than a
 # completely empty default. Projects can still override via secret-patterns.txt.
-_BUILTIN_PATTERNS = [
+#
+# Phase 8.5 plan section 3.10: this constant is the fallback the
+# render_batch gate uses when `.launchpad/secret-patterns.txt` is absent
+# (e.g., fresh greenfield first render before infrastructure overlay
+# materializes the user-tunable file). CODEOWNERS-protected so a malicious
+# PR cannot silently empty it.
+_BUILTIN_PATTERNS = (
     # Generic env-var form with obvious secret key
     r"(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*[\"']?[A-Za-z0-9_\-+/=]{16,}[\"']?",
     # AWS access keys
@@ -42,49 +57,94 @@ _BUILTIN_PATTERNS = [
     r"xox[pbosa]-[A-Za-z0-9\-]{10,}",
     # DB connection strings with embedded credentials
     r"(postgres|mysql|mongodb)://[^/\s:@]+:[^/\s@]+@",
-]
+)
+
+BUNDLED_DEFAULT_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
+    re.compile(p) for p in _BUILTIN_PATTERNS
+)
+
+
+class SecretScannerNotConfiguredError(RuntimeError):
+    """Raised when both `.launchpad/secret-patterns.txt` is absent AND
+    `BUNDLED_DEFAULT_PATTERNS` is empty. Phase 8.5 plan section 3.10
+    fail-closed contract: gate refuses to run rather than silently
+    degrading to "no patterns to apply"."""
 
 
 @dataclass
 class SecretMatch:
     pattern: str
     line_no: int
-    preview: str  # first 80 chars of the matched line (NOT the match itself — avoids logging the secret)
+    preview: str  # first 80 chars of the matched line, with the match itself replaced by <REDACTED>
 
 
-def load_patterns(patterns_file: Path | None = None) -> list[re.Pattern]:
-    """Load secret patterns from `.launchpad/secret-patterns.txt` or fall back
-    to built-ins if the file doesn't exist.
+@functools.lru_cache(maxsize=8)
+def _load_patterns_cached(
+    patterns_file: Path | None,
+    mtime_ns: int,
+) -> tuple[re.Pattern[str], ...]:
+    """Compile patterns once per (file, mtime). Cache invalidates on file
+    mtime change so a user edit to `.launchpad/secret-patterns.txt` takes
+    effect on the next render-batch invocation without process restart.
     """
-    raw_patterns: list[str] = []
-    if patterns_file and patterns_file.is_file():
-        for line in patterns_file.read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
+    if patterns_file is None or not patterns_file.is_file():
+        compiled = BUNDLED_DEFAULT_PATTERNS
+    else:
+        text = patterns_file.read_text(encoding="utf-8")
+        user_compiled: list[re.Pattern[str]] = []
+        for raw in text.splitlines():
+            stripped = raw.strip()
             if not stripped or stripped.startswith("#"):
                 continue
-            raw_patterns.append(stripped)
-    else:
-        raw_patterns = _BUILTIN_PATTERNS
+            try:
+                user_compiled.append(re.compile(stripped))
+            except re.error:
+                # Skip malformed user patterns rather than fail the whole
+                # scan; secret-patterns.txt is user-editable.
+                continue
+        compiled = BUNDLED_DEFAULT_PATTERNS + tuple(user_compiled)
 
-    compiled: list[re.Pattern] = []
-    for p in raw_patterns:
-        try:
-            compiled.append(re.compile(p))
-        except re.error:
-            # Skip malformed patterns rather than fail the whole scan —
-            # secret-patterns.txt is user-editable and a bad regex shouldn't
-            # break /lp-define.
-            continue
+    if not compiled:
+        raise SecretScannerNotConfiguredError(
+            "secret scanner has no patterns to apply "
+            "(.launchpad/secret-patterns.txt absent AND "
+            "BUNDLED_DEFAULT_PATTERNS empty). "
+            "Re-install plugin: claude /plugin install launchpad."
+        )
     return compiled
 
 
-def scan(content: str, patterns: list[re.Pattern] | None = None, patterns_file: Path | None = None) -> list[SecretMatch]:
+def load_patterns(
+    patterns_file: Path | None = None,
+) -> list[re.Pattern[str]]:
+    """Load secret patterns. Returns the bundled defaults when
+    `patterns_file` is absent or None.
+
+    The returned list is cache-backed; identical invocations across the
+    process lifetime return the same compiled-pattern objects without
+    re-compiling. Cache key includes the patterns file's mtime so a user
+    edit invalidates the cache automatically.
+    """
+    if patterns_file is None or not patterns_file.is_file():
+        return list(_load_patterns_cached(None, 0))
+    mtime_ns = patterns_file.stat().st_mtime_ns
+    return list(_load_patterns_cached(patterns_file, mtime_ns))
+
+
+def scan(
+    content: str,
+    patterns: list[re.Pattern[str]] | None = None,
+    patterns_file: Path | None = None,
+    source: str | None = None,
+) -> list[SecretMatch]:
     """Scan rendered content for secret patterns. Returns list of matches;
     empty list means clean.
 
     Accepts either a pre-compiled pattern list or a patterns file; if both
-    provided, the pre-compiled list wins.
+    provided, the pre-compiled list wins. `source` is an optional path
+    label used by callers for finding-grouping.
     """
+    del source  # accepted for caller-friendly signatures; not used in match shape
     if patterns is None:
         patterns = load_patterns(patterns_file)
 
@@ -113,3 +173,13 @@ def format_matches(matches: list[SecretMatch]) -> str:
     for m in matches:
         lines.append(f"  line {m.line_no}: {m.preview!r} (matched pattern /{m.pattern[:40]}.../)")
     return "\n".join(lines)
+
+
+__all__ = [
+    "BUNDLED_DEFAULT_PATTERNS",
+    "SecretMatch",
+    "SecretScannerNotConfiguredError",
+    "format_matches",
+    "load_patterns",
+    "scan",
+]

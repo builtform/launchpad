@@ -1,6 +1,7 @@
 ---
 name: lp-spec-flow-analyzer
 description: Analyzes specifications and feature descriptions for user flow completeness, gap identification, and requirements validation.
+stack_scope: stack:any
 tools: Read
 model: inherit
 ---

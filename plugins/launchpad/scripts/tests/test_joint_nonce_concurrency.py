@@ -51,7 +51,13 @@ def _make_tempdir() -> Path:
 
 def _setup_iteration(cwd: Path) -> Path:
     """Write decision + rationale + marker + stub scaffolders.yml. Returns
-    the stub scaffolders.yml path."""
+    the stub scaffolders.yml path.
+
+    v2.1.0 completion plan §3.3 note: the autouse
+    `hermetic_v21_adapters` conftest fixture pre-populates the template
+    cache for every adapter at its pinned SHA, so spawned subprocesses
+    of /lp-scaffold-stack hit the cache and don't reach the network.
+    """
     spec = STACK_COMBOS["A"]
     decision = build_decision(
         spec["stack_combo"], cwd,
@@ -153,7 +159,10 @@ def test_concurrent_scaffold_exactly_one_wins(iteration):
         failed_reasons = _read_failed_reasons(cwd)
         all_reasons = rejection_reasons + failed_reasons
         loser_err = losses[0][1]
-        # The Phase 3 pipeline serializes via several nested ordering points:
+        # The pipeline serializes via several nested ordering points:
+        #   Sentinel — `scaffold_stack_in_progress` if the winner already
+        #              acquired the sentinel (earliest gate after v2.1.0
+        #              cycle 5 F1 fix).
         #   Step 1   — validator catches `nonce_seen` if the winner already
         #              committed the nonce ledger entry.
         #   Step 3   — `layer_materialization_failed` if the winner already
@@ -171,6 +180,7 @@ def test_concurrent_scaffold_exactly_one_wins(iteration):
             "layer_materialization_failed",
             "scaffold_receipt_already_exists",
             "cross_cutting_wiring_collision",
+            "scaffold_stack_in_progress",
         }
         loser_marker_in_stderr = any(m in loser_err for m in race_markers)
         loser_marker_in_log = bool(set(all_reasons) & race_markers)

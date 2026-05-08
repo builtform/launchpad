@@ -1,3 +1,19 @@
+pre-push:
+  commands:
+    # Slip-prevention gate added 2026-05-07. Catches BLs labeled for the
+    # current `plugin.json` version that lack a `**Status**:` close
+    # marker AND aren't referenced in the matching CHANGELOG block.
+    # Skips silently when CHANGELOG has no `## [<version>]` block yet
+    # (pre-tag development). See BL-236 slip rationale in BACKLOG.md.
+    backlog-orphan-check:
+      run: |
+        version=$(python3 -c "import json; print(json.load(open('plugins/launchpad/.claude-plugin/plugin.json'))['version'])")
+        if grep -q "^## \[$version\]" CHANGELOG.md 2>/dev/null; then
+          python3 plugins/launchpad/scripts/plugin-backlog-orphan-check.py --release "$version"
+        else
+          echo "backlog-orphan-check: skipped (no [$version] block in CHANGELOG.md yet)"
+        fi
+
 commit-msg:
   commands:
     # Per OPERATIONS §0 strip-back-aware Layer 9 P3-2 closure: the commit-msg
@@ -32,6 +48,17 @@ pre-commit:
 
     structure-check:
       run: bash scripts/maintenance/check-repo-structure.sh
+      priority: 10
+
+    # v2.1.0 completion plan §4.4: GitHub Actions tag-pin -> SHA-pin gate.
+    # Tag-pinning is mutable; an attacker who compromises an action repo
+    # can move the tag to a malicious commit (precedent: tj-actions/
+    # changed-files 2025). The 40-char SHA + decorative tag comment
+    # pattern is the repo convention (`actions/checkout@<sha> # v6.0.2`).
+    # The gate scans both LaunchPad's own workflows and the .j2 workflow
+    # templates emitted by /lp-bootstrap.
+    workflow-action-sha-pin:
+      run: python3 plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py
       priority: 10
 
     large-file-guard:

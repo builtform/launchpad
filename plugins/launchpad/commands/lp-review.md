@@ -53,7 +53,38 @@ git diff --name-only origin/main...HEAD
 
 ## Step 3: Dispatch Review Agents (parallel, all model: inherit)
 
-For each agent in `review_agents`:
+**Pre-filter (v2.1 Phase 6 §3.3 + DA3)**: before dispatch, narrow
+`review_agents` through `plugin_agent_scope_filter.filter_agents_by_stacks(
+review_agents, stacks)` where `stacks = plugin_config_loader.read_stacks(cwd)`.
+The filter drops agents whose `stack_scope` does not match any of the
+project's persisted stacks. Step 4 (DB-only conditional), Step 4.5
+(design conditional) are NOT filtered. `/lp-review` has no Step 3.5.
+
+**Pass-through fallback** (cycle-4 spec-flow P2-B): if the filter raises
+ANY exception, catch broadly, log INFO with the exception type, and emit
+the FALLBACK banner to user-visible output:
+
+> ⚠ stack-filter unavailable (\<exception type\>); dispatching full
+> roster of N agents
+
+Then dispatch all input agents verbatim.
+
+**Partial-drop banner**: if the filter completes with non-empty
+`last_dropped_names()`, emit the PARTIAL-DROP banner:
+
+> ⚠ stack-filter dropped unknown names: \[\<name1\>, \<name2\>\];
+> dispatching M of N agents
+
+Then dispatch the M survivors. Both banners go to user-visible command
+output, not buried logs.
+
+**v2.1 narrowing reality**: with all 13 review/ agents classified as
+`stack:any` per cycle-3 axis-mismatch fix, the filter primarily provides
+corpus discipline + the bogus-stack-id validation gate; narrowing on
+`stack:<id>` is dead-code in v2.1 (forward-compat for v2.2 framework-axis
+wire-through). See plan §1 transparency note.
+
+For each survivor agent in `review_agents`:
 
 - Spawn agent with: diff content + changed file list + files they directly import (1-hop) + review context from `.harness/harness.local.md`
 - Agents use Grep/Glob for broader pattern checks — do NOT Read every file in the repo

@@ -1,6 +1,7 @@
 ---
 name: lp-design-alignment-checker
 description: "Comprehensive 14-dimension design alignment audit against DESIGN_SYSTEM.md. Covers visual hierarchy, spacing, typography, color, alignment, components, iconography, motion, empty states, loading states, error states, dark mode, density, and accessibility. Does NOT modify code."
+stack_scope: design_quality
 model: inherit
 tools: Read, Grep, Glob
 ---

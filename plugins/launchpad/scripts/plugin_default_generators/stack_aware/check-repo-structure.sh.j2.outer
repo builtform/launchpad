@@ -1,0 +1,6 @@
+{% raw %}#!/usr/bin/env bash
+set -euo pipefail
+{% endraw %}
+{% for stack_id in selected_stack_ids %}
+{% include stack_id ~ "/templates/check_repo_structure.j2.fragment" %}
+{% endfor %}

@@ -15,6 +15,8 @@ checks at read-time so the rejection surfaces before subprocess execution.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import sys
@@ -37,6 +39,15 @@ from path_validator import (  # noqa: E402
 )
 
 from lp_scaffold_stack import EXPECTED_DECISION_VERSION  # noqa: E402
+
+# v2.1 Codex PR #50 P1.3 (D9.2): v1.1 envelope identity required keys.
+# `validate_decision()` enforces a `schema_version == "1.1"` branch that
+# requires `plugin_version` (str), non-empty `stacks` of
+# STACK_ID_ACTIVE_ENUM members, and the 6-key identity dict below.
+_V1_1_REQUIRED_IDENTITY_KEYS = (
+    "pii_opt_in", "project_name", "email", "copyright_holder",
+    "repo_url", "license",
+)
 
 # UUIDv4 hex format (32 hex chars).
 _UUID4_HEX_RE = re.compile(r"^[0-9a-f]{32}$")
@@ -82,6 +93,22 @@ _FORBIDDEN_BULLET_RE = re.compile(
 )
 # Maximum bullet length (HANDSHAKE §9.1 MAX_BULLET_CHARS).
 _MAX_BULLET_CHARS = 240
+
+
+# v2.1.0 completion plan §3.5: `*_meta` allowlist for the v1.1 envelope.
+# Adding a new `*_meta` sibling key requires a `schema_version` bump
+# (1.1 -> 1.2). v2.1.x will NOT introduce new `*_meta` keys.
+_ALLOWED_DECISION_META_KEYS: frozenset[str] = frozenset({
+    "kernel_render_state_meta",
+})
+
+# Cycle-5 lock per v2.1.0 completion plan §3.5: `_META_KEY_REGEX` is a
+# strict identifier-shape regex with `\Z` source anchor (defense-in-depth
+# against future refactor swapping `fullmatch()` -> `match()`/`search()`).
+# Lower-case ASCII identifier ending in `_meta`; rejects bare `_meta`,
+# `Foo_Meta` (mixed case), unicode-prefix variants, and `1_meta` (leading
+# digit) — all four cases are exercised in test_dispatch_v210_completion.
+_META_KEY_REGEX = re.compile(r"[a-z][a-z0-9_]*_meta\Z")
 
 
 @dataclass(frozen=True)
@@ -620,11 +647,311 @@ def validate_decision(
             field_name="sha256",
         )
 
+    # --- v2.1.0 completion plan §2.2 + §2.3: schema_version dispatch ---
+    # Hard-reject 1.0 BEFORE the 1.1 branch. Order matters: a 1.0 decision
+    # has `layers` but no `stacks`/`identity`, so falling through into the
+    # v1.1 envelope check would surface a less-specific
+    # `v1_1_plugin_version_invalid` rejection. The dedicated branch
+    # carries the regeneration recipe verbatim per §2.3.
+    schema_version = decision.get("schema_version")
+    if schema_version == "1.0":
+        return Rejected(
+            reason="schema_1_0_unsupported",
+            message=(
+                "schema_version=1.0 (v2.0 layers-only) decisions are not "
+                "supported by v2.1; v2.0 reached zero in-the-wild adoption "
+                "before v2.1 ship. To regenerate: (1) back up "
+                ".launchpad/scaffold-decision.json if you want to keep a "
+                "copy of the prior decision, (2) run /lp-pick-stack — it "
+                "is idempotent on layer inputs and produces a v1.1 schema "
+                "decision losslessly from the same layer choices, "
+                "(3) re-run /lp-scaffold-stack."
+            ),
+            field_name="schema_version",
+        )
+    if schema_version == "1.1":
+        v11_rej = _validate_v1_1_envelope(decision, cwd)
+        if v11_rej is not None:
+            return v11_rej
+        # v2.1.0 completion plan §3.5: the `*_meta` allowlist runs after
+        # the v1.1 envelope check so plugin_version/stacks/identity gates
+        # surface their specific rejection reasons first.
+        meta_rej = _validate_meta_keys_allowlist(
+            decision,
+            allowed=_ALLOWED_DECISION_META_KEYS,
+            payload_kind="decision",
+        )
+        if meta_rej is not None:
+            return meta_rej
+
     return Accepted(
         payload=dict(decision),
         nonce=nonce,
         bound_cwd=dict(decision["bound_cwd"]),
     )
+
+
+def _validate_meta_keys_allowlist(
+    payload: Mapping[str, Any],
+    *,
+    allowed: frozenset[str],
+    payload_kind: str,
+) -> "Rejected | None":
+    """v2.1.0 completion plan §3.5: enforce the `*_meta` allowlist.
+
+    Pattern-match rule (NOT additive): for each top-level key, iff
+    `_META_KEY_REGEX.fullmatch(key)` AND `key not in allowed` ->
+    Rejected(reason="unknown_meta_field"). Non-`*_meta` keys are
+    unaffected — they are gated by their own positive-shape checks.
+
+    `payload_kind` is woven into `field_name` for forensic traceability
+    when the same allowlist mechanism is reused on the receipt side.
+    """
+    for key in payload:
+        if not isinstance(key, str):
+            continue
+        if not _META_KEY_REGEX.fullmatch(key):
+            continue
+        if key not in allowed:
+            return Rejected(
+                reason="unknown_meta_field",
+                message=(
+                    f"{payload_kind} payload contains *_meta sibling key "
+                    f"{key!r} not in v1.1 allowlist {sorted(allowed)!r}; "
+                    f"new *_meta keys require a schema_version bump"
+                ),
+                field_name=key,
+            )
+    return None
+
+
+def _is_kernel_seed_pending(decision: Mapping[str, Any]) -> bool:
+    """Return True iff `kernel_seed_pending` is the literal True value.
+
+    Per D9.2: absence OR `false` are treated identically (unset). Any
+    non-bool truthy value is rejected as malformed at validation time.
+    """
+    return decision.get("kernel_seed_pending") is True
+
+
+def _compute_migration_origin_sha(prior_decision: Mapping[str, Any]) -> str:
+    """Canonical preimage per D9.2: sha256 over decision-minus-3-keys."""
+    prior_minus = {
+        k: v
+        for k, v in prior_decision.items()
+        if k not in (
+            "kernel_seed_pending",
+            "migration_origin_sha256",
+            "kernel_render_state",
+        )
+    }
+    serialized = json.dumps(
+        prior_minus, sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(serialized).hexdigest()
+
+
+def _validate_v1_1_envelope(
+    decision: Mapping[str, Any],
+    cwd: Path,
+) -> Rejected | None:
+    """v2.1 Codex PR #50 P1.3 (D9.2) v1.1 envelope shape + ratchet.
+
+    Required when `schema_version == "1.1"`:
+      * `plugin_version` (str)
+      * `stacks` non-empty list of STACK_ID_ACTIVE_ENUM members
+      * `identity` dict with the 6 required keys
+
+    `kernel_seed_pending` ratchet (3-state acceptance: true/absent/false):
+      * Absent OR False: `kernel_render_state` MUST be present.
+      * True: `kernel_render_state` MUST be ABSENT (mutual exclusion);
+        `migration_origin_sha256` MUST be present and match the canonical
+        sha over `.launchpad/scaffold-decision.json.pre-migration` minus
+        the 3 ratchet keys (forge-on-fresh + edit-after-crash defense).
+    """
+    plugin_version = decision.get("plugin_version")
+    if not isinstance(plugin_version, str) or not plugin_version:
+        return Rejected(
+            reason="v1_1_plugin_version_invalid",
+            message="schema_version=1.1 requires non-empty plugin_version (str)",
+            field_name="plugin_version",
+            extra={"missing_fields": ["plugin_version"]},
+        )
+
+    stacks = decision.get("stacks")
+    if not isinstance(stacks, list) or not stacks:
+        return Rejected(
+            reason="v1_1_stacks_invalid",
+            message="schema_version=1.1 requires non-empty stacks list",
+            field_name="stacks",
+            extra={"missing_fields": ["stacks"]},
+        )
+    # Lazy-import the closed enum so this module's import surface stays free
+    # of plugin_default_generators at module load time (mirrors the
+    # plugin-agent-scope-filter.py lazy-load convention).
+    try:
+        from plugin_default_generators._renderer_base import STACK_ID_ACTIVE_ENUM
+    except ImportError:  # pragma: no cover
+        STACK_ID_ACTIVE_ENUM = frozenset()  # type: ignore[assignment]
+    for i, sid in enumerate(stacks):
+        if not isinstance(sid, str) or sid not in STACK_ID_ACTIVE_ENUM:
+            return Rejected(
+                reason="v1_1_stack_id_unknown",
+                message=(
+                    f"stacks[{i}]={sid!r} not in STACK_ID_ACTIVE_ENUM "
+                    f"{sorted(STACK_ID_ACTIVE_ENUM)!r}"
+                ),
+                field_name=f"stacks[{i}]",
+            )
+
+    identity = decision.get("identity")
+    if not isinstance(identity, dict):
+        return Rejected(
+            reason="v1_1_identity_invalid",
+            message="schema_version=1.1 requires identity dict",
+            field_name="identity",
+            extra={"missing_fields": ["identity"]},
+        )
+    missing_identity_keys = [
+        k for k in _V1_1_REQUIRED_IDENTITY_KEYS if k not in identity
+    ]
+    if missing_identity_keys:
+        return Rejected(
+            reason="v1_1_identity_missing_keys",
+            message=(
+                f"identity missing required keys: {missing_identity_keys!r}"
+            ),
+            field_name="identity",
+            extra={"missing_fields": list(missing_identity_keys)},
+        )
+
+    # `kernel_seed_pending` ratchet — D9.2 mutual exclusion + chain validation.
+    pending = decision.get("kernel_seed_pending")
+    if pending is not None and not isinstance(pending, bool):
+        return Rejected(
+            reason="kernel_seed_pending_invalid_type",
+            message=(
+                f"kernel_seed_pending must be bool or absent, got "
+                f"{type(pending).__name__}"
+            ),
+            field_name="kernel_seed_pending",
+        )
+    has_render_state = "kernel_render_state" in decision
+
+    if _is_kernel_seed_pending(decision):
+        # Mutual exclusion: kernel_seed_pending=true with kernel_render_state
+        # set is a partial-update bug (or attacker forge attempt).
+        if has_render_state:
+            return Rejected(
+                reason="kernel_seed_pending_with_state",
+                message=(
+                    "kernel_seed_pending=true is mutually exclusive with "
+                    "kernel_render_state being present"
+                ),
+                field_name="kernel_seed_pending",
+            )
+        # Forge-on-fresh defense: require migration_origin_sha256 + verify
+        # against the .pre-migration backup canonical sha.
+        declared_origin = decision.get("migration_origin_sha256")
+        if not isinstance(declared_origin, str) or len(declared_origin) != 64:
+            return Rejected(
+                reason="kernel_seed_pending_without_migration_provenance",
+                message=(
+                    "kernel_seed_pending=true requires "
+                    "migration_origin_sha256 (64-char hex) sealed alongside it"
+                ),
+                field_name="migration_origin_sha256",
+            )
+        backup_path = cwd / ".launchpad" / "scaffold-decision.json.pre-migration"
+        try:
+            backup_text = backup_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            return Rejected(
+                reason="kernel_seed_pending_without_migration_provenance",
+                message=(
+                    f".launchpad/scaffold-decision.json.pre-migration "
+                    f"missing or unreadable: {exc}"
+                ),
+                field_name="migration_origin_sha256",
+            )
+        try:
+            backup_payload = json.loads(backup_text)
+        except ValueError as exc:
+            return Rejected(
+                reason="migration_provenance_mismatch_after_edit",
+                message=(
+                    f".pre-migration backup malformed JSON: {exc}; backup "
+                    f"corrupted or hand-edited after sealing"
+                ),
+                field_name="migration_origin_sha256",
+            )
+        if not isinstance(backup_payload, dict):
+            return Rejected(
+                reason="migration_provenance_mismatch_after_edit",
+                message=(
+                    ".pre-migration backup top-level is not a JSON object"
+                ),
+                field_name="migration_origin_sha256",
+            )
+        recomputed = _compute_migration_origin_sha(backup_payload)
+        if recomputed != declared_origin:
+            return Rejected(
+                reason="migration_provenance_mismatch_after_edit",
+                message=(
+                    "migration_origin_sha256 does not match the canonical "
+                    "sha over .pre-migration; backup was edited after seal "
+                    "OR scaffold-decision was forged with a fabricated origin"
+                ),
+                field_name="migration_origin_sha256",
+            )
+    elif pending is False:
+        # Explicit `false` is the post-ratchet "render done, ratchet
+        # closed" state — kernel_render_state MUST be present. Treat
+        # absence of the key entirely as "pre-ratchet fresh write" and
+        # allow it to pass; scaffold-stack will seal kernel_render_state
+        # via mark_kernel_seeded() after rendering.
+        if not has_render_state:
+            return Rejected(
+                reason="kernel_render_state_required",
+                message=(
+                    "kernel_seed_pending=false but kernel_render_state is "
+                    "absent; the post-ratchet state requires kernel_render_state"
+                ),
+                field_name="kernel_render_state",
+                extra={"missing_fields": ["kernel_render_state"]},
+            )
+
+    return None
+
+
+def mark_kernel_seeded(
+    decision: Mapping[str, Any],
+    kernel_render_state: Any,
+) -> dict[str, Any]:
+    """v2.1 Codex PR #50 P1.3 (D9.2): single-owner kernel-seed transition.
+
+    Atomically (in-memory) sets `kernel_render_state`, removes
+    `kernel_seed_pending` and `migration_origin_sha256`. Returns a NEW
+    dict; does NOT mutate the input mapping. Caller persists via
+    `re_seal_decision_atomic` / `atomic_write_replace`.
+
+    Idempotency: if `kernel_render_state` is already present in the input
+    AND `kernel_seed_pending` is unset (absent or False), returns a deep
+    copy of the input unchanged (caller can re-invoke without observing a
+    state change). Both ratchet keys (`kernel_seed_pending`,
+    `migration_origin_sha256`) are stripped on every call as a
+    canonicalization step.
+    """
+    payload = dict(decision)
+    pending = payload.get("kernel_seed_pending")
+    has_state = "kernel_render_state" in payload
+    is_idempotent = has_state and pending in (None, False)
+
+    if not is_idempotent:
+        payload["kernel_render_state"] = kernel_render_state
+    payload.pop("kernel_seed_pending", None)
+    payload.pop("migration_origin_sha256", None)
+    return payload
 
 
 __all__ = [
@@ -634,5 +961,6 @@ __all__ = [
     "GENERATED_AT_MAX_FUTURE_SKEW",
     "MANUAL_OVERRIDE_ID",
     "Rejected",
+    "mark_kernel_seeded",
     "validate_decision",
 ]

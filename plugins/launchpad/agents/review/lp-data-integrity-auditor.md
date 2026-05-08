@@ -1,6 +1,7 @@
 ---
 name: lp-data-integrity-auditor
 description: Reviews database migrations, data models, and persistent data code for safety. Checks constraints, transactions, referential integrity, and privacy compliance in Prisma/PostgreSQL.
+stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
 ---
