@@ -7,6 +7,22 @@ description: "Stage changes, run quality gates, generate a conventional commit m
 
 You are a disciplined commit agent for a TypeScript monorepo. Follow every step in order. Never skip steps. Never use `--no-verify`.
 
+## Arguments
+
+`$ARGUMENTS` may contain `--skip-review` (literal flag, no value). Emergency-hotfix bypass for Step 2.5 mandatory dual-pass review. Honored ONLY when the EXACT literal token `--skip-review` appears as a whitespace-delimited token in `$ARGUMENTS`.
+
+**Matching algorithm (pinned):** split `$ARGUMENTS` on whitespace; flag is honored iff `'--skip-review'` is in the resulting token list. Substring matches, prefix matches, value-form (`--skip-review=...`), single-dash form (`-skip-review`), and typo variants are NOT honored.
+
+**Near-miss warning:** if `$ARGUMENTS` contains a token starting with `--skip` or `-skip` other than the exact literal, emit on stderr: `"Warning: '<token>' near-miss for review-bypass flag; use bare '--skip-review'. Treating as unset; mandatory review will run."`
+
+**Malformed-form warning:** if `$ARGUMENTS` contains `--skip-review=*`, emit on stderr: `"Warning: '--skip-review=*' form ignored; flag is presence-only; treating as unset; mandatory review will run."`
+
+**Idempotence:** duplicate flag is honored exactly once.
+
+**Scope:** consumed at Step 2.5 ONLY. Steps 0, 1, 3-9 unaffected. `/lp-commit` does NOT pass `$ARGUMENTS` flags through to `/lp-review`.
+
+**Protected-branch gate:** see Step 1 clause 4.5.
+
 ## Allowed Tools
 
 Bash, Read, Grep, Glob, Edit, Write, TodoWrite, Task
@@ -58,6 +74,29 @@ Branch naming convention:
 
 - If the branch name does not match one of these prefixes, warn the user but do not block.
 
+### 4.5. `--skip-review` protected-branch gate
+
+a. **Protected-branch reject:** if `$ARGUMENTS` contains `--skip-review` AND current branch is in `protected_branches` (default `[main, master]`) OR matches `release/*` / `releases/*` / `release-*` / `prod/*` / `production/*` / `stable/*` / `master_*` / `^v[0-9]`: REJECT with `"--skip-review rejected on protected branches (current: $BRANCH). Emergency-hotfix bypass is allowed only on hotfix/* / fix/* feature branches."` Exit non-zero.
+
+b. **Hotfix-branch interactive confirmation (TTY-guarded):** if `$ARGUMENTS` contains `--skip-review` AND current branch matches `hotfix/*` or `fix/*`:
+
+```bash
+if [[ ! -t 0 ]]; then
+  echo "Error: --skip-review requires interactive TTY confirmation (got piped/redirected stdin or non-tty). To bypass review, re-run interactively without piping. Aborting." >&2
+  exit 1
+fi
+echo "EMERGENCY HOTFIX BYPASS — type 'BYPASS REVIEW' (case-sensitive) to confirm:"
+read -r CONFIRM
+if [[ "$CONFIRM" != "BYPASS REVIEW" ]]; then
+  echo "Confirmation phrase mismatch; aborting commit." >&2
+  exit 1
+fi
+```
+
+c. **CI/automation contract:** CI pipelines MUST NOT invoke `/lp-commit --skip-review`. The gate is human-only by design (interactive-only via `/lp-commit`). For CI commit paths that legitimately need to bypass review (e.g., dependabot bumps, release-tag commits), use the appropriate non-`/lp-commit` git path; `/lp-commit --skip-review` is exclusively for emergency-hotfix human invocations.
+
+d. **Audit-trail caveat:** TTY guard is defense-in-depth against piped-stdin self-answer. It is NOT a forcing function against agentic callers in interactive TTY contexts (sibling Claude agent in interactive shell can still self-answer). The CONTRACT against agentic bypass is audit-trail-based (Step 7 `Mandatory-Review-Skipped` trailer + post-hoc `git log --grep` search). Technical blocking against agentic callers is a v2.1.x backlog item.
+
 ---
 
 ## Step 2: Stage and Review
@@ -73,24 +112,41 @@ Branch naming convention:
 
 ---
 
-## Step 2.5: Optional Code Review
+## Step 2.5: Mandatory Dual-Pass Code Review
 
-After staging, ask: **"Run code review before committing? (yes/no)"**
+Run BOTH `/lp-review` passes sequentially. MANDATORY (no yes/no prompt). Bypass only via `--skip-review` per the Arguments block (gated on branch + TTY per Step 1 clause 4.5).
 
-Total timeout for this step: 20 minutes. If exceeded, report: "Review chain exceeded timeout. Findings in .harness/todos/ — resolve with /lp-resolve-todo-parallel."
+**Sequential CONTRACT (advisory):** specialist pass MUST complete before blind pass per `/lp-review`'s caller contract. Parallel invocation is undefined behavior. v2.1.1 ships this as spec-text CONTRACT; runtime enforcement (sentinel-based mutex) is deferred to v2.1.2.
 
-### If yes:
+**Implementation note for sibling:** invoke specialist + blind in TWO SEPARATE Bash tool calls (specialist returns, then blind invoked). A single tool call with both passes concurrently is parallel and corrupts findings.
 
-1. Run `/lp-review --headless` — dispatches review agents, writes findings to `.harness/todos/`
-2. IF zero findings: "Code review passed." → continue to Step 3
-3. IF findings: Run `/lp-triage` — user sorts each finding (fix/drop/defer)
-4. IF any findings marked "fix": Run `/lp-resolve-todo-parallel` (max 5 concurrent agents)
-5. Re-stage: `git add` resolver-reported files. Check for untracked files — ask to stage. Re-run secret scan on resolver-touched files. Show `git diff --cached --stat`.
-6. Continue to Step 3
+**`--skip-review` honored:** if the Arguments block matches AND Step 1 clause 4.5 gate passed, log on stderr: `"Mandatory dual-pass review SKIPPED — --skip-review flag invoked (emergency hotfix path; trailer written at Step 7; review must be triaged post-merge)"`. Proceed to Step 3.
 
-### If no:
+**Default:** mandatory dual-pass.
 
-Continue to Step 3 immediately.
+Total timeout: 35 min. On timeout: surface partial state; abort commit.
+
+### Sequential execution
+
+1. **Specialist pass.** Run `/lp-review --headless`. Wait for completion (`.harness/todos/` populated; `.harness/review-summary.md` written with default sections).
+2. **Blind pass.** Run `/lp-review --headless --no-context`. Append-mode: `.harness/todos/` is appended; `.harness/review-summary.md` gets `## --no-context (blind) findings` section appended.
+
+### Triage and resolution
+
+3. IF `.harness/todos/` empty: log "Dual-pass review passed — zero findings." Continue to Step 3.
+4. IF findings present: run `/lp-triage` interactively.
+5. IF any `fix`-marked: run `/lp-resolve-todo-parallel`.
+6. Re-stage: `git add` resolver-reported files. Check untracked. Re-run secret scan. Show `git diff --cached --stat`.
+7. Continue to Step 3.
+
+**Single-cycle interactive contract:** Step 2.5 does NOT re-run dual-pass after `/lp-resolve-todo-parallel`. Subtle review-class regressions on resolver-introduced changes flow to Step 9 Gate B2/B3 post-PR.
+
+### Failure handling
+
+- Specialist error: STOP and surface; abort commit.
+- Blind error: STOP and surface; specialist findings retained; abort commit.
+- `/lp-triage` Ctrl-C: STOP. Recovery: run `/lp-triage` standalone; then re-run `/lp-commit`.
+- Resolver unresolved findings: stage what was resolved; surface unresolved; ask proceed/abort.
 
 ---
 
@@ -198,6 +254,23 @@ type(scope): description
 EOF
 )"
 ```
+
+**IF `$ARGUMENTS` contained `--skip-review` AND it was honored at Step 2.5:** append the audit-trail trailer BELOW the bullet block, separated by ONE blank line:
+
+```bash
+git commit -m "$(cat <<'EOF'
+type(scope): description
+
+- bullet points if applicable
+
+Mandatory-Review-Skipped: emergency-hotfix
+EOF
+)"
+```
+
+The trailer follows verb-noun convention. Value pinned to closed enum `{emergency-hotfix}` at v2.1.1; future enum extension requires schema-version bump.
+
+**Audit-log dual-write deferred to v2.1.2:** the trailer is the canonical audit record for v2.1.1. Reviewer-facing visibility comes from `git log --grep='Mandatory-Review-Skipped'` searches.
 
 Do NOT add a `Co-Authored-By: Claude` (or any AI co-authorship) trailer. AI attribution in commit messages is intentionally omitted from this plugin's commit format.
 
