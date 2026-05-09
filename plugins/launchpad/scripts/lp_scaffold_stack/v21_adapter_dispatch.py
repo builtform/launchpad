@@ -26,15 +26,15 @@ from __future__ import annotations
 import os
 import shutil
 import uuid
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 from plugin_default_generators._renderer_base import STACK_ID_ACTIVE_ENUM
 from plugin_stack_adapters.composition import (
+    TMP_PARENT_DIRNAME,
     CompositionAbortError,
     CompositionRejectionCode,
     CompositionResult,
-    TMP_PARENT_DIRNAME,
     _assert_within,
     _ensure_same_fs,
     _reject_symlinks_in_subtree,
@@ -43,10 +43,9 @@ from plugin_stack_adapters.composition import (
 )
 from plugin_stack_adapters.contracts import (
     Adapter,
-    bridge_to_scaffold_error,
     ScaffoldStepFailedError,
+    bridge_to_scaffold_error,
 )
-
 
 _ADAPTER_REGISTRY: dict[str, str] = {
     "ts_monorepo": "plugin_stack_adapters.ts_monorepo",

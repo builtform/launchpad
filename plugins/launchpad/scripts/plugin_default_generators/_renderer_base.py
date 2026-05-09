@@ -47,8 +47,9 @@ import hashlib
 import os
 import shlex
 import sys
+from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Mapping
+from typing import Any
 
 import jinja2
 
@@ -58,7 +59,6 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from atomic_io import (  # noqa: E402
-    atomic_write_replace,
     atomic_write_replace_batch,
 )
 
@@ -318,7 +318,7 @@ def identity_inject(identity: Mapping[str, Any]) -> dict[str, Any]:
     )
     return {
         "identity": dict(identity),
-        "current_year": datetime.datetime.now(datetime.timezone.utc).year,
+        "current_year": datetime.datetime.now(datetime.UTC).year,
         "license_url": license_url,
     }
 
@@ -459,6 +459,7 @@ class RendererBase:
             load_patterns,
             scan,
         )
+
         from plugin_default_generators.secret_allowlist import (
             filter_allowlisted,
         )

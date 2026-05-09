@@ -32,25 +32,22 @@ from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Iterator, Mapping, Sequence
+from typing import Any
 
 # Sibling-script imports.
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from ._renderer_base import RendererBase, sha256_bytes  # noqa: E402
-
 from lp_bootstrap import (  # noqa: E402
-    FILE_MODES,
     INFRASTRUCTURE_FILES,
     INFRASTRUCTURE_TARGETS,
-    LAUNCHPAD_DIR_NAME,
-    WARNINGS_FILENAME,
     BootstrapErrorCode,
 )
 
+from ._renderer_base import RendererBase, sha256_bytes  # noqa: E402
 
 # --- Per-module exception (parallel to manifest_writer / policy) -----------
 

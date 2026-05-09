@@ -23,12 +23,14 @@ import hashlib
 import json
 import os
 import uuid
-from datetime import datetime, timezone
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from atomic_io import atomic_write_excl
 from decision_integrity import canonical_hash
+
 from lp_pick_stack import (
     IDENTITY_COPYRIGHT_FORBIDDEN_CHARS,
     IDENTITY_COPYRIGHT_HOLDER_RE,
@@ -90,7 +92,7 @@ class DecisionWriteError(RuntimeError):
 
 
 def _utc_now_iso_sec() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def compute_bound_cwd(cwd: Path) -> dict:
@@ -363,7 +365,7 @@ def validate_identity(
     else:
         if not IDENTITY_COPYRIGHT_HOLDER_RE.fullmatch(copyright_holder):
             raise IdentityValidationError(
-                f"identity.copyright_holder fails printable-ASCII allowlist",
+                "identity.copyright_holder fails printable-ASCII allowlist",
                 field="copyright_holder",
             )
         bad = IDENTITY_COPYRIGHT_FORBIDDEN_CHARS.intersection(copyright_holder)

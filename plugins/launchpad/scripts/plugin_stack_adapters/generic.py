@@ -19,8 +19,8 @@ fallback.").
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Callable, Mapping
 
 from .contracts import (
     _EMPTY_PACKAGE_PATHS,

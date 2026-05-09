@@ -24,9 +24,7 @@ from __future__ import annotations
 import base64
 import contextlib
 import datetime as _dt
-import errno
 import fcntl
-import hashlib
 import json
 import os
 import re
@@ -34,11 +32,10 @@ import shlex
 import shutil
 import stat
 import threading
-import time
 import uuid
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterator, Sequence
 
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _HTTPS_GITHUB_PREFIX = "https://github.com/"
@@ -370,7 +367,7 @@ def _entry_age_days(entry_dir: Path) -> float:
         when = _dt.datetime.fromisoformat(ts.replace("Z", "+00:00"))
     except (OSError, ValueError):
         return float("inf")
-    now = _dt.datetime.now(tz=when.tzinfo or _dt.timezone.utc)
+    now = _dt.datetime.now(tz=when.tzinfo or _dt.UTC)
     return (now - when).total_seconds() / 86400.0
 
 
@@ -469,7 +466,7 @@ def _write_manifest_and_ready(entry_dir: Path) -> None:
         encoding="utf-8",
     )
     (entry_dir / FETCHED_AT_FILE).write_text(
-        _dt.datetime.now(tz=_dt.timezone.utc).isoformat().replace("+00:00", "Z")
+        _dt.datetime.now(tz=_dt.UTC).isoformat().replace("+00:00", "Z")
         + "\n",
         encoding="utf-8",
     )

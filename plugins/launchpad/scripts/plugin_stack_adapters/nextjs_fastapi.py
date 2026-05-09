@@ -20,9 +20,9 @@ hoist that nextjs_standalone uses.
 from __future__ import annotations
 
 import shutil
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from types import MappingProxyType
-from typing import Callable, Mapping
 
 from .contracts import (
     _EMPTY_PACKAGE_PATHS,

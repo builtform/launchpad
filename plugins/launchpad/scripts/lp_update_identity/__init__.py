@@ -30,7 +30,6 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Final
 
-
 # --- Filesystem name constants --------------------------------------------
 
 # Sentinel filename for `/lp-update-identity` lifecycle. Lives at
@@ -94,7 +93,7 @@ class IdentityUpdateSentinelError(RuntimeError):
         message: str,
         *,
         reason: IdentityUpdateErrorCode,
-        path: "object | None" = None,
+        path: object | None = None,
         remediation: str = "",
     ) -> None:
         super().__init__(message)

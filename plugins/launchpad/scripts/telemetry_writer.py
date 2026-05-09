@@ -12,13 +12,11 @@ writer is a no-op (does not create the directory or any files).
 """
 from __future__ import annotations
 
-import errno
 import fcntl
 import json
 import os
-import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # JSONL line cap: PIPE_BUF on Linux is 4096; OPERATIONS §5 forces atomic
@@ -57,7 +55,7 @@ def _telemetry_off(repo_root: Path) -> bool:
 
 
 def _utc_now_iso_sec() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _open_lock(lock_path: Path) -> int:
@@ -173,7 +171,7 @@ def _entry_age_days(line: str, now_epoch: float) -> float | None:
         return None
     try:
         # Accept the canonical sec-precision Z form.
-        dt = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        dt = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
     except ValueError:
         return None
     return (now_epoch - dt.timestamp()) / 86400.0
@@ -230,7 +228,7 @@ def prune_telemetry(
                 completed.add(f.name)
                 continue
 
-            with open(f, "r", encoding="utf-8") as fh:
+            with open(f, encoding="utf-8") as fh:
                 lines = fh.readlines()
 
             kept = []

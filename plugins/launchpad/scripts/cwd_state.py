@@ -147,12 +147,12 @@ def infrastructure_present(cwd: Path):
     package coupling for v2.0 readers (cwd_state was added in v2.0; the
     v2.1 helper is additive).
     """
-    from lp_bootstrap import (  # noqa: PLC0415
-        BootstrapState,
-        INFRASTRUCTURE_TARGETS,
-    )
     import importlib.util  # noqa: PLC0415
-    import sys  # noqa: PLC0415
+
+    from lp_bootstrap import (  # noqa: PLC0415
+        INFRASTRUCTURE_TARGETS,
+        BootstrapState,
+    )
 
     targets: list[str] = sorted(INFRASTRUCTURE_TARGETS)
     present: list[str] = []

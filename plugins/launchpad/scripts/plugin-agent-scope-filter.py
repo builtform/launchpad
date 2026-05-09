@@ -34,9 +34,9 @@ import logging
 import re
 import sys
 import threading
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from types import MappingProxyType
-from typing import Iterable, Mapping
 
 import yaml
 
@@ -149,7 +149,7 @@ def _extract_frontmatter_dict(path: Path) -> dict | None:
     return parsed
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _load_agent_index() -> Mapping[str, dict[str, str]]:
     """Walk plugin agent tree (depth-1 subdirs only) + return immutable index.
 

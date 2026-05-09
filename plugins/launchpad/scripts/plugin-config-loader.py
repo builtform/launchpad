@@ -26,7 +26,6 @@ import sys
 from pathlib import Path
 from typing import Any, NamedTuple
 
-
 # --- Phase 5 v2.1 (DA4) -- --get-config-value path allowlist ---
 #
 # Module-level compiled regex. Single source of truth: depth bound is encoded

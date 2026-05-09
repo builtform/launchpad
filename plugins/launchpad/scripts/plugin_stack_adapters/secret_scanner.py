@@ -29,7 +29,6 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-
 # Conservative built-in patterns. Lower risk of false negatives than a
 # completely empty default. Projects can still override via secret-patterns.txt.
 #

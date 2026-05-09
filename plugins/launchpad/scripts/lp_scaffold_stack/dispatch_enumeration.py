@@ -37,7 +37,7 @@ _MAX_ENUMERATED_FILES = 50_000
 
 def enumerate_files(
     cwd: Path,
-    dispatch_result: "CompositionResult | Path",
+    dispatch_result: CompositionResult | Path,
 ) -> list[str]:
     """Walk the post-dispatch workspace and return cwd-relative file paths.
 

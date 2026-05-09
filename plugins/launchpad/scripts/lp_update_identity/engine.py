@@ -38,10 +38,11 @@ import os
 import shutil
 import subprocess
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping, TextIO
+from typing import Any, TextIO
 
 # Sibling-script imports.
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
@@ -62,7 +63,6 @@ from lp_update_identity.sentinel import (  # noqa: E402
     sentinel_path,
     write_sentinel,
 )
-
 
 PII_WARN_LINES = (
     "WARN: prior identity values persist in git history (LICENSE, CONTRIBUTING.md, ...).",
@@ -91,7 +91,7 @@ class UpdateIdentityResult:
 
 
 def _utc_iso8601_now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _emit(stream: TextIO | None, default, line: str) -> None:
@@ -226,6 +226,8 @@ def _validate_preconditions(
     try:
         from lp_bootstrap.sentinel import (
             is_pid_alive as _bs_is_pid_alive,
+        )
+        from lp_bootstrap.sentinel import (
             read_sentinel as _bs_read_sentinel,
         )
         bs_snap = _bs_read_sentinel(cwd)
@@ -251,6 +253,8 @@ def _validate_preconditions(
     try:
         from lp_scaffold_stack.sentinel import (
             is_pid_alive as _ss_is_pid_alive,
+        )
+        from lp_scaffold_stack.sentinel import (
             read_sentinel as _ss_read_sentinel,
         )
         ss_snap = _ss_read_sentinel(cwd)
@@ -470,7 +474,7 @@ def _ensure_backup_dir(cwd: Path) -> Path:
     raises on collision rather than silently overwriting.
     """
     import secrets
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     rand4 = secrets.token_hex(2)
     backup_dir = (
         cwd / LAUNCHPAD_DIR_NAME / "backups" / f"{ts}-{os.getpid()}-{rand4}"
@@ -818,12 +822,12 @@ def run_update_identity(
             if _legacy_migration_applied:
                 payload["schema_version"] = "1.1"
             # D7 canonical 5-key version_drift_log shape via shared helper.
-            from lp_pick_stack.decision_writer import read_running_plugin_version
             from lp_bootstrap.version_drift import (
                 Fingerprint,
                 Names,
                 compute_identity_fields_changed,
             )
+            from lp_pick_stack.decision_writer import read_running_plugin_version
             new_plugin_version = read_running_plugin_version()
             old_plugin_version = payload.get("plugin_version")
             old_identity_map: dict[str, str] = {}

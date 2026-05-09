@@ -37,12 +37,12 @@ sentinel write fires.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from types import MappingProxyType
-from typing import Final, Literal, Mapping
-
+from typing import Final, Literal
 
 # --- Filesystem name constants --------------------------------------------
 

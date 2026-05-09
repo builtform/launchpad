@@ -826,9 +826,9 @@ def check_pin_registry_rotation_audit_log(
             f"[{rule}] pin_registry.py adds new SHA value(s) without a same-"
             f"commit entry in {PIN_ROTATION_AUDIT_LOG}.\n  added SHAs:\n  "
             + "\n  ".join(sorted(added_shas))
-            + f"\n\nPhase 4 plan §3.9: every _UPSTREAM_SHA rotation requires "
-            f"an append-only audit-log entry with non-empty Reason + Reviewer "
-            f"in the same commit."
+            + "\n\nPhase 4 plan §3.9: every _UPSTREAM_SHA rotation requires "
+            "an append-only audit-log entry with non-empty Reason + Reviewer "
+            "in the same commit."
         )
 
 
@@ -1535,9 +1535,9 @@ def check_decommission_audit_log_required(
             f"[{rule}] CODEOWNERS-protected path(s) deleted without a "
             f"same-commit append entry in {DECOMMISSION_AUDIT_LOG}:\n  "
             + "\n  ".join(sorted(protected_deleted))
-            + f"\n\nPhase 8.5 plan section 2.3 audit-log enforcement: every "
-            f"deletion under plugins/launchpad/scripts/ requires an "
-            f"append-only audit-log entry with non-empty Reason + Reviewer."
+            + "\n\nPhase 8.5 plan section 2.3 audit-log enforcement: every "
+            "deletion under plugins/launchpad/scripts/ requires an "
+            "append-only audit-log entry with non-empty Reason + Reviewer."
         )
 
 

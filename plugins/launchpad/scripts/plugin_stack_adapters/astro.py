@@ -24,8 +24,9 @@ from __future__ import annotations
 
 import logging
 import shutil
+from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Callable, Literal, Mapping
+from typing import Literal
 
 from .contracts import (
     _EMPTY_PACKAGE_PATHS,

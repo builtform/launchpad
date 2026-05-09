@@ -70,7 +70,7 @@ MANIFEST_ALLOWLIST = frozenset([
 # CI lint assertion + identity check (test_brownfield_manifests_single_source.py).
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
-from cwd_state import BROWNFIELD_MANIFESTS  # noqa: E402  (single-source enforcement)
+from cwd_state import BROWNFIELD_MANIFESTS  # noqa: E402, F401  (single-source enforcement)
 
 # Noise directories that bloat the walk with dep/build output.
 EXCLUDED_DIRS = frozenset([

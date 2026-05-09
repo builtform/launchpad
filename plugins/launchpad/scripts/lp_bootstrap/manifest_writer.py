@@ -27,15 +27,14 @@ prior shas for the next attempt.
 """
 from __future__ import annotations
 
-import hashlib
 import json
-import os
 import sys
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 # Sibling-script imports.
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
@@ -43,7 +42,6 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from atomic_io import atomic_write_replace  # noqa: E402
-
 from plugin_default_generators._renderer_base import (  # noqa: E402
     GENERATORS_ROOT,
     sha256_file,
@@ -54,10 +52,8 @@ from lp_bootstrap import (  # noqa: E402
     LAUNCHPAD_DIR_NAME,
     MANIFEST_FILENAME,
     MANIFEST_SCHEMA_VERSION,
-    BootstrapError,
     BootstrapErrorCode,
 )
-
 
 # --- Per-module typed exception (section 3.7) -----------------------------
 
@@ -311,7 +307,7 @@ def verify_source_template_shas(
 
 def _utc_iso8601_now() -> str:
     """UTC ISO-8601 timestamp with `Z` suffix; second precision is enough."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def build_manifest(

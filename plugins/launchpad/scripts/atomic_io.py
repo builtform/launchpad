@@ -38,9 +38,8 @@ import os
 import sys
 import tempfile
 import warnings
+from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Iterator, Mapping
-
 
 __all__ = [
     "atomic_write_excl",
@@ -288,9 +287,9 @@ def atomic_write_replace(
 
 
 def atomic_write_replace_batch(
-    batch: "Mapping[Path, bytes]",
+    batch: Mapping[Path, bytes],
     *,
-    modes: "Mapping[Path, int] | None" = None,
+    modes: Mapping[Path, int] | None = None,
     default_mode: int = 0o600,
     trusted_root: Path | None = None,
 ) -> None:

@@ -24,9 +24,9 @@ sees a coherent monorepo root."
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Sequence
 
 # Stack → toolchain mapping. Used to populate `toolchains_detected` in the
 # scaffold-receipt.json + drive lefthook hook configuration. v2.0's 10-entry

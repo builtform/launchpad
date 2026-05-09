@@ -30,10 +30,10 @@ sanitized funnel answers + `<untrusted_user_input>`-wrapped describe text.
 """
 from __future__ import annotations
 
-import re
 import unicodedata
-from datetime import datetime, timezone
-from typing import Any, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
+from typing import Any
 
 from lp_pick_stack.matcher import MatchCandidate
 from lp_pick_stack.rationale_summary_extractor import (
@@ -44,7 +44,7 @@ from lp_pick_stack.rationale_summary_extractor import (
 
 
 def _utc_now_iso_sec() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _sanitize_bullet(text: str) -> str | None:

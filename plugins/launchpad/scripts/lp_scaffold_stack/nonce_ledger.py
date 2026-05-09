@@ -34,7 +34,7 @@ import os
 import re
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Per HANDSHAKE §4 rule 10: 33-byte fixed records (32 hex + newline).
@@ -127,7 +127,7 @@ def _detect_filesystem_type(path: Path) -> str:
     fs_type = "unknown"
     if sys.platform.startswith("linux"):
         try:
-            with open("/proc/self/mountinfo", "r", encoding="utf-8") as f:
+            with open("/proc/self/mountinfo", encoding="utf-8") as f:
                 # Sort by mount-point length descending so the longest prefix
                 # wins — handles nested mounts (e.g., /home/user/.cache-on-tmpfs).
                 best_mp = ""
@@ -237,7 +237,7 @@ def _open_lock(repo_root: Path) -> int:
 def _read_ledger_lines(path: Path) -> list[str]:
     if not path.exists():
         return []
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return f.readlines()
 
 
@@ -371,7 +371,7 @@ def _bak_filename_epoch(name: str) -> float | None:
         return None
     try:
         dt = datetime.strptime(m.group(1), "%Y-%m-%dT%H-%M-%SZ").replace(
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         )
     except ValueError:
         return None
@@ -424,7 +424,7 @@ def _read_nonces_from(path: Path) -> set[str]:
     """
     out: set[str] = set()
     try:
-        f = open(path, "r", encoding="utf-8")
+        f = open(path, encoding="utf-8")
     except OSError:
         # File may have been deleted between listing and reading (.bak
         # retention, race with rotation). Tolerate missing-file; corruption
@@ -560,7 +560,7 @@ def append_nonce(
                 if post_size != pre_size + len(record):
                     # Partial line — write a corruption sentinel comment.
                     try:
-                        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                        ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
                         os.write(fd, f"# corrupt:{ts}\n".encode("ascii"))
                         os.fsync(fd)
                     except OSError as exc2:
@@ -665,7 +665,7 @@ def _recover_orphan_rollover_tmps(repo_root: Path) -> None:
         except OSError:
             continue
         ts = datetime.fromtimestamp(
-            st.st_mtime, tz=timezone.utc,
+            st.st_mtime, tz=UTC,
         ).strftime("%Y-%m-%dT%H-%M-%SZ")
         target = lp / f".scaffold-nonces.log.bak.{ts}.recovered.{pid_suffix}"
         if target.exists():
@@ -716,7 +716,7 @@ def _rotate_at_threshold(repo_root: Path) -> None:
             pass
 
         # Now rename to a final .bak.<iso-ts>.
-        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
+        ts = datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%SZ")
         bak = _launchpad_dir(repo_root) / f".scaffold-nonces.log.bak.{ts}"
         # If a .bak with this exact second already exists, retry with .pid suffix.
         if bak.exists():

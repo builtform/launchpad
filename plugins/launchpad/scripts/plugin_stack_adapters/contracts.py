@@ -28,10 +28,10 @@ constants are forbidden (enforced by `tests/test_no_floating_tag_pins.py`).
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from types import MappingProxyType
-from typing import Literal, Mapping, NotRequired, Protocol, TypedDict, runtime_checkable
-
+from typing import Literal, NotRequired, Protocol, TypedDict, runtime_checkable
 
 StackId = Literal[
     "ts_monorepo", "python_django", "go_cli", "generic",

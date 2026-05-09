@@ -134,7 +134,7 @@ def append_entry(repo_root: Path, command: str) -> Path:
     log_path = log_dir / "audit.log"
 
     timestamp = _sanitize_field(
-        datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+        datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
     )
     user = _sanitize_field(_git_user(repo_root))
     head = _sanitize_field(_git_head(repo_root))

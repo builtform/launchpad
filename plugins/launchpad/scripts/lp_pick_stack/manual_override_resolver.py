@@ -21,10 +21,11 @@ is gating the single-stack tuples; the cross-layer rules are gated here.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
-from lp_pick_stack import VALID_COMBINATIONS, is_valid_combination
+from lp_pick_stack import is_valid_combination
 
 # Roles allowed in a v2.0 scaffold-decision.json layer.role field
 # (HANDSHAKE §4 schema enum). Manual-override accepts the same superset; the

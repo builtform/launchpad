@@ -15,7 +15,7 @@ is not deferred.
 """
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 
 # Q1 — What are you building?
 Q1_ALLOWED = frozenset({

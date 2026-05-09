@@ -48,18 +48,15 @@ import shutil
 import stat
 import sys
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Iterable
 
 from .contracts import (
     Adapter,
-    AdapterScaffoldError,
     StackIdActive,
-    _validate_package_workspace_paths,
-    _validate_workspace_source_map,
 )
 
 LOG = logging.getLogger("plugin_stack_adapters.composition")
@@ -575,7 +572,7 @@ def _backup_existing_target(
 def _rollback(
     rendered_tempdirs: list[tuple[Adapter, Path]],
     placed_paths: list[Path],
-    backups: "list[tuple[Path, Path]] | None" = None,
+    backups: list[tuple[Path, Path]] | None = None,
 ) -> None:
     """Per Codex PR #50 P1-B harden P1-γ: rollback rmtrees BOTH rendered
     tempdirs AND already-placed `apps/<workspace>/` + composition_root
@@ -909,7 +906,7 @@ def _relocate_backups_to_launchpad(
     ).hexdigest()[:8]
     manifest = {
         "schema_version": "1.0",
-        "created_at": datetime.now(timezone.utc).strftime(
+        "created_at": datetime.now(UTC).strftime(
             "%Y-%m-%dT%H:%M:%SZ"
         ),
         "composition_run_id": composition_run_id,

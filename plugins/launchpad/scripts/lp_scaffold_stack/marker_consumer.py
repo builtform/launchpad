@@ -16,7 +16,7 @@ this cwd, authorizing the empty-nonce-ledger first-run fast path in
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 MARKER_FILENAME = ".first-run-marker"
@@ -48,7 +48,7 @@ def consume_marker(repo_root: Path) -> Path | None:
     src = marker_path(repo_root)
     if not src.exists():
         return None
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
+    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%SZ")
     target = _launchpad_dir(repo_root) / f"{CONSUMED_PREFIX}{ts}"
     # Same-second collision protection (single-process model is rare; this is
     # belt+braces): suffix with .pid if target exists.

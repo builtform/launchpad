@@ -37,9 +37,10 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timezone
+from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping, TextIO
+from typing import Any, TextIO
 
 # Sibling-script imports.
 _SCRIPTS = Path(__file__).resolve().parent.parent
@@ -77,11 +78,11 @@ def _harness_obs_dir(repo_root: Path) -> Path:
 
 
 def _utc_now_microsec() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S.%fZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%S.%fZ")
 
 
 def _utc_now_iso_sec() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _build_payload(

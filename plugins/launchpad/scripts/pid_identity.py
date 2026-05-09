@@ -20,7 +20,7 @@ SRP-split module at v2.2; at v2.0 each writer calls this helper directly.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 try:
     import psutil  # type: ignore[import-not-found]
@@ -54,7 +54,7 @@ def get_pid_start_time() -> str:
         # `pid_start_time` field carries the placeholder.
         return "psutil-unavailable"
     return datetime.fromtimestamp(
-        psutil.Process().create_time(), tz=timezone.utc  # type: ignore[union-attr]
+        psutil.Process().create_time(), tz=UTC  # type: ignore[union-attr]
     ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 

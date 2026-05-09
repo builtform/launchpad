@@ -66,10 +66,10 @@ def _rewrite_path(value: str | None, old_prefix: str, new_prefix: str) -> str | 
 
 
 def _rewrite_adapter_paths(
-    adapter_out: "AdapterOutput",
+    adapter_out: AdapterOutput,
     layer_paths: dict[str, str],
     stacks: list[str],
-) -> "AdapterOutput":
+) -> AdapterOutput:
     """Rewrite path-bearing fields in AdapterOutput to match the layer paths
     actually used by the scaffolder (read from the receipt's
     `layers_materialized[].path`).

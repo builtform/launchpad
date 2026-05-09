@@ -19,9 +19,9 @@ from __future__ import annotations
 
 import re
 import shutil
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from types import MappingProxyType
-from typing import Callable, Mapping
 
 from .contracts import (
     _EMPTY_WORKSPACE_MAP,

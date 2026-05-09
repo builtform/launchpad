@@ -24,7 +24,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -57,7 +57,7 @@ def _parse_date(s: str) -> date:
 
 
 def _today_utc() -> date:
-    return datetime.now(timezone.utc).date()
+    return datetime.now(UTC).date()
 
 
 def _extract_last_validated(text: str) -> str | None:

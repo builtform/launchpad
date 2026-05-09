@@ -46,27 +46,30 @@ import json
 import os
 import re
 import sys
-from dataclasses import asdict, dataclass, field
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Literal, Mapping, Sequence
+from typing import Any, Literal
 
 # Sibling-script imports.
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
+from datetime import UTC
+
 from atomic_io import advisory_flock  # noqa: E402
+from plugin_default_generators._renderer_base import (  # noqa: E402
+    sha256_bytes,
+    sha256_file,
+)
+from plugin_default_generators.infrastructure_renderer import (  # noqa: E402
+    InfrastructureRenderer,
+    InfrastructureRenderError,
+)
 from telemetry_writer import write_telemetry_entry  # noqa: E402
 
-from plugin_default_generators._renderer_base import sha256_bytes, sha256_file  # noqa: E402
-from plugin_default_generators.infrastructure_renderer import (  # noqa: E402
-    InfrastructureRenderError,
-    InfrastructureRenderer,
-)
-
 from lp_bootstrap import (  # noqa: E402
-    BACKUP_DIR_NAME,
-    FILE_MODES,
     INFRASTRUCTURE_FILES,
     INFRASTRUCTURE_TARGETS,
     LAUNCHPAD_DIR_NAME,
@@ -74,7 +77,6 @@ from lp_bootstrap import (  # noqa: E402
     BootstrapError,
     BootstrapErrorCode,
     BootstrapPolicy,
-    BootstrapState,
 )
 from lp_bootstrap.manifest_writer import (  # noqa: E402
     BootstrapManifest,
@@ -88,7 +90,6 @@ from lp_bootstrap.manifest_writer import (  # noqa: E402
 from lp_bootstrap.policy import (  # noqa: E402
     BootstrapPolicyError,
     PolicyAction,
-    PolicyResult,
     apply_append_only,
     apply_merge_keys,
     apply_overwrite_if_unchanged,
@@ -98,15 +99,12 @@ from lp_bootstrap.policy import (  # noqa: E402
     write_backup_then_overwrite,
 )
 from lp_bootstrap.sentinel import (  # noqa: E402
-    BootstrapSentinelError,
     SentinelSnapshot,
     clear_sentinel,
     is_pid_alive,
     read_sentinel,
-    sentinel_path,
     write_sentinel,
 )
-
 
 # --- Per-module typed exception ------------------------------------------
 
@@ -337,13 +335,14 @@ def _record_version_drift(
     decision validation. File mode tightens 0o644 -> 0o600 via the
     helper's contract (DA-F9.1, intentional posture-tightening).
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
+
     from lp_bootstrap.version_drift import (
         Fingerprint,
         Names,
         compute_identity_fields_changed,
     )
-    accepted_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    accepted_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     # Bootstrap drift always touches `plugin_version` only; route through
     # the shared helper so writer-side serialization (Names ->
@@ -425,6 +424,8 @@ def _sentinel_preflight(cwd: Path) -> tuple[SentinelSnapshot | None, list[str]]:
     try:
         from lp_update_identity.sentinel import (
             is_pid_alive as _id_is_pid_alive,
+        )
+        from lp_update_identity.sentinel import (
             read_sentinel as _id_read_sentinel,
         )
     except ImportError:  # pragma: no cover - lp_update_identity ships in v2.1
@@ -454,6 +455,8 @@ def _sentinel_preflight(cwd: Path) -> tuple[SentinelSnapshot | None, list[str]]:
     try:
         from lp_scaffold_stack.sentinel import (
             is_pid_alive as _ss_is_pid_alive,
+        )
+        from lp_scaffold_stack.sentinel import (
             read_sentinel as _ss_read_sentinel,
         )
     except ImportError:  # pragma: no cover

@@ -32,12 +32,12 @@ in test fixtures and brownfield contexts that have no scaffold-decision.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator, Mapping, Sequence
+from typing import Any
 
 from ._renderer_base import RendererBase, sha256_bytes
-
 
 # Inventory: (template name relative to TEMPLATE_SUBDIR, output relpath)
 # Output relpaths are relative to the project root (cwd at scaffold time).

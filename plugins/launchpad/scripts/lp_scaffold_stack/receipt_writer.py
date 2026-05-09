@@ -21,9 +21,10 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timezone
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping, Sequence, TypedDict
+from typing import Any, TypedDict
 
 # Sibling-script imports.
 _SCRIPTS = Path(__file__).resolve().parent.parent
@@ -89,7 +90,7 @@ class ReceiptBuildError(ValueError):
 
 
 def _utc_now_iso_sec() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def build_receipt_payload(

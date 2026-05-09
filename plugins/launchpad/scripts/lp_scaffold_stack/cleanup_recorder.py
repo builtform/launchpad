@@ -34,9 +34,10 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timezone
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 # Closed reason enum — distinct from §4 scaffold-rejection. v2.0 readers
 # (humans + future BL-231 tooling) MUST hard-reject unknown values.
@@ -91,11 +92,11 @@ def _launchpad_dir(repo_root: Path) -> Path:
 
 
 def _utc_now_iso_sec() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _utc_now_iso_ts_filename() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%SZ")
 
 
 def _validate_path_field(p: str, *, context: str) -> None:

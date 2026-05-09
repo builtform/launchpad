@@ -22,7 +22,7 @@ YAML body parse via the already-vendored PyYAML.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -121,7 +121,7 @@ def validate_frontmatter(fm: dict[str, Any]) -> None:
     generated_at = fm["generated_at"]
     if isinstance(generated_at, datetime):
         # Reject naive datetimes (no tzinfo) — the spec requires UTC Z suffix.
-        if generated_at.tzinfo is None or generated_at.utcoffset() != timezone.utc.utcoffset(None):
+        if generated_at.tzinfo is None or generated_at.utcoffset() != UTC.utcoffset(None):
             raise BrainstormSummaryError(
                 f"brainstorm-summary.md `generated_at` must be UTC (Z suffix); "
                 f"got {generated_at!r} (naive or non-UTC tzinfo)",

@@ -38,8 +38,9 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Any, Iterator, Mapping
+from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 VENDOR = SCRIPT_DIR / "plugin_stack_adapters" / "_vendor"
@@ -48,6 +49,10 @@ if str(VENDOR) not in sys.path:
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from plugin_default_generators._renderer_base import (  # noqa: E402
+    RendererBase,
+    SecretScannerViolation,
+)
 from plugin_stack_adapters import (  # noqa: E402
     astro,
     eleventy_adapter,
@@ -66,11 +71,6 @@ from plugin_stack_adapters.contracts import AdapterOutput  # noqa: E402
 from plugin_stack_adapters.polyglot_path_rewriter import (  # noqa: E402
     _rewrite_adapter_paths,
 )
-from plugin_default_generators._renderer_base import (  # noqa: E402
-    RendererBase,
-    SecretScannerViolation,
-)
-
 
 # Phase 8.5 plan section 3.12 verbatim.
 TRUST_BANNER = (
@@ -477,7 +477,9 @@ def generate(
     receipt_layers: list[dict] = []
     if receipt_path.is_file():
         try:
-            from plugin_scaffold_receipt_loader import load_receipt  # type: ignore[import-not-found]
+            from plugin_scaffold_receipt_loader import (
+                load_receipt,  # type: ignore[import-not-found]
+            )
         except ImportError:
             import importlib.util
             spec = importlib.util.spec_from_file_location(

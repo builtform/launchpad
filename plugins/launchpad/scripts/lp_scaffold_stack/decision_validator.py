@@ -21,10 +21,11 @@ import os
 import re
 import sys
 import unicodedata
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 # Make sibling-module imports work when invoked as a library from outside the
 # package (mirrors lp_pick_stack/engine.py).
@@ -139,7 +140,7 @@ def _parse_iso_utc_sec(value: str) -> datetime | None:
         return None
     try:
         return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         )
     except ValueError:
         return None
@@ -457,7 +458,7 @@ def validate_decision(
             message=f"generated_at must be ISO 8601 UTC sec-precision Z-suffix, got {decision['generated_at']!r}",
             field_name="generated_at",
         )
-    age = datetime.now(timezone.utc) - generated_at
+    age = datetime.now(UTC) - generated_at
     if age > GENERATED_AT_MAX_AGE:
         return Rejected(
             reason="generated_at_expired",
@@ -696,7 +697,7 @@ def _validate_meta_keys_allowlist(
     *,
     allowed: frozenset[str],
     payload_kind: str,
-) -> "Rejected | None":
+) -> Rejected | None:
     """v2.1.0 completion plan §3.5: enforce the `*_meta` allowlist.
 
     Pattern-match rule (NOT additive): for each top-level key, iff

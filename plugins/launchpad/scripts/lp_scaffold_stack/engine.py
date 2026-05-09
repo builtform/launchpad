@@ -28,14 +28,22 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 # Sibling-script imports.
 _SCRIPTS = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
+from datetime import UTC
+
 from cwd_state import refuse_if_not_greenfield  # noqa: E402
+from plugin_stack_adapters.composition import (  # noqa: E402
+    CompositionAbortError,
+)
+from plugin_stack_adapters.contracts import (  # noqa: E402
+    ScaffoldStepFailedError,
+)
 from telemetry_writer import write_telemetry_entry  # noqa: E402
 
 from lp_scaffold_stack import EXPECTED_DECISION_VERSION  # noqa: E402
@@ -73,13 +81,6 @@ from lp_scaffold_stack.v21_adapter_dispatch import (  # noqa: E402
     dispatch_by_stack_ids,
     fallback_ids_used,
 )
-from plugin_stack_adapters.composition import (  # noqa: E402
-    CompositionAbortError,
-)
-from plugin_stack_adapters.contracts import (  # noqa: E402
-    ScaffoldStepFailedError,
-)
-
 
 # v2.1.0 completion plan §3.3: legacy `RunInvoker` typed against the
 # deleted `layer_materializer.materialize_layer`. The kwarg is kept on
@@ -137,8 +138,8 @@ class PipelineResult:
 
 
 def _utc_iso_sec() -> str:
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    from datetime import datetime
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _load_yaml(path: Path) -> dict:
@@ -455,6 +456,8 @@ def run_pipeline(
     # refuses on a live PID.
     from lp_scaffold_stack.sentinel import (  # noqa: PLC0415
         clear_sentinel as _scaffold_stack_clear_sentinel,
+    )
+    from lp_scaffold_stack.sentinel import (
         write_sentinel as _scaffold_stack_write_sentinel,
     )
     try:
@@ -665,6 +668,7 @@ def _run_pipeline_after_sentinel(
                 from lp_pick_stack.decision_writer import (  # noqa: PLC0415
                     re_seal_decision_atomic,
                 )
+
                 from lp_scaffold_stack.decision_validator import (  # noqa: PLC0415
                     mark_kernel_seeded,
                 )
@@ -696,11 +700,11 @@ def _run_pipeline_after_sentinel(
             # the bootstrap-manifest is written atomically at the end of
             # the loop and seeds Phase 4 adapter overlays + Phase 10
             # /lp-update-identity refresh paths.
-            from lp_bootstrap.engine import run_bootstrap  # noqa: PLC0415
             from lp_bootstrap import (  # noqa: PLC0415
                 BootstrapError,
                 BootstrapErrorCode,
             )
+            from lp_bootstrap.engine import run_bootstrap  # noqa: PLC0415
             bootstrap_result = run_bootstrap(
                 cwd, mode="greenfield", identity=identity,
             )
@@ -871,7 +875,7 @@ def _record_partial_failure(
             recommended_recovery_action=recovery_action,
             repo_root=repo_root,
         )
-    except CleanupRecordError as exc:
+    except CleanupRecordError:
         # Write-time validation tripped (e.g., recovery_layer_path was a
         # destructive path). Drop the recovery_commands array to the minimum
         # safe shape (a single rerun) and retry.

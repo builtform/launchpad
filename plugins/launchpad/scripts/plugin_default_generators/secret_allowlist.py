@@ -24,10 +24,9 @@ from __future__ import annotations
 import fnmatch
 import re
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
-
 
 # Jinja comment marker shape -- matches `{# secret-allowlist: <reason> #}`.
 # The reason field is captured for the WARN log; trailing whitespace inside

@@ -20,8 +20,8 @@ import re
 import signal
 import subprocess
 import time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 # argv-element shape: alphanumerics + path-safe punctuation + flag glue.
 _ARGV_SAFE_RE = re.compile(r"^[A-Za-z0-9@._\-/=:]+$")

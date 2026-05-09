@@ -25,9 +25,10 @@ from __future__ import annotations
 
 import sys
 import time
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 # Ensure scripts/ is on path for sibling-module imports when invoked as a
 # library from outside the package.
@@ -43,8 +44,8 @@ from lp_pick_stack.brainstorm_summary_validator import (  # noqa: E402
     validate_brainstorm_summary,
 )
 from lp_pick_stack.decision_writer import (  # noqa: E402
-    DecisionWriteError,
     EMPTY_FILE_SHA256,
+    DecisionWriteError,
     IdentityValidationError,
     validate_identity,
     write_decision_file,
@@ -66,7 +67,6 @@ from lp_pick_stack.question_funnel import (  # noqa: E402
 )
 from lp_pick_stack.rationale_renderer import render_rationale  # noqa: E402
 from lp_pick_stack.rationale_summary_extractor import extract_summary  # noqa: E402
-
 
 COMMAND_NAME = "/lp-pick-stack"
 DEFAULT_CATEGORY_PATTERNS_PATH = (

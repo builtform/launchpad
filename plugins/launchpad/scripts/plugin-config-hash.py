@@ -33,7 +33,6 @@ if str(VENDOR) not in sys.path:
 
 import yaml  # noqa: E402  (vendored)
 
-
 # Resolution outcomes for LP_CONFIG_REVIEWED.
 ACCEPTED = "ACCEPTED"
 REPROMPT = "REPROMPT"

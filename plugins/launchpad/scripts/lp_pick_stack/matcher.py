@@ -32,8 +32,9 @@ the user picks `[m]anual override`.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 # Reserved category id for manual-override branch (HANDSHAKE §4 rule 4).
 MANUAL_OVERRIDE_ID = "manual-override"

@@ -34,10 +34,11 @@ import os
 import secrets
 import sys
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 # Sibling-script imports.
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
@@ -45,16 +46,16 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from atomic_io import atomic_write_replace  # noqa: E402
-
-from plugin_default_generators._renderer_base import sha256_bytes, sha256_file  # noqa: E402
+from plugin_default_generators._renderer_base import (  # noqa: E402
+    sha256_bytes,
+    sha256_file,
+)
 
 from lp_bootstrap import (  # noqa: E402
     BACKUP_DIR_NAME,
     LAUNCHPAD_DIR_NAME,
     WARNINGS_FILENAME,
-    BootstrapError,
     BootstrapErrorCode,
-    BootstrapPolicy,
 )
 
 

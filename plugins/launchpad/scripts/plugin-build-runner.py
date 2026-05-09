@@ -45,7 +45,6 @@ if str(SCRIPT_DIR) not in sys.path:
 
 import yaml  # noqa: E402
 
-
 VALID_STAGES = ("test", "typecheck", "lint", "format", "build", "dev")
 
 

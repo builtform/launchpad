@@ -23,8 +23,9 @@ should expect a one-line import-path change with stable signature.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping, Union
+from typing import Union
 
 
 @dataclass(frozen=True)
