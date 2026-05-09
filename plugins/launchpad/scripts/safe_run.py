@@ -297,7 +297,7 @@ def safe_run_long_shell(
         except ValueError:
             pass
 
-    proc = subprocess.Popen(  # nosec B602 -- safe_run_long_shell is the canonical shell-with-env-allowlist helper; security boundary is the env-allowlist construction at call sites, NOT this Popen (cf. BL-<TBD> | HANDSHAKE §6 | Phase 3 §6).
+    proc = subprocess.Popen(  # nosec B602 -- safe_run_long_shell is the canonical shell-with-env-allowlist helper; security boundary is the env-allowlist construction at call sites, NOT this Popen (cf. BL-308 | HANDSHAKE §6 | Phase 3 §6).
         cmd_string,
         shell=True,
         env=env,

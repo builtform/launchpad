@@ -190,16 +190,16 @@ LINT_RAW_SUBPROCESS_ALLOWLIST = frozenset(
         "plugins/launchpad/scripts/lp_scaffold_stack/nonce_ledger.py",
         # Best-effort git config + python subprocess for audit-log forensics;
         # FileNotFoundError-tolerant, fixed argv. Migration to safe_run is
-        # BL-<TBD> (Phase 5 stash-pop seeds the concrete number).
+        # BL-308 (Phase 5 stash-pop seeds the concrete number).
         "plugins/launchpad/scripts/plugin-audit-log.py",
         # Best-effort git invocations for autonomous-guard ack check;
-        # FileNotFoundError + non-repo tolerant. Migration BL-<TBD>.
+        # FileNotFoundError + non-repo tolerant. Migration BL-308.
         "plugins/launchpad/scripts/plugin_stack_adapters/autonomous_guard.py",
         # Stack detector subprocess invocation; bounded env (LP_REPO_ROOT pin
-        # only). Migration BL-<TBD>.
+        # only). Migration BL-308.
         "plugins/launchpad/scripts/lp_define_runner.py",
         # git config user.email read (best-effort; fail-closed empty per
-        # cycle-3 security P2-A). Migration BL-<TBD>.
+        # cycle-3 security P2-A). Migration BL-308.
         "plugins/launchpad/scripts/lp_update_identity/engine.py",
     }
 )
@@ -801,7 +801,7 @@ def check_schema_codeowners_gate(
         f"[{rule}] schema-source files changed without {SCHEMA_DOC} also "
         f"being touched in the same diff:\n  "
         + "\n  ".join(sorted(schema_changed))
-        + f"\n\nThe v2.1 schema contract (HANDSHAKE §10.v2.1) requires "  # nosec B608 -- false positive; constructing error-message string, not SQL query (the word "schema" + adjacent string concat triggers B608's heuristic) (cf. BL-<TBD> | HANDSHAKE §10.v2.1 | plan §6 alternatives table).
+        + f"\n\nThe v2.1 schema contract (HANDSHAKE §10.v2.1) requires "  # nosec B608 -- false positive; constructing error-message string, not SQL query (the word "schema" + adjacent string concat triggers B608's heuristic) (cf. BL-308 | HANDSHAKE §10.v2.1 | plan §6 alternatives table).
         f"that any change to schema-source code be paired with an update "
         f"to {SCHEMA_DOC}. If this PR genuinely needs to ship without a "
         f"docs change (e.g., pure refactor), set commit footer "

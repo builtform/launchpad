@@ -1786,3 +1786,117 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 3. Defer architectural simplifications (DRY across packages) to v2.2 if any are non-trivial.
 
 **Default decision**: defer to v2.1.3 / v2.2. Not blocking; quality-of-life polish.
+
+#### BL-308 - v2.1.3: Resolve outstanding pyright/nosec `BL-<TBD>` deferrals from v2.1.1
+
+**Status (2026-05-09)**: NEW — surfaced by v2.1.1 cross-cutting sweep-review.
+
+**Source**: v2.1.1 cross-cutting sweep-review (2026-05-09)
+
+**Driver**: 16 sites shipped at v2.1.1 with `BL-<TBD>` placeholder pointers in nosec/pyright suppression comments. Phase 3 plan §6 + Phase 5 plan §1 intended these to be seeded at Phase 5 stash-pop, but the seeding slipped — the BL-298..307 set covers different items. Slice H.1 substituted all 16 occurrences with `BL-308`, deferring the underlying-issue resolution to v2.1.3.
+
+**Sites**:
+
+- `plugins/launchpad/scripts/safe_run.py:300` (B602 nosec, safe_run_long_shell)
+- `plugins/launchpad/scripts/plugin-build-runner.py:338` (B602 nosec, stage runner)
+- `plugins/launchpad/scripts/plugin-agent-scope-filter.py:147` (B506 nosec, \_SafeLoader binding indirection)
+- `plugins/launchpad/scripts/pyproject.toml:59-66` (8 pyright per-rule severity downgrades)
+- `plugins/launchpad/scripts/plugin-v2-handshake-lint.py:193, 196, 199, 202, 804` (4 deferral pointers + 1 B608 nosec)
+
+**At v2.1.3 design time**:
+
+1. Revisit each suppression and either (a) eliminate the underlying issue (preferred — e.g., refactor safe_run usage, narrow pyright type contracts), or (b) split into per-site dedicated tracking BLs with explicit per-site rationale.
+2. The `BL-308` umbrella allows v2.1.1 to ship without a placeholder hole; v2.1.3 is the appropriate window to tease apart underlying issues vs. accepted-debt sites.
+
+**Default decision**: defer to v2.1.3.
+
+#### BL-309 - v2.1.x: lp-ship.md `exit non_zero` typo
+
+**Status (2026-05-09)**: NEW — surfaced by v2.1.1 cross-cutting sweep-review.
+
+**Source**: v2.1.1 cross-cutting sweep-review (2026-05-09; sweep P2-1)
+
+**Driver**: `plugins/launchpad/commands/lp-ship.md:137` contains the literal text `exit non_zero` inside a fenced bash code block (Step 4.6 HARD STOP path on resolver-completion check failure). Bash interprets this as `bash: exit: non_zero: numeric argument required`. Should be `exit 1`. Doc-only defect in shipped command spec; agent interpreting the spec will likely treat as "exit non-zero" but real bash fires an error.
+
+**At v2.1.x design time**: 1-line edit, replace `exit non_zero` → `exit 1`. Suitable for a v2.1.x doc-quality patch lane.
+
+**Default decision**: defer to v2.1.x.
+
+#### BL-310 - v2.1.x: Pin-file doc drift on "5 contract modules" vs canonical "3"
+
+**Status (2026-05-09)**: NEW — surfaced by v2.1.1 cross-cutting sweep-review.
+
+**Source**: v2.1.1 cross-cutting sweep-review (2026-05-09; sweep P2-3)
+
+**Driver**: 4 sites still say "5 contract modules" / "5 strict modules":
+
+- `plugins/launchpad/scripts/pyproject.toml:10` (top-of-file overview comment)
+- `plugins/launchpad/scripts/pyproject.toml:55` (per-rule severity block header comment)
+- `plugins/launchpad/scripts/pyproject.toml:57` (in-block "outside the 5 strict modules" guidance)
+- `plugins/launchpad/scripts/requirements.in:31` (pyright pin comment)
+
+The canonical surface — `docs/architecture/CI_CD.md:108`, `docs/guides/CODE_REVIEW_LAYERS.md:72`, `CHANGELOG.md:33`, `.github/workflows/v2-handshake-lint.yml:62-64` — all say "3 (security-boundary) modules". Per Phase 4 R1-T1-10 hybrid escalation the original 5-module set was reduced to 3; the four pin/comment-block sites missed the reconciliation. Note: `pyproject.toml:68` correctly says "the original 5-module set" in context that explains the 5→3 reduction; that one is correct.
+
+**At v2.1.x design time**: 4-line comment edit reconciling all four sites to "3 security-boundary modules".
+
+**Default decision**: defer to v2.1.x.
+
+#### BL-311 - v2.1.x: Dead code removal in plugin-build-runner.py
+
+**Status (2026-05-09)**: NEW — surfaced by v2.1.1 cross-cutting sweep-review.
+
+**Source**: v2.1.1 cross-cutting sweep-review (2026-05-09; sweep P2-4)
+
+**Driver**: `plugins/launchpad/scripts/plugin-build-runner.py` carries two unreferenced helpers: `_compute_hash` (lines 114-125) and `_is_hex` (lines 225-230). Both verified zero callsites via grep. The docstring of `check_ci_override` even says _"Previously this function did its own raw-string compare against `_compute_hash`"_ — i.e., it explicitly migrated AWAY from `_compute_hash` to `_resolve_review_state`, but the function was left behind. Multi-agent flagged: spec security-auditor + spec code-simplicity + blind code-simplicity.
+
+**At v2.1.x design time**: delete `_compute_hash` (lines 114-125) and `_is_hex` (lines 225-230); ~17 LOC removal. Verify no lint regression on unused-import (`import json` is still used by `_resolve_review_state`).
+
+**Default decision**: defer to v2.1.x.
+
+#### BL-312 - v2.1.3: plugin-workflow-sha-pin-check.py regex bypass via GH Actions `${{ }}` expressions
+
+**Status (2026-05-09)**: NEW — surfaced by v2.1.1 cross-cutting sweep-review.
+
+**Source**: v2.1.1 cross-cutting sweep-review (2026-05-09; sweep P2-5)
+
+**Driver**: `_USES_RE = re.compile(r"uses:\s*([^#\s]+)")` at `plugin-workflow-sha-pin-check.py:19` stops the capture at the first whitespace. Any `uses:` value containing a GitHub Actions expression (e.g., `uses: ${{ matrix.action }}@v1`) truncates to `${{` at the space. `_extract_ref` returns None and the line is silently skipped (line 53-54 `continue`). Expression-form `uses:` resolves at runtime to a potentially attacker-controllable ref but slips the gate. Defense-in-depth gap, not exploitable in current corpus, but the gate's docstring claims "catch ALL non-SHA refs".
+
+**At v2.1.3 design time**: parse workflow YAML with PyYAML AST traversal, walk `jobs.*.steps[].uses` nodes, hard-fail any value containing `${{` (expression) or whose ref is not a 40-hex SHA. Until the AST rewrite lands, add a regex pre-check that hard-fails on literal `${{` inside `uses:` values.
+
+**Default decision**: defer to v2.1.3.
+
+#### BL-313 - v2.1.3: lefthook here-string filename-quoting hardening
+
+**Status (2026-05-09)**: NEW — surfaced by v2.1.1 cross-cutting sweep-review (pre-existing pattern; v2.1.1 inherits).
+
+**Source**: v2.1.1 cross-cutting sweep-review (2026-05-09; v2.1.3 candidate)
+
+**Driver**: `lefthook.yml:163, 180, 196` (three pre-commit hooks: `large-file-guard` body line 163, `trailing-whitespace` body line 180, `end-of-file-newline` body line 196) interpolate `{staged_files}` into a double-quoted `echo` command before piping through `tr` and a here-string: `<<< "$(echo "{staged_files}" | tr ' ' '\n')"`. Inside double quotes, `$(...)` and backtick command substitution are evaluated by the shell. A staged file whose pathname contains `$(...)` (Git permits `$` and parentheses in pathnames on POSIX) would cause the embedded command to execute when the hook fires. Defense-in-depth bug; pre-existing in origin/main (NOT v2.1.1-introduced).
+
+**At v2.1.3 design time**: replace `<<< "$(echo "{staged_files}" | tr ' ' '\n')"` with a safe iteration form. Options: (a) use lefthook's per-file `{staged_files}` expansion directly with `xargs -0` and a NUL-delimited list; (b) replace the inline shell with a Python helper script (the codebase already has `python3 plugins/launchpad/scripts/...` helpers for everything else); (c) at minimum, switch to `printf '%s\n' {staged_files}` form and stop double-quoting the substitution.
+
+**Default decision**: defer to v2.1.3.
+
+#### BL-314 - v2.1.3: nonce_ledger.py darwin branch tiebreak determinism
+
+**Status (2026-05-09)**: NEW — surfaced by v2.1.1 cross-cutting sweep-review.
+
+**Source**: v2.1.1 cross-cutting sweep-review (2026-05-09; v2.1.3 candidate)
+
+**Driver**: `lp_scaffold_stack/nonce_ledger.py:171` (Linux branch) uses strict `>` for longest-prefix-match, fixed per Phase 4 D11 absorption. `lp_scaffold_stack/nonce_ledger.py:203` (darwin branch) still uses `>=` — last-seen-wins, filesystem-ordering-dependent. The Linux comment at line 168-170 reads `# D11: strict longest-match-wins; tiebreak by first-seen (deterministic, not filesystem-ordering-dependent).` — that determinism rationale should apply to BOTH platforms. The regression-shield test `test_nonce_ledger_mountpoint_tiebreak.py` mocks Linux only.
+
+**At v2.1.3 design time**: change line 203 from `if len(mp) >= len(best_mp):` to `if len(mp) > len(best_mp):`; extend the regression-shield test with a darwin-platform mock (or a portable test helper that exercises both branches).
+
+**Default decision**: defer to v2.1.3. Real platform asymmetry but D11 verdict scope was Linux-only at Phase 4 close; v2.1.3 is the appropriate window to extend.
+
+#### BL-315 - v2.1.3: plugin-restamp-redact-wip.py atomic_io import path hardening
+
+**Status (2026-05-09)**: NEW — surfaced by v2.1.1 cross-cutting sweep-review.
+
+**Source**: v2.1.1 cross-cutting sweep-review (2026-05-09; v2.1.3 candidate)
+
+**Driver**: `plugins/launchpad/scripts/plugin-restamp-redact-wip.py:88` does `sys.path.insert(0, str(args.repo_root / "plugins" / "launchpad" / "scripts"))` and imports `atomic_io` from there. `args.repo_root` defaults to `Path.cwd()` and is otherwise user-supplied. If the script runs against a hostile clone (or any directory containing a planted `plugins/launchpad/scripts/atomic_io.py`), Python imports the planted module. Defense-in-depth issue — the script is a manual operator tool with low real-world severity, but the canonical fix is trivial.
+
+**At v2.1.3 design time**: replace lines 88-89 with `sys.path.insert(0, str(Path(__file__).resolve().parent))` + `from atomic_io import atomic_write_replace`. Pins the import to the script's own installed directory regardless of caller-supplied `--repo-root`.
+
+**Default decision**: defer to v2.1.3.

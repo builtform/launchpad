@@ -56,14 +56,14 @@ typeCheckingMode = "standard"
 # OVERRIDE these severities (strict re-enables them as errors at the call
 # site). New code outside the 5 strict modules: use `# type: ignore[xxx]`
 # at call sites if the warning is truly intentional, OR fix the type.
-reportArgumentType = "warning"          # 16 sites (BL-<TBD>)
-reportOptionalMemberAccess = "warning"  # 5 sites (BL-<TBD>)
-reportReturnType = "warning"            # 3 sites: stack adapter Pin/dict (BL-<TBD>)
-reportPossiblyUnboundVariable = "warning"  # 2 sites: lp_bootstrap/engine.py (BL-<TBD>)
-reportTypedDictNotRequiredAccess = "warning"  # 1 site: polyglot.py (BL-<TBD>)
-reportRedeclaration = "warning"         # 1 site: template_cache/_store.py:480 (BL-<TBD>)
-reportMissingImports = "warning"        # 1 site: lp_define_runner.py:480 (BL-<TBD>; dynamic-import path)
-reportAttributeAccessIssue = "warning"  # 1 site: jinja2.SandboxedEnvironment (BL-<TBD>; vendored type stub gap)
+reportArgumentType = "warning"          # 16 sites (BL-308)
+reportOptionalMemberAccess = "warning"  # 5 sites (BL-308)
+reportReturnType = "warning"            # 3 sites: stack adapter Pin/dict (BL-308)
+reportPossiblyUnboundVariable = "warning"  # 2 sites: lp_bootstrap/engine.py (BL-308)
+reportTypedDictNotRequiredAccess = "warning"  # 1 site: polyglot.py (BL-308)
+reportRedeclaration = "warning"         # 1 site: template_cache/_store.py:480 (BL-308)
+reportMissingImports = "warning"        # 1 site: lp_define_runner.py:480 (BL-308; dynamic-import path)
+reportAttributeAccessIssue = "warning"  # 1 site: jinja2.SandboxedEnvironment (BL-308; vendored type stub gap)
 # Per-file `# pyright: strict` directives on 3 SECURITY-BOUNDARY modules
 # (DA-4.4 + DA-4.11 R1-T1-10 hybrid escalation): the original 5-module set
 # included two engine.py modules (lp_pick_stack/engine.py 23 errors +

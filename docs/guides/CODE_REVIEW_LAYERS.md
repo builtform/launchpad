@@ -67,7 +67,7 @@ The architecture is universal-lefthook + per-stack truth: `lefthook.yml` routes 
 **Concrete v2.1.1 self-host tools (subject to swap; current as of v2.1.1):**
 
 - `ruff` — Python lint + format-check
-- `bandit` — Python security scanner (low-or-higher severity blocks)
+- `bandit` — Python security scanner (medium-or-higher severity blocks; LOW skipped at v2.1.1)
 - `semgrep` — semantic patterns (general rules + LaunchPad-internal cross-cutting invariants)
 - `pyright` — Python types (strict on 3 security-boundary modules; standard mode elsewhere)
 - `pytest` — unit tests

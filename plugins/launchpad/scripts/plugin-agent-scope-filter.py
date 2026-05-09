@@ -144,7 +144,7 @@ def _extract_frontmatter_dict(path: Path) -> dict | None:
         if end == -1:
             return None
     body = text[4:end]
-    parsed = yaml.load(body, Loader=_SafeLoader)  # noqa: S506 -- CSafeLoader/SafeLoader only  # nosec B506 -- _SafeLoader binding indirection (CSafeLoader|SafeLoader); bandit doesn't trace import alias (cf. BL-<TBD> | HANDSHAKE §2 | plan §6 alternatives table).
+    parsed = yaml.load(body, Loader=_SafeLoader)  # noqa: S506 -- CSafeLoader/SafeLoader only  # nosec B506 -- _SafeLoader binding indirection (CSafeLoader|SafeLoader); bandit doesn't trace import alias (cf. BL-308 | HANDSHAKE §2 | plan §6 alternatives table).
     if not isinstance(parsed, dict):
         return None
     return parsed

@@ -335,7 +335,7 @@ def run_stage(repo_root: Path, stage: str, *, check_only: bool = False) -> int:
     for i, cmd in enumerate(cmds, start=1):
         prefix = f"[{stage} {i}/{len(cmds)}]"
         print(f"{prefix} {cmd}", file=sys.stderr)
-        result = subprocess.run(cmd, shell=True, cwd=repo_root)  # nosec B602 -- shell=True intentional for stage runner; user-cmd from commands.<stage> array. Security boundary is `LP_CONFIG_REVIEWED` upstream gate, NOT this call site (cf. BL-<TBD> | HANDSHAKE §6 | Phase 3 §6 threat-model). Also allowlisted in plugin-v2-handshake-lint LINT_SHELL_TRUE_ALLOWLIST.
+        result = subprocess.run(cmd, shell=True, cwd=repo_root)  # nosec B602 -- shell=True intentional for stage runner; user-cmd from commands.<stage> array. Security boundary is `LP_CONFIG_REVIEWED` upstream gate, NOT this call site (cf. BL-308 | HANDSHAKE §6 | Phase 3 §6 threat-model). Also allowlisted in plugin-v2-handshake-lint LINT_SHELL_TRUE_ALLOWLIST.
         if result.returncode != 0:
             print(
                 f"{prefix} exited {result.returncode}; stopping stage", file=sys.stderr
