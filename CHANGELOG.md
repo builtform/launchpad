@@ -8,6 +8,57 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 Tracked in [ROADMAP.md](ROADMAP.md). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` (BL-251 through BL-254) for v2.2-deferred items captured during v2.1 ship.
 
+## [2.1.1]
+
+Mandatory `/lp-review` dual-pass wiring + `--no-context` blind-review flag + Layer 3 static-analysis gate (ruff + bandit + semgrep + pyright). Universal `lefthook.yml` routes test/typecheck/lint through `plugin-build-runner.py` for stack-aware dispatch. **Validation:** v2.1.1's mandatory review gates were validated by passing this very release through them — Phase 5's commit was the first production exercise of the full Layer 1+2+3 stack.
+
+### For LaunchPad users (downstream behavior changes)
+
+- `/lp-review --no-context` flag (bias-stripped blind pass; Phase 1)
+- **Mandatory dual-pass review in `/lp-commit` Step 2.5 + `/lp-ship` Step 4.6** — was previously optional yes/no prompt; honors `--skip-review` on hotfix branches with TTY-guarded `BYPASS REVIEW` confirmation + audit-trail trailer (Phase 2). **Behavior change.**
+- `/lp-ship` 3-round autonomous fix loop with 90-min timeout (Phase 2)
+- Universal `lefthook.yml` routes test/typecheck/lint through `plugin-build-runner.py` — stack-aware per `.launchpad/config.yml` `commands.*` arrays (Phase 3 D1+D2). **Behavior change for downstream lefthook adopters.**
+- New guide: [`docs/guides/CODE_REVIEW_LAYERS.md`](docs/guides/CODE_REVIEW_LAYERS.md) — three-layer architecture rationale + override patterns
+- `CLAUDE.md` Definition of Done extended with conditional Python gates (apply only when changes touch `*.py`)
+
+### For LaunchPad contributors (self-host hardening)
+
+- `pytest` direct pre-push lefthook entry (Phase 3 R1-T1-8)
+- `plugin-v2-handshake-lint.py` `_is_v2_module()` path-prefix matcher (Phase 3 BL-237 closure)
+- Layer 3 static-analysis stack on plugin scripts (ruff + bandit + semgrep + pyright + pytest)
+- **3 active cross-cutting invariant semgrep rules + 1 BL-deferred** in `plugins/launchpad/.semgrep/launchpad-internal.yml` (Phase 4) — sentinel-precedes-materialize rule deferred to BL-303 per >2 fail-to-validate iterations
+- 8 universal semgrep rules in `plugins/launchpad/.semgrep/general.yml` (Phase 4) — path-traversal rule narrowed post-iteration from `Path() / X` to `open(... + USER_INPUT)`
+- pip-compile-locked `requirements.txt` with `--require-hashes` (Phase 4) — Path A authorization; +1228 LOC transitive lock
+- `Makefile` with `lock-deps` target for regenerating `requirements.txt` (Phase 4 — Path A authorization)
+- Pyright strict mode on 3 security-boundary modules (`decision_validator.py`, `nonce_ledger.py`, `decision_integrity.py`) with documented `# type: ignore` ladders for residual `Any`-leakage (Phase 4 Hybrid disposition); `decision_validator.py` extended directive disables 4 Any-leakage rules
+- 8 pyright per-rule severity downgrades in `pyproject.toml` (`reportArgumentType`, `reportOptionalMemberAccess`, etc.) — admits pre-existing v2.0 surface as warnings; gate exits 0
+- Vendored version-pin files: `_vendor/{BANDIT,PYRIGHT,RUFF,SEMGREP}_VERSION` (Phase 4)
+- 4 `# nosec` annotations with BL/HANDSHAKE/plan cross-reference triple (B602 ×2 + B506 + B608)
+- 2 NEW regression-shield tests at `plugins/launchpad/scripts/tests/`: `test_nonce_ledger_mountpoint_tiebreak.py` (D11), `test_cwd_state_single_readme_carveout.py` (D15). D3 cascade-recovery enforced via the pre-existing `test_brownfield_manifests_single_source.py` (which Phase 4 preserved by restoring the `from cwd_state import BROWNFIELD_MANIFESTS` re-export in `plugin-stack-detector.py` per Commit 1 ride-along).
+- 6 new step entries in `.github/workflows/v2-handshake-lint.yml` (4 logical tools per Phase 4 R1-T1-12)
+- 7 D-verdict FIX items absorbed (D3 + D9 + D10 + D11 + D12 + D13 + D15)
+- `nonce_ledger.UUID_HEX_RE` promoted to public alias (Phase 4 amend P1 SoT consolidation)
+
+### Closed BL items
+
+- **BL-236** (Lefthook Python coverage expansion): SHIPPED via Phase 3 + Phase 4 — see PR #<PR-TBD>
+- **BL-237** (V2_MODULES scope tightening): SHIPPED via Phase 3 — see PR #<PR-TBD>
+- **BL-245** (Stack-aware lefthook generation): SHIPPED via universal lefthook + build-runner indirection (master plan D1); see PR #<PR-TBD>
+
+### Deferred to v2.1.3 / v2.2
+
+- BL-291..297 + 22 v2.1.1→v2.2 retags + 8 v2.1.1→v2.1.3 retags (per BACKLOG.md)
+- BL-298 (pyright strict on engine modules) — v2.1.3
+- BL-299 (nodeenv binary outside pip hash coverage) — v2.1.3
+- BL-300 (`--strict-dispatch` flag on `/lp-review` — closes Phase 3 Hard Rule 6 violation class) — v2.1.3
+- BL-301 (semgrep synthetic-violation fixtures — Phase 4 deferred; Phase 5 Slice F surfaced) — v2.1.3
+- BL-303 (`lp-engine-sentinel-must-precede-materialize` semgrep rule — Phase 4 BL-deferred per >2 fail-to-validate iterations) — v2.1.3
+- BL-304 (secret-patterns.txt over-match on `\bdownstream\s+project` — false-positive in Jinja-template comment surface) — v2.1.3
+- BL-305 (portable timeout wrapper for macOS lefthook entries — `timeout` binary absent on macOS; wrappers removed) — v2.1.3
+- BL-306 (semgrep allowlist-vs-handshake-lint parallelism — R2-T1-14 placeholder from Phase 4) — v2.1.3
+- BL-307 (9 simplicity-reviewer cleanup-style P1s deferred from Phase 4 /lp-review — out of v2.1.1 scope per Phase 4 sibling triage) — v2.1.3 / v2.2
+- Tag-signing automation (BL-258, v2.2) — v2.1.1 tag is unsigned per existing posture (see SECURITY.md)
+
 ## [2.1.0]
 
 `/lp-scaffold-stack` now actually scaffolds via specialized v2.1 adapters — the v2.1 Adapter Protocol's `dispatch_by_stack_ids` is wired in production for the 5 active stacks (`ts_monorepo`, `nextjs_standalone`, `nextjs_fastapi`, `astro`, `generic`). The 5 v2.2-candidate stacks (`python_django`, `python_generic`, `nextjs_hono_cloudflare`, `nextjs_trpc_prisma`, `rails`) require explicit opt-in via `--accept-v22-fallback`; v2.2 ships dedicated support. Schema 1.0 decisions are now hard-rejected at validate time — v2.0 reached zero in-the-wild adoption before v2.1 ship; the rejection message names the regeneration recipe verbatim.
@@ -179,7 +230,8 @@ Carried forward into v1.1:
 
 Full v1.1 scope in [ROADMAP.md](ROADMAP.md).
 
-[Unreleased]: https://github.com/builtform/launchpad/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/builtform/launchpad/compare/v2.1.1...HEAD
+[2.1.1]: https://github.com/builtform/launchpad/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/builtform/launchpad/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/builtform/launchpad/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/builtform/launchpad/compare/v1.0.1...v1.1.0

@@ -74,6 +74,58 @@ Greptile is documented to have **higher recall but higher false-positive rate** 
 
 The lanes overlap on local logic; they don't on cross-file or convention concerns. Running both gives the broadest coverage at zero direct cost (OSS program covers Greptile; Codex Action quota is per-user).
 
+## v2.1.1 local gate inventory
+
+LaunchPad self-host runs the following gates LOCALLY before any push, via `lefthook` + `plugin-build-runner.py` + the new mandatory `/lp-review` dual-pass.
+
+### Pre-commit gates (`lefthook.yml` `pre-commit:` block)
+
+| Gate                      | Priority | Glob                                                     | Exclude                                   | Source                                                                                         | Purpose                                                                             |
+| ------------------------- | -------- | -------------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `prettier-fix`            | 1        | `*.{js,jsx,ts,tsx,json,css,md,yml,yaml,html}`            | —                                         | `pnpm prettier --write {staged_files}`                                                         | Auto-format on staged files                                                         |
+| `eslint-fix`              | 2        | `*.{js,jsx,ts,tsx,mjs,cjs}`                              | `next-env\.d\.ts$`                        | `pnpm eslint --fix {staged_files}`                                                             | Auto-fix lint issues on staged files                                                |
+| `lint`                    | 10       | `**/*.{js,jsx,ts,tsx,mjs,cjs,py}`                        | —                                         | `python3 plugins/launchpad/scripts/plugin-build-runner.py --stage=lint`                        | Routes through `.launchpad/config.yml` `commands.lint` (per-stack truth)            |
+| `typecheck`               | 10       | `**/*.{ts,tsx,py}`                                       | —                                         | `python3 plugins/launchpad/scripts/plugin-build-runner.py --stage=typecheck`                   | Routes through `commands.typecheck`                                                 |
+| `test`                    | 10       | `**/*.{ts,tsx,js,jsx,mjs,cjs,py}`                        | —                                         | `python3 plugins/launchpad/scripts/plugin-build-runner.py --stage=test`                        | Routes through `commands.test`                                                      |
+| `bandit`                  | 10       | `**/*.py`                                                | `plugins/launchpad/scripts/tests/.*\.py$` | `bandit -ll {staged_files}`                                                                    | Python security scanner (low-or-higher severity) — Phase 4                          |
+| `semgrep-general`         | 10       | `**/*.py`                                                | `plugins/launchpad/scripts/tests/.*\.py$` | `semgrep --config=plugins/launchpad/.semgrep/general.yml {staged_files} --error --metrics=off` | Universal semgrep rules — Phase 4                                                   |
+| `structure-check`         | 10       | —                                                        | —                                         | `bash scripts/maintenance/check-repo-structure.sh`                                             | Repo structure invariants                                                           |
+| `workflow-action-sha-pin` | 10       | —                                                        | —                                         | `python3 plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py`                           | Enforces SHA pins on GitHub Actions workflows                                       |
+| `large-file-guard`        | 10       | `*.{js,jsx,ts,tsx,json,css,md,yml,yaml,html,sh,mjs,cjs}` | —                                         | inline shell                                                                                   | Prevents accidentally-committed large text files (>500KB)                           |
+| `trailing-whitespace`     | 10       | `*.{js,jsx,ts,tsx,json,css,md,yml,yaml,html,sh}`         | —                                         | inline shell                                                                                   | Rejects trailing whitespace on staged files                                         |
+| `end-of-file-newline`     | 10       | `*.{js,jsx,ts,tsx,json,css,md,yml,yaml,html,sh}`         | —                                         | inline shell                                                                                   | Requires final newline on staged files                                              |
+| `ruff-check`              | 11       | `**/*.py`                                                | `plugins/launchpad/scripts/tests/.*\.py$` | `ruff check --config plugins/launchpad/scripts/pyproject.toml {staged_files}`                  | Python lint — serialized post-priority-10 (shares `.ruff_cache/` with format-check) |
+| `ruff-format-check`       | 12       | `**/*.py`                                                | `plugins/launchpad/scripts/tests/.*\.py$` | `ruff format --check --config plugins/launchpad/scripts/pyproject.toml {staged_files}`         | Python format check — serialized post-ruff-check                                    |
+
+`plugin-build-runner.py` reads `.launchpad/config.yml` `commands.{lint,typecheck,test}` arrays. Empty arrays skip silently. Non-zero exit fails the stage with a clear error.
+
+### Pre-push gates (`lefthook.yml` `pre-push:` block)
+
+| Gate                         | Priority | Glob      | Source                                                                                                                | Purpose                                                                                                                                                                                                                                |
+| ---------------------------- | -------- | --------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `backlog-orphan-check`       | (none)   | (none)    | inline shell wrapper around `python3 plugins/launchpad/scripts/plugin-backlog-orphan-check.py --release "$version"`   | Slip-prevention — every BL labeled for current `plugin.json` version must have a status line OR CHANGELOG cross-reference; skips silently when CHANGELOG has no `## [<version>]` block (pre-tag); version extracted from `plugin.json` |
+| `pytest`                     | 10       | `**/*.py` | `cd plugins/launchpad/scripts && python -m pytest -x -q`                                                              | Direct pytest invocation (Phase 3 R1-T1-8); short-circuits to exit 0 if `plugins/launchpad/scripts/` absent (downstream consumers)                                                                                                     |
+| `pyright`                    | 10       | `**/*.py` | `cd plugins/launchpad/scripts && pyright`                                                                             | Python type check (Phase 4 R1-T1-1: pre-push placement avoids inner-loop friction); strict on 3 security-boundary modules per Phase 4 Hybrid disposition                                                                               |
+| `semgrep-launchpad-internal` | 10       | `**/*.py` | `semgrep --config=plugins/launchpad/.semgrep/launchpad-internal.yml plugins/launchpad/scripts/ --error --metrics=off` | Cross-cutting invariants (Phase 4); deeper scan than pre-commit `semgrep-general`                                                                                                                                                      |
+
+### Commit-msg gate (`lefthook.yml` `commit-msg:` block)
+
+| Gate              | Source                                                                 | Purpose                                                                                                           |
+| ----------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `restamp-history` | `python3 plugins/launchpad/scripts/plugin-restamp-history-hook.py {1}` | Subject-line injection defense + restamp-history.jsonl audit append (OPERATIONS §0 strip-back-aware Layer 9 P3-2) |
+
+### Mandatory dual-pass review (`/lp-commit` Step 2.5 + `/lp-ship` Step 4.6)
+
+Both commands run `/lp-review --headless` (specialist with full context) AND `/lp-review --headless --no-context` (blind without context) as TWO SEPARATE Bash invocations. Both passes write to `.harness/todos/`; user triages once via `/lp-triage`. Bypass on hotfix branches via `--skip-review` with TTY-guarded `BYPASS REVIEW` confirmation + audit-trail trailer (Phase 2).
+
+### Manually-invoked validators (NOT lefthook-wired)
+
+| Tool                          | Source            | When                                                                            |
+| ----------------------------- | ----------------- | ------------------------------------------------------------------------------- |
+| `plugin-v2-handshake-lint.py` | direct invocation | manual / CI-only via `.github/workflows/v2-handshake-lint.yml`; not in lefthook |
+
+See [docs/guides/CODE_REVIEW_LAYERS.md](../guides/CODE_REVIEW_LAYERS.md) for the three-layer architecture rationale.
+
 ## Dependency hygiene
 
 Dependabot is configured via `.github/dependabot.yml`:

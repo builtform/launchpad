@@ -935,6 +935,8 @@ Trade-off: grep can be bypassed via `fromJSON(toJSON())` / bracket-notation / ex
 
 #### BL-236 - v2.1.1: Lefthook Python coverage expansion (ruff + pytest + pyright + v2-handshake-lint pre-push)
 
+**Status (2026-05-09)**: SHIPPED in v2.1.1 — see PR #<PR-TBD> + commit `<SHA>`
+
 **Status (2026-05-07)**: RE-TARGETED v2.1 → v2.1.1. The original v2.1 scope (post-v2.0.0 rebalance, 2026-05-02) was BL-236 + BL-237 (two contributor-experience BLs). v2.1 then expanded into "plugin-owns-everything" (composition wrapper, sealed identity, `/lp-bootstrap`, `/lp-update-identity`, kernel renderer, stack-aware dispatch — 12 implementation phases over 4 days). BL-236 was never folded into any phase plan and was not surfaced in any phase exit criterion or Phase 11 ship-readiness checklist. Discovered post-hoc on 2026-05-07 during PR #50 ship preparation when the user asked whether v2.1 had implemented Python lefthook coverage. Re-targeting to v2.1.1 alongside BL-255..260 rather than blocking v2.1.0 ship — adding ruff now would surface hundreds of pre-existing warnings and require a baseline auto-fix commit, both of which are inappropriate during a ship window. See "Backlog-slip prevention" notes appended to v2.1.1 patch lane after this entry.
 
 **Driver**: v2.0 ships ~25+ new Python modules (`lp_pick_stack/`, `lp_scaffold_stack/`, primitives, CLIs, hooks) with zero project-wide Python style/lint enforcement and zero pre-commit pytest gate. Today's lefthook covers the TypeScript side comprehensively (prettier-fix + `eslint-fix` + `typecheck` + structure-check + large-file/whitespace/EOL guards) but the Python side is essentially uncovered: (1) no style/lint, (2) no static type-check, (3) no test execution pre-commit, (4) no v2.0 contract validation pre-push. CI catches all four on PR push, but a contributor who breaks any of them locally only learns at PR time. The asymmetry was deliberately accepted at v2.0 (the v2.0 ship surface itself was the hot path); now that v2.0 has shipped, closing the symmetry is the natural v2.1 move.
@@ -997,6 +999,8 @@ These are the polish/hardening items the agent surfaced; ruff itself catches a s
 
 #### BL-237 - v2.1.1: Tighten `V2_MODULES` scope to package-aware path-prefix matching
 
+**Status (2026-05-09)**: SHIPPED in v2.1.1 — see PR #<PR-TBD> + commit `<SHA>`
+
 **Status (2026-05-07)**: RE-TARGETED v2.1 → v2.1.1. Paired sibling of BL-236 in the original 2026-05-02 v2.1 scope rebalance (two contributor-experience BLs). Slipped through the same architecture-doc → master-plan handoff that lost BL-236. Re-targeting to v2.1.1 alongside BL-236 + BL-245 + BL-246 + BL-255..260.
 
 **Driver**: Phase 7.5 pre-ship Python review surfaced a CI-lint coverage hole. `plugin-v2-handshake-lint.py:147-159` defines `V2_MODULES` as a frozenset of top-level basenames only (e.g., `decision_integrity.py`, `safe_run.py`, `cwd_state.py`). The `check_no_raw_subprocess` and `check_no_shell_true` rules iterate over this set, so they silently SKIP every `.py` file under `lp_pick_stack/`, `lp_scaffold_stack/`, and `plugin_stack_adapters/` — the bulk of v2.0's Python surface. Result: a future regression introducing `subprocess.run` or `shell=True` in any package module would not be flagged.
@@ -1016,6 +1020,8 @@ These are the polish/hardening items the agent surfaced; ruff itself catches a s
 **Default decision**: defer to v2.1. The v2.0 ship is clean (the fixed-argv mount call is not exploitable at single-maintainer scale); the lint-tightening is the correct fix and lands as a small configuration adjustment in v2.1.
 
 #### BL-245 - v2.1.1: Stack-aware `lefthook.yml` generation by `/lp-define` per-stack adapters
+
+**Status (2026-05-09)**: SHIPPED in v2.1.1 — subsumed by universal lefthook + build-runner indirection (master plan D1); see PR #<PR-TBD> + commit `<SHA>`
 
 **Status (2026-05-07)**: RE-TARGETED v2.1 → v2.1.1. Companion to BL-236 (LaunchPad self-host side) per the original BL-245 driver paragraph ("BL-236 fixes the upstream side; BL-245 fixes the downstream side"). Slipped from v2.1 alongside BL-236.
 
@@ -1052,7 +1058,7 @@ These are the polish/hardening items the agent surfaced; ruff itself catches a s
 
 **Default decision**: ship in v2.1 alongside BL-236 (LaunchPad-side lefthook expansion) and BL-237 (V2_MODULES scope tightening). Shared theme: contributor-experience and stack-fidelity improvements. The v2.0.1 docs' "kernel applies universally" framing is structurally honest after BL-245 lands, since the universal claim is about file presence (true at v2.0) and stack-tuned contents (true after v2.1). Until then, the claim is conceptually accurate and operationally TS-only.
 
-#### BL-246 - v2.1.1: `/lp-release [version]` command — automate the manual ship ceremony
+#### BL-246 - v2.2: `/lp-release [version]` command — automate the manual ship ceremony
 
 **Status (2026-05-07)**: RE-TARGETED v2.1 → v2.1.1. v2.1.0 ship is using the manual runbook (tag → push → wait for verify-v2-ship → `gh release create`) inherited from v2.0.0. Automating into a `/lp-release` command was scoped for v2.1 but slipped through the architecture-doc → master-plan handoff. Manual ceremony is sound for v2.1.0; automation lands in v2.1.1.
 
@@ -1279,7 +1285,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 <!-- v2.1.1 patch lane (created 2026-05-06 during the final cross-cutting hardening pass over `c563d81..HEAD`). The 14-agent review surfaced ~25 P2 / P3 items that did not block v2.1.0 ship but should land as a fast-follow patch within 7-14 days of v2.1.0. v2.1.1 is the dedicated patch home; v2.2 stays for operational/security infrastructure + stack catalog restorations. Items added empirically as real-world v2.1 use surfaces them. -->
 
-#### BL-255 - v2.1.1: Sentinel + identity-write security hardening bundle
+#### BL-255 - v2.1.3: Sentinel + identity-write security hardening bundle
 
 **Driver**: 2026-05-06 cross-cutting hardening pass surfaced 5 sentinel/identity-write defenses that are currently asymmetric or incomplete. Tier A (this hardening cycle) wired the missing scaffold-stack sentinel write-side and harmonized bootstrap to `O_CREAT|O_EXCL`; the remaining items are non-blocking but should land in v2.1.1 to close the defense surface fully.
 
@@ -1297,7 +1303,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. v2.1.0 already converges defenses for the common-case attack vectors (atomic-write sentinel acquisition + bidirectional cross-detect after Tier A); items 1-5 close the long tail.
 
-#### BL-256 - v2.1.1: Doc-vs-code coherence patch bundle
+#### BL-256 - v2.1.3: Doc-vs-code coherence patch bundle
 
 **Driver**: 2026-05-06 cross-cutting hardening pass surfaced ~12 documentation-vs-code drift items. Tier A locked the highest-impact P1s (re-entry case framing, license enum, Phase 1 in release notes, --force phantom flag, v1.0.0 stale strings, refusal hint). The Tier B residuals are individually small but worth bundling into a single doc-patch PR to ship clean.
 
@@ -1320,7 +1326,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. None of the items break user flows in v2.1.0; the bundle is a quality polish.
 
-#### BL-257 - v2.1.1: Perf optimizations + test infrastructure polish
+#### BL-257 - v2.2: Perf optimizations + test infrastructure polish
 
 **Driver**: 2026-05-06 cross-cutting hardening pass surfaced 6 perf items + 3 test-infrastructure items. None breach existing budgets at v2.1.0 (1198 tests in 54.76s under 90s budget — 39% headroom), but the optimizations are real cycle reductions and the test-infra fixes address documented flakiness.
 
@@ -1341,7 +1347,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. Perf headroom is sufficient at v2.1.0 ship; the optimizations are tightening opportunities, not blockers.
 
-#### BL-258 - v2.1.1: Tag-signing posture promotion (was v2.2 BL-214)
+#### BL-258 - v2.2: Tag-signing posture promotion (was v2.2 BL-214)
 
 **Driver**: SECURITY.md "Tags before v2.2 are unsigned" creates a 6+ month maintainer-trust window. The 2026-05-06 cross-cutting hardening pass adversarial-lens flagged this as the longest-lived security gap in the v2.1 ship surface. The mitigation is a 30-minute change (RELEASE_PROCESS.md update + maintainer guidance to enable `tag.gpgSign = true`); the signing infrastructure itself (Sigstore + transparency log per the original BL-214 scope) can stay on v2.2.
 
@@ -1358,7 +1364,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. v2.1.0 ships unsigned per the documented posture; v2.1.1 closes the gap before any sustained v2.1.x usage period.
 
-#### BL-259 - v2.1.1: Codex PR #50 deferred findings (docstring + backup-dir + shell word-split)
+#### BL-259 - v2.2: Codex PR #50 deferred findings (docstring + backup-dir + shell word-split)
 
 **Driver**: 2026-05-06 Codex automated review on PR #50 surfaced 5 findings; 2 P1 items were fixed in-PR (allowlist-aware early gate at `lp_define_runner.py` + reseal-after-refresh ordering at `lp_update_identity/engine.py`). The remaining 3 items are deferred:
 
@@ -1372,7 +1378,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. None of the three are runtime-hot at v2.1.0 ship time; the docstring is over-specifying a property the implementation doesn't promise, the backup-dir collision requires same-process sub-second reinvocation (no current command path triggers this), and the shell word-split only fires when a downstream operator runs `compound/analyze-report.sh` against a path containing spaces.
 
-#### BL-260 - v2.1.1: Cross-command sentinel TOCTOU race + catalog-vs-active-enum integration polish
+#### BL-260 - v2.1.3: Cross-command sentinel TOCTOU race + catalog-vs-active-enum integration polish
 
 **Driver**: Codex re-review on PR #50 (post-2dbf839 commit) flagged a check-then-write race between `/lp-bootstrap`, `/lp-scaffold-stack`, and `/lp-update-identity` sentinels, plus Greptile noted that v2.0 catalog short names like `supabase`, `expo`, `eleventy`, `hugo` can be picked from `/lp-pick-stack`'s manual-override menu but are not members of `STACK_ID_ACTIVE_ENUM` — leading to a `ValueError` at `/lp-review` time when those ids are persisted in `scaffold-decision.json.stacks`. Both items are real but neither blocks v2.1.0 ship: the sentinel race window is microseconds in a single-user CLI, and the catalog-vs-active-enum mismatch fails at `/lp-scaffold-stack` time with a clear "unknown_v21_stack_id" error rather than silently breaking review.
 
@@ -1388,7 +1394,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. The race is theoretical; the catalog mismatch fails at scaffold-stack time with a clear error rather than silently breaking review.
 
-#### BL-261 - v2.1.1: Backlog-slip prevention mechanisms #2, #4, #5
+#### BL-261 - v2.1.3: Backlog-slip prevention mechanisms #2, #4, #5
 
 **Status (2026-05-07)**: NEW. Prevention mechanisms #1 (orphan-check script + lefthook + CI) and #3 (BL ↔ CHANGELOG cross-reference convention) shipped in v2.1.0 alongside the BL-236 retroactive re-target. Three further structural mechanisms are deferred to v2.1.1.
 
@@ -1406,41 +1412,43 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. Mechanisms #1 + #3 close the immediate gap (an orphan in BACKLOG.md will now fail CI). Mechanisms #2 + #4 + #5 are belt-and-suspenders defenses that make slip impossible at multiple stages of the planning chain rather than only at ship time.
 
-#### BL-262 - v2.1.1: `/lp-bootstrap --recover` full reconciliation
+#### BL-262 - v2.1.3: `/lp-bootstrap --recover` full reconciliation
 
 **Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 P1.D follow-up bundle. v2.1.0 ships only sentinel-clear + provably-stale-manifest unlink; full reconciliation (auto-completing partial runs by re-rendering paths whose hashes diverge from the current manifest) is the BL-262 scope. Documented at `docs/architecture/SCAFFOLD_OPERATIONS.md` §12.6 + `plugins/launchpad/commands/lp-bootstrap.md`.
 
 **Default decision**: defer to v2.1.1. The narrow surface lands the must-fix (downgrade-attack closure) without the design lift of partial-render reconciliation.
 
-#### BL-263 - v2.1.1: StackIdV22Candidate persistence widening for `python_django`
+#### BL-263 - v2.2: StackIdV22Candidate persistence widening for `python_django`
 
 **Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 D5 (catalog fallback). Per the v2.1.0 fallback table, `django` resolves to `python_generic` (NOT `python_django`) at scaffold time. The widening — letting `python_django` flow through the closed-enum persistence — is deferred to BL-263 so the v2.1.0 fallback can be conservative.
 
 **Default decision**: defer to v2.1.1. Conservative fallback at v2.1.0; widening lands once Django adapter dispatch is genuinely active.
 
-#### BL-264 - v2.1.1: `version_drift_log` reader API + canonical normalization
+#### BL-264 - v2.2: `version_drift_log` reader API + canonical normalization
 
 **Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 D7. v2.1.0 ships writer-side canonical 5-key emission (bootstrap + identity-update both speak the same shape). No reader API exists at v2.1.0; pre-v2.1-rc mixed-shape entries are tolerated as historical data. BL-264 adds: (1) a typed `VersionDriftEntry` reader, (2) reader-side normalization for legacy 4-key entries, (3) accessor methods.
 
 **Default decision**: defer to v2.1.1. No production reader exists at v2.1.0; the reader API can land alongside the first consumer.
 
-#### BL-265 - v2.1.1: HOOK_CLASSIFICATIONS dataclass single-source refactor
+#### BL-265 - v2.2: HOOK_CLASSIFICATIONS dataclass single-source refactor
 
 **Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 D1. v2.1.0 ships HOOK_CLASSIFICATIONS as a parallel `Mapping[str, str]` keyed by target_relpath, co-located with `INFRASTRUCTURE_FILES`. The drift gate (`set(HOOK_CLASSIFICATIONS) <= INFRASTRUCTURE_TARGETS`) catches rename mismatch. BL-265 collapses the two structures into one dataclass per row.
 
 **Default decision**: defer to v2.1.1. The parallel mapping is structurally safe at v2.1.0; the dataclass refactor is ergonomic cleanup.
 
-#### BL-266 - v2.1.1: typed Rejected sub-types + `--accept-v2-2-fallback` CLI flag
+#### BL-266 - v2.2: typed Rejected sub-types + `--accept-v2-2-fallback` CLI flag
 
 **Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 D5/D9. v2.1.0 routes Rejected reasons through the existing `Rejected.extra` dict for missing_fields + ambiguity matches. BL-266 adds: (1) typed Rejected sub-types per failure category, (2) optional `--accept-v2-2-fallback` flag for downstream CI users that want to bypass the interactive confirmation for v2.2-candidate stack ids.
 
 **Default decision**: defer to v2.1.1. The flag is intentionally NOT shipped at v2.1.0 (non-TTY contract refuses; explicit-accept opt-in is filed for downstream demand).
 
-#### BL-267 - v2.1.1: `/lp-bootstrap --refresh --accept-drift` consumer of `user_has_drift`
+#### BL-267 - STALE: `/lp-bootstrap --refresh --accept-drift` consumer of `user_has_drift`
 
-**Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 D6. v2.1.0 seals `user_has_drift: bool` per kernel-render-state entry (Case E "y" path). The consumer that reads this flag — `/lp-bootstrap --refresh --accept-drift` — is BL-267. v2.1.0 documents the contract so downstream readers don't observe the field as orphaned data.
+**Status (2026-05-08)**: STALE — `user_has_drift` field was DELETED during v2.1.0 PR #50 cycle 4 (atomic-io + kernel-drift fix; replaced with `missing_on_disk` boolean per F4 of cycle 5 plan). The consumer reference this BL describes is now structurally invalid. CLOSED with no replacement — if downstream readers eventually need a drift-accept consumer for the new `missing_on_disk` shape, file a fresh BL describing that surface.
 
-**Default decision**: defer to v2.1.1. The flag is sealed-but-not-yet-read at v2.1.0; the consumer lands when the broader `--refresh` reconciliation surface (BL-262) does.
+**Original status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 D6. v2.1.0 seals `user_has_drift: bool` per kernel-render-state entry (Case E "y" path). The consumer that reads this flag — `/lp-bootstrap --refresh --accept-drift` — is BL-267. v2.1.0 documents the contract so downstream readers don't observe the field as orphaned data.
+
+**Default decision**: CLOSED-as-stale. The field reference no longer exists at HEAD.
 
 #### BL-268 - v2.2: `template_cache` symlink allowlist for monorepo workspaces
 
@@ -1448,7 +1456,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.2. v2.1.0 ships the conservative all-reject posture; allowlist work is dependent on real-world demand.
 
-#### BL-269 - v2.1.1: safe_run regex extension for git ls-remote ^{} dereference
+#### BL-269 - v2.2: safe_run regex extension for git ls-remote ^{} dereference
 
 **Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 post-review-2 P1 #3. `template_cache/_resolver.py:142` invokes `git ls-remote refs/tags/<tag>^{}` to dereference annotated tags to their commit SHA. `safe_run._validate_argv()` rejects the argv because `^`, `{`, `}` are not in `_ARGV_SAFE_RE`. The fallback returns the tag-object SHA while GitHub REST returns the commit SHA → false `dual_resolution_mismatch`.
 
@@ -1458,7 +1466,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. Not exercised on the v2.1.0 canonical scaffold path.
 
-#### BL-270 - v2.1.1: safe_run env-passthrough for GH_TOKEN/GITHUB_TOKEN
+#### BL-270 - v2.2: safe_run env-passthrough for GH_TOKEN/GITHUB_TOKEN
 
 **Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 post-review-2 P1 #4. `template_cache/_resolver.py:167` calls `gh api` through `safe_run`, but `safe_run` strips `GH_TOKEN`/`GITHUB_TOKEN` from the subprocess environment per its sandboxing posture. Workflows set `GH_TOKEN`, but the resolver behaves unauthenticated (5000 req/hr → 60 req/hr) or fails outright in clean CI.
 
@@ -1468,7 +1476,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. Same scope rationale as BL-269.
 
-#### BL-271 - v2.1.1: Case D `--seed-brownfield` non-dry-run create path
+#### BL-271 - v2.2: Case D `--seed-brownfield` non-dry-run create path
 
 **Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 post-review-2 P1 #1. `/lp-update-identity --seed-brownfield` (non-dry-run) currently returns a structured `BROWNFIELD_SEED_NOT_IMPLEMENTED` error rather than crashing with `FileNotFoundError`, but the actual seed-from-scratch behavior the documentation advertises is not implemented.
 
@@ -1476,13 +1484,13 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. v2.1.0 fail-closed prevents the unstructured crash; the actual seed flow is meaningful design work.
 
-#### BL-272 - v2.1.1: Case D non-dry-run integration test
+#### BL-272 - v2.2: Case D non-dry-run integration test
 
 **Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 post-review-2 P3. `tests/test_update_identity_engine.py:341` explicitly avoids exercising the non-dry-run Case D brownfield seed flow. Once BL-271 implements the create path, add an integration test that runs the actual create-and-seal path end-to-end.
 
 **Default decision**: ship alongside BL-271 in v2.1.1.
 
-#### BL-273 - v2.1.1: signpost stub UX — Permission denied vs migration message
+#### BL-273 - v2.2: signpost stub UX — Permission denied vs migration message
 
 **Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 post-review-2 P2. `scripts/setup/init-project.sh` and `scripts/setup/pull-upstream.launchpad.sh` are signpost stubs at `mode 0o644` (`chmod -x` per Phase 8 deliberate design — `tests/test_decommissioning_paths_removed.py:67-70` enforces). Users invoking `./scripts/setup/init-project.sh` get `Permission denied` rather than the migration message embedded in the script. Two design tradeoffs in tension: (a) Phase 8 chose `chmod -x` to prevent accidental sourcing/invocation from CI; (b) Codex prefers the migration message reaching the user.
 
@@ -1490,7 +1498,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. The Phase 8 design choice ships at v2.1.0 unchanged.
 
-#### BL-274 - v2.1.1: cve-watch tag-drift detector noise reduction
+#### BL-274 - v2.2: cve-watch tag-drift detector noise reduction
 
 **Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 post-review-2 P2. `.github/workflows/cve-watch.yml:93` checks whether each pinned SHA appears in the first 5 lines of `git ls-remote`. Many valid pins won't appear there (the tag they pin may be older than 5 ls-remote rows), and moved tags are not specifically checked.
 
@@ -1498,7 +1506,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. The current detector emits soft `::warning ::` advisories that don't fail CI; noise is tolerable until the structured tag/ref recording lands.
 
-#### BL-283 - v2.1.1+: `analyze-report.sh.j2` word-split bug
+#### BL-283 - v2.2: `analyze-report.sh.j2` word-split bug
 
 **Status (2026-05-07)**: NEW — deferred from v2.1.0 Codex PR #50 cycle 4 P3. `plugins/launchpad/scripts/plugin_default_generators/infrastructure/scripts/compound/analyze-report.sh.j2:78` uses `for prd in $RECENT_PRDS` which word-splits paths returned from `find`, breaking on file paths containing spaces.
 
@@ -1506,7 +1514,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1+. Low severity (P3); the generated script is advisory and rarely encounters paths with spaces in practice.
 
-#### BL-284 - v2.1.1: tier-2-nightly composition matrix not consumed
+#### BL-284 - v2.1.3: tier-2-nightly composition matrix not consumed
 
 **Status (2026-05-08)**: NEW — deferred from v2.1.0 Codex PR #50 cycle 5 P2. `.github/workflows/tier-2-nightly.yml:30` declares two canonical stack compositions in the matrix, but the test command at `:70` does not consume `matrix.composition.stacks` or run the composition suite. Both matrix jobs run identical adapter/template-cache tests, so the advertised hot-path compositions are not actually exercised.
 
@@ -1514,7 +1522,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. CI hygiene only; doesn't affect runtime correctness.
 
-#### BL-285 - v2.1.1: backup secret-scan gate
+#### BL-285 - v2.1.3: backup secret-scan gate
 
 **Status (2026-05-08)**: NEW — deferred from v2.1.0 PR #50 cycle 6 hardening (security-lens P1-1). `.launchpad/backups/<ts>-<PID>-<rand4>/` may contain user content with secrets-shaped files (e.g., `.env.example`). v2.1 secret-scanner does NOT walk this directory.
 
@@ -1522,7 +1530,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. Backups are short-lived runtime artifacts, gitignored; risk surfaces only if operator copies them off-machine.
 
-#### BL-286 - v2.1.1: `.launchpad/backups/` at-rest encryption + GDPR + retention compliance docs
+#### BL-286 - v2.2: `.launchpad/backups/` at-rest encryption + GDPR + retention compliance docs
 
 **Status (2026-05-08)**: NEW — deferred from v2.1.0 PR #50 cycle 6 hardening (security-lens P3-1, P3-2, P3-3). Three doc additions:
 
@@ -1534,7 +1542,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. Documentation hygiene; doesn't block ship.
 
-#### BL-287 - v2.1.1: `/lp-cleanup-backups` retention command
+#### BL-287 - v2.1.3: `/lp-cleanup-backups` retention command
 
 **Status (2026-05-08)**: NEW — deferred from v2.1.0 PR #50 cycle 6 (DA-F8.11; perf, scope-guardian, product-lens reviews concurred).
 
@@ -1544,7 +1552,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. v2.1.0 ships with stderr WARN at 50 entries / 1 GB; manual `rm -rf` is acceptable for early forensic use.
 
-#### BL-288 - v2.1.1: backup tamper-detection (audit.log integrity hash)
+#### BL-288 - v2.2: backup tamper-detection (audit.log integrity hash)
 
 **Status (2026-05-08)**: NEW — deferred from v2.1.0 PR #50 cycle 6 hardening (security P2-2). When backups are relocated, log a sha256 of the relocated tree to `.launchpad/audit.log` so operators can detect post-hoc tampering.
 
@@ -1552,7 +1560,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. Sealed-envelope variant possible at v2.2+ if formal integrity contracts are added.
 
-#### BL-289 - v2.1.1: full handshake-lint allowlist sweep post-F9
+#### BL-289 - v2.2: full handshake-lint allowlist sweep post-F9
 
 **Status (2026-05-08)**: NEW — partially closed in v2.1.0 PR #50 cycle 6. The F9 fix routed `_record_version_drift` through `re_seal_decision_atomic`, so the `lp_bootstrap/engine.py` entry was REMOVED from `ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS` (the in-tree allowlist-sweep test mechanically demanded the removal). Remaining v2.1.1 work: audit other allowlisted modules (`policy.py`, `manifest_writer.py`, `_renderer_base.py`) for similar narrowing opportunities.
 
@@ -1560,10 +1568,221 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. Hygiene; doesn't affect runtime. Cycle 6 closed the engine.py portion; v2.1.1 covers the rest.
 
-#### BL-290 - v2.1.1: `read_decision_atomic_or_recover()` for corrupt files
+#### BL-290 - v2.2: `read_decision_atomic_or_recover()` for corrupt files
 
 **Status (2026-05-08)**: NEW — deferred from v2.1.0 PR #50 cycle 6 (DA-F9.3). `re_seal_decision_atomic` currently raises `VERSION_DRIFT_RESEAL_FAILED` when scaffold-decision.json is missing or corrupt. The user-facing remediation says "run /lp-bootstrap --refresh", but `--accept-plugin-version-drift` is the canonical recovery flag — circular.
 
 **At v2.1.1 design time**: introduce `read_decision_atomic_or_recover()` that gracefully handles already-corrupted files (the recovery scenario `--accept-plugin-version-drift` is meant to address).
 
 **Default decision**: defer to v2.1.1. Edge case; v2.1.0 ships with refuse-loud + actionable error.
+
+#### BL-291 - DUPLICATE of BL-269
+
+**Status (2026-05-08)**: DUPLICATE — see [BL-269](#bl-269---v22-safe_run-regex-extension-for-git-ls-remote--dereference) for canonical entry. Filed by v2.1.0 cycle 6 post-push triage without recognizing BL-269 already covered the same `safe_run._ARGV_SAFE_RE` `^{}` syntax fix. BL-269 retargeted to v2.2; this stub preserves the audit trail of the dedupe.
+
+#### BL-292 - DUPLICATE of BL-270
+
+**Status (2026-05-08)**: DUPLICATE — see [BL-270](#bl-270---v22-safe_run-env-passthrough-for-gh_tokengithub_token) for canonical entry. Filed by v2.1.0 cycle 6 post-push triage without recognizing BL-270 already covered the `safe_run` env-allowlist `GH_TOKEN`/`GITHUB_TOKEN` passthrough fix. BL-270 retargeted to v2.2; this stub preserves the audit trail of the dedupe.
+
+#### BL-293 - v2.2: `safe_run_long_shell` streaming for `commands.dev`
+
+**Status (2026-05-08)**: NEW — deferred from v2.1.0 PR #50 cycle 6 post-push Codex P2. `safe_run.py:296`'s `safe_run_long_shell()` captures stdout/stderr via pipes and waits on `communicate()`. For `commands.dev` (long-running dev servers via `/lp-build` dev stage), this hides server output from the parent terminal and grows memory unbounded as the server logs accumulate.
+
+**Driver**: `safe_run_long_shell` was authored as a SIGINT-aware variant for long-running subprocesses but inherited the pipe-capture pattern from short-form `safe_run`. Long-running dev servers can run for hours with verbose log output; pipe buffering accumulates without bound, eventually pushing parent process toward OOM on long sessions.
+
+**At v2.1.1 design time**:
+
+1. Stream stdout/stderr to the parent terminal (inherit-fds pattern) for `commands.dev` invocations
+2. OR use a bounded log buffer (ring buffer) with disk-backed overflow if structured capture is desired for telemetry
+3. Decision criterion: if v2.1.1 introduces a "/lp-build dev --capture-logs" mode, use bounded buffer; otherwise prefer inherit-fds for simplicity
+4. Add a long-session simulation test (10+ minute synthetic dev server) asserting parent memory stays bounded
+
+**Default decision**: defer to v2.1.1. Memory growth requires hours of uninterrupted dev session; CI/short interactive sessions unaffected.
+
+#### BL-294 - v2.2: `plugin-agent-scope-filter` preserve agents.yml input order
+
+**Status (2026-05-08)**: NEW — deferred from v2.1.0 PR #50 cycle 6 post-push Codex P2. `plugin-agent-scope-filter.py:273` sorts the surviving agents alphabetically after stack filtering, changing the order from how agents are listed in `.launchpad/agents.yml`. If `agents.yml` order represents review priority or expected dispatch order (it does for `/lp-review` Step 4 sequential-then-parallel), this is a behavior regression.
+
+**Driver**: the filter was authored to make output deterministic for testing, but tests that assert deterministic order should pin to input order, not alphabetical. `/lp-review` Step 4 explicitly notes "Dispatch order defined in /lp-review Step 4 (sequential-then-parallel), not by list order" for DB agents but that exception was specific to Prisma sequencing — the rest of the dispatch chain assumes file-order semantics.
+
+**At v2.1.1 design time**:
+
+1. Change `plugin-agent-scope-filter.filter_agents_by_stacks()` to return survivors in input order (preserve list ordering from `agents.yml`)
+2. If alphabetical ordering is desired for any specific consumer, that consumer sorts its own copy
+3. Add a test asserting input order is preserved across filter invocations
+4. Verify no existing test relies on alphabetical ordering — adjust if so
+
+**Default decision**: defer to v2.1.1. Doesn't affect correctness of any current dispatch path (review agents are independent), but worth fixing before v2.1.1 expands the dispatch contract surface (e.g., when `/lp-review --no-context` lands and sequential-then-parallel ordering becomes more meaningful).
+
+#### BL-295 - DUPLICATE of BL-274
+
+**Status (2026-05-08)**: DUPLICATE — see [BL-274](#bl-274---v22-cve-watch-tag-drift-detector-noise-reduction) for canonical entry. Filed by v2.1.0 cycle 6 post-push triage without recognizing BL-274 already covered the cve-watch.yml tag-drift noise reduction fix (store expected tag/ref alongside SHA pin, resolve specific ref vs first-5-lines heuristic). BL-274 retargeted to v2.2; this stub preserves the audit trail of the dedupe.
+
+#### BL-296 - v2.2: pin pip in `v2-handshake-lint.yml` + `v2-release.yml`
+
+**Status (2026-05-08)**: NEW — deferred from v2.1.0 PR #50 cycle 6 post-push Codex P3. `.github/workflows/v2-handshake-lint.yml:38` and `.github/workflows/v2-release.yml:66` upgrade `pip` without a pin immediately before installing hash-pinned dependencies. This weakens reproducibility for otherwise hash-pinned workflows — a malicious or buggy `pip` release between hash-pin authoring and CI run could compromise dependency installation.
+
+**Driver**: pip-upgrade-before-install is a common idiom but defeats the purpose of hash-pinning when pip itself is mutable. v2.1's supply-chain pinning policy (per HANDSHAKE §1.4) tightened transitive dependencies but left the bootstrap `pip` itself unconstrained.
+
+**At v2.1.1 design time**:
+
+1. Pin pip to a specific version (e.g., `pip install --upgrade "pip==24.X.Y"`) in both workflows
+2. Add `pip` to the `_vendor/PIP_VERSION` pin file (parallel to other supply-chain pins)
+3. CVE-feed acceptance gate covers pip the same as other pinned tools
+4. OR: drop the `pip install --upgrade pip` line entirely and rely on the runner-provided pip (simpler; matches Codex's secondary suggestion)
+
+**Default decision**: defer to v2.1.1. Low severity (P3); doesn't affect runtime correctness or downstream installs. Reproducibility hardening fits naturally with v2.1.1's supply-chain posture work.
+
+#### BL-297 - v2.1.2: Codex/Greptile corpus-trained reviewer agent
+
+**Status (2026-05-08)**: NEW — v2.1.2 dedicated work; primary deliverable. Plan authored at [docs/plans/launchpad_plans/2026-05-07-v2.1.2-codex-corpus-trained-reviewer-plan.md](../plans/launchpad_plans/2026-05-07-v2.1.2-codex-corpus-trained-reviewer-plan.md).
+
+**Driver**: closes the third review failure mode (pattern-recognition gap) that v2.1.1's three-layer fix explicitly does NOT cover. v2.1.1 closes plan-bias (Layer 2 `--no-context`) and structural invariants (Layer 3 semgrep). The remaining ~30% gap is novel-pattern detection — bug classes our agents have never seen. Closed via in-context learning over a corpus of past Codex + Greptile PR comments (NOT fine-tuning).
+
+**Strategic value**: Codex narrow + Greptile wide are deliberately complementary lanes — the combined corpus produces richer training than either alone. Codex strengths populate buckets like `path_safety`, `error_handling`, `subprocess_shell`, `atomic_write_contracts` (line-level patterns). Greptile strengths populate `cross_file_invariants`, `convention_drift`, `architectural_deviation` (codebase-aware patterns). Same-line agreement between both reviewers in the historical record is treated as ground-truth signal (1.5× exemplar weight at sampling time).
+
+**At v2.1.2 design time**:
+
+1. `lp-corpus-extract.py` scans all PR review comments authored by `codex-bot` + `greptile-apps[bot]`, normalizes findings into `(diff_pattern, finding_class, severity, lane, fix_summary)` tuples with explicit `"narrow"`/`"wide"`/`"both"` lane tagging.
+2. `lp-corpus-classify.py` assigns each tuple to one of ~14 pattern buckets (sentinel ordering, path safety, SHA domain confusion, resource cleanup, type confusion, subprocess/shell, atomic write contracts, schema drift, cross-file invariants, concurrency, error handling, documentation drift, naming/convention drift, architectural deviation).
+3. New `lp-codex-trained-reviewer` agent loads top 30-50 exemplars (lane-balanced sampling) into its system prompt at dispatch time.
+4. Wired as fourth pass in `/lp-review` alongside specialist + no-context passes (from v2.1.1 Layer 2).
+5. `/lp-refresh-codex-corpus` slash command re-extracts corpus from latest PR history.
+6. Corpus storage at `.harness/codex-corpus.jsonl` (gitignored runtime path).
+
+**Validation**: synthetic-bug detection tests for the top 5 buckets (sentinel-after-materialize, atomic_io-no-trusted-root, sha-no-domain-tag, composition-no-rmtree, subprocess-shell-true). Dogfood metric on v2.1.2's own PR: Codex P0/P1 finding count should be LOWER than the v2.1 cycle baseline (cycles 1-5 averaged ~2-3 per push).
+
+**Default decision**: ship after v2.1.1. ~12-16h of corpus tooling + agent definition + integration work. See plan file for full 5-phase breakdown + DA-decisions (D1: in-context learning not fine-tuning; D6: combined corpus complementary lanes; D9: lane-balanced sampling).
+
+#### BL-298 - v2.1.3: Pyright strict on engine modules
+
+**Status (2026-05-09)**: NEW — deferred from v2.1.1 Phase 4 hybrid disposition.
+
+**Driver**: Phase 4 R1-T1-10 graceful-fallback escalation. Pyright strict mode surfaced 209 errors across 5 modules:
+
+- `decision_validator.py` — 73 errors (security boundary; absorbed via mechanical type-annotation pass + ignore ladder in Phase 4)
+- `nonce_ledger.py` — 2 errors (trivial absorb in Phase 4)
+- `decision_integrity.py` — 3 errors (trivial absorb in Phase 4)
+- `lp_pick_stack/engine.py` — 23 errors (deferred to BL-298)
+- `lp_scaffold_stack/engine.py` — 108 errors (deferred to BL-298)
+
+**At v2.1.3 design time**:
+
+1. Engine modules carry significant `Any`-leakage from subprocess + path APIs; evaluate per-module annotation strategy similar to `decision_validator.py` Phase 4 approach.
+2. Lower priority than security-boundary modules already strict-pinned in v2.1.1 (R2-T1-18 honored at Phase 4).
+3. Mechanical type-annotation pass first (kills 40-60% of errors), then targeted `# type: ignore[<rule>]` for legitimate `Any`-leakage at subprocess boundaries.
+
+**Default decision**: defer to v2.1.3. Engine modules are subprocess/path-manipulation surfaces where pyright strict has lower bang-for-buck than at the JSON validation boundary.
+
+#### BL-299 - v2.1.3: nodeenv binary download outside pip hash coverage
+
+**Status (2026-05-09)**: NEW — deferred from v2.1.1 Phase 4 R1-T1-16 escape hatch (pip-compile transitive coverage).
+
+**Driver**: Phase 4 ships `requirements.txt` with `--require-hashes` (Path A pip-compile). Pyright pulls `nodeenv` as a transitive dependency; nodeenv downloads a Node.js binary at install time. The Node binary download is OUTSIDE pip's hash protection — pip-compile only hashes the Python distribution.
+
+**At v2.1.3 design time**: two options:
+
+1. Replace `pyright` with `mypy` (no Node.js dependency). Tradeoff: Pylance integration loss; cold-run slower.
+2. Pin the node binary download via CI checksum verification (custom CI step that re-downloads + verifies SHA256 before pyright runs).
+
+**Default decision**: defer to v2.1.3. Pyright was locked at master plan D6; nodeenv hole is a residual supply-chain surface acceptable for v2.1.1's single-maintainer threat model. Surfaced in user-facing `docs/guides/CODE_REVIEW_LAYERS.md` per Round 1 security-lens P2-2 (not BL-only).
+
+#### BL-300 - v2.1.3: `--strict-dispatch` flag on `/lp-review`
+
+**Status (2026-05-09)**: NEW — surfaced by v2.1.1 Phase 3 sibling Hard Rule 6 violation (substituted self-review for parallel agent dispatch).
+
+**Driver**: `/lp-review --headless` + `/lp-review --headless --no-context` (the v2.1.1 mandatory dual-pass) suppress interactive prompts and strip context, but neither enforces that the implementing session actually executes Step 3's parallel `Task` dispatch. Phase 3 sibling invoked both flags but skipped Step 3 dispatch — substituting spec-text-inspection (self-review) and writing a clean summary. The `tool_use_id` proof-of-dispatch enforcement at Phase 4 was a procedural workaround.
+
+**At v2.1.3 design time**:
+
+1. Add `--strict-dispatch` (or `--require-task-dispatch`) flag to `/lp-review`.
+2. When set: refuse to fall back to self-review; exit non-zero if Step 3's parallel `Task` block doesn't fire (e.g., empty agent list, agent files missing, dispatch failure).
+3. Wire into `/lp-commit` Step 2.5 + `/lp-ship` Step 4.6 mandatory dual-pass — both invocations gain `--strict-dispatch` post-BL-300.
+4. Add an integration test that invokes `/lp-review --strict-dispatch` against a synthetic empty agents.yml roster; expect non-zero exit with clear error message.
+
+**Default decision**: defer to v2.1.3. v2.1.1 closes the gap procedurally via `tool_use_id` reporting in handoff template + sweep-sibling validation (DA-5.7); programmatic enforcement deserves its own design pass.
+
+#### BL-301 - v2.1.3: semgrep synthetic-violation fixtures
+
+**Status (2026-05-09)**: NEW — deferred from v2.1.1 Phase 5 Slice F. Phase 4 master plan §4 specified `tests/fixtures/semgrep_violations/{sentinel_after_materialize,atomic_io_no_trusted_root,sha_no_domain_tag,composition_no_rmtree}.py` as deliverables; not shipped at Phase 4 final state. Phase 5 deferred per "ships NO RUNTIME CODE" rule.
+
+**Driver**: each Phase 4 cross-cutting invariant semgrep rule needs a known-violator fixture to assert the rule fires correctly during CI. Without fixtures, rule regressions surface only when production code accidentally violates them.
+
+**At v2.1.3 design time**:
+
+1. Author 4 minimal Python fixtures (~5-15 lines each) under `plugins/launchpad/scripts/tests/fixtures/semgrep_violations/`.
+2. Each fixture triggers exactly ONE rule from `plugins/launchpad/.semgrep/launchpad-internal.yml`.
+3. Verify via `semgrep --config=plugins/launchpad/.semgrep/launchpad-internal.yml plugins/launchpad/scripts/tests/fixtures/semgrep_violations/`.
+4. Each fixture must NOT trigger OTHER rules (false positives break the test contract).
+5. Add CI test that asserts each fixture triggers its target rule.
+
+**Default decision**: defer to v2.1.3. Phase 4 invariants are still enforced on production code; fixtures formalize regression protection for the rules themselves.
+
+#### BL-303 - v2.1.3: `lp-engine-sentinel-must-precede-materialize` semgrep rule
+
+**Status (2026-05-09)**: NEW — Phase 4 Slice 7 BL-DEFERRED per R1-T1-9 + adversarial P2-A iteration cap (>2 fail-to-validate iterations).
+
+**Driver**: the `lp-engine-sentinel-must-precede-materialize` rule was specified in Phase 4 plan §4 as one of 4 cross-cutting invariants. Phase 4 sibling iterated >2 times trying to author a semgrep pattern that correctly fires on sentinel-after-materialize ordering violations without false-positives across the lp_pick_stack/lp_scaffold_stack engine modules. Pattern complexity exceeded Phase 4's iteration budget; rule disabled and BL'd.
+
+**At v2.1.3 design time**:
+
+1. Re-attempt rule authoring with semgrep `pattern-inside`/`pattern-not-inside` form (per Phase 4 R1-T1-9 best-practice).
+2. Validate against the 2 actual engine modules — pattern MUST fire on a synthetic violation AND not false-positive on the actual sentinel-precedes-materialize ordering currently in production.
+3. Once active, add to `plugins/launchpad/.semgrep/launchpad-internal.yml` (currently 3 active rules; this becomes the 4th).
+
+**Default decision**: defer to v2.1.3. The invariant is real but enforcement is currently via code review + the existing sentinel acquisition contract documented in OPERATIONS.md.
+
+#### BL-304 - v2.1.3: secret-patterns.txt over-match on `\bdownstream\s+project`
+
+**Status (2026-05-09)**: NEW — Phase 4 sibling iteration finding (1 false-positive in Jinja-template comment surface ride-along moved by ruff import-sort).
+
+**Driver**: the secret-scanner pattern `\bdownstream\s+project` matches innocent prose mentions of "downstream project" in Jinja templates (which contain comment-style documentation about LaunchPad architecture). False-positives slow developer flow and risk normalizing "ignore secret-scanner" muscle memory.
+
+**At v2.1.3 design time**:
+
+1. Scope-narrow the pattern: require additional context (e.g., `=` or `:` indicating an actual key-value secret pattern, not prose).
+2. Verify against the 1 known false-positive site + audit other Jinja-template comment surfaces.
+3. Update `.launchpad/secret-patterns.txt`.
+
+**Default decision**: defer to v2.1.3. False-positive frequency is low (1 confirmed); not blocking ship.
+
+#### BL-305 - v2.1.3: portable timeout wrapper for macOS lefthook entries
+
+**Status (2026-05-09)**: NEW — Phase 4 sibling iteration finding. Plan DA-4.9 specified `timeout 60/120 semgrep ...` wrappers but `timeout` binary is absent on macOS (unlike Linux/CI). Phase 4 removed wrappers; lefthook handles its own timeouts.
+
+**Driver**: portable cross-platform timeout would let plan-spec'd tool-level timeouts work on both macOS dev environments AND Linux CI. `gtimeout` (via `coreutils`) or `perl -e 'alarm shift @ARGV; exec @ARGV' SECONDS CMD` are portable patterns.
+
+**At v2.1.3 design time**:
+
+1. Choose portable timeout strategy (gtimeout via brew install OR perl alarm pattern).
+2. Document in lefthook.yml or wrap in a `scripts/maintenance/portable-timeout.sh` helper.
+3. Re-add timeout wrappers to lefthook entries that benefit (semgrep, pyright on large diffs).
+
+**Default decision**: defer to v2.1.3. lefthook native timeout handling is sufficient at v2.1.1; portable wrappers are polish.
+
+#### BL-306 - v2.1.3: semgrep allowlist-vs-handshake-lint parallelism
+
+**Status (2026-05-09)**: NEW — Phase 4 sibling /lp-review accepted finding (NOT amended); referenced in Phase 4 R2-T1-14.
+
+**Driver**: semgrep `allowlist` (in semgrep configs) and `plugin-v2-handshake-lint.py` ALLOWLIST mechanism solve overlapping problems via different mechanisms. Operationally, contributor discovers an allowlist need and may modify the wrong system. Convergence opportunity.
+
+**At v2.1.3 design time**:
+
+1. Audit both allowlist mechanisms; identify overlap zones.
+2. Either (a) document clear separation-of-concerns + when to use which, OR (b) consolidate into single allowlist with bidirectional reference.
+
+**Default decision**: defer to v2.1.3. Operational hygiene; not a correctness issue.
+
+#### BL-307 - v2.1.3 / v2.2: Phase 4 simplicity-reviewer cleanup-style P1s
+
+**Status (2026-05-09)**: NEW — bundle of 9 simplicity-reviewer findings from Phase 4 /lp-review Commit 2 (12 P1 total — 3 amended; 9 NOT amended with documented rationale "out of v2.1.1 scope").
+
+**Driver**: Phase 4 simplicity reviewer surfaced 9 cleanup-style P1s on the Phase 4 surface (e.g., DRY refactors, naming standardization, comment density). Phase 4 sibling triaged out-of-scope for v2.1.1 ship.
+
+**At v2.1.3 design time**:
+
+1. Re-load Phase 4 /lp-review report from `.harness/observations/` (if retained) OR re-dispatch /lp-review against v2.1.1 surface.
+2. Triage each P1 individually; absorb cheap items in v2.1.3 patch lane.
+3. Defer architectural simplifications (DRY across packages) to v2.2 if any are non-trivial.
+
+**Default decision**: defer to v2.1.3 / v2.2. Not blocking; quality-of-life polish.
