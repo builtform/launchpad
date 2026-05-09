@@ -28,6 +28,7 @@ mustache), no string interpolation that could be injected. Section bodies
 are constructed from the matched category's `canonical_stack` + the
 sanitized funnel answers + `<untrusted_user_input>`-wrapped describe text.
 """
+
 from __future__ import annotations
 
 import unicodedata
@@ -132,7 +133,9 @@ def render_rationale(
     `alternatives` bullet > 30 chars (caller's responsibility to supply).
     """
     cat_id = matched_category_id or matched.id
-    stack_layers = canonical_stack if canonical_stack is not None else matched.canonical_stack
+    stack_layers = (
+        canonical_stack if canonical_stack is not None else matched.canonical_stack
+    )
     name = matched_name or matched.name
     explanation = matched_explanation or matched.explanation
     ts = generated_at or _utc_now_iso_sec()

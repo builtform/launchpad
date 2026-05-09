@@ -17,6 +17,7 @@ Test behavior: tests override `resolve_sha` via monkeypatch in conftest, and
 inject custom fetchers (synthesizing minimal trees) directly through the
 `fetcher=` parameter on `fetch()`.
 """
+
 from __future__ import annotations
 
 import json
@@ -73,7 +74,7 @@ def _split_repo(repo_url: str) -> tuple[str, str]:
                 f"template cache resolver; got {repo_url!r}"
             ),
         )
-    rest = repo_url[len(_HTTPS_GITHUB_PREFIX):].rstrip("/")
+    rest = repo_url[len(_HTTPS_GITHUB_PREFIX) :].rstrip("/")
     if rest.endswith(".git"):
         rest = rest[:-4]
     parts = rest.split("/")
@@ -81,9 +82,7 @@ def _split_repo(repo_url: str) -> tuple[str, str]:
         raise ResolverError(
             reason="malformed_repo_url",
             path=None,
-            remediation=(
-                f"expected https://github.com/owner/repo; got {repo_url!r}"
-            ),
+            remediation=(f"expected https://github.com/owner/repo; got {repo_url!r}"),
         )
     return parts[0], parts[1]
 
@@ -228,9 +227,7 @@ def _check_attestation(owner: str, repo: str, sha: str) -> AttestationStatus:
     return AttestationStatus.UNSIGNED
 
 
-def git_clone_depth_one(
-    repo_url: str, sha: str, target: Path
-) -> Literal[True]:
+def git_clone_depth_one(repo_url: str, sha: str, target: Path) -> Literal[True]:
     """Production fetcher: depth-1 clone + checkout `sha` into `target`.
 
     Phase 4 plan §3.8: invoked via `safe_run_long` so SIGINT propagates

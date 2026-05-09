@@ -120,6 +120,7 @@ ALLOWED_CONFIGS=(
   ".worktreeinclude"
   "greptile.json"
   ".greptile.json"
+  "Makefile"
 )
 
 ALLOWED_DIRS=(

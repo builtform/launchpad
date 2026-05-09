@@ -25,6 +25,7 @@ Per harden B16: `rendered_content_sha256` is updated only on full-run
 success. Partial-failure runs do NOT write the manifest, preserving the
 prior shas for the next attempt.
 """
+
 from __future__ import annotations
 
 import json
@@ -57,6 +58,7 @@ from lp_bootstrap import (  # noqa: E402
 
 # --- Per-module typed exception (section 3.7) -----------------------------
 
+
 class BootstrapManifestError(RuntimeError):
     """Manifest read/write/integrity failure raised by this module.
 
@@ -81,6 +83,7 @@ class BootstrapManifestError(RuntimeError):
 
 # --- Manifest envelope ----------------------------------------------------
 
+
 @dataclass(frozen=True)
 class BootstrapManifestEntry:
     """One row in the manifest's `files[]` array.
@@ -92,6 +95,7 @@ class BootstrapManifestEntry:
     to round-trip cleanly through `json.dumps` (an octal string would need
     bespoke parsing).
     """
+
     path: str
     source_template_sha256: str
     rendered_content_sha256: str
@@ -115,6 +119,7 @@ class BootstrapManifest:
     Legacy manifests without `created_at` fall back to filesystem mtime
     with a stderr warning per D4.
     """
+
     manifest_schema_version: str
     plugin_version: str
     last_render_timestamp: str
@@ -124,6 +129,7 @@ class BootstrapManifest:
 
 
 # --- Path normalization (section 3.3) -------------------------------------
+
 
 def _normalize_path(raw: str) -> str:
     """Normalize a manifest target path to POSIX-relative-to-project-root.
@@ -164,8 +170,7 @@ def _normalize_path(raw: str) -> str:
             f"path {raw!r} is absolute; only project-root-relative paths allowed",
             reason=BootstrapErrorCode.PATH_TRAVERSAL_REJECTED,
             remediation=(
-                "remove the leading slash so the path is relative to the "
-                "project root"
+                "remove the leading slash so the path is relative to the project root"
             ),
         )
 
@@ -198,9 +203,7 @@ _INFRA_TEMPLATE_ROOT: Path = GENERATORS_ROOT / "infrastructure"
 _cached_source_template_shas: dict[str, str] | None = None
 
 
-def compute_source_template_shas(
-    *, root: Path | None = None
-) -> Mapping[str, str]:
+def compute_source_template_shas(*, root: Path | None = None) -> Mapping[str, str]:
     """Compute the per-target sha of every .j2 source template.
 
     `root` defaults to `plugin_default_generators/infrastructure/`; tests
@@ -250,6 +253,7 @@ def reset_source_template_shas_cache_for_tests() -> None:
 
 
 # --- Integrity check (section 3.8 (a)) ------------------------------------
+
 
 def verify_source_template_shas(
     manifest: BootstrapManifest,
@@ -304,6 +308,7 @@ def verify_source_template_shas(
 
 
 # --- Manifest write (section 3.8 + harden B16) ----------------------------
+
 
 def _utc_iso8601_now() -> str:
     """UTC ISO-8601 timestamp with `Z` suffix; second precision is enough."""

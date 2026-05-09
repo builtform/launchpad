@@ -40,6 +40,7 @@ v2.1 /lp-define orchestrator (`lp_define_runner.py`) supersedes
 public entry point that builds an in-memory render batch outside the
 kernel + infrastructure renderers.
 """
+
 from __future__ import annotations
 
 import datetime
@@ -93,21 +94,23 @@ STACK_FRAGMENTS_ROOT = _SCRIPTS_DIR / "plugin_stack_adapters"
 # guarded by `tests/test_stack_coupling_refactors.py::
 # test_stack_id_active_enum_partition_invariant` (drift OR silent
 # active↔candidate reclassification → fail).
-STACK_ID_ACTIVE_ENUM: frozenset[str] = frozenset({
-    # StackIdActive (v2.1 active dispatch)
-    "ts_monorepo",
-    "nextjs_standalone",
-    "nextjs_fastapi",
-    "astro",
-    "generic",
-    # StackIdV22Candidate (detector may emit; adapter dispatch routes via
-    # `generic` for ids without an active Adapter Protocol implementation)
-    "python_django",
-    "python_generic",
-    "nextjs_hono_cloudflare",
-    "nextjs_trpc_prisma",
-    "rails",
-})
+STACK_ID_ACTIVE_ENUM: frozenset[str] = frozenset(
+    {
+        # StackIdActive (v2.1 active dispatch)
+        "ts_monorepo",
+        "nextjs_standalone",
+        "nextjs_fastapi",
+        "astro",
+        "generic",
+        # StackIdV22Candidate (detector may emit; adapter dispatch routes via
+        # `generic` for ids without an active Adapter Protocol implementation)
+        "python_django",
+        "python_generic",
+        "nextjs_hono_cloudflare",
+        "nextjs_trpc_prisma",
+        "rails",
+    }
+)
 
 
 class StackIdInvalidError(ValueError):
@@ -209,10 +212,12 @@ def make_stack_aware_jinja_env() -> jinja2.Environment:
     outer_root = GENERATORS_ROOT / "stack_aware"
     fragments_root = STACK_FRAGMENTS_ROOT
     env = jinja2.Environment(
-        loader=jinja2.ChoiceLoader([
-            jinja2.FileSystemLoader(str(outer_root)),
-            jinja2.FileSystemLoader(str(fragments_root)),
-        ]),
+        loader=jinja2.ChoiceLoader(
+            [
+                jinja2.FileSystemLoader(str(outer_root)),
+                jinja2.FileSystemLoader(str(fragments_root)),
+            ]
+        ),
         autoescape=jinja2.select_autoescape(
             enabled_extensions=("html", "htm", "xml"),
             default_for_string=False,
@@ -262,6 +267,7 @@ def _to_yaml_safe(value: Any) -> str:
     Emits a double-quoted YAML scalar with proper escaping.
     """
     import yaml  # type: ignore[import-not-found]
+
     return yaml.safe_dump(
         value,
         default_style='"',
@@ -276,7 +282,21 @@ def _to_yaml_safe(value: Any) -> str:
 # Markdown template body. Escape with backslash-prefix per CommonMark.
 # Backslash is escaped FIRST so subsequent backslash-prefixed escapes are
 # not themselves escaped a second time.
-_MARKDOWN_SAFE_CHARS = ("\\", "*", "_", "[", "]", "(", ")", "<", ">", "`", "!", "#", "|")
+_MARKDOWN_SAFE_CHARS = (
+    "\\",
+    "*",
+    "_",
+    "[",
+    "]",
+    "(",
+    ")",
+    "<",
+    ">",
+    "`",
+    "!",
+    "#",
+    "|",
+)
 
 
 def _markdown_safe(value: Any) -> str:
@@ -348,18 +368,18 @@ class RendererBase:
 
     # Phase 8.5 plan section 3.11 closed-set of protected method names.
     # `test_no_renderer_subclass_overrides_protected_methods` enforces.
-    PROTECTED_METHODS: frozenset[str] = frozenset({
-        "render_batch",
-        "scan_batch",
-        "write_batch",
-        "render_to_path",
-    })
+    PROTECTED_METHODS: frozenset[str] = frozenset(
+        {
+            "render_batch",
+            "scan_batch",
+            "write_batch",
+            "render_to_path",
+        }
+    )
 
     def __init__(self) -> None:
         if not self.TEMPLATE_SUBDIR:
-            raise ValueError(
-                f"{type(self).__name__}.TEMPLATE_SUBDIR must be set"
-            )
+            raise ValueError(f"{type(self).__name__}.TEMPLATE_SUBDIR must be set")
         self.env = make_jinja_env(self.TEMPLATE_SUBDIR)
         if self.TEMPLATE_SUBDIR in ("", "."):
             self.template_root = GENERATORS_ROOT
@@ -414,9 +434,7 @@ class RendererBase:
     # Buffered-batch flow (Phase 8.5 plan section 3.11; DA1' = a2)
     # ------------------------------------------------------------------
 
-    def render_targets(
-        self, context: Mapping[str, Any]
-    ) -> Iterator[tuple[Path, str]]:
+    def render_targets(self, context: Mapping[str, Any]) -> Iterator[tuple[Path, str]]:
         """Subclass-overridable: yield `(absolute_target_path, rendered_text)`
         pairs for the given context. Called by `render_batch`.
 
@@ -428,9 +446,7 @@ class RendererBase:
             "before render_batch can be called"
         )
 
-    def render_batch(
-        self, contexts: Iterable[Mapping[str, Any]]
-    ) -> dict[Path, bytes]:
+    def render_batch(self, contexts: Iterable[Mapping[str, Any]]) -> dict[Path, bytes]:
         """Render every target across every context to an in-memory dict.
         Does NOT touch disk -- the Phase 8.5 plan section 3.11 invariant
         (DA1' = a2 buffered batch + refuse-all on any finding).

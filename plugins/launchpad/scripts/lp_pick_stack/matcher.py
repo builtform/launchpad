@@ -29,6 +29,7 @@ Manual-override (HANDSHAKE §4 rule 4): the reserved id `manual-override`
 is filtered out of normal matching. The engine selects it explicitly when
 the user picks `[m]anual override`.
 """
+
 from __future__ import annotations
 
 import re

@@ -16,6 +16,7 @@ Usage (CLI):
 
 Exit code 0 on success; 1 on unrecoverable parse/validation error.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -55,11 +56,11 @@ def _load_yaml_safe(text: str) -> Any:
     """Load YAML using vendored PyYAML (falls back to system if vendor missing)."""
     try:
         import yaml  # type: ignore
-    except ImportError:
+    except ImportError as err:
         raise ConfigError(
             "PyYAML not available; vendor it into scripts/plugin-stack-adapters/_vendor/ "
             "or install system-wide."
-        )
+        ) from err
     return yaml.safe_load(text)
 
 
@@ -68,6 +69,7 @@ class ConfigError(Exception):
 
 
 # --- Path confinement ---
+
 
 def _confine_path(raw: str, repo_root: Path, key: str) -> str:
     """Validate a single `paths.*` value is inside the repo root.
@@ -88,14 +90,15 @@ def _confine_path(raw: str, repo_root: Path, key: str) -> str:
     resolved = (repo_root / raw).resolve()
     try:
         resolved.relative_to(repo_root.resolve())
-    except ValueError:
+    except ValueError as err:
         raise ConfigError(
             f"paths.{key}={raw!r} resolves to {resolved}, outside repo root {repo_root}"
-        )
+        ) from err
     return raw
 
 
 # --- Command coercion ---
+
 
 def _coerce_commands(commands: dict[str, Any]) -> dict[str, list[str]]:
     """Normalize every commands.* value to a list[str].
@@ -126,12 +129,15 @@ def _coerce_commands(commands: dict[str, Any]) -> dict[str, list[str]]:
                 cleaned.append(v)
             val = cleaned
         else:
-            raise ConfigError(f"commands.{key}: expected list or string, got {type(val).__name__}")
+            raise ConfigError(
+                f"commands.{key}: expected list or string, got {type(val).__name__}"
+            )
         out[key] = val
     return out
 
 
 # --- Section-by-section loader ---
+
 
 def load(repo_root: Path | None = None, path: Path | None = None) -> dict[str, Any]:
     """Load and validate .launchpad/config.yml.
@@ -146,7 +152,14 @@ def load(repo_root: Path | None = None, path: Path | None = None) -> dict[str, A
 
     result: dict[str, Any] = {
         "pipeline": {},
-        "commands": {"test": [], "typecheck": [], "lint": [], "format": [], "build": [], "dev": []},
+        "commands": {
+            "test": [],
+            "typecheck": [],
+            "lint": [],
+            "format": [],
+            "build": [],
+            "dev": [],
+        },
         "paths": {
             "architecture_dir": "docs/architecture",
             "tasks_dir": "docs/tasks",
@@ -171,10 +184,12 @@ def load(repo_root: Path | None = None, path: Path | None = None) -> dict[str, A
     try:
         raw = _load_yaml_safe(text) or {}
     except Exception as e:
-        raise ConfigError(f"{path}: YAML parse error: {e}")
+        raise ConfigError(f"{path}: YAML parse error: {e}") from e
 
     if not isinstance(raw, dict):
-        raise ConfigError(f"{path}: top-level must be a mapping, got {type(raw).__name__}")
+        raise ConfigError(
+            f"{path}: top-level must be a mapping, got {type(raw).__name__}"
+        )
 
     # --- pipeline section ---
     if "pipeline" in raw:
@@ -211,7 +226,9 @@ def load(repo_root: Path | None = None, path: Path | None = None) -> dict[str, A
         if val in ("skip", "prompt", "force"):
             result["overwrite"] = val
         else:
-            result["__errors__"].append(f"overwrite={val!r}: expected skip|prompt|force")
+            result["__errors__"].append(
+                f"overwrite={val!r}: expected skip|prompt|force"
+            )
 
     # --- audit ---
     if "audit" in raw and isinstance(raw["audit"], dict):
@@ -227,28 +244,52 @@ def load(repo_root: Path | None = None, path: Path | None = None) -> dict[str, A
 # with decision_writer.py's `build_decision_payload` and the bootstrap-
 # manifest writer (Phase 3+).
 
-_SCAFFOLD_DECISION_KNOWN_FIELDS_1_0 = frozenset({
-    "version", "layers", "monorepo", "matched_category_id",
-    "rationale_path", "rationale_sha256", "rationale_summary",
-    "generated_by", "generated_at", "nonce", "bound_cwd", "sha256",
-})
-_SCAFFOLD_DECISION_KNOWN_FIELDS_1_1 = _SCAFFOLD_DECISION_KNOWN_FIELDS_1_0 | frozenset({
-    "schema_version", "plugin_version", "stacks", "identity",
-    "identity_updated_at",  # added by /lp-update-identity (Phase 10)
-    "kernel_render_state",  # sealed by lp_scaffold_stack engine + lp_update_identity engine (Phase 10 DA7-flipped; Phase 1+2 amendment A7 moved seal out of renderer)
-    "version_drift_log",    # appended by /lp-update-identity (Phase 10 DA8)
-})
+_SCAFFOLD_DECISION_KNOWN_FIELDS_1_0 = frozenset(
+    {
+        "version",
+        "layers",
+        "monorepo",
+        "matched_category_id",
+        "rationale_path",
+        "rationale_sha256",
+        "rationale_summary",
+        "generated_by",
+        "generated_at",
+        "nonce",
+        "bound_cwd",
+        "sha256",
+    }
+)
+_SCAFFOLD_DECISION_KNOWN_FIELDS_1_1 = (
+    _SCAFFOLD_DECISION_KNOWN_FIELDS_1_0
+    | frozenset(
+        {
+            "schema_version",
+            "plugin_version",
+            "stacks",
+            "identity",
+            "identity_updated_at",  # added by /lp-update-identity (Phase 10)
+            "kernel_render_state",  # sealed by lp_scaffold_stack engine + lp_update_identity engine (Phase 10 DA7-flipped; Phase 1+2 amendment A7 moved seal out of renderer)
+            "version_drift_log",  # appended by /lp-update-identity (Phase 10 DA8)
+        }
+    )
+)
 
-_BOOTSTRAP_MANIFEST_KNOWN_FIELDS_1_0 = frozenset({
-    "manifest_schema_version", "plugin_version", "last_render_timestamp", "files",
-    # v2.1 Codex PR #50 P1.D (D4): created_at sealed by manifest_writer
-    # alongside last_render_timestamp. Optional field; legacy manifests
-    # without it fall back to filesystem mtime in the --recover predicate.
-    "created_at",
-    # `security_fields` is reserved for v2.2 forward-compat; allowed in the
-    # known-fields set so reader does not warn on its presence.
-    "security_fields",
-})
+_BOOTSTRAP_MANIFEST_KNOWN_FIELDS_1_0 = frozenset(
+    {
+        "manifest_schema_version",
+        "plugin_version",
+        "last_render_timestamp",
+        "files",
+        # v2.1 Codex PR #50 P1.D (D4): created_at sealed by manifest_writer
+        # alongside last_render_timestamp. Optional field; legacy manifests
+        # without it fall back to filesystem mtime in the --recover predicate.
+        "created_at",
+        # `security_fields` is reserved for v2.2 forward-compat; allowed in the
+        # known-fields set so reader does not warn on its presence.
+        "security_fields",
+    }
+)
 
 
 class ScaffoldDecisionRead(NamedTuple):
@@ -259,6 +300,7 @@ class ScaffoldDecisionRead(NamedTuple):
     indicator). `present` is False iff the file did not exist. `warnings`
     and `infos` are diagnostics the caller surfaces to the user.
     """
+
     payload: dict[str, Any]
     schema_version: str | None
     warnings: list[str]
@@ -273,6 +315,7 @@ class BootstrapManifestRead(NamedTuple):
     instead of `schema_version` (the field rename closes the cross-envelope
     collision documented in V3 plan §10.2).
     """
+
     payload: dict[str, Any]
     manifest_schema_version: str | None
     warnings: list[str]
@@ -345,8 +388,11 @@ def read_scaffold_decision(cwd: Path) -> ScaffoldDecisionRead:
     target = cwd / ".launchpad" / "scaffold-decision.json"
     if not target.is_file():
         return ScaffoldDecisionRead(
-            payload={}, schema_version=None,
-            warnings=[], infos=[], present=False,
+            payload={},
+            schema_version=None,
+            warnings=[],
+            infos=[],
+            present=False,
         )
 
     try:
@@ -379,7 +425,9 @@ def read_scaffold_decision(cwd: Path) -> ScaffoldDecisionRead:
         return ScaffoldDecisionRead(
             payload=payload,
             schema_version=schema_version if schema_version else None,
-            warnings=warnings, infos=infos, present=True,
+            warnings=warnings,
+            infos=infos,
+            present=True,
         )
 
     parsed = _parse_major_minor(schema_version)
@@ -413,6 +461,7 @@ def read_scaffold_decision(cwd: Path) -> ScaffoldDecisionRead:
                 IdentityValidationError,
                 validate_identity,
             )
+
             try:
                 validate_identity(identity, strict_no_placeholders=False)
             except IdentityValidationError as exc:
@@ -422,8 +471,11 @@ def read_scaffold_decision(cwd: Path) -> ScaffoldDecisionRead:
                     f"{exc} (field={exc.field})"
                 ) from exc
         return ScaffoldDecisionRead(
-            payload=payload, schema_version=schema_version,
-            warnings=warnings, infos=infos, present=True,
+            payload=payload,
+            schema_version=schema_version,
+            warnings=warnings,
+            infos=infos,
+            present=True,
         )
 
     # Acceptance branch 3: schema_version "1.x" where x > 1, forward-compat
@@ -437,8 +489,11 @@ def read_scaffold_decision(cwd: Path) -> ScaffoldDecisionRead:
                 f"read the new fields natively."
             )
         return ScaffoldDecisionRead(
-            payload=payload, schema_version=schema_version,
-            warnings=warnings, infos=infos, present=True,
+            payload=payload,
+            schema_version=schema_version,
+            warnings=warnings,
+            infos=infos,
+            present=True,
         )
 
     # major == 1 and minor < 0 is impossible (minor parsed as int);
@@ -481,8 +536,11 @@ def read_bootstrap_manifest(cwd: Path) -> BootstrapManifestRead:
     target = cwd / ".launchpad" / "bootstrap-manifest.json"
     if not target.is_file():
         return BootstrapManifestRead(
-            payload={}, manifest_schema_version=None,
-            warnings=[], infos=[], present=False,
+            payload={},
+            manifest_schema_version=None,
+            warnings=[],
+            infos=[],
+            present=False,
         )
 
     try:
@@ -510,8 +568,7 @@ def read_bootstrap_manifest(cwd: Path) -> BootstrapManifestRead:
         for required in ("plugin_version", "last_render_timestamp", "files"):
             if required not in payload:
                 raise ConfigError(
-                    f"{target}: manifest_schema_version 1.0 requires field "
-                    f"{required!r}"
+                    f"{target}: manifest_schema_version 1.0 requires field {required!r}"
                 )
         if not isinstance(payload["files"], list):
             raise ConfigError(
@@ -521,7 +578,9 @@ def read_bootstrap_manifest(cwd: Path) -> BootstrapManifestRead:
         return BootstrapManifestRead(
             payload=payload,
             manifest_schema_version=msv if msv else None,
-            warnings=warnings, infos=infos, present=True,
+            warnings=warnings,
+            infos=infos,
+            present=True,
         )
 
     parsed = _parse_major_minor(msv)
@@ -548,8 +607,11 @@ def read_bootstrap_manifest(cwd: Path) -> BootstrapManifestRead:
                 f"read; ignoring unknown top-level fields {unknown!r}."
             )
         return BootstrapManifestRead(
-            payload=payload, manifest_schema_version=msv,
-            warnings=warnings, infos=infos, present=True,
+            payload=payload,
+            manifest_schema_version=msv,
+            warnings=warnings,
+            infos=infos,
+            present=True,
         )
 
     raise ConfigError(  # pragma: no cover
@@ -572,9 +634,7 @@ def _validate_config_path(path: str) -> None:
     by then `[a-z0-9_.]` is the only character class allowed.
     """
     if len(path.encode("utf-8")) > _PATH_LENGTH_CAP_BYTES:
-        raise ConfigError(
-            f"error: config path exceeds {_PATH_LENGTH_CAP_BYTES} bytes"
-        )
+        raise ConfigError(f"error: config path exceeds {_PATH_LENGTH_CAP_BYTES} bytes")
     if not _PATH_ALLOWLIST_RE.fullmatch(path):
         raise ConfigError(
             f"error: invalid config path {path!r}; must match "
@@ -675,8 +735,14 @@ def read_stacks(cwd: Path) -> list[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--repo-root", default=os.environ.get("LP_REPO_ROOT", os.getcwd()))
-    ap.add_argument("--section", choices=["pipeline", "commands", "paths", "overwrite", "audit", "all"], default="all")
-    ap.add_argument("--strict", action="store_true", help="exit non-zero if any section had errors")
+    ap.add_argument(
+        "--section",
+        choices=["pipeline", "commands", "paths", "overwrite", "audit", "all"],
+        default="all",
+    )
+    ap.add_argument(
+        "--strict", action="store_true", help="exit non-zero if any section had errors"
+    )
     ap.add_argument(
         "--get-config-value",
         metavar="DOTTED_PATH",

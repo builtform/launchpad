@@ -15,6 +15,7 @@ their AdapterOutput objects per the documented rules:
 Concrete adapters never call into this module; detection → composer orchestration
 happens at the /lp-define layer.
 """
+
 from __future__ import annotations
 
 from . import (
@@ -50,17 +51,17 @@ from .contracts import (
 # `commands.dev` when the user composes a polyglot project.
 STACK_PRECEDENCE: tuple[StackId, ...] = (
     "ts_monorepo",
-    "next",          # aliases to ts_monorepo
+    "next",  # aliases to ts_monorepo
     "python_django",
-    "django",        # aliases to python_django
+    "django",  # aliases to python_django
     "rails",
     "astro",
     "hugo",
     "expo",
     "fastapi",
     "eleventy",
-    "hono",          # aliases to generic until a hono-specific adapter ships
-    "supabase",      # aliases to generic until a supabase-specific adapter ships
+    "hono",  # aliases to generic until a hono-specific adapter ships
+    "supabase",  # aliases to generic until a supabase-specific adapter ships
     "go_cli",
     "generic",
 )
@@ -101,14 +102,24 @@ def _dedup_concat(*lists: list[str]) -> list[str]:
 def _merge_tech_stack(outputs: list[AdapterOutput]) -> TechStackInfo:
     """Merge TechStackInfo across adapters. Language/runtime list becomes
     multi-valued (e.g. 'TypeScript + Python')."""
-    primary = outputs[0]["tech_stack"]
     languages = _dedup_concat(*[[o["tech_stack"]["language"]] for o in outputs])
-    runtimes = _dedup_concat(*[[o["tech_stack"]["runtime"]] for o in outputs if o["tech_stack"]["runtime"]])
-    pkgs = _dedup_concat(*[[o["tech_stack"]["package_manager"]] for o in outputs if o["tech_stack"]["package_manager"]])
+    runtimes = _dedup_concat(
+        *[[o["tech_stack"]["runtime"]] for o in outputs if o["tech_stack"]["runtime"]]
+    )
+    pkgs = _dedup_concat(
+        *[
+            [o["tech_stack"]["package_manager"]]
+            for o in outputs
+            if o["tech_stack"]["package_manager"]
+        ]
+    )
     frameworks = _dedup_concat(*[o["tech_stack"]["frameworks"] for o in outputs])
 
     # Database: first non-None by precedence
-    database = next((o["tech_stack"]["database"] for o in outputs if o["tech_stack"]["database"]), None)
+    database = next(
+        (o["tech_stack"]["database"] for o in outputs if o["tech_stack"]["database"]),
+        None,
+    )
     ci = next((o["tech_stack"]["ci"] for o in outputs if o["tech_stack"]["ci"]), None)
 
     return TechStackInfo(
@@ -150,8 +161,11 @@ def _merge_app_flow(outputs: list[AdapterOutput]) -> AppFlowInfo | None:
 def _merge_product_context(outputs: list[AdapterOutput]) -> ProductContextInfo:
     summaries = [o["product_context"]["stack_summary"] for o in outputs]
     deployment = next(
-        (o["product_context"]["deployment_target"] for o in outputs
-         if o["product_context"]["deployment_target"]),
+        (
+            o["product_context"]["deployment_target"]
+            for o in outputs
+            if o["product_context"]["deployment_target"]
+        ),
         None,
     )
     return ProductContextInfo(
@@ -166,6 +180,7 @@ def _merge_commands(outputs: list[AdapterOutput]) -> CommandsConfig:
     Polyglot test suites run serially — e.g. ['pnpm test', 'pytest']
     for a TS + Python repo.
     """
+
     def merge_field(name: str) -> list[str]:
         return _dedup_concat(*[o["commands"][name] for o in outputs])
 
@@ -339,7 +354,9 @@ def compose_with_layers(layers: list[dict]) -> AdapterOutput:
     backend_out = _select_by_role(layer_outputs, _BACKEND_ROLES)
     frontend_out = _select_by_role(layer_outputs, _FRONTEND_ROLES)
 
-    backend = backend_out["backend"] if backend_out else _merge_backend(precedence_outputs)
+    backend = (
+        backend_out["backend"] if backend_out else _merge_backend(precedence_outputs)
+    )
     frontend = (
         frontend_out["frontend"]
         if frontend_out and frontend_out["frontend"] is not None

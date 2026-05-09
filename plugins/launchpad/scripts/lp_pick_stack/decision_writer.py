@@ -17,6 +17,7 @@ L9 footgun where the loser's rationale.md would otherwise overwrite the
 survivor's, surfacing later as a confusing scaffold-stack rationale_sha256
 mismatch.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -68,6 +69,7 @@ class IdentityValidationError(ValueError):
     def __init__(self, message: str, field: str):
         super().__init__(message)
         self.field = field
+
 
 # rationale_sha256 sentinel for --no-rationale flag mode (per Phase 2 §4.1
 # Step 5: when --no-rationale skips rationale.md write, rationale_sha256 is
@@ -169,11 +171,11 @@ _CATALOG_FALLBACK_MAP: Mapping[str, str] = {
     "expo": "generic",
     "eleventy": "generic",
     "hugo": "generic",
-    "hono": "generic",          # uncomposed singleton; composition-first
-                                # promotes ["next", "hono"] to nextjs_hono_cloudflare.
+    "hono": "generic",  # uncomposed singleton; composition-first
+    # promotes ["next", "hono"] to nextjs_hono_cloudflare.
     "next": "nextjs_standalone",
-    "django": "python_generic", # NOT python_django at v2.1 — widening invariant
-                                # deferred to BL-263.
+    "django": "python_generic",  # NOT python_django at v2.1 — widening invariant
+    # deferred to BL-263.
     "fastapi": "python_generic",
 }
 
@@ -579,6 +581,7 @@ def re_seal_decision_atomic(
     mutation only.
     """
     from atomic_io import atomic_write_replace
+
     payload = read_decision_atomic(cwd)
     pre_generated_at = payload.get("generated_at")
 

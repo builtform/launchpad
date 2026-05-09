@@ -10,6 +10,7 @@ deferred to v2.2 per HANDSHAKE §1.5 strip-back.
 Honors the `.launchpad/config.yml` `telemetry: off` opt-out: when off, the
 writer is a no-op (does not create the directory or any files).
 """
+
 from __future__ import annotations
 
 import fcntl
@@ -110,13 +111,16 @@ def write_telemetry_entry(
         timestamp_basename = _utc_now_iso_sec().replace(":", "-")
     target = obs / f"v2-pipeline-{timestamp_basename}.jsonl"
 
-    line = json.dumps(
-        payload,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        allow_nan=False,
-    ) + "\n"
+    line = (
+        json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        )
+        + "\n"
+    )
     encoded = line.encode("utf-8")
     if len(encoded) > MAX_LINE_BYTES:
         raise ValueError(
@@ -222,7 +226,7 @@ def prune_telemetry(
             if f.name in completed:
                 continue
             try:
-                st = os.stat(f)
+                os.stat(f)
             except FileNotFoundError:
                 # ENOENT after lock — manually cleaned between cycles. Skip.
                 completed.add(f.name)
@@ -276,7 +280,9 @@ def prune_telemetry(
         # All files done — atomic-rename the progress file to a .completed
         # marker; retain max 5.
         if progress_path.exists():
-            done_name = f".prune-progress.completed.{_utc_now_iso_sec().replace(':', '-')}"
+            done_name = (
+                f".prune-progress.completed.{_utc_now_iso_sec().replace(':', '-')}"
+            )
             try:
                 os.rename(progress_path, obs / done_name)
             except OSError:

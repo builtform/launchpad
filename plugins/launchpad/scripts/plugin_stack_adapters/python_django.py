@@ -4,6 +4,7 @@ Covers Django + Postgres deployments. Also a reasonable fallback for
 Flask/FastAPI-backed projects that still have a pyproject.toml with a
 recognizable web framework.
 """
+
 from .contracts import (
     AdapterOutput,
     AppFlowInfo,

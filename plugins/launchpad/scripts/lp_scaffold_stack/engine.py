@@ -21,6 +21,7 @@ Failure paths:
   - Step 4 collision → emit scaffold-failed-<ts>.json with reason
     `cross_cutting_wiring_collision`
 """
+
 from __future__ import annotations
 
 import json
@@ -35,7 +36,9 @@ _SCRIPTS = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
-from datetime import UTC
+from datetime import (  # noqa: E402  (placed after sys.path mutation for sibling import resolution)
+    UTC,
+)
 
 from cwd_state import refuse_if_not_greenfield  # noqa: E402
 from plugin_stack_adapters.composition import (  # noqa: E402
@@ -66,6 +69,7 @@ from lp_scaffold_stack.marker_consumer import (  # noqa: E402
     marker_present,
 )
 from lp_scaffold_stack.nonce_ledger import (  # noqa: E402
+    UUID_HEX_RE,  # D12 / arch P1: shared package-internal SoT (replaces local copy)
     NonceLedgerError,
     append_nonce,
     is_nonce_seen,
@@ -97,10 +101,17 @@ COMMAND_NAME = "/lp-scaffold-stack"
 # which produced `plugins/plugins/launchpad/...` for the catalog defaults
 # (PR #41 cycle 4 #1 — silent default-args ship-blocker since fc5b3da).
 _REPO_ROOT_DEFAULT = Path(__file__).resolve().parents[4]
-DEFAULT_SCAFFOLDERS_YML = _REPO_ROOT_DEFAULT / "plugins" / "launchpad" / "scaffolders.yml"
+DEFAULT_SCAFFOLDERS_YML = (
+    _REPO_ROOT_DEFAULT / "plugins" / "launchpad" / "scaffolders.yml"
+)
 DEFAULT_CATEGORY_PATTERNS_YML = (
-    _REPO_ROOT_DEFAULT / "plugins" / "launchpad" / "scripts"
-    / "lp_pick_stack" / "data" / "category-patterns.yml"
+    _REPO_ROOT_DEFAULT
+    / "plugins"
+    / "launchpad"
+    / "scripts"
+    / "lp_pick_stack"
+    / "data"
+    / "category-patterns.yml"
 )
 DEFAULT_PLUGINS_ROOT = _REPO_ROOT_DEFAULT
 
@@ -139,6 +150,7 @@ class PipelineResult:
 
 def _utc_iso_sec() -> str:
     from datetime import datetime
+
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
@@ -189,6 +201,7 @@ def _decision_sha256_from_file(path: Path) -> str:
     introduces whitespace differences, the receipt should pin the bytes).
     """
     import hashlib
+
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
@@ -220,8 +233,9 @@ def _emit_telemetry(
         payload["failed_layer_index"] = failed_layer_index
     try:
         write_telemetry_entry(repo_root, payload)
-    except Exception:
-        pass  # analytics, not forensic — never propagate
+    except (OSError, ValueError, json.JSONDecodeError):
+        pass  # D10: narrowed from `except Exception`. Telemetry is analytics,
+        # not forensic — never propagate disk-write/serialization failures.
 
 
 def _emit_rejection(
@@ -295,9 +309,11 @@ def run_pipeline(
     # failure") which the strict greenfield gate would otherwise refuse
     # (PR #41 cycle 5 #2 — closes self-contradicting recovery flow).
     if not skip_greenfield_gate:
-        recovery_record = next(
-            (cwd / ".launchpad").glob("scaffold-failed-*.json"), None
-        ) if (cwd / ".launchpad").is_dir() else None
+        recovery_record = (
+            next((cwd / ".launchpad").glob("scaffold-failed-*.json"), None)
+            if (cwd / ".launchpad").is_dir()
+            else None
+        )
         decision_present = (cwd / ".launchpad" / "scaffold-decision.json").is_file()
         in_recovery_mode = recovery_record is not None and decision_present
 
@@ -306,8 +322,11 @@ def run_pipeline(
                 refuse_if_not_greenfield(cwd, COMMAND_NAME)
             except (RuntimeError, NotADirectoryError) as exc:
                 elapsed = time.monotonic() - start
-                reason = ("cwd_state_brownfield" if "brownfield" in str(exc)
-                          else "cwd_state_ambiguous")
+                reason = (
+                    "cwd_state_brownfield"
+                    if "brownfield" in str(exc)
+                    else "cwd_state_ambiguous"
+                )
                 rej = Rejected(reason=reason, message=str(exc), field_name="cwd")
                 log_path = _emit_rejection(repo_root, rej, stderr=stderr)
                 result = PipelineResult(
@@ -319,14 +338,21 @@ def run_pipeline(
                     elapsed_seconds=elapsed,
                 )
                 if write_telemetry_flag:
-                    _emit_telemetry(repo_root, outcome=Outcome.ABORTED,
-                                    elapsed_seconds=elapsed,
-                                    cwd_state_value=None, reason=reason)
+                    _emit_telemetry(
+                        repo_root,
+                        outcome=Outcome.ABORTED,
+                        elapsed_seconds=elapsed,
+                        cwd_state_value=None,
+                        reason=reason,
+                    )
                 return result
 
     # --- Step 1a: decision file load + JSON parse ---
-    decision_path = decision_file_path if decision_file_path is not None \
+    decision_path = (
+        decision_file_path
+        if decision_file_path is not None
         else (cwd / ".launchpad" / "scaffold-decision.json")
+    )
     if not decision_path.exists():
         elapsed = time.monotonic() - start
         rej = Rejected(
@@ -336,13 +362,20 @@ def run_pipeline(
         )
         log_path = _emit_rejection(repo_root, rej, stderr=stderr)
         result = PipelineResult(
-            success=False, outcome=Outcome.ABORTED,
-            reason=rej.reason, message=rej.message,
-            rejection_log_path=log_path, elapsed_seconds=elapsed,
+            success=False,
+            outcome=Outcome.ABORTED,
+            reason=rej.reason,
+            message=rej.message,
+            rejection_log_path=log_path,
+            elapsed_seconds=elapsed,
         )
         if write_telemetry_flag:
-            _emit_telemetry(repo_root, outcome=Outcome.ABORTED,
-                            elapsed_seconds=elapsed, reason=rej.reason)
+            _emit_telemetry(
+                repo_root,
+                outcome=Outcome.ABORTED,
+                elapsed_seconds=elapsed,
+                reason=rej.reason,
+            )
         return result
     decision = _read_decision(decision_path)
     if decision is None:
@@ -354,13 +387,20 @@ def run_pipeline(
         )
         log_path = _emit_rejection(repo_root, rej, stderr=stderr)
         result = PipelineResult(
-            success=False, outcome=Outcome.ABORTED,
-            reason=rej.reason, message=rej.message,
-            rejection_log_path=log_path, elapsed_seconds=elapsed,
+            success=False,
+            outcome=Outcome.ABORTED,
+            reason=rej.reason,
+            message=rej.message,
+            rejection_log_path=log_path,
+            elapsed_seconds=elapsed,
         )
         if write_telemetry_flag:
-            _emit_telemetry(repo_root, outcome=Outcome.ABORTED,
-                            elapsed_seconds=elapsed, reason=rej.reason)
+            _emit_telemetry(
+                repo_root,
+                outcome=Outcome.ABORTED,
+                elapsed_seconds=elapsed,
+                reason=rej.reason,
+            )
         return result
 
     # --- Step 1b: 12-of-13 rule validation (rule 12 deferred) ---
@@ -376,13 +416,20 @@ def run_pipeline(
         )
         log_path = _emit_rejection(repo_root, rej, stderr=stderr)
         result = PipelineResult(
-            success=False, outcome=Outcome.ABORTED,
-            reason=rej.reason, message=rej.message,
-            rejection_log_path=log_path, elapsed_seconds=elapsed,
+            success=False,
+            outcome=Outcome.ABORTED,
+            reason=rej.reason,
+            message=rej.message,
+            rejection_log_path=log_path,
+            elapsed_seconds=elapsed,
         )
         if write_telemetry_flag:
-            _emit_telemetry(repo_root, outcome=Outcome.ABORTED,
-                            elapsed_seconds=elapsed, reason=rej.reason)
+            _emit_telemetry(
+                repo_root,
+                outcome=Outcome.ABORTED,
+                elapsed_seconds=elapsed,
+                reason=rej.reason,
+            )
         return result
 
     # Pre-resolve nonce-ledger lookup (filesystem-touching; outside the
@@ -391,8 +438,7 @@ def run_pipeline(
         nonce_value = decision.get("nonce", "")
         seen = (
             isinstance(nonce_value, str)
-            and len(nonce_value) == 32
-            and all(c in "0123456789abcdef" for c in nonce_value)
+            and bool(UUID_HEX_RE.fullmatch(nonce_value))
             and is_nonce_seen(nonce_value, repo_root, _now_epoch=_now_epoch)
         )
     except NonceLedgerError as exc:
@@ -400,13 +446,20 @@ def run_pipeline(
         rej = Rejected(reason=exc.reason, message=str(exc), field_name="nonce")
         log_path = _emit_rejection(repo_root, rej, stderr=stderr)
         result = PipelineResult(
-            success=False, outcome=Outcome.ABORTED,
-            reason=rej.reason, message=rej.message,
-            rejection_log_path=log_path, elapsed_seconds=elapsed,
+            success=False,
+            outcome=Outcome.ABORTED,
+            reason=rej.reason,
+            message=rej.message,
+            rejection_log_path=log_path,
+            elapsed_seconds=elapsed,
         )
         if write_telemetry_flag:
-            _emit_telemetry(repo_root, outcome=Outcome.ABORTED,
-                            elapsed_seconds=elapsed, reason=rej.reason)
+            _emit_telemetry(
+                repo_root,
+                outcome=Outcome.ABORTED,
+                elapsed_seconds=elapsed,
+                reason=rej.reason,
+            )
         return result
 
     rationale_path = cwd / ".launchpad" / "rationale.md"
@@ -425,14 +478,21 @@ def run_pipeline(
         elapsed = time.monotonic() - start
         log_path = _emit_rejection(repo_root, verdict, stderr=stderr)
         result = PipelineResult(
-            success=False, outcome=Outcome.ABORTED,
-            reason=verdict.reason, message=verdict.message,
-            rejection_log_path=log_path, decision_path=decision_path,
+            success=False,
+            outcome=Outcome.ABORTED,
+            reason=verdict.reason,
+            message=verdict.message,
+            rejection_log_path=log_path,
+            decision_path=decision_path,
             elapsed_seconds=elapsed,
         )
         if write_telemetry_flag:
-            _emit_telemetry(repo_root, outcome=Outcome.ABORTED,
-                            elapsed_seconds=elapsed, reason=verdict.reason)
+            _emit_telemetry(
+                repo_root,
+                outcome=Outcome.ABORTED,
+                elapsed_seconds=elapsed,
+                reason=verdict.reason,
+            )
         return result
 
     accepted: Accepted = verdict
@@ -460,6 +520,7 @@ def run_pipeline(
     from lp_scaffold_stack.sentinel import (
         write_sentinel as _scaffold_stack_write_sentinel,
     )
+
     try:
         _scaffold_stack_write_sentinel(cwd, mode="scaffold-stack")
     except FileExistsError:
@@ -476,14 +537,21 @@ def run_pipeline(
         )
         log_path = _emit_rejection(repo_root, rej, stderr=stderr)
         result = PipelineResult(
-            success=False, outcome=Outcome.ABORTED,
-            reason=rej.reason, message=rej.message,
-            rejection_log_path=log_path, decision_path=decision_path,
+            success=False,
+            outcome=Outcome.ABORTED,
+            reason=rej.reason,
+            message=rej.message,
+            rejection_log_path=log_path,
+            decision_path=decision_path,
             elapsed_seconds=elapsed,
         )
         if write_telemetry_flag:
-            _emit_telemetry(repo_root, outcome=Outcome.ABORTED,
-                            elapsed_seconds=elapsed, reason=rej.reason)
+            _emit_telemetry(
+                repo_root,
+                outcome=Outcome.ABORTED,
+                elapsed_seconds=elapsed,
+                reason=rej.reason,
+            )
         return result
 
     try:
@@ -499,7 +567,8 @@ def run_pipeline(
         install_seconds = 0.0
         try:
             dispatch_result = dispatch_by_stack_ids(
-                stacks, cwd,
+                stacks,
+                cwd,
                 accept_v22_fallback=accept_v22_fallback,
                 layer_paths=layer_paths or None,
             )
@@ -509,7 +578,8 @@ def run_pipeline(
                 recovery_path = str(getattr(exc, "path", None) or cwd)
             else:
                 recovery_path = (
-                    str(exc.path) if exc.path is not None
+                    str(exc.path)
+                    if exc.path is not None
                     else f"<adapter dispatch for stacks={stacks!r}>"
                 )
             return _record_partial_failure(
@@ -542,7 +612,9 @@ def run_pipeline(
             wiring = wire_cross_cutting(cwd, layers, materialized_files)
         except CrossCuttingError as exc:
             elapsed = time.monotonic() - start
-            partial_cross_cutting = getattr(exc, "cross_cutting_files_written", []) or []
+            partial_cross_cutting = (
+                getattr(exc, "cross_cutting_files_written", []) or []
+            )
             return _record_partial_failure(
                 repo_root=repo_root,
                 decision_path=decision_path,
@@ -637,9 +709,11 @@ def _run_pipeline_after_sentinel(
             from plugin_default_generators.kernel_renderer import (  # noqa: PLC0415
                 KernelRenderer,
             )
+
             try:
                 _rendered, kernel_render_state = KernelRenderer().render_all(
-                    cwd, identity,
+                    cwd,
+                    identity,
                 )
             except Exception as exc:  # noqa: BLE001
                 elapsed = time.monotonic() - start
@@ -705,8 +779,11 @@ def _run_pipeline_after_sentinel(
                 BootstrapErrorCode,
             )
             from lp_bootstrap.engine import run_bootstrap  # noqa: PLC0415
+
             bootstrap_result = run_bootstrap(
-                cwd, mode="greenfield", identity=identity,
+                cwd,
+                mode="greenfield",
+                identity=identity,
             )
             if bootstrap_result.outcome != "success":
                 elapsed = time.monotonic() - start
@@ -747,14 +824,15 @@ def _run_pipeline_after_sentinel(
     # `_resolve_adapter_id_for` helper that maps each layer's stack to
     # the adapter that actually rendered it (with fallback awareness).
     layer_entries: list[LayerReceiptEntry] = _build_layer_receipt_entries(
-        layers, materialized_files, accept_v22_fallback=accept_v22_fallback,
+        layers,
+        materialized_files,
+        accept_v22_fallback=accept_v22_fallback,
     )
     fallback_ids = fallback_ids_used(
-        stacks, accept_v22_fallback=accept_v22_fallback,
+        stacks,
+        accept_v22_fallback=accept_v22_fallback,
     )
-    adapter_dispatch_meta = (
-        {"fallback_ids": fallback_ids} if fallback_ids else None
-    )
+    adapter_dispatch_meta = {"fallback_ids": fallback_ids} if fallback_ids else None
     decision_bytes_sha = _decision_sha256_from_file(decision_path)
     try:
         receipt_path, _sealed = write_receipt(
@@ -769,18 +847,27 @@ def _run_pipeline_after_sentinel(
         )
     except (ReceiptWriteError, ReceiptBuildError) as exc:
         elapsed = time.monotonic() - start
-        rej = Rejected(reason=exc.reason, message=str(exc),
-                       field_name="scaffold-receipt.json")
+        rej = Rejected(
+            reason=exc.reason, message=str(exc), field_name="scaffold-receipt.json"
+        )
         log_path = _emit_rejection(repo_root, rej, stderr=stderr)
         result = PipelineResult(
-            success=False, outcome=Outcome.ABORTED,
-            reason=exc.reason, message=str(exc),
-            rejection_log_path=log_path, decision_path=decision_path,
-            layers_materialized=layer_entries, elapsed_seconds=elapsed,
+            success=False,
+            outcome=Outcome.ABORTED,
+            reason=exc.reason,
+            message=str(exc),
+            rejection_log_path=log_path,
+            decision_path=decision_path,
+            layers_materialized=layer_entries,
+            elapsed_seconds=elapsed,
         )
         if write_telemetry_flag:
-            _emit_telemetry(repo_root, outcome=Outcome.ABORTED,
-                            elapsed_seconds=elapsed, reason=exc.reason)
+            _emit_telemetry(
+                repo_root,
+                outcome=Outcome.ABORTED,
+                elapsed_seconds=elapsed,
+                reason=exc.reason,
+            )
         return result
 
     # --- Step 5b: nonce ledger append (AFTER receipt fsync) ---
@@ -885,7 +972,8 @@ def _record_partial_failure(
                 failed_layer_index=failed_layer_index,
                 materialized_files=materialized_files,
                 recovery_commands=[{"op": "rerun", "command": "/lp-scaffold-stack"}],
-                recommended_recovery_action=recovery_action + " (auto-stripped poisonous recovery_commands entries)",
+                recommended_recovery_action=recovery_action
+                + " (auto-stripped poisonous recovery_commands entries)",
                 repo_root=repo_root,
             )
         except CleanupRecordError:
@@ -981,6 +1069,7 @@ def _resolved_adapter_id(stack_id: str, *, accept_v22_fallback: bool) -> str:
         _ADAPTER_REGISTRY,
         _V22_CANDIDATE_IDS,
     )
+
     if stack_id in _ADAPTER_REGISTRY:
         return stack_id
     if stack_id in _V22_CANDIDATE_IDS and accept_v22_fallback:

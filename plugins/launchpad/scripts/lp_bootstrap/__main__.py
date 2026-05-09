@@ -12,6 +12,7 @@ Exit codes:
   64  invalid argument (e.g., unknown mode)
   65  data error (e.g., engine returned a non-success outcome)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -30,7 +31,9 @@ def _parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
-        "--cwd", type=Path, default=Path.cwd(),
+        "--cwd",
+        type=Path,
+        default=Path.cwd(),
         help="Project root (default: current working directory).",
     )
     p.add_argument(
@@ -39,7 +42,8 @@ def _parser() -> argparse.ArgumentParser:
         default="greenfield",
     )
     p.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help=(
             "Acquire+clear the bootstrap sentinel and exit without writing "
             "the manifest or rendering files. Sentinel-lifecycle smoke test."
@@ -61,8 +65,7 @@ def main(argv: list[str] | None = None) -> int:
         return 65
     if result.outcome != "success":
         print(
-            f"lp_bootstrap: outcome={result.outcome} "
-            f"errors={result.errors!r}",
+            f"lp_bootstrap: outcome={result.outcome} errors={result.errors!r}",
             file=sys.stderr,
         )
         return 65

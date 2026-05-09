@@ -26,6 +26,7 @@ Fields stripped:
 Stripped values appear as '<redacted>' in generated docs. Users can manually
 restore if the fields aren't actually sensitive in their repo.
 """
+
 from __future__ import annotations
 
 import re

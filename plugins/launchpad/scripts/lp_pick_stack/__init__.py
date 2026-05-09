@@ -22,6 +22,7 @@ Constants exported:
   - LICENSE_ENUM (locked starter set per V3 plan §10.v2.1)
   - identity allowlist regexes per V3 plan §10.v2.1 acceptance rules
 """
+
 from __future__ import annotations
 
 import re
@@ -46,9 +47,17 @@ SCHEMA_VERSION_V2_1 = "1.1"
 # decision (Phase 0.3). "Other" carries a free-form `license_other_body`
 # field with sanitization rules: max 10KB, printable ASCII, no Jinja
 # delimiters or HTML tags.
-LICENSE_ENUM = frozenset({
-    "MIT", "Apache-2.0", "GPL-3.0", "BSD-3-Clause", "ISC", "MPL-2.0", "Other",
-})
+LICENSE_ENUM = frozenset(
+    {
+        "MIT",
+        "Apache-2.0",
+        "GPL-3.0",
+        "BSD-3-Clause",
+        "ISC",
+        "MPL-2.0",
+        "Other",
+    }
+)
 
 # Identity input allowlist regexes (V3 plan §10.v2.1). Validated at
 # /lp-pick-stack and /lp-update-identity prompt time, AND at canonical
@@ -77,13 +86,23 @@ IDENTITY_PROJECT_NAME_LITERAL_REJECTS = frozenset({".", ".."})
 
 # Forbidden chars in copyright holder (defense-in-depth on top of the
 # printable-ASCII allowlist; matches the V3 plan §10.v2.1 design lock).
-IDENTITY_COPYRIGHT_FORBIDDEN_CHARS = frozenset({
-    "`", '"', "'", "$", ";",
-    # Phase 10 v2.1 (security-auditor F3): prevent Jinja delimiter / HTML
-    # tag / format-string injection through the copyright_holder field
-    # which is the only identity value that may contain free-form text.
-    "{", "}", "<", ">", "%",
-})
+IDENTITY_COPYRIGHT_FORBIDDEN_CHARS = frozenset(
+    {
+        "`",
+        '"',
+        "'",
+        "$",
+        ";",
+        # Phase 10 v2.1 (security-auditor F3): prevent Jinja delimiter / HTML
+        # tag / format-string injection through the copyright_holder field
+        # which is the only identity value that may contain free-form text.
+        "{",
+        "}",
+        "<",
+        ">",
+        "%",
+    }
+)
 
 # Placeholder values written when PII opt-in is declined. /lp-update-identity
 # (Phase 10) detects these by exact-match against this dict's values plus a
@@ -110,35 +129,41 @@ LICENSE_OTHER_FORBIDDEN_SUBSTRINGS = ("{{", "{%", "{#", "<", ">")  # Jinja + HTM
 # backend-only personas (next, django, rails). Single-purpose stacks
 # (astro, eleventy, hugo, hono, fastapi, supabase, expo) are pinned to
 # their one valid role; cross-role tuples remain default-deny.
-VALID_COMBINATIONS = frozenset({
-    # Frontend (single-purpose) — base role
-    ("astro", "frontend"),
-    ("eleventy", "frontend"),
-    ("hugo", "frontend"),
-    # Multi-frontend variants — used by the multi-frontend category
-    # (frontend-main + frontend-dashboard pairing). manual_override_resolver
-    # already accepts these roles in ALLOWED_ROLES; tuples below close the
-    # cross-check so users can manually re-create the multi-frontend shape
-    # (PR #41 cycle 5 #4 + Greptile cycle-4 P1 closure).
-    ("astro", "frontend-main"), ("astro", "frontend-dashboard"),
-    ("eleventy", "frontend-main"), ("eleventy", "frontend-dashboard"),
-    ("hugo", "frontend-main"), ("hugo", "frontend-dashboard"),
-    ("next", "frontend-main"), ("next", "frontend-dashboard"),
-    # Frontend or fullstack (next is the only TS framework with both modes)
-    ("next", "frontend"),
-    ("next", "fullstack"),
-    # Backend (single-purpose)
-    ("hono", "backend"),
-    ("fastapi", "backend"),
-    ("supabase", "backend-managed"),
-    # Backend or fullstack (server-rendered frameworks with API-only mode)
-    ("django", "backend"),
-    ("django", "fullstack"),
-    ("rails", "backend"),
-    ("rails", "fullstack"),
-    # Mobile (single-purpose)
-    ("expo", "mobile"),
-})
+VALID_COMBINATIONS = frozenset(
+    {
+        # Frontend (single-purpose) — base role
+        ("astro", "frontend"),
+        ("eleventy", "frontend"),
+        ("hugo", "frontend"),
+        # Multi-frontend variants — used by the multi-frontend category
+        # (frontend-main + frontend-dashboard pairing). manual_override_resolver
+        # already accepts these roles in ALLOWED_ROLES; tuples below close the
+        # cross-check so users can manually re-create the multi-frontend shape
+        # (PR #41 cycle 5 #4 + Greptile cycle-4 P1 closure).
+        ("astro", "frontend-main"),
+        ("astro", "frontend-dashboard"),
+        ("eleventy", "frontend-main"),
+        ("eleventy", "frontend-dashboard"),
+        ("hugo", "frontend-main"),
+        ("hugo", "frontend-dashboard"),
+        ("next", "frontend-main"),
+        ("next", "frontend-dashboard"),
+        # Frontend or fullstack (next is the only TS framework with both modes)
+        ("next", "frontend"),
+        ("next", "fullstack"),
+        # Backend (single-purpose)
+        ("hono", "backend"),
+        ("fastapi", "backend"),
+        ("supabase", "backend-managed"),
+        # Backend or fullstack (server-rendered frameworks with API-only mode)
+        ("django", "backend"),
+        ("django", "fullstack"),
+        ("rails", "backend"),
+        ("rails", "fullstack"),
+        # Mobile (single-purpose)
+        ("expo", "mobile"),
+    }
+)
 
 
 def is_valid_combination(stack: str, role: str) -> bool:

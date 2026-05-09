@@ -27,6 +27,7 @@ NO disk cache (cycle-1 simplicity dropped). NO scope_filter enum / min-floor /
 bypass env (cycle-2 simplicity dropped). NO schema_version field (cycle-3
 simplicity P1-S2 dropped).
 """
+
 from __future__ import annotations
 
 import functools
@@ -57,9 +58,7 @@ MAX_AGENT_FRONTMATTER_BYTES = 64_000
 
 _LOGGER = logging.getLogger("plugin_agent_scope_filter")
 
-_PLUGIN_AGENTS_ROOT = (
-    Path(__file__).resolve().parent.parent / "agents"
-).resolve()
+_PLUGIN_AGENTS_ROOT = (Path(__file__).resolve().parent.parent / "agents").resolve()
 
 _AGENT_SUBDIRS: tuple[str, ...] = (
     "research",
@@ -79,6 +78,7 @@ _last_dropped: list[str] = []
 # Exceptions
 # ---------------------------------------------------------------------------
 
+
 class EmptyFilterResultError(RuntimeError):
     """Raised when filter_agents_by_stacks() empties a non-empty input.
 
@@ -96,6 +96,7 @@ class FrontmatterTooLargeError(ValueError):
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _safe_candidate(candidate: Path, root_real: Path) -> Path | None:
     """Reject symlinks, non-files, and out-of-root resolved paths.
@@ -143,7 +144,7 @@ def _extract_frontmatter_dict(path: Path) -> dict | None:
         if end == -1:
             return None
     body = text[4:end]
-    parsed = yaml.load(body, Loader=_SafeLoader)  # noqa: S506 -- CSafeLoader/SafeLoader only
+    parsed = yaml.load(body, Loader=_SafeLoader)  # noqa: S506 -- CSafeLoader/SafeLoader only  # nosec B506 -- _SafeLoader binding indirection (CSafeLoader|SafeLoader); bandit doesn't trace import alias (cf. BL-<TBD> | HANDSHAKE §2 | plan §6 alternatives table).
     if not isinstance(parsed, dict):
         return None
     return parsed
@@ -181,9 +182,7 @@ def _load_agent_index() -> Mapping[str, dict[str, str]]:
             try:
                 fm = _extract_frontmatter_dict(safe)
             except FrontmatterTooLargeError as exc:
-                _LOGGER.warning(
-                    "agent frontmatter exceeds cap; skipping: %s", exc
-                )
+                _LOGGER.warning("agent frontmatter exceeds cap; skipping: %s", exc)
                 continue
             name = (fm or {}).get("name") or safe.stem
             scope = (fm or {}).get("stack_scope")
@@ -205,12 +204,14 @@ def _active_stack_enum() -> frozenset[str]:
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
     from plugin_default_generators._renderer_base import STACK_ID_ACTIVE_ENUM
+
     return STACK_ID_ACTIVE_ENUM
 
 
 # ---------------------------------------------------------------------------
 # Public surface
 # ---------------------------------------------------------------------------
+
 
 def filter_agents_by_stacks(
     agent_names: Iterable[str], stacks: Iterable[str]

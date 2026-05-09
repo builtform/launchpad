@@ -20,17 +20,18 @@ Writer-side serialization rule:
 v2.2 BL: this module relocates to `lp_shared/audit_log.py`. Importers
 should expect a one-line import-path change with stable signature.
 """
+
 from __future__ import annotations
 
 import hashlib
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Union
 
 
 @dataclass(frozen=True)
 class Names:
     """Tagged variant: changed-field names sealed verbatim."""
+
     names: tuple[str, ...]
 
 
@@ -41,10 +42,11 @@ class Fingerprint:
     Layout: literal `"sha256:"` prefix + 16 lowercase hex chars (so the
     field is parseable as a tagged digest by future readers).
     """
+
     digest: str
 
 
-ChangedFields = Union[Names, Fingerprint]
+ChangedFields = Names | Fingerprint
 
 
 def _canonical_names(names: tuple[str, ...]) -> str:

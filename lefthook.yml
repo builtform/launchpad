@@ -26,6 +26,26 @@ pre-push:
         [ -d plugins/launchpad/scripts ] || exit 0
         cd plugins/launchpad/scripts && python -m pytest -x -q
 
+    # v2.1.1 Phase 4 — pyright moved from pre-commit to pre-push (R1-T1-1).
+    # Reason: `pyright {staged_files}` still type-checks the import closure
+    # (~3-10s cold even on one-line edits). Pre-push placement matches
+    # pytest precedent — whole-program gates pre-push, file-local pre-commit.
+    pyright:
+      glob: "**/*.py"
+      priority: 10
+      run: |
+        [ -d plugins/launchpad/scripts ] || exit 0
+        cd plugins/launchpad/scripts && pyright
+
+    # v2.1.1 Phase 4 — LaunchPad-internal cross-cutting invariants. Pre-push
+    # placement (deeper scan, full scripts tree).
+    semgrep-launchpad-internal:
+      glob: "**/*.py"
+      priority: 10
+      run: |
+        [ -d plugins/launchpad/.semgrep ] || exit 0
+        semgrep --config=plugins/launchpad/.semgrep/launchpad-internal.yml plugins/launchpad/scripts/ --error --metrics=off
+
 commit-msg:
   commands:
     # Per OPERATIONS §0 strip-back-aware Layer 9 P3-2 closure: the commit-msg
@@ -72,6 +92,45 @@ pre-commit:
     test:
       glob: "**/*.{ts,tsx,js,jsx,mjs,cjs,py}"
       run: python3 plugins/launchpad/scripts/plugin-build-runner.py --stage=test
+      priority: 10
+
+    # v2.1.1 Phase 4 — Layer 3 static analysis (DA-4.9). 4 entries fire on
+    # **/*.py edits; tests/ excluded (200+ deferred ruff violations there).
+    # Self-host-only `[ -d ... ] || exit 0` short-circuit ensures downstream
+    # consumers cargo-culting this YAML get silent-skip, not cd-failure.
+    # ruff-check + ruff-format-check share `.ruff_cache/`; serialized via
+    # priority 11 → 12 (R2-T1-11) — they run AFTER priority-10 entries.
+
+    bandit:
+      glob: "**/*.py"
+      exclude: "plugins/launchpad/scripts/tests/.*\\.py$"
+      run: |
+        [ -d plugins/launchpad/scripts ] || exit 0
+        bandit -ll {staged_files}
+      priority: 10
+
+    ruff-check:
+      glob: "**/*.py"
+      exclude: "plugins/launchpad/scripts/tests/.*\\.py$"
+      run: |
+        [ -d plugins/launchpad/scripts ] || exit 0
+        ruff check --config plugins/launchpad/scripts/pyproject.toml {staged_files}
+      priority: 11
+
+    ruff-format-check:
+      glob: "**/*.py"
+      exclude: "plugins/launchpad/scripts/tests/.*\\.py$"
+      run: |
+        [ -d plugins/launchpad/scripts ] || exit 0
+        ruff format --check --config plugins/launchpad/scripts/pyproject.toml {staged_files}
+      priority: 12
+
+    semgrep-general:
+      glob: "**/*.py"
+      exclude: "plugins/launchpad/scripts/tests/.*\\.py$"
+      run: |
+        [ -d plugins/launchpad/.semgrep ] || exit 0
+        semgrep --config=plugins/launchpad/.semgrep/general.yml {staged_files} --error --metrics=off
       priority: 10
 
     structure-check:

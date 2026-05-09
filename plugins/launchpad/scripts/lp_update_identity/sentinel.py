@@ -33,6 +33,7 @@ Liveness via `os.kill(pid, 0)`: `ProcessLookupError` → dead;
 Corrupt-JSON policy: refuse-immediately, no retry-with-backoff (matches
 Phase 3 precedent per frontend-races F5).
 """
+
 from __future__ import annotations
 
 import errno
@@ -62,6 +63,7 @@ from lp_update_identity import (  # noqa: E402
 @dataclass(frozen=True)
 class IdentitySentinelSnapshot:
     """Decoded identity-update sentinel JSON payload (Phase 10 §3.3)."""
+
     command_pid: int
     started_at: str
     pre_edit_decision_sha256: str | None

@@ -10,6 +10,7 @@ bounds the slow-path syscall burst when the user accidentally invokes from
 /, ~, or a giant monorepo root: those return "ambiguous" without per-entry
 stat() calls.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -25,25 +26,42 @@ GREENFIELD_OK_DIRS = {".git", ".launchpad"}
 # for cross-platform parity.
 BROWNFIELD_MANIFESTS = {
     # Node / TS
-    "package.json", "tsconfig.json", "package-lock.json",
-    "yarn.lock", "pnpm-lock.yaml", "bun.lock", "bun.lockb",
+    "package.json",
+    "tsconfig.json",
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "bun.lock",
+    "bun.lockb",
     # Python
-    "pyproject.toml", "requirements.txt", "Pipfile", "Pipfile.lock",
-    "poetry.lock", ".python-version",
+    "pyproject.toml",
+    "requirements.txt",
+    "Pipfile",
+    "Pipfile.lock",
+    "poetry.lock",
+    ".python-version",
     # Ruby
-    "Gemfile", "Gemfile.lock",
+    "Gemfile",
+    "Gemfile.lock",
     # Elixir
-    "mix.exs", "mix.lock",
+    "mix.exs",
+    "mix.lock",
     # Go
-    "go.mod", "go.sum",
+    "go.mod",
+    "go.sum",
     # Dart / Flutter
-    "pubspec.yaml", "pubspec.lock",
+    "pubspec.yaml",
+    "pubspec.lock",
     # Rust
-    "Cargo.toml", "Cargo.lock",
+    "Cargo.toml",
+    "Cargo.lock",
     # PHP
-    "composer.json", "composer.lock",
+    "composer.json",
+    "composer.lock",
     # Nix
-    "flake.nix", "shell.nix", "default.nix",
+    "flake.nix",
+    "shell.nix",
+    "default.nix",
     # asdf / version managers
     ".tool-versions",
 }
@@ -71,19 +89,20 @@ def cwd_state(cwd: Path) -> Literal["empty", "brownfield", "ambiguous"]:
     if not extras:
         return "empty"
     if len(extras) == 1 and "README.md" in names:
-        # README + 1 extra (e.g., .editorconfig, a stub LICENSE.txt). Per PR
-        # #41 cycle 7 #3 closure: the extra file ALSO has to be small —
-        # previously only README was sized, so a 50-byte README next to a
-        # 100KB stray file would still classify "empty" and let the user
-        # accidentally scaffold over it.
-        readme = cwd / "README.md"
-        extra_name = next(iter(extras))
-        extra_path = cwd / extra_name
-        readme_ok = readme.stat().st_size < 500
-        extra_ok = (
-            extra_path.is_file() and extra_path.stat().st_size <= 100
-        )
-        if readme_ok and extra_ok:
+        # D15 clarity rewrite: README.md sits in GREENFIELD_OK_FILES so it
+        # is filtered OUT of `extras`. So `extras = {<one non-OK name>}`,
+        # never `{"README.md"}`. The carve-out reads as "README is present
+        # AND there is exactly one OTHER non-OK file" (e.g., a stub
+        # `.editorconfig` or `LICENSE.txt`).
+        #
+        # PR #41 cycle 7 #3 closure: BOTH files must be small to qualify as
+        # "empty". Sizing only the README would let a 50-byte README next
+        # to a 100KB stray file classify as "empty" — user-overwrite hazard.
+        readme_size_ok = (cwd / "README.md").stat().st_size < 500
+        other_name = next(iter(extras))
+        other_path = cwd / other_name
+        other_size_ok = other_path.is_file() and other_path.stat().st_size <= 100
+        if readme_size_ok and other_size_ok:
             return "empty"
     # Generic safeguard: any unrecognized file > 100 bytes triggers ambiguous
     # so unknown ecosystems fail safe rather than greenfield-by-omission.
@@ -135,6 +154,7 @@ __all__ = [
 # itself is uncached because 30 stat calls (~150us) is faster than any
 # cache-invalidation logic per harden B5.
 
+
 def infrastructure_present(cwd: Path):
     """Classify the `cwd` infrastructure overlay state per Phase 3 §3.9.
 
@@ -169,7 +189,9 @@ def infrastructure_present(cwd: Path):
     # Read the manifest via the canonical reader; if absent, the paths
     # exist on disk but aren't tracked.
     loader_path = Path(__file__).resolve().parent / "plugin-config-loader.py"
-    spec = importlib.util.spec_from_file_location("plugin_config_loader_for_cwdstate", loader_path)
+    spec = importlib.util.spec_from_file_location(
+        "plugin_config_loader_for_cwdstate", loader_path
+    )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     manifest = mod.read_bootstrap_manifest(cwd)
@@ -183,6 +205,7 @@ def infrastructure_present(cwd: Path):
 
     # Compare on-disk shas to manifest's rendered_content_sha256.
     from plugin_default_generators._renderer_base import sha256_file  # noqa: PLC0415
+
     by_path: dict[str, str] = {
         e["path"]: e.get("rendered_content_sha256", "")
         for e in manifest.payload.get("files", [])

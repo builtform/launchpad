@@ -16,6 +16,7 @@ only via v2.2-candidate fallback routing per §3.12 verbatim INFO log
 ("<stack-id> detected; v2.2 ships dedicated adapter; using generic
 fallback.").
 """
+
 from __future__ import annotations
 
 import logging
@@ -174,9 +175,7 @@ class GenericAdapter:
     workspace_source_map_composition: Mapping[str, str] = _EMPTY_WORKSPACE_MAP
     package_workspace_paths: tuple[str, ...] = _EMPTY_PACKAGE_PATHS
 
-    def __init__(
-        self, *, fetcher: Callable[[Path], None] | None = None
-    ) -> None:
+    def __init__(self, *, fetcher: Callable[[Path], None] | None = None) -> None:
         # Generic has no upstream so the fetcher kwarg is accepted for
         # interface symmetry with the other adapters but never invoked.
         self._fetcher_override = fetcher

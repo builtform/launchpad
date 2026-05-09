@@ -13,6 +13,7 @@ Contract:
   - returns empty list if registry exists but has no entries yet
   - emits `DeprecationWarning`-style stderr when back-compat shim fires
 """
+
 from __future__ import annotations
 
 import re
@@ -23,10 +24,10 @@ from pathlib import Path
 
 @dataclass
 class SectionEntry:
-    name: str                       # e.g. "auth-redesign"
-    status: str | None              # "shaped" | "designed" | "planned" | "built" | None
-    spec_path: str | None           # relative path to the section spec file
-    added: str | None               # ISO date string, if recorded
+    name: str  # e.g. "auth-redesign"
+    status: str | None  # "shaped" | "designed" | "planned" | "built" | None
+    spec_path: str | None  # relative path to the section spec file
+    added: str | None  # ISO date string, if recorded
 
 
 # Matches the registry's documented shape (see SECTION_REGISTRY.md.j2):

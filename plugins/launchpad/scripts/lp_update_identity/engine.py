@@ -30,6 +30,7 @@ Engine ordering (locked in plan §4 Slice C step 1):
   10. PII WARN print (DA6) + diff summary print (§3.12).
   11. Return UpdateIdentityResult.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -80,6 +81,7 @@ class UpdateIdentityResult:
     whose value changed (DA8: NAMES recorded; VALUES omitted in
     version_drift_log entry to prevent PII leak in committed JSON).
     """
+
     status: IdentityUpdateStatus | None
     fields_changed: list[str] = field(default_factory=list)
     rendered: list[Path] = field(default_factory=list)
@@ -230,6 +232,7 @@ def _validate_preconditions(
         from lp_bootstrap.sentinel import (
             read_sentinel as _bs_read_sentinel,
         )
+
         bs_snap = _bs_read_sentinel(cwd)
         if (
             bs_snap is not None
@@ -257,6 +260,7 @@ def _validate_preconditions(
         from lp_scaffold_stack.sentinel import (
             read_sentinel as _ss_read_sentinel,
         )
+
         ss_snap = _ss_read_sentinel(cwd)
         if (
             ss_snap is not None
@@ -281,9 +285,7 @@ def _validate_preconditions(
         raise _PreconditionAbort(
             code=IdentityUpdateErrorCode.PERMISSION_DENIED,
             message=f"{cwd / LAUNCHPAD_DIR_NAME} is not writable",
-            remediation=(
-                f"check filesystem permissions on {cwd / LAUNCHPAD_DIR_NAME}"
-            ),
+            remediation=(f"check filesystem permissions on {cwd / LAUNCHPAD_DIR_NAME}"),
         )
 
     return decision_payload, infos
@@ -319,7 +321,9 @@ def _detect_re_entry_case(
     """
     if decision_payload is None:
         return "D" if seed_brownfield else "A"
-    schema_version = decision_payload.get("schema_version") or decision_payload.get("version")
+    schema_version = decision_payload.get("schema_version") or decision_payload.get(
+        "version"
+    )
     if schema_version not in ("1.1", "1.x"):
         # Legacy 1.0 -> seed-as-first-time per case B.
         return "B"
@@ -392,16 +396,27 @@ def _compute_identity_diff(
     """
     if old_identity is None:
         return [
-            k for k in (
-                "pii_opt_in", "project_name", "email", "copyright_holder",
-                "repo_url", "license", "license_other_body",
+            k
+            for k in (
+                "pii_opt_in",
+                "project_name",
+                "email",
+                "copyright_holder",
+                "repo_url",
+                "license",
+                "license_other_body",
             )
             if k in new_identity
         ]
     changed = []
     for key in (
-        "pii_opt_in", "project_name", "email", "copyright_holder",
-        "repo_url", "license", "license_other_body",
+        "pii_opt_in",
+        "project_name",
+        "email",
+        "copyright_holder",
+        "repo_url",
+        "license",
+        "license_other_body",
     ):
         if old_identity.get(key) != new_identity.get(key):
             changed.append(key)
@@ -474,11 +489,10 @@ def _ensure_backup_dir(cwd: Path) -> Path:
     raises on collision rather than silently overwriting.
     """
     import secrets
+
     ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     rand4 = secrets.token_hex(2)
-    backup_dir = (
-        cwd / LAUNCHPAD_DIR_NAME / "backups" / f"{ts}-{os.getpid()}-{rand4}"
-    )
+    backup_dir = cwd / LAUNCHPAD_DIR_NAME / "backups" / f"{ts}-{os.getpid()}-{rand4}"
     backup_dir.mkdir(parents=True, exist_ok=False)
     return backup_dir
 
@@ -502,7 +516,8 @@ def run_update_identity(
     # Step 1: preconditions.
     try:
         decision_payload, infos = _validate_preconditions(
-            cwd, seed_brownfield=seed_brownfield,
+            cwd,
+            seed_brownfield=seed_brownfield,
         )
     except _PreconditionAbort as exc:
         return UpdateIdentityResult(
@@ -556,8 +571,7 @@ def run_update_identity(
             status=None,
             error_code=IdentityUpdateErrorCode.BROWNFIELD_SEED_REFUSED,
             error_message=(
-                "no scaffold-decision.json present; brownfield seed not "
-                "authorized"
+                "no scaffold-decision.json present; brownfield seed not authorized"
             ),
             remediation=(
                 "pass --seed-brownfield to seed identity from scratch for "
@@ -598,9 +612,7 @@ def run_update_identity(
             return UpdateIdentityResult(
                 status=None,
                 error_code=IdentityUpdateErrorCode.USER_EDIT_BLOCKS_REFRESH,
-                error_message=(
-                    "no kernel_render_state baseline; refresh refused"
-                ),
+                error_message=("no kernel_render_state baseline; refresh refused"),
                 remediation=(
                     "for tracked kernel files: git checkout HEAD -- <file>; "
                     "for untracked: rm <file> && /lp-bootstrap --refresh-all"
@@ -618,7 +630,11 @@ def run_update_identity(
     if not fields_changed and case == "UPDATED":
         if not quiet:
             for k in (
-                "project_name", "email", "copyright_holder", "repo_url", "license",
+                "project_name",
+                "email",
+                "copyright_holder",
+                "repo_url",
+                "license",
             ):
                 v = (old_identity or {}).get(k)
                 print(f"  {k}: {_truncate_for_diff(v)}", file=out_stream)
@@ -629,7 +645,9 @@ def run_update_identity(
 
     if dry_run:
         return UpdateIdentityResult(
-            status=IdentityUpdateStatus.UPDATED if old_identity else IdentityUpdateStatus.SEEDED_FIRST_TIME,
+            status=IdentityUpdateStatus.UPDATED
+            if old_identity
+            else IdentityUpdateStatus.SEEDED_FIRST_TIME,
             fields_changed=fields_changed,
         )
 
@@ -665,6 +683,7 @@ def run_update_identity(
         re_seal_decision_atomic,
         validate_identity,
     )
+
     try:
         validate_identity(identity_input, strict_no_placeholders=True)
     except IdentityValidationError as exc:
@@ -682,15 +701,21 @@ def run_update_identity(
     decision_path = cwd / LAUNCHPAD_DIR_NAME / "scaffold-decision.json"
     pre_edit_sha = (
         hashlib.sha256(decision_path.read_bytes()).hexdigest()
-        if decision_path.is_file() else None
+        if decision_path.is_file()
+        else None
     )
 
     backup_dir = _ensure_backup_dir(cwd)
     if decision_path.is_file():
         shutil.copy2(decision_path, backup_dir / "scaffold-decision.json")
     target_paths = [
-        "LICENSE", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md",
-        "README.md", "SECURITY.md", "AGENTS.md", "CLAUDE.md",
+        "LICENSE",
+        "CONTRIBUTING.md",
+        "CODE_OF_CONDUCT.md",
+        "README.md",
+        "SECURITY.md",
+        "AGENTS.md",
+        "CLAUDE.md",
     ]
     try:
         write_sentinel(
@@ -722,6 +747,7 @@ def run_update_identity(
         # any new content. Result: user files preserved verbatim; only
         # scaffold-decision.json gets the sealed state.
         from plugin_default_generators.kernel_renderer import KernelRenderer
+
         renderer = KernelRenderer()
 
         if case == "E" and baseline_decision == "y":
@@ -729,9 +755,7 @@ def run_update_identity(
             # the validator's chain-validation gate (D9.2) can verify the
             # migration_origin_sha256 against the backup. Backup remains
             # for forensic/recovery purposes (cleanup deferred to BL-269).
-            decision_path_pm = (
-                cwd / LAUNCHPAD_DIR_NAME / "scaffold-decision.json"
-            )
+            decision_path_pm = cwd / LAUNCHPAD_DIR_NAME / "scaffold-decision.json"
             backup_path_pm = (
                 cwd / LAUNCHPAD_DIR_NAME / "scaffold-decision.json.pre-migration"
             )
@@ -757,9 +781,7 @@ def run_update_identity(
                 new_kernel_state = [
                     {
                         **e,
-                        "rendered_content_sha256": e.get(
-                            "source_template_sha256"
-                        ),
+                        "rendered_content_sha256": e.get("source_template_sha256"),
                     }
                     for e in on_disk_state
                 ]
@@ -775,9 +797,7 @@ def run_update_identity(
                     (
                         {
                             **e,
-                            "rendered_content_sha256": e.get(
-                                "source_template_sha256"
-                            ),
+                            "rendered_content_sha256": e.get("source_template_sha256"),
                         }
                         if e.get("missing_on_disk", False)
                         else dict(e)
@@ -791,15 +811,15 @@ def run_update_identity(
             # kernel files still hold old (Codex PR #50 P1).
             prior_state = (decision_payload or {}).get("kernel_render_state") or []
             result = renderer.refresh(
-                cwd, identity_input,
+                cwd,
+                identity_input,
                 prior_kernel_render_state=prior_state,
             )
             rendered = [p for p, _sha in result.rendered]
             skipped = list(result.skipped_user_edits)
             template_drift_infos = list(result.template_drift_infos)
             new_kernel_state = (
-                list(result.kernel_render_state)
-                if result.kernel_render_state else None
+                list(result.kernel_render_state) if result.kernel_render_state else None
             )
             kernel_render_state_meta = None
 
@@ -828,6 +848,7 @@ def run_update_identity(
                 compute_identity_fields_changed,
             )
             from lp_pick_stack.decision_writer import read_running_plugin_version
+
             new_plugin_version = read_running_plugin_version()
             old_plugin_version = payload.get("plugin_version")
             old_identity_map: dict[str, str] = {}
@@ -837,13 +858,13 @@ def run_update_identity(
                         continue
                     old_identity_map[str(k)] = str(v)
             new_identity_map: dict[str, str] = {
-                str(k): str(v)
-                for k, v in dict(identity_input).items()
-                if v is not None
+                str(k): str(v) for k, v in dict(identity_input).items() if v is not None
             }
             pii_opt_in = bool(dict(identity_input).get("pii_opt_in"))
             changed = compute_identity_fields_changed(
-                old_identity_map, new_identity_map, pii_opt_in=pii_opt_in,
+                old_identity_map,
+                new_identity_map,
+                pii_opt_in=pii_opt_in,
             )
             entry: dict[str, Any] = {
                 "from_version": old_plugin_version,
@@ -872,9 +893,7 @@ def run_update_identity(
                 payload.clear()
                 payload.update(sealed)
                 if kernel_render_state_meta is not None:
-                    payload["kernel_render_state_meta"] = (
-                        kernel_render_state_meta
-                    )
+                    payload["kernel_render_state_meta"] = kernel_render_state_meta
 
         re_seal_decision_atomic(cwd, update_fn=_apply_identity_update)
     finally:
@@ -888,12 +907,19 @@ def run_update_identity(
     # Step 10: diff summary print.
     if not quiet:
         for line in _format_diff_summary(
-            fields_changed, old_identity, identity_input, rendered, skipped, cwd,
+            fields_changed,
+            old_identity,
+            identity_input,
+            rendered,
+            skipped,
+            cwd,
         ):
             print(line, file=out_stream)
 
     return UpdateIdentityResult(
-        status=IdentityUpdateStatus.SEEDED_FIRST_TIME if old_identity is None else IdentityUpdateStatus.UPDATED,
+        status=IdentityUpdateStatus.SEEDED_FIRST_TIME
+        if old_identity is None
+        else IdentityUpdateStatus.UPDATED,
         fields_changed=fields_changed,
         rendered=rendered,
         skipped_user_edits=skipped,

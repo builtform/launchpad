@@ -14,6 +14,7 @@ adapter merge semantics, `polyglot_path_rewriter.py` owns path rewrites.
 Pure functions: input AdapterOutput + layer paths -> rewritten
 AdapterOutput. No globals, no I/O, no side effects.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -33,9 +34,9 @@ _ADAPTER_DEFAULT_PATH_PREFIXES = {
     "ts_monorepo": "apps/web",
     "fastapi": "apps/api",
     "expo": "apps/mobile",
-    "hugo": "",       # hugo defaults to project-root paths (content/, layouts/)
-    "eleventy": "",   # eleventy defaults to project-root paths (src/)
-    "rails": "",      # rails defaults to project-root paths (app/, config/)
+    "hugo": "",  # hugo defaults to project-root paths (content/, layouts/)
+    "eleventy": "",  # eleventy defaults to project-root paths (src/)
+    "rails": "",  # rails defaults to project-root paths (app/, config/)
     "python_django": "",
     "go_cli": "",
     "generic": "",
@@ -58,7 +59,7 @@ def _rewrite_path(value: str | None, old_prefix: str, new_prefix: str) -> str | 
     needle = old_prefix.rstrip("/") + "/"
     if not value.startswith(needle):
         return value
-    suffix = value[len(needle):]
+    suffix = value[len(needle) :]
     new = new_prefix.rstrip("/")
     if new in ("", "."):
         return suffix
@@ -102,14 +103,20 @@ def _rewrite_adapter_paths(
         if not default_prefix or default_prefix == actual_path.rstrip("/"):
             continue
         backend["routes_dir"] = _rewrite_path(
-            backend.get("routes_dir"), default_prefix, actual_path,
+            backend.get("routes_dir"),
+            default_prefix,
+            actual_path,
         )
         backend["models_dir"] = _rewrite_path(
-            backend.get("models_dir"), default_prefix, actual_path,
+            backend.get("models_dir"),
+            default_prefix,
+            actual_path,
         )
         if isinstance(front, dict):
             front["component_dir"] = _rewrite_path(
-                front.get("component_dir"), default_prefix, actual_path,
+                front.get("component_dir"),
+                default_prefix,
+                actual_path,
             )
     rewritten = dict(adapter_out)
     rewritten["backend"] = backend

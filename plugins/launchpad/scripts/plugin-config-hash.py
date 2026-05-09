@@ -15,6 +15,7 @@ Outputs: sha256 hex digest to stdout. Exit codes:
   1 — config.yml is missing/unparseable
   2 — LP_CONFIG_REVIEWED resolution: REPROMPT or REPROMPT_AUTO_REVIEW_OUTSIDE_CI
 """
+
 from __future__ import annotations
 
 import argparse
@@ -43,8 +44,12 @@ REPROMPT_AUTO_REVIEW_OUTSIDE_CI = "REPROMPT_AUTO_REVIEW_OUTSIDE_CI"
 # CI vendor env vars — single-signal at v2.0 per §1.5 strip-back. Multi-signal
 # (`_has_ci_filesystem_signal()`) is BL-224 deferred to v2.2.
 _CI_VENDOR_ENV_VARS = (
-    "GITHUB_ACTIONS", "GITLAB_CI", "CIRCLECI",
-    "BUILDKITE", "JENKINS_HOME", "TRAVIS",
+    "GITHUB_ACTIONS",
+    "GITLAB_CI",
+    "CIRCLECI",
+    "BUILDKITE",
+    "JENKINS_HOME",
+    "TRAVIS",
 )
 
 
@@ -153,7 +158,7 @@ def _prefix_matches(prefix: str, known_hash: str) -> bool:
     """
     if len(prefix) > len(known_hash):
         return False
-    return hmac.compare_digest(prefix, known_hash[:len(prefix)])
+    return hmac.compare_digest(prefix, known_hash[: len(prefix)])
 
 
 def resolve_review_state(config_path: Path) -> tuple[str, str]:
@@ -241,7 +246,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--repo-root", default=os.environ.get("LP_REPO_ROOT", os.getcwd()))
     ap.add_argument(
-        "--resolve-review-state", action="store_true",
+        "--resolve-review-state",
+        action="store_true",
         help="Apply 5-branch LP_CONFIG_REVIEWED truth table; emit outcome.",
     )
     args = ap.parse_args()

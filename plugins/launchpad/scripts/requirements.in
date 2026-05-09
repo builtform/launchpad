@@ -1,0 +1,33 @@
+# LaunchPad v2.1 plugin runtime + Layer 3 lint dependencies (human-edited source).
+#
+# This file lists DIRECT top-level dependencies only. Transitive dependencies
+# + sha256 hashes are resolved by `pip-compile --generate-hashes` and written
+# to `requirements.txt` (the auto-generated lock file used by CI + lefthook).
+#
+# Workflow:
+#   1. Edit this file (bump versions, add/remove direct deps)
+#   2. Run `make lock-deps` to regenerate requirements.txt
+#   3. Commit BOTH files together
+#
+# Versions track _vendor/{TOOL}_VERSION pin files for ruff/pyright/bandit/semgrep
+# (and PSUTIL_VERSION/PYYAML_VERSION/JINJA2_VERSION/MARKUPSAFE_VERSION for the
+# v2.0 runtime deps). Keep them in lockstep — bump the pin file AND this file
+# in the same commit.
+
+# --- v2.0 runtime deps ---
+
+psutil==7.2.2          # /lp-scaffold-stack runtime (pid_identity)
+pyyaml==6.0.3          # config loading (engine.py, plugin-v2-handshake-lint.py)
+jinja2==3.1.6          # /lp-bootstrap + /lp-scaffold-stack template rendering
+markupsafe==3.0.3      # transitive of jinja2; pinned explicitly for repro
+
+# --- v2.1.1 Phase 4 Layer 3 static analysis ---
+
+ruff==0.11.12          # style + import-order + bugbear (lefthook pre-commit)
+# pyright pulls nodeenv, which downloads a Node.js binary at install-time.
+# That binary download is OUTSIDE pip's hash coverage — a residual supply-chain
+# hole at the pyright/nodeenv boundary. v2.1.x BL candidate: evaluate mypy (no
+# Node dep) OR pin the node binary download via CI checksum verification.
+pyright==1.1.409       # type-check (lefthook pre-push, strict on 5 contract modules)
+bandit==1.9.4          # security audit at MEDIUM+ (lefthook pre-commit)
+semgrep==1.162.0       # general patterns (pre-commit) + LP-internal invariants (pre-push)

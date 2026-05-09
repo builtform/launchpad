@@ -7,6 +7,7 @@ Closes the persistent prompt-injection vector: `/lp-define` never reads
 Pure-Python — no Markdown rendering, no LLM, no regex backtracking on user
 input.
 """
+
 from __future__ import annotations
 
 import re
@@ -14,12 +15,20 @@ import unicodedata
 from pathlib import Path
 
 ALLOWED_SECTIONS = {
-    "project-understanding", "matched-category", "stack",
-    "why-this-fits", "alternatives", "notes",
+    "project-understanding",
+    "matched-category",
+    "stack",
+    "why-this-fits",
+    "alternatives",
+    "notes",
 }
 SECTION_ORDER = (
-    "project-understanding", "matched-category", "stack",
-    "why-this-fits", "alternatives", "notes",
+    "project-understanding",
+    "matched-category",
+    "stack",
+    "why-this-fits",
+    "alternatives",
+    "notes",
 )
 MAX_BULLETS_PER_SECTION = 8
 MAX_BULLET_CHARS = 240
@@ -75,10 +84,7 @@ def extract_summary(rationale_path: Path) -> list[dict]:
         if len(sections[current]) < MAX_BULLETS_PER_SECTION:
             sections[current].append(body)
 
-    return [
-        {"section": s, "bullets": sections[s]}
-        for s in SECTION_ORDER
-    ]
+    return [{"section": s, "bullets": sections[s]} for s in SECTION_ORDER]
 
 
 __all__ = [

@@ -22,6 +22,7 @@ by `lp_update_identity/engine.py:_validate_preconditions` for
 bidirectional cross-detect; lifecycle write/clear is owned by
 `lp_scaffold_stack/engine.py`.
 """
+
 from __future__ import annotations
 
 import errno
@@ -51,6 +52,7 @@ class ScaffoldStackSentinelError(RuntimeError):
 @dataclass(frozen=True)
 class ScaffoldStackSentinelSnapshot:
     """Decoded scaffold-stack sentinel JSON payload."""
+
     command_pid: int
     started_at: str
     mode: str
@@ -144,14 +146,10 @@ def read_sentinel(cwd: Path) -> ScaffoldStackSentinelSnapshot | None:
             )
     pid = payload["command_pid"]
     if not isinstance(pid, int):
-        raise ScaffoldStackSentinelError(
-            f"sentinel {target}: command_pid must be int"
-        )
+        raise ScaffoldStackSentinelError(f"sentinel {target}: command_pid must be int")
     mode_str = payload["mode"]
     if not isinstance(mode_str, str):
-        raise ScaffoldStackSentinelError(
-            f"sentinel {target}: mode must be a string"
-        )
+        raise ScaffoldStackSentinelError(f"sentinel {target}: mode must be a string")
     return ScaffoldStackSentinelSnapshot(
         command_pid=pid,
         started_at=str(payload["started_at"]),

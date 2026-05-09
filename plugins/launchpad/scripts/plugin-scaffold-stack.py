@@ -10,6 +10,7 @@ Exit codes:
   1 — validation rejection (outcome=aborted) OR partial-failure (outcome=failed)
   2 — argument-parsing error
 """
+
 from __future__ import annotations
 
 import argparse
@@ -33,34 +34,46 @@ from lp_scaffold_stack.engine import (  # noqa: E402
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="/lp-scaffold-stack — consumes scaffold-decision.json, "
-                    "materializes layers, writes scaffold-receipt.json.",
+        "materializes layers, writes scaffold-receipt.json.",
     )
     parser.add_argument(
-        "--cwd", type=Path, default=Path.cwd(),
+        "--cwd",
+        type=Path,
+        default=Path.cwd(),
         help="Working directory (defaults to CWD).",
     )
     parser.add_argument(
-        "--decision-file", type=Path, default=None,
+        "--decision-file",
+        type=Path,
+        default=None,
         help="Override .launchpad/scaffold-decision.json path.",
     )
     parser.add_argument(
-        "--scaffolders-yml", type=Path, default=DEFAULT_SCAFFOLDERS_YML,
+        "--scaffolders-yml",
+        type=Path,
+        default=DEFAULT_SCAFFOLDERS_YML,
         help="Override the scaffolders catalog path (test/CI hook).",
     )
     parser.add_argument(
-        "--category-patterns-yml", type=Path, default=DEFAULT_CATEGORY_PATTERNS_YML,
+        "--category-patterns-yml",
+        type=Path,
+        default=DEFAULT_CATEGORY_PATTERNS_YML,
         help="Override the category-patterns catalog path (test/CI hook).",
     )
     parser.add_argument(
-        "--plugins-root", type=Path, default=DEFAULT_PLUGINS_ROOT,
+        "--plugins-root",
+        type=Path,
+        default=DEFAULT_PLUGINS_ROOT,
         help="Override the LaunchPad repo root for knowledge-anchor reads.",
     )
     parser.add_argument(
-        "--no-telemetry", action="store_true",
+        "--no-telemetry",
+        action="store_true",
         help="Skip telemetry writes for this invocation.",
     )
     parser.add_argument(
-        "--skip-greenfield-gate", action="store_true",
+        "--skip-greenfield-gate",
+        action="store_true",
         help="Internal/test hook: bypass cwd_state greenfield check.",
     )
     args = parser.parse_args(argv)

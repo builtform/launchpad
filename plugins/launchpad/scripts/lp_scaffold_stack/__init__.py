@@ -22,6 +22,7 @@ Per HANDSHAKE §1.5 strip-back:
 Constants exported: WRITTEN_RECEIPT_VERSION (writer-side single source);
 EXPECTED_DECISION_VERSION (read-side strict-equality frozenset).
 """
+
 from __future__ import annotations
 
 # Decision-file version constant accepted by /lp-scaffold-stack consumers.

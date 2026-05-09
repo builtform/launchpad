@@ -26,6 +26,7 @@ adapters that have no upstream (e.g., `ts_monorepo`).
 `pin_registry.get_pin(adapter_id, sub_template_id)` only; per-adapter SHA
 constants are forbidden (enforced by `tests/test_no_floating_tag_pins.py`).
 """
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -34,13 +35,23 @@ from types import MappingProxyType
 from typing import Literal, NotRequired, Protocol, TypedDict, runtime_checkable
 
 StackId = Literal[
-    "ts_monorepo", "python_django", "go_cli", "generic",
-    "astro", "fastapi", "rails", "hugo",
-    "eleventy", "expo",
+    "ts_monorepo",
+    "python_django",
+    "go_cli",
+    "generic",
+    "astro",
+    "fastapi",
+    "rails",
+    "hugo",
+    "eleventy",
+    "expo",
     # v2.0 catalog stack IDs (HANDSHAKE §11). next/django alias to the legacy
     # ts_monorepo / python_django adapters; hono and supabase route to
     # generic until dedicated adapters land in v2.1+.
-    "next", "django", "hono", "supabase",
+    "next",
+    "django",
+    "hono",
+    "supabase",
 ]
 
 # v2.1 active dispatch enum: the closed set of stack ids the v2.1 pick-stack +
@@ -141,9 +152,7 @@ def _validate_workspace_source_relpath(value: str, *, field_name: str) -> None:
     fails closed.
     """
     if not isinstance(value, str):
-        raise TypeError(
-            f"{field_name} must be str, got {type(value).__name__!r}"
-        )
+        raise TypeError(f"{field_name} must be str, got {type(value).__name__!r}")
     if value == "":
         # Empty string means "tempdir IS the workspace"; only valid as a
         # placement value when wrapped in a non-empty map. Reject up front.
@@ -151,9 +160,7 @@ def _validate_workspace_source_relpath(value: str, *, field_name: str) -> None:
             f"{field_name} must not be empty; use an empty map to skip wrapping"
         )
     if value.startswith("/") or value.startswith("\\"):
-        raise ValueError(
-            f"{field_name}={value!r} must be a relative POSIX path"
-        )
+        raise ValueError(f"{field_name}={value!r} must be a relative POSIX path")
     parts = value.replace("\\", "/").split("/")
     if any(part == ".." for part in parts):
         raise ValueError(
@@ -162,14 +169,10 @@ def _validate_workspace_source_relpath(value: str, *, field_name: str) -> None:
         )
     if any(part == "" for part in parts[:-1]):
         # Disallow `//` and trailing absolute-style empties (POSIX).
-        raise ValueError(
-            f"{field_name}={value!r} contains empty path segment"
-        )
+        raise ValueError(f"{field_name}={value!r} contains empty path segment")
 
 
-def _validate_workspace_source_map(
-    m: Mapping[str, str], *, field_name: str
-) -> None:
+def _validate_workspace_source_map(m: Mapping[str, str], *, field_name: str) -> None:
     """Per-Codex P1-α: reject path-traversal in adapter-declared values."""
     for key, value in m.items():
         if not isinstance(key, str) or key == "":
@@ -184,9 +187,7 @@ def _validate_package_workspace_paths(
 ) -> None:
     """Per-Codex P1-α: reject path-traversal in adapter-declared values."""
     if not isinstance(paths, tuple):
-        raise TypeError(
-            f"{field_name} must be tuple, got {type(paths).__name__!r}"
-        )
+        raise TypeError(f"{field_name} must be tuple, got {type(paths).__name__!r}")
     for path in paths:
         _validate_workspace_source_relpath(path, field_name=field_name)
 
@@ -266,30 +267,28 @@ def bridge_to_scaffold_error(exc: BaseException) -> ScaffoldStepFailedError:
     reason = getattr(exc, "reason", type(exc).__name__)
     path = getattr(exc, "path", None)
     remediation = getattr(exc, "remediation", str(exc) or type(exc).__name__)
-    return ScaffoldStepFailedError(
-        reason=reason, path=path, remediation=remediation
-    )
+    return ScaffoldStepFailedError(reason=reason, path=path, remediation=remediation)
 
 
 class TechStackInfo(TypedDict):
     """Backing data for docs/architecture/TECH_STACK.md."""
 
-    language: str                   # "TypeScript", "Python", "Go", "Unknown"
-    runtime: str                    # "Node.js 20", "Python 3.12", "Go 1.22", etc.
-    package_manager: str            # "pnpm", "poetry", "go mod", ""
-    frameworks: list[str]           # ["Next.js 15", "Hono", "Prisma"]
-    database: str | None            # "PostgreSQL", None
-    ci: str | None                  # "GitHub Actions", None
+    language: str  # "TypeScript", "Python", "Go", "Unknown"
+    runtime: str  # "Node.js 20", "Python 3.12", "Go 1.22", etc.
+    package_manager: str  # "pnpm", "poetry", "go mod", ""
+    frameworks: list[str]  # ["Next.js 15", "Hono", "Prisma"]
+    database: str | None  # "PostgreSQL", None
+    ci: str | None  # "GitHub Actions", None
 
 
 class BackendInfo(TypedDict):
     """Backing data for docs/architecture/BACKEND_STRUCTURE.md."""
 
-    framework: str                  # "Hono", "Django", "Gin", "Express"
-    api_style: str                  # "REST", "GraphQL", "tRPC"
-    routes_dir: str                 # "apps/api/src/routes/", "myapp/urls.py"
-    models_dir: str | None          # "packages/db/prisma/", "myapp/models.py", None
-    auth_pattern: str | None        # "session", "JWT", "OAuth", None
+    framework: str  # "Hono", "Django", "Gin", "Express"
+    api_style: str  # "REST", "GraphQL", "tRPC"
+    routes_dir: str  # "apps/api/src/routes/", "myapp/urls.py"
+    models_dir: str | None  # "packages/db/prisma/", "myapp/models.py", None
+    auth_pattern: str | None  # "session", "JWT", "OAuth", None
 
 
 class FrontendInfo(TypedDict):
@@ -299,19 +298,19 @@ class FrontendInfo(TypedDict):
     Returns None from adapters for backend-only stacks.
     """
 
-    framework: str                  # "Next.js 15 App Router", "React SPA"
-    styling: str                    # "Tailwind CSS v4", "CSS Modules"
-    component_dir: str              # "apps/web/components/"
-    routing: str                    # "App Router", "React Router"
+    framework: str  # "Next.js 15 App Router", "React SPA"
+    styling: str  # "Tailwind CSS v4", "CSS Modules"
+    component_dir: str  # "apps/web/components/"
+    routing: str  # "App Router", "React Router"
 
 
 class AppFlowInfo(TypedDict):
     """Backing data for docs/architecture/APP_FLOW.md. Returns None for
     backend-only stacks (detector reports no frontend)."""
 
-    entry_routes: list[str]         # ["/", "/signin", "/dashboard"]
-    auth_flow: str | None           # "Magic link", "OAuth (GitHub)", None
-    primary_journeys: list[str]     # ["Onboarding", "Purchase", "Support"]
+    entry_routes: list[str]  # ["/", "/signin", "/dashboard"]
+    auth_flow: str | None  # "Magic link", "OAuth (GitHub)", None
+    primary_journeys: list[str]  # ["Onboarding", "Purchase", "Support"]
 
 
 class ProductContextInfo(TypedDict):
@@ -319,8 +318,8 @@ class ProductContextInfo(TypedDict):
     but not stack-defined — PRD is mostly product content. This surfaces the
     tech-framing line (e.g., "TypeScript monorepo" vs "Python backend")."""
 
-    stack_summary: str              # One-line tech summary for the PRD intro
-    deployment_target: str | None   # "Vercel + Render", "AWS ECS", None
+    stack_summary: str  # One-line tech summary for the PRD intro
+    deployment_target: str | None  # "Vercel + Render", "AWS ECS", None
 
 
 class CommandsConfig(TypedDict):
@@ -343,9 +342,9 @@ class PipelineOverrides(TypedDict, total=False):
     Most adapters only override design/frontend-specific toggles.
     """
 
-    design_enabled: NotRequired[bool]          # False for backend-only
-    test_browser_enabled: NotRequired[bool]    # False for backend-only
-    frontend_docs_enabled: NotRequired[bool]   # False for backend-only
+    design_enabled: NotRequired[bool]  # False for backend-only
+    test_browser_enabled: NotRequired[bool]  # False for backend-only
+    frontend_docs_enabled: NotRequired[bool]  # False for backend-only
 
 
 class AdapterOutput(TypedDict):

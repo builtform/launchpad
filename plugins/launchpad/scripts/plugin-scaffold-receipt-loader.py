@@ -12,6 +12,7 @@ adapter dispatch. Carries the version-policy constants per HANDSHAKE §10:
 Strict-equality enforcement at v2.0 — unknown version → hard reject with
 `reason: "version_unsupported"`.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -23,7 +24,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from decision_integrity import canonical_hash
+from decision_integrity import (  # noqa: E402  (placed after sys.path mutation for sibling import resolution)
+    canonical_hash,
+)
 
 # v2.0 single-element frozensets per HANDSHAKE §10. Coordinated bump applied
 # at v2.0.0 ship: "0.x-test" → "1.0".
@@ -119,34 +122,50 @@ def main() -> int:
         help="Path to scaffold-receipt.json (default: .launchpad/scaffold-receipt.json)",
     )
     parser.add_argument(
-        "--show-version-policy", action="store_true",
+        "--show-version-policy",
+        action="store_true",
         help="Print ACCEPTED_RECEIPT_VERSIONS + WRITTEN_RECEIPT_VERSION and exit.",
     )
     args = parser.parse_args()
 
     if args.show_version_policy:
-        print(json.dumps({
-            "ACCEPTED_RECEIPT_VERSIONS": sorted(ACCEPTED_RECEIPT_VERSIONS),
-            "WRITTEN_RECEIPT_VERSION": WRITTEN_RECEIPT_VERSION,
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "ACCEPTED_RECEIPT_VERSIONS": sorted(ACCEPTED_RECEIPT_VERSIONS),
+                    "WRITTEN_RECEIPT_VERSION": WRITTEN_RECEIPT_VERSION,
+                },
+                indent=2,
+            )
+        )
         return 0
 
     try:
         data = load_receipt(Path(args.receipt))
     except ReceiptValidationError as exc:
-        print(json.dumps({
-            "outcome": "rejected",
-            "reason": exc.reason,
-            "message": str(exc),
-        }), file=sys.stderr)
+        print(
+            json.dumps(
+                {
+                    "outcome": "rejected",
+                    "reason": exc.reason,
+                    "message": str(exc),
+                }
+            ),
+            file=sys.stderr,
+        )
         return 1
 
-    print(json.dumps({
-        "outcome": "accepted",
-        "version": data["version"],
-        "decision_sha256": data["decision_sha256"],
-        "layers_materialized_count": len(data["layers_materialized"]),
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "outcome": "accepted",
+                "version": data["version"],
+                "decision_sha256": data["decision_sha256"],
+                "layers_materialized_count": len(data["layers_materialized"]),
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

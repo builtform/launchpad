@@ -39,6 +39,7 @@ Direct script invocation is supported via `python3 -m lp_bootstrap.engine`
 (see `__main__` guard below) and serializes on the flock; manual `rm` of
 the sentinel is for confirmed-dead processes only.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -56,7 +57,9 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from datetime import UTC
+from datetime import (  # noqa: E402  (placed after sys.path mutation for sibling import resolution)
+    UTC,
+)
 
 from atomic_io import advisory_flock  # noqa: E402
 from plugin_default_generators._renderer_base import (  # noqa: E402
@@ -108,6 +111,7 @@ from lp_bootstrap.sentinel import (  # noqa: E402
 
 # --- Per-module typed exception ------------------------------------------
 
+
 class BootstrapEngineError(RuntimeError):
     """Engine orchestration failure raised by this module."""
 
@@ -146,6 +150,7 @@ BootstrapOutcome = Literal[
 @dataclass(frozen=True)
 class BootstrapResult:
     """Engine result surface; consumed by the slash command + telemetry."""
+
     outcome: BootstrapOutcome
     mode: BootstrapMode
     files_processed: int
@@ -184,6 +189,7 @@ def _read_running_plugin_version() -> str:
     from lp_pick_stack.decision_writer import (
         read_running_plugin_version as _shared,
     )
+
     try:
         return _shared()
     except FileNotFoundError as exc:
@@ -210,9 +216,7 @@ def _plugin_config_loader() -> Any:
     if _PLUGIN_CONFIG_LOADER is not None:
         return _PLUGIN_CONFIG_LOADER
     loader_path = _SCRIPTS_DIR / "plugin-config-loader.py"
-    spec = importlib.util.spec_from_file_location(
-        "plugin_config_loader", loader_path
-    )
+    spec = importlib.util.spec_from_file_location("plugin_config_loader", loader_path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     _PLUGIN_CONFIG_LOADER = mod
@@ -220,6 +224,7 @@ def _plugin_config_loader() -> Any:
 
 
 # --- Identity sourcing ---------------------------------------------------
+
 
 def _resolve_identity(cwd: Path) -> Mapping[str, Any]:
     """Resolve identity for rendering from `.launchpad/scaffold-decision.json`.
@@ -259,6 +264,7 @@ def _placeholder_identity() -> dict[str, Any]:
 
 
 # --- Plugin-version pin check (V3 section 11.1; engine step 3) ----------
+
 
 def _check_plugin_version_pin(
     cwd: Path,
@@ -342,6 +348,7 @@ def _record_version_drift(
         Names,
         compute_identity_fields_changed,
     )
+
     accepted_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     # Bootstrap drift always touches `plugin_version` only; route through
@@ -375,6 +382,7 @@ def _record_version_drift(
         payload["version_drift_log"] = log
 
     from lp_pick_stack.decision_writer import re_seal_decision_atomic
+
     try:
         re_seal_decision_atomic(cwd, update_fn=_apply_drift_log)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
@@ -399,6 +407,7 @@ def _record_version_drift(
 
 
 # --- Sentinel preflight (engine step 2) -----------------------------------
+
 
 def _sentinel_preflight(cwd: Path) -> tuple[SentinelSnapshot | None, list[str]]:
     """Inspect sentinel; recover-if-stale OR refuse.
@@ -502,6 +511,7 @@ def _sentinel_preflight(cwd: Path) -> tuple[SentinelSnapshot | None, list[str]]:
 
 # --- Manifest tampering check (engine step 4) ----------------------------
 
+
 def _verify_manifest_integrity(
     cwd: Path,
 ) -> tuple[BootstrapManifest | None, list[str]]:
@@ -554,20 +564,20 @@ def _verify_manifest_integrity(
     entries: list[BootstrapManifestEntry] = []
     for f in files:
         try:
-            entries.append(BootstrapManifestEntry(
-                path=f["path"],
-                source_template_sha256=f["source_template_sha256"],
-                rendered_content_sha256=f["rendered_content_sha256"],
-                policy=f["policy"],
-                mode=int(f["mode"]),
-            ))
+            entries.append(
+                BootstrapManifestEntry(
+                    path=f["path"],
+                    source_template_sha256=f["source_template_sha256"],
+                    rendered_content_sha256=f["rendered_content_sha256"],
+                    policy=f["policy"],
+                    mode=int(f["mode"]),
+                )
+            )
         except (KeyError, TypeError, ValueError) as exc:
             raise BootstrapEngineError(
                 f"manifest file entry malformed: {f!r} ({exc})",
                 reason=BootstrapErrorCode.MANIFEST_CORRUPT,
-                remediation=(
-                    "delete .launchpad/bootstrap-manifest.json to rebuild"
-                ),
+                remediation=("delete .launchpad/bootstrap-manifest.json to rebuild"),
             ) from exc
 
     manifest = BootstrapManifest(
@@ -592,6 +602,7 @@ def _verify_manifest_integrity(
 
 # --- Render loop helpers --------------------------------------------------
 
+
 def _entry_sha_for(
     manifest: BootstrapManifest | None, target_relpath: str
 ) -> str | None:
@@ -605,6 +616,7 @@ def _entry_sha_for(
 
 def _yaml_dumper(value: Any) -> str:
     import yaml  # type: ignore[import-not-found]
+
     return yaml.safe_dump(value, default_flow_style=False, sort_keys=True)
 
 
@@ -637,6 +649,7 @@ def _selected_targets(
 def _validate_refresh_paths(refresh_paths: Sequence[str]) -> None:
     """Reject unknown `--refresh <path>` arguments per harden A15."""
     from lp_bootstrap.manifest_writer import _normalize_path
+
     for raw in refresh_paths:
         try:
             normalized = _normalize_path(raw)
@@ -661,6 +674,7 @@ def _validate_refresh_paths(refresh_paths: Sequence[str]) -> None:
 
 
 # --- Main entrypoint ------------------------------------------------------
+
 
 def run_bootstrap(
     cwd: Path,
@@ -711,9 +725,15 @@ def run_bootstrap(
             if mode == "recover":
                 # Recover-mode terminates after preflight; sentinel cleared
                 # if stale, error if live process owned it.
-                _emit_telemetry(repo_root, "success", mode, files_processed=0,
-                                files_written=0, files_skipped=0,
-                                files_kept=0)
+                _emit_telemetry(
+                    repo_root,
+                    "success",
+                    mode,
+                    files_processed=0,
+                    files_written=0,
+                    files_skipped=0,
+                    files_kept=0,
+                )
                 return BootstrapResult(
                     outcome="success",
                     mode=mode,
@@ -752,7 +772,8 @@ def run_bootstrap(
             try:
                 # Step 3: plugin-version pin check FIRST.
                 running, vinfos = _check_plugin_version_pin(
-                    cwd, accept_drift=accept_plugin_version_drift,
+                    cwd,
+                    accept_drift=accept_plugin_version_drift,
                 )
                 plugin_version = running
                 warnings.extend(vinfos)
@@ -770,8 +791,10 @@ def run_bootstrap(
                     refresh_paths = None
                     # Treat as full bootstrap from here.
 
-                if accept_plugin_version_drift and refresh_paths is None and mode in (
-                    "brownfield-auto", "greenfield"
+                if (
+                    accept_plugin_version_drift
+                    and refresh_paths is None
+                    and mode in ("brownfield-auto", "greenfield")
                 ):
                     # Section 3.4 + 6.1: drift-accepted runs auto-trigger
                     # --refresh-all to realign manifest shas.
@@ -794,9 +817,13 @@ def run_bootstrap(
             if dry_run:
                 clear_sentinel(cwd)
                 _emit_telemetry(
-                    repo_root, "success", mode,
-                    files_processed=0, files_written=0,
-                    files_skipped=0, files_kept=0,
+                    repo_root,
+                    "success",
+                    mode,
+                    files_processed=0,
+                    files_written=0,
+                    files_skipped=0,
+                    files_kept=0,
                 )
                 return BootstrapResult(
                     outcome="success",
@@ -843,9 +870,13 @@ def run_bootstrap(
                 # Step 8 inversion: NO manifest write on partial render failure
                 # (harden B16). Preserve the prior manifest's shas.
                 _emit_telemetry(
-                    repo_root, _outcome_for(exc), mode,
-                    files_processed=0, files_written=0,
-                    files_skipped=0, files_kept=0,
+                    repo_root,
+                    _outcome_for(exc),
+                    mode,
+                    files_processed=0,
+                    files_written=0,
+                    files_skipped=0,
+                    files_kept=0,
                 )
                 clear_sentinel(cwd)
                 return BootstrapResult(
@@ -855,11 +886,13 @@ def run_bootstrap(
                     files_written=0,
                     files_skipped=0,
                     files_kept_user_edits=0,
-                    errors=(BootstrapError(
-                        code=exc.reason,
-                        path=exc.path,
-                        remediation=exc.remediation,
-                    ),),
+                    errors=(
+                        BootstrapError(
+                            code=exc.reason,
+                            path=exc.path,
+                            remediation=exc.remediation,
+                        ),
+                    ),
                     warnings=tuple(warnings),
                     manifest_path=None,
                     backup_dir=backup_dir,
@@ -897,7 +930,8 @@ def run_bootstrap(
             elif refresh_paths is not None and existing_manifest is not None:
                 # Refresh subset: merge new entries onto existing manifest.
                 merged_entries = _merge_manifest_entries(
-                    existing_manifest, new_entries,
+                    existing_manifest,
+                    new_entries,
                 )
                 manifest = build_manifest(
                     plugin_version=plugin_version,
@@ -925,7 +959,9 @@ def run_bootstrap(
 
             # Step 11: telemetry.
             _emit_telemetry(
-                repo_root, outcome, mode,
+                repo_root,
+                outcome,
+                mode,
                 files_processed=files_processed,
                 files_written=files_written,
                 files_skipped=files_skipped,
@@ -949,9 +985,13 @@ def run_bootstrap(
     except BootstrapEngineError as exc:
         clear_sentinel(cwd)
         _emit_telemetry(
-            repo_root, _outcome_for(exc), mode,
-            files_processed=0, files_written=0,
-            files_skipped=0, files_kept=0,
+            repo_root,
+            _outcome_for(exc),
+            mode,
+            files_processed=0,
+            files_written=0,
+            files_skipped=0,
+            files_kept=0,
         )
         return BootstrapResult(
             outcome=_outcome_for(exc),
@@ -960,11 +1000,13 @@ def run_bootstrap(
             files_written=0,
             files_skipped=0,
             files_kept_user_edits=0,
-            errors=(BootstrapError(
-                code=exc.reason,
-                path=exc.path,
-                remediation=exc.remediation,
-            ),),
+            errors=(
+                BootstrapError(
+                    code=exc.reason,
+                    path=exc.path,
+                    remediation=exc.remediation,
+                ),
+            ),
             warnings=tuple(warnings),
             manifest_path=None,
             backup_dir=backup_dir,
@@ -974,9 +1016,11 @@ def run_bootstrap(
 
 # --- Render loop ----------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class _RenderRecord:
     """Per-target outcome carried through the render loop."""
+
     action: PolicyAction
     target_relpath: str
     rendered_sha256: str
@@ -992,6 +1036,7 @@ class _RenderContext:
     finding; Phase C policy-dispatches using the pre-rendered bytes. Holds
     everything the dispatch branches need so Phase C never re-renders.
     """
+
     template_relpath: str
     target_relpath: str
     target_path: Path
@@ -1045,17 +1090,19 @@ def _render_loop(
         on_disk_sha: str | None = None
         if target_path.exists() and not target_path.is_symlink():
             on_disk_sha = sha256_file(target_path)
-        contexts.append(_RenderContext(
-            template_relpath=template_relpath,
-            target_relpath=target_relpath,
-            target_path=target_path,
-            policy=policy,
-            file_mode=file_mode,
-            rendered_bytes=rendered_bytes,
-            rendered_sha=rendered_sha,
-            manifest_sha=manifest_sha,
-            on_disk_sha=on_disk_sha,
-        ))
+        contexts.append(
+            _RenderContext(
+                template_relpath=template_relpath,
+                target_relpath=target_relpath,
+                target_path=target_path,
+                policy=policy,
+                file_mode=file_mode,
+                rendered_bytes=rendered_bytes,
+                rendered_sha=rendered_sha,
+                manifest_sha=manifest_sha,
+                on_disk_sha=on_disk_sha,
+            )
+        )
 
     # Phase B — secret-scan gate. Refuse-all on finding; fail-closed on
     # scanner infra failure. `.is_file()` guards mirror lp_define_runner
@@ -1078,8 +1125,7 @@ def _render_loop(
         # secret-shaped bytes from UnicodeDecodeError.args out of the
         # surfaced message.
         raise BootstrapEngineError(
-            f"Secret scanner failed during /lp-bootstrap render: "
-            f"{type(exc).__name__}",
+            f"Secret scanner failed during /lp-bootstrap render: {type(exc).__name__}",
             reason=BootstrapErrorCode.SECRET_SCANNER_VIOLATION,
             path=cwd,
             remediation=(
@@ -1153,13 +1199,15 @@ def _render_loop(
                 policy=policy.value,
                 mode=file_mode,
             )
-            records.append(_RenderRecord(
-                action=policy_result.action,
-                target_relpath=target_relpath,
-                rendered_sha256=rendered_sha,
-                entry=entry,
-                warnings=tuple(policy_result.warnings),
-            ))
+            records.append(
+                _RenderRecord(
+                    action=policy_result.action,
+                    target_relpath=target_relpath,
+                    rendered_sha256=rendered_sha,
+                    entry=entry,
+                    warnings=tuple(policy_result.warnings),
+                )
+            )
             continue
 
         # Fast-path (harden A16): manifest_sha matches on_disk_sha matches
@@ -1177,12 +1225,14 @@ def _render_loop(
                 policy=policy.value,
                 mode=file_mode,
             )
-            records.append(_RenderRecord(
-                action=PolicyAction.SKIP_UNCHANGED,
-                target_relpath=target_relpath,
-                rendered_sha256=rendered_sha,
-                entry=entry,
-            ))
+            records.append(
+                _RenderRecord(
+                    action=PolicyAction.SKIP_UNCHANGED,
+                    target_relpath=target_relpath,
+                    rendered_sha256=rendered_sha,
+                    entry=entry,
+                )
+            )
             continue
 
         # Policy dispatch.
@@ -1221,7 +1271,9 @@ def _render_loop(
 
         # Post-replace chmod (harden B8 belt-and-braces).
         if policy_result.action in (
-            PolicyAction.WRITE, PolicyAction.APPENDED, PolicyAction.MERGED,
+            PolicyAction.WRITE,
+            PolicyAction.APPENDED,
+            PolicyAction.MERGED,
         ):
             try:
                 os.chmod(target_path, file_mode)
@@ -1229,7 +1281,9 @@ def _render_loop(
                 pass
 
         if policy_result.action in (
-            PolicyAction.WRITE, PolicyAction.APPENDED, PolicyAction.MERGED,
+            PolicyAction.WRITE,
+            PolicyAction.APPENDED,
+            PolicyAction.MERGED,
         ):
             stamped_sha = policy_result.rendered_sha256 or rendered_sha
         elif policy_result.action == PolicyAction.SKIP_UNCHANGED:
@@ -1244,18 +1298,21 @@ def _render_loop(
             policy=policy.value,
             mode=file_mode,
         )
-        records.append(_RenderRecord(
-            action=policy_result.action,
-            target_relpath=target_relpath,
-            rendered_sha256=rendered_sha,
-            entry=entry,
-            warnings=tuple(policy_result.warnings),
-        ))
+        records.append(
+            _RenderRecord(
+                action=policy_result.action,
+                target_relpath=target_relpath,
+                rendered_sha256=rendered_sha,
+                entry=entry,
+                warnings=tuple(policy_result.warnings),
+            )
+        )
 
     return records
 
 
 # --- Misc helpers ---------------------------------------------------------
+
 
 def _manifest_sha(cwd: Path) -> str | None:
     """sha256 of the existing manifest file (for sentinel pre_edit field)."""

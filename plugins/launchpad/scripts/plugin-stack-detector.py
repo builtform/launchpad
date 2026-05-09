@@ -13,6 +13,7 @@ Security constraints:
 Output: JSON to stdout listing detected stacks + primary framework flavor.
 {"stacks": ["ts_monorepo"], "frameworks": ["next.js", "hono"], "polyglot": false}
 """
+
 from __future__ import annotations
 
 import json
@@ -36,10 +37,12 @@ if str(_VENDOR) not in sys.path:
 # pyproject.toml or Cargo.toml never need toml parsing and should still run.
 try:
     import tomllib  # type: ignore[import-not-found]
+
     _TOML_IMPORT_ERROR: str | None = None
 except ImportError:
     try:
         import tomli as tomllib  # type: ignore[no-redef]
+
         _TOML_IMPORT_ERROR = None
     except ImportError:
         tomllib = None  # type: ignore[assignment]
@@ -53,14 +56,16 @@ except ImportError:
         )
 
 # Strict allowlist — detector opens exactly these filenames and nothing else.
-MANIFEST_ALLOWLIST = frozenset([
-    "package.json",
-    "pyproject.toml",
-    "Cargo.toml",
-    "go.mod",
-    "Gemfile",
-    "composer.json",
-])
+MANIFEST_ALLOWLIST = frozenset(
+    [
+        "package.json",
+        "pyproject.toml",
+        "Cargo.toml",
+        "go.mod",
+        "Gemfile",
+        "composer.json",
+    ]
+)
 
 # v2.0 single-source enforcement (HANDSHAKE §8): the broader brownfield-
 # detection set is owned by `cwd_state.py` and shared across v1 + v2 surfaces.
@@ -70,30 +75,34 @@ MANIFEST_ALLOWLIST = frozenset([
 # CI lint assertion + identity check (test_brownfield_manifests_single_source.py).
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
-from cwd_state import BROWNFIELD_MANIFESTS  # noqa: E402, F401  (single-source enforcement)
+from cwd_state import (  # noqa: E402, F401  (single-source enforcement)
+    BROWNFIELD_MANIFESTS,
+)
 
 # Noise directories that bloat the walk with dep/build output.
-EXCLUDED_DIRS = frozenset([
-    "node_modules",
-    ".venv",
-    "venv",
-    "__pycache__",
-    "dist",
-    ".next",
-    "target",
-    "build",
-    "vendor",
-    ".git",
-    ".turbo",
-    ".cache",
-])
+EXCLUDED_DIRS = frozenset(
+    [
+        "node_modules",
+        ".venv",
+        "venv",
+        "__pycache__",
+        "dist",
+        ".next",
+        "target",
+        "build",
+        "vendor",
+        ".git",
+        ".turbo",
+        ".cache",
+    ]
+)
 
 # 1MB cap per manifest — anything larger is almost certainly not what we expect.
 MAX_MANIFEST_BYTES = 1 * 1024 * 1024
 
 # Phase 6 v2.1 Rails detection: matches `gem "rails"` or `gem 'rails'` lines
 # in a Gemfile. Module-level compile (cycle-3 perf P1-2 mirror).
-import re as _re
+import re as _re  # noqa: E402  (re-imported here under module-local alias by design)
 
 _GEMFILE_RAILS_REGEX = _re.compile(r"""(?m)^\s*gem\s+["']rails["']""")
 
@@ -124,6 +133,7 @@ def _read_workspace_roots(root: Path) -> list[Path]:
     if pnpm_ws.is_file() and pnpm_ws.stat().st_size <= MAX_MANIFEST_BYTES:
         try:
             import yaml
+
             data = yaml.safe_load(pnpm_ws.read_text(encoding="utf-8")) or {}
             raw = data.get("packages") or []
             if isinstance(raw, list):
@@ -373,8 +383,7 @@ def detect_from_manifest(path: Path) -> dict[str, Any]:
         # them; only the *stack template* changes.
         is_monorepo = bool(content.get("workspaces")) or "turbo" in deps
         has_typescript = (
-            "typescript" in deps
-            or (path.parent / "tsconfig.json").is_file()
+            "typescript" in deps or (path.parent / "tsconfig.json").is_file()
         )
         has_relevant_framework = any(
             fw in frameworks for fw in ("next.js", "hono", "prisma")
@@ -392,7 +401,11 @@ def detect_from_manifest(path: Path) -> dict[str, Any]:
             or content.get("tool", {}).get("poetry", {}).get("dependencies", {})
             or []
         )
-        dep_str = " ".join(deps_section) if isinstance(deps_section, list) else " ".join(deps_section.keys())
+        dep_str = (
+            " ".join(deps_section)
+            if isinstance(deps_section, list)
+            else " ".join(deps_section.keys())
+        )
         if "django" in dep_str.lower():
             frameworks.append("django")
         if "fastapi" in dep_str.lower():
@@ -499,7 +512,9 @@ def detect(root: Path) -> dict[str, Any]:
         "stacks": stacks,
         "frameworks": all_frameworks,
         "polyglot": len(stacks) > 1,
-        "manifests": [str(m) for m in manifests],  # manifests already sorted in find_manifests()
+        "manifests": [
+            str(m) for m in manifests
+        ],  # manifests already sorted in find_manifests()
         "zero_manifest": False,
     }
 

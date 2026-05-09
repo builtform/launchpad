@@ -21,6 +21,7 @@ The intent is not to replicate Turborepo's full feature surface; this is
 the bridge from "individual scaffolders ran" to "later-stage `/lp-define`
 sees a coherent monorepo root."
 """
+
 from __future__ import annotations
 
 import re
@@ -55,9 +56,9 @@ LEFTHOOK_HOOKS = ("secret-scan", "structure-drift", "typecheck", "lint")
 # materialized files so the receipt's `secret_scan_passed` carries a real
 # signal at /lp-define time.
 _SECRET_PATTERNS = [
-    re.compile(r"sk-[A-Za-z0-9]{32,}"),               # OpenAI-shaped keys
-    re.compile(r"AKIA[0-9A-Z]{16}"),                  # AWS access keys
-    re.compile(r"ghp_[A-Za-z0-9]{30,}"),              # GitHub PATs
+    re.compile(r"sk-[A-Za-z0-9]{32,}"),  # OpenAI-shaped keys
+    re.compile(r"AKIA[0-9A-Z]{16}"),  # AWS access keys
+    re.compile(r"ghp_[A-Za-z0-9]{30,}"),  # GitHub PATs
     re.compile(r"-----BEGIN (RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----"),
 ]
 
@@ -177,15 +178,15 @@ def _emit_pnpm_workspace(cwd: Path, layers: Sequence[dict]) -> Path:
 def _emit_turbo_json(cwd: Path) -> Path:
     target = cwd / "turbo.json"
     body = (
-        '{\n'
+        "{\n"
         '  "$schema": "https://turbo.build/schema.json",\n'
         '  "tasks": {\n'
         '    "build": { "dependsOn": ["^build"], "outputs": ["dist/**", ".next/**"] },\n'
         '    "test": {},\n'
         '    "lint": {},\n'
         '    "typecheck": {}\n'
-        '  }\n'
-        '}\n'
+        "  }\n"
+        "}\n"
     )
     _atomic_write(target, body)
     return target
@@ -197,7 +198,9 @@ def _emit_lefthook_yml(cwd: Path, toolchains: Sequence[str]) -> Path:
     body_lines.append("    secret-scan:")
     body_lines.append("      run: 'echo \"secret-scan stub — gitleaks recommended\"'")
     body_lines.append("    structure-drift:")
-    body_lines.append("      run: 'echo \"structure-drift stub — wire to docs/architecture/REPOSITORY_STRUCTURE.md\"'")
+    body_lines.append(
+        "      run: 'echo \"structure-drift stub — wire to docs/architecture/REPOSITORY_STRUCTURE.md\"'"
+    )
     if "node" in toolchains:
         body_lines.append("    typecheck:")
         body_lines.append("      run: 'pnpm -r typecheck'")

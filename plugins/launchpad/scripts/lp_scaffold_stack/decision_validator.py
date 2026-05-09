@@ -1,3 +1,15 @@
+# pyright: strict, reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownParameterType=false
+# Strict-mode is the gate posture; the three reportUnknown* + reportUnknown
+# Parameter rules are disabled as INTENTIONAL Any-leakage acceptance at the
+# JSON-validation boundary (this module parses scaffold-decision.json — value
+# types are inherently `Any | None` from `dict.get()` on dynamic JSON).
+# Strict still enforces: reportArgumentType, reportOptionalMemberAccess,
+# reportReturnType, reportPossiblyUnbound, reportTypedDictNotRequiredAccess,
+# reportRedeclaration, reportMissingImports, reportAttributeAccessIssue,
+# reportMissingTypeArgument, reportUnnecessaryIsInstance, etc. — the rules
+# that catch genuine type-safety bugs (not Any-leakage cascades).
+# v2.1.x BL: tighten to full strict once schema-driven TypedDict definitions
+# replace `dict[str, Any]` at the JSON-parse boundary.
 """scaffold-decision.json validator (HANDSHAKE §4 rules 1-13).
 
 Implements 12 of 13 rules. Rule 12 (`brainstorm_session_id`) is BL-235
@@ -13,6 +25,7 @@ Layer 8 closure: at execute-time the engine re-validates every layer.path
 against §6 path validator + ancestor-symlink check; this validator runs both
 checks at read-time so the rejection surfaces before subprocess execution.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -46,8 +59,12 @@ from lp_scaffold_stack import EXPECTED_DECISION_VERSION  # noqa: E402
 # requires `plugin_version` (str), non-empty `stacks` of
 # STACK_ID_ACTIVE_ENUM members, and the 6-key identity dict below.
 _V1_1_REQUIRED_IDENTITY_KEYS = (
-    "pii_opt_in", "project_name", "email", "copyright_holder",
-    "repo_url", "license",
+    "pii_opt_in",
+    "project_name",
+    "email",
+    "copyright_holder",
+    "repo_url",
+    "license",
 )
 
 # UUIDv4 hex format (32 hex chars).
@@ -66,22 +83,43 @@ GENERATED_AT_MAX_FUTURE_SKEW = timedelta(minutes=5)
 # Required top-level fields. brainstorm_session_id intentionally OMITTED per
 # Layer 7 strip-back (BL-235).
 _REQUIRED_FIELDS = (
-    "version", "layers", "monorepo", "matched_category_id", "rationale_path",
-    "rationale_sha256", "rationale_summary", "generated_by", "generated_at",
-    "nonce", "bound_cwd", "sha256",
+    "version",
+    "layers",
+    "monorepo",
+    "matched_category_id",
+    "rationale_path",
+    "rationale_sha256",
+    "rationale_summary",
+    "generated_by",
+    "generated_at",
+    "nonce",
+    "bound_cwd",
+    "sha256",
 )
 
 # Required scaffold-decision.json `rationale_summary` section names.
 _RATIONALE_SECTIONS = (
-    "project-understanding", "matched-category", "stack",
-    "why-this-fits", "alternatives", "notes",
+    "project-understanding",
+    "matched-category",
+    "stack",
+    "why-this-fits",
+    "alternatives",
+    "notes",
 )
 
 # Per HANDSHAKE §4 rule 2 / pick-stack plan §3.4.
-ALLOWED_ROLES = frozenset({
-    "frontend", "backend", "frontend-main", "frontend-dashboard",
-    "fullstack", "mobile", "backend-managed", "desktop",
-})
+ALLOWED_ROLES = frozenset(
+    {
+        "frontend",
+        "backend",
+        "frontend-main",
+        "frontend-dashboard",
+        "fullstack",
+        "mobile",
+        "backend-managed",
+        "desktop",
+    }
+)
 
 # Manual-override sentinel id (HANDSHAKE §4 rule 4).
 MANUAL_OVERRIDE_ID = "manual-override"
@@ -99,9 +137,11 @@ _MAX_BULLET_CHARS = 240
 # v2.1.0 completion plan §3.5: `*_meta` allowlist for the v1.1 envelope.
 # Adding a new `*_meta` sibling key requires a `schema_version` bump
 # (1.1 -> 1.2). v2.1.x will NOT introduce new `*_meta` keys.
-_ALLOWED_DECISION_META_KEYS: frozenset[str] = frozenset({
-    "kernel_render_state_meta",
-})
+_ALLOWED_DECISION_META_KEYS: frozenset[str] = frozenset(
+    {
+        "kernel_render_state_meta",
+    }
+)
 
 # Cycle-5 lock per v2.1.0 completion plan §3.5: `_META_KEY_REGEX` is a
 # strict identifier-shape regex with `\Z` source anchor (defense-in-depth
@@ -116,9 +156,9 @@ _META_KEY_REGEX = re.compile(r"[a-z][a-z0-9_]*_meta\Z")
 class Accepted:
     """Validation passed. Payload (with sha256 verified) is included."""
 
-    payload: dict
+    payload: dict[str, Any]
     nonce: str
-    bound_cwd: dict
+    bound_cwd: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -136,7 +176,7 @@ class Rejected:
 def _parse_iso_utc_sec(value: str) -> datetime | None:
     """Parse an ISO 8601 UTC sec-precision Z-suffix string; return None on
     format mismatch."""
-    if not isinstance(value, str) or not _ISO_Z_RE.fullmatch(value):
+    if not isinstance(value, str) or not _ISO_Z_RE.fullmatch(value):  # pyright: ignore[reportUnnecessaryIsInstance]
         return None
     try:
         return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(
@@ -147,7 +187,7 @@ def _parse_iso_utc_sec(value: str) -> datetime | None:
 
 
 def _validate_layer_paths(
-    layers: list[dict],
+    layers: list[dict[str, Any]],
     cwd: Path,
 ) -> Rejected | None:
     """Re-validate every layer.path against §6 (Layer 8 closure: defends
@@ -168,7 +208,11 @@ def _validate_layer_paths(
             # Distinguish path traversal from generic shape failure for the
             # rejection enum (HANDSHAKE §4 path_traversal).
             msg = str(exc)
-            reason = "path_traversal" if "traversal" in msg or "escapes cwd" in msg else "layer_path_invalid"
+            reason = (
+                "path_traversal"
+                if "traversal" in msg or "escapes cwd" in msg
+                else "layer_path_invalid"
+            )
             return Rejected(
                 reason=reason,
                 message=msg,
@@ -196,12 +240,12 @@ def _validate_layer_paths(
 
 
 def _validate_layer_options(
-    layers: list[dict],
-    scaffolders: dict,
+    layers: list[dict[str, Any]],
+    scaffolders: dict[str, Any],
 ) -> Rejected | None:
     for i, layer in enumerate(layers):
         stack_id = layer.get("stack")
-        scaffolder = scaffolders.get(stack_id)
+        scaffolder = scaffolders.get(stack_id) if isinstance(stack_id, str) else None
         if scaffolder is None:
             return Rejected(
                 reason="unknown_stack_id",
@@ -259,8 +303,8 @@ def _validate_layer_options(
     return None
 
 
-def _validate_rationale_summary(rs: list) -> Rejected | None:
-    if not isinstance(rs, list) or not rs:
+def _validate_rationale_summary(rs: list[Any]) -> Rejected | None:
+    if not isinstance(rs, list) or not rs:  # pyright: ignore[reportUnnecessaryIsInstance]
         return Rejected(
             reason="rationale_summary_empty",
             message="rationale_summary must be a non-empty array",
@@ -328,7 +372,7 @@ def _validate_rationale_summary(rs: list) -> Rejected | None:
 
 
 def _validate_bound_cwd(
-    bc: Mapping,
+    bc: Mapping[str, Any],
     cwd: Path,
 ) -> Rejected | None:
     """Recompute (realpath, st_dev, st_ino) and assert all three match.
@@ -345,8 +389,11 @@ def _validate_bound_cwd(
     expected_realpath = bc.get("realpath")
     expected_dev = bc.get("st_dev")
     expected_ino = bc.get("st_ino")
-    if not isinstance(expected_realpath, str) or not isinstance(expected_dev, int) \
-            or not isinstance(expected_ino, int):
+    if (
+        not isinstance(expected_realpath, str)
+        or not isinstance(expected_dev, int)
+        or not isinstance(expected_ino, int)
+    ):
         return Rejected(
             reason="bound_cwd_invalid",
             message="bound_cwd must carry realpath:str + st_dev:int + st_ino:int",
@@ -587,6 +634,7 @@ def validate_decision(
     if rationale_path_for_sha is not None:
         try:
             import hashlib
+
             actual = hashlib.sha256(rationale_path_for_sha.read_bytes()).hexdigest()
         except OSError as exc:
             return Rejected(
@@ -610,6 +658,7 @@ def validate_decision(
         # (PR #41 cycle 4 #3 closure — closes silent-bypass on absent
         # rationale).
         import hashlib
+
         empty_sha = hashlib.sha256(b"").hexdigest()
         if declared_sha != empty_sha:
             return Rejected(
@@ -709,7 +758,7 @@ def _validate_meta_keys_allowlist(
     when the same allowlist mechanism is reused on the receipt side.
     """
     for key in payload:
-        if not isinstance(key, str):
+        if not isinstance(key, str):  # pyright: ignore[reportUnnecessaryIsInstance]
             continue
         if not _META_KEY_REGEX.fullmatch(key):
             continue
@@ -740,14 +789,17 @@ def _compute_migration_origin_sha(prior_decision: Mapping[str, Any]) -> str:
     prior_minus = {
         k: v
         for k, v in prior_decision.items()
-        if k not in (
+        if k
+        not in (
             "kernel_seed_pending",
             "migration_origin_sha256",
             "kernel_render_state",
         )
     }
     serialized = json.dumps(
-        prior_minus, sort_keys=True, separators=(",", ":"),
+        prior_minus,
+        sort_keys=True,
+        separators=(",", ":"),
     ).encode("utf-8")
     return hashlib.sha256(serialized).hexdigest()
 
@@ -819,9 +871,7 @@ def _validate_v1_1_envelope(
     if missing_identity_keys:
         return Rejected(
             reason="v1_1_identity_missing_keys",
-            message=(
-                f"identity missing required keys: {missing_identity_keys!r}"
-            ),
+            message=(f"identity missing required keys: {missing_identity_keys!r}"),
             field_name="identity",
             extra={"missing_fields": list(missing_identity_keys)},
         )
@@ -889,9 +939,7 @@ def _validate_v1_1_envelope(
         if not isinstance(backup_payload, dict):
             return Rejected(
                 reason="migration_provenance_mismatch_after_edit",
-                message=(
-                    ".pre-migration backup top-level is not a JSON object"
-                ),
+                message=(".pre-migration backup top-level is not a JSON object"),
                 field_name="migration_origin_sha256",
             )
         recomputed = _compute_migration_origin_sha(backup_payload)

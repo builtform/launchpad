@@ -14,6 +14,7 @@ to the count of `docs/architecture/*` outputs the doc generator emits at
 v2.0 (PRD, TECH_STACK, BACKEND_STRUCTURE, APP_FLOW = 4) — single-source
 TIER1_ARCHITECTURE_DOCS_RENDERED constant lives in `lp_scaffold_stack/__init__.py`.
 """
+
 from __future__ import annotations
 
 import fcntl
@@ -58,9 +59,11 @@ class LayerReceiptEntry(TypedDict):
 # v2.1.0 completion plan §3.5: receipt-side `*_meta` allowlist.
 # Mirrors `decision_validator._ALLOWED_DECISION_META_KEYS` on the
 # publishing surface; `adapter_dispatch_meta` is the only v2.1.0 sibling.
-_ALLOWED_RECEIPT_META_KEYS: frozenset[str] = frozenset({
-    "adapter_dispatch_meta",
-})
+_ALLOWED_RECEIPT_META_KEYS: frozenset[str] = frozenset(
+    {
+        "adapter_dispatch_meta",
+    }
+)
 
 # Cycle-5 lock per v2.1.0 completion plan §3.5: identical regex to the
 # validator-side `_META_KEY_REGEX`. Duplicated by-design at this seam to

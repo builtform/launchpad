@@ -13,56 +13,67 @@ follow-up captured in the `describe` key (sanitized by
 Per HANDSHAKE §1.5 strip-back: 5 questions remain at v2.0; the question count
 is not deferred.
 """
+
 from __future__ import annotations
 
 from collections.abc import Mapping
 
 # Q1 — What are you building?
-Q1_ALLOWED = frozenset({
-    "web-app",
-    "static-site-or-blog",
-    "mobile-app",
-    "data-ml-pipeline",
-    "desktop-app",
-    "api-only",
-    "backend-managed",
-    "something-else-describe",
-})
+Q1_ALLOWED = frozenset(
+    {
+        "web-app",
+        "static-site-or-blog",
+        "mobile-app",
+        "data-ml-pipeline",
+        "desktop-app",
+        "api-only",
+        "backend-managed",
+        "something-else-describe",
+    }
+)
 
 # Q2 — Is there a dynamic backend?
-Q2_ALLOWED = frozenset({
-    "yes-needed",
-    "static-content-only",
-    "not-sure-decide-for-me",
-})
+Q2_ALLOWED = frozenset(
+    {
+        "yes-needed",
+        "static-content-only",
+        "not-sure-decide-for-me",
+    }
+)
 
 # Q3 — Is AI/LLM/realtime a core feature?
-Q3_ALLOWED = frozenset({
-    "no",
-    "feature-not-core",
-    "core-AI-or-LLM",
-    "core-realtime-collab",
-})
+Q3_ALLOWED = frozenset(
+    {
+        "no",
+        "feature-not-core",
+        "core-AI-or-LLM",
+        "core-realtime-collab",
+    }
+)
 
 # Q4 — Team's stack expertise + urgency profile?
-Q4_ALLOWED = frozenset({
-    "typescript-javascript",
-    "python",
-    "ruby-fast-MVP",
-    "elixir",
-    "mixed-no-strong-preference",
-    "none-AI-driven-dev",
-})
+Q4_ALLOWED = frozenset(
+    {
+        "typescript-javascript",
+        "python",
+        "ruby-fast-MVP",
+        "elixir",
+        "mixed-no-strong-preference",
+        "none-AI-driven-dev",
+    }
+)
 
 # Q5 — Deployment target / language preference (5th question for stack-edge
 # disambiguation per pick-stack plan §1.1 evolution to 5-question funnel).
-Q5_ALLOWED = frozenset({
-    "edge-runtime",
-    "node-server",
-    "container",
-    "managed-platform",
-    "no-strong-preference",
-})
+Q5_ALLOWED = frozenset(
+    {
+        "edge-runtime",
+        "node-server",
+        "container",
+        "managed-platform",
+        "no-strong-preference",
+    }
+)
 
 # Maximum length of Q1 free-text branch ("something-else-describe"). The
 # rationale_summary_extractor truncates to 240 chars per bullet at extraction
@@ -103,9 +114,7 @@ def validate_answers(answers: Mapping[str, str]) -> dict[str, str]:
     Raises AnswerValidationError on any rule violation.
     """
     if not isinstance(answers, Mapping):
-        raise AnswerValidationError(
-            f"expected mapping, got {type(answers).__name__}"
-        )
+        raise AnswerValidationError(f"expected mapping, got {type(answers).__name__}")
 
     out: dict[str, str] = {}
     for key, allowed in QUESTION_ENUMS.items():

@@ -19,6 +19,7 @@ Phase 4 plan §3.7. Private submodule of `template_cache`. Implements the
   9. Symlink rejection at cache root + per-entry.
  10. Filesystem-full cleanup: try/finally over `<sha>.tmp.<uuid>/`.
 """
+
 from __future__ import annotations
 
 import base64
@@ -86,7 +87,8 @@ def _sanitize_readlink_target(target: str | bytes) -> tuple[str, str]:
         cutoff = MAX_REJECTION_TARGET_BYTES
         target_safe = (
             quoted.encode("utf-8", errors="replace")[:cutoff].decode(
-                "utf-8", errors="replace",
+                "utf-8",
+                errors="replace",
             )
             + f"...truncated_{original_len}_bytes"
         )
@@ -196,7 +198,7 @@ def _slug_from_repo(repo_url: str) -> str:
                 f"template cache; got {repo_url!r}"
             ),
         )
-    rest = repo_url[len(_HTTPS_GITHUB_PREFIX):].rstrip("/")
+    rest = repo_url[len(_HTTPS_GITHUB_PREFIX) :].rstrip("/")
     if rest.endswith(".git"):
         rest = rest[:-4]
     return rest.replace("/", "-")
@@ -442,7 +444,7 @@ def _enforce_lru(root: Path, *, target_bytes: int | None = None) -> None:
     if total <= target_bytes:
         return
     sized.sort(key=lambda row: row[0])
-    for mtime, size, entry in sized:
+    for _mtime, size, entry in sized:
         if total <= target_bytes:
             return
         _purge_entry(entry)
@@ -466,8 +468,7 @@ def _write_manifest_and_ready(entry_dir: Path) -> None:
         encoding="utf-8",
     )
     (entry_dir / FETCHED_AT_FILE).write_text(
-        _dt.datetime.now(tz=_dt.UTC).isoformat().replace("+00:00", "Z")
-        + "\n",
+        _dt.datetime.now(tz=_dt.UTC).isoformat().replace("+00:00", "Z") + "\n",
         encoding="utf-8",
     )
     (entry_dir / READY_SENTINEL).write_text("ok\n", encoding="utf-8")
@@ -497,9 +498,11 @@ def fetch(
 
     handle = _entry_handle(repo_url, sha)
 
-    if _entry_is_ready(handle.entry_dir) and _entry_files_match_manifest(
-        handle.entry_dir
-    ) and _entry_age_days(handle.entry_dir) <= CACHE_TTL_DAYS:
+    if (
+        _entry_is_ready(handle.entry_dir)
+        and _entry_files_match_manifest(handle.entry_dir)
+        and _entry_age_days(handle.entry_dir) <= CACHE_TTL_DAYS
+    ):
         return handle.entry_dir
 
     if fetcher is None:
@@ -510,9 +513,11 @@ def fetch(
 
     with _FETCH_SEMAPHORE:
         with _flock(handle.lock_file):
-            if _entry_is_ready(handle.entry_dir) and _entry_files_match_manifest(
-                handle.entry_dir
-            ) and _entry_age_days(handle.entry_dir) <= CACHE_TTL_DAYS:
+            if (
+                _entry_is_ready(handle.entry_dir)
+                and _entry_files_match_manifest(handle.entry_dir)
+                and _entry_age_days(handle.entry_dir) <= CACHE_TTL_DAYS
+            ):
                 return handle.entry_dir
             if handle.entry_dir.exists():
                 _purge_entry(handle.entry_dir)

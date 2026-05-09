@@ -27,6 +27,7 @@ success when the PID exists in the process table OR raises
 `ProcessLookupError` when the PID is dead. Engine catches the exception and
 treats it as dead-PID auto-recover.
 """
+
 from __future__ import annotations
 
 import errno
@@ -72,6 +73,7 @@ class BootstrapSentinelError(RuntimeError):
 @dataclass(frozen=True)
 class SentinelSnapshot:
     """Decoded sentinel JSON payload (section 3.6)."""
+
     command_pid: int
     started_at: str
     pre_edit_manifest_sha256: str | None

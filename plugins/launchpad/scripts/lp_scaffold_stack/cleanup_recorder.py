@@ -27,6 +27,7 @@ What v2.0 does NOT do (BL-231):
 - Closed `command` set for `rerun` op.
 - Execute-time path re-validation.
 """
+
 from __future__ import annotations
 
 import fcntl
@@ -41,19 +42,30 @@ from typing import Any
 
 # Closed reason enum — distinct from §4 scaffold-rejection. v2.0 readers
 # (humans + future BL-231 tooling) MUST hard-reject unknown values.
-CLEANUP_REASONS = frozenset({
-    "layer_materialization_failed",
-    "auth_precondition_unmet",
-    "network_precondition_unmet",
-    "cross_cutting_wiring_collision",
-    "secret_scan_failed",
-    "recovery_precondition_unmet",
-})
+CLEANUP_REASONS = frozenset(
+    {
+        "layer_materialization_failed",
+        "auth_precondition_unmet",
+        "network_precondition_unmet",
+        "cross_cutting_wiring_collision",
+        "secret_scan_failed",
+        "recovery_precondition_unmet",
+    }
+)
 
 # Write-time destructive-path denylist (per HANDSHAKE/OPERATIONS §6 gate #11).
-DESTRUCTIVE_PATHS = frozenset({
-    ".", "./", "..", "/", "~", ".launchpad", ".git", ".github",
-})
+DESTRUCTIVE_PATHS = frozenset(
+    {
+        ".",
+        "./",
+        "..",
+        "/",
+        "~",
+        ".launchpad",
+        ".git",
+        ".github",
+    }
+)
 
 # Field-discipline regex per Layer 3 security-lens P1-S4 + Layer 5 spec-flow
 # P1-LF1/LF6/LF8.
@@ -63,7 +75,9 @@ _PATH_FIELD_RE = re.compile(r"^[A-Za-z0-9_./\-]+$")
 # closure. Write-time validation only at v2.0 (BL-231 read-side enforcement
 # defers to v2.2).
 RECOVERY_OPS = frozenset({"rmdir_recursive", "rm", "rerun"})
-RERUN_COMMANDS = frozenset({"/lp-pick-stack", "/lp-brainstorm", "/lp-scaffold-stack", "/lp-define"})
+RERUN_COMMANDS = frozenset(
+    {"/lp-pick-stack", "/lp-brainstorm", "/lp-scaffold-stack", "/lp-define"}
+)
 
 # Materialized files truncated to first 50 paths per OPERATIONS §5
 # 4096-byte payload cap.
@@ -186,15 +200,20 @@ def build_failed_payload(
             reason="cleanup_reason_invalid",
         )
     if failed_layer_index is None and reason not in {
-        "cross_cutting_wiring_collision", "secret_scan_failed",
-        "recovery_precondition_unmet", "auth_precondition_unmet",
+        "cross_cutting_wiring_collision",
+        "secret_scan_failed",
+        "recovery_precondition_unmet",
+        "auth_precondition_unmet",
         "network_precondition_unmet",
     }:
         raise CleanupRecordError(
             f"failed_layer_index=None requires reason in cross-cutting/secret-scan/precondition set; got {reason!r}",
             reason="cleanup_reason_invalid",
         )
-    if not isinstance(recommended_recovery_action, str) or not recommended_recovery_action.strip():
+    if (
+        not isinstance(recommended_recovery_action, str)
+        or not recommended_recovery_action.strip()
+    ):
         raise CleanupRecordError(
             "recommended_recovery_action must be a non-empty string",
             reason="cleanup_field_discipline_failed",
@@ -240,7 +259,10 @@ def write_failed_atomic(
     target = launchpad / f"scaffold-failed-{_utc_now_iso_ts_filename()}.json"
     if target.exists():
         # Same-second collision: append .pid suffix.
-        target = launchpad / f"scaffold-failed-{_utc_now_iso_ts_filename()}.{os.getpid()}.json"
+        target = (
+            launchpad
+            / f"scaffold-failed-{_utc_now_iso_ts_filename()}.{os.getpid()}.json"
+        )
 
     fd = os.open(str(target), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:

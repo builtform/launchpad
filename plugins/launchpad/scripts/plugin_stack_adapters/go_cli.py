@@ -3,6 +3,7 @@
 Covers both Go CLIs and Go HTTP services (gin, fiber, stdlib net/http).
 v1 treats them uniformly; splits if v1.1 needs it.
 """
+
 from .contracts import (
     AdapterOutput,
     AppFlowInfo,

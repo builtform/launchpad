@@ -13,6 +13,7 @@ this cwd, authorizing the empty-nonce-ledger first-run fast path in
 `/lp-scaffold-stack`. Standalone `/lp-pick-stack` invocations have no marker;
 `/lp-scaffold-stack` then takes the slow path (full nonce-ledger check).
 """
+
 from __future__ import annotations
 
 import os
