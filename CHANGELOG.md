@@ -17,7 +17,7 @@ Mandatory `/lp-review` dual-pass wiring + `--no-context` blind-review flag + Lay
 - `/lp-review --no-context` flag (bias-stripped blind pass; Phase 1)
 - **Mandatory dual-pass review in `/lp-commit` Step 2.5 + `/lp-ship` Step 4.6** — was previously optional yes/no prompt; honors `--skip-review` on hotfix branches with TTY-guarded `BYPASS REVIEW` confirmation + audit-trail trailer (Phase 2). **Behavior change.**
 - `/lp-ship` 3-round autonomous fix loop with 90-min timeout (Phase 2)
-- Universal `lefthook.yml` routes test/typecheck/lint through `plugin-build-runner.py` — stack-aware per `.launchpad/config.yml` `commands.*` arrays (Phase 3 D1+D2). **Behavior change for downstream lefthook adopters.**
+- Universal `lefthook.yml` (self-host only at v2.1.1) routes test/typecheck/lint through `plugin-build-runner.py` — stack-aware per `.launchpad/config.yml` `commands.*` arrays (Phase 3 D1+D2). **Downstream lefthook propagation tracked as BL-316, scheduled for v2.1.2.**
 - New guide: [`docs/guides/CODE_REVIEW_LAYERS.md`](docs/guides/CODE_REVIEW_LAYERS.md) — three-layer architecture rationale + override patterns
 - `CLAUDE.md` Definition of Done extended with conditional Python gates (apply only when changes touch `*.py`)
 

@@ -121,7 +121,7 @@ For each round (1, 2, 3):
 
    **Comprehensive helper-based matching deferred to v2.1.2:** proper `fnmatch.fnmatchcase` + `**` glob expansion + path normalization + symlink rejection requires Python helper with correctness tests. v2.1.1 accepts prose-style judgment as the trade-off for shipping today.
 
-3. **Staged-diff scope check.** Verify finding's frontmatter `file:` field is in `git diff --name-only $STEP46_BASE_SHA..HEAD`. Out-of-scope findings deferred to manual review.
+3. **Staged-diff scope check.** Verify finding's frontmatter `file:` field is in `git diff --name-only origin/main..HEAD` (PR diff scope, matching `/lp-review` Step 1 at `lp-review.md:37`). Out-of-scope findings deferred to manual review. (Note: `STEP46_BASE_SHA` from line 79 is reserved for the LOC delta cap at line 80, NOT the scope check — at round 1 entry `STEP46_BASE_SHA == HEAD`, so a `STEP46_BASE_SHA..HEAD` scope check would be empty and short-circuit the loop on iteration 1.)
 4. **Resolver-rejected handling.** A finding is "resolver-rejected" iff after `/lp-resolve-todo-parallel` completes, `status` remains `pending` in `.harness/todos/*.md`. Frontmatter status is the canonical structured signal — no parsing of resolver stdout required. Resolver-rejected findings treated as denylisted for loop termination.
 5. IF zero non-denylisted, in-scope, fixable P1+ findings remain: BREAK; proceed to Step 5. Log: `"Step 4.6 dual-pass completed in {round} round(s)."`
 6. Run `/lp-resolve-todo-parallel` on the eligible subset.
