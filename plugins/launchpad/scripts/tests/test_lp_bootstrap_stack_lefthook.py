@@ -32,7 +32,10 @@ _SCRIPTS = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
-from lp_bootstrap.stack_lefthook import enrich_lefthook_with_stacks  # noqa: E402
+from lp_bootstrap.stack_lefthook import (  # noqa: E402
+    enrich_lefthook_with_stacks,
+    enumerate_lefthook_template_dependencies,
+)
 
 _PYTHON_PRECOMMIT_GATES = ("bandit", "ruff-check", "ruff-format-check")
 _PYTHON_PREPUSH_GATES = ("pyright", "pytest")
@@ -249,3 +252,136 @@ def test_kernel_only_commands_preserved_exactly(tmp_path: Path) -> None:
     typecheck = parsed["pre-commit"]["commands"]["typecheck"]
     assert typecheck["run"] == "pnpm typecheck"
     assert typecheck["priority"] == 10
+
+
+# --- BL-316 Slice 4c.5: manifest composite tamper-detection -----------------
+#
+# Closes the Codex P1 finding on b2d0673: pre-Slice-4c.5,
+# `manifest_writer.compute_source_template_shas` only hashed the kernel
+# `infrastructure/lefthook.yml.j2`. After Slice 4c.4 wired stack-aware
+# enrichment in, the rendered `lefthook.yml` ALSO depends on per-stack
+# lefthook fragments + the shared partials under `_partials/`. A
+# modification to any contributor would silently bypass the manifest
+# tamper-detection contract (`verify_source_template_shas`). Slice 4c.5
+# extends the kernel SHA into a composite that includes every
+# plugin-shipped contributor; the tests below lock that contract in.
+
+
+def test_enumerate_dependencies_includes_shared_partials() -> None:
+    """The two `_partials/` files must be in the dep list so
+    `verify_source_template_shas` fires when either is modified."""
+    deps = enumerate_lefthook_template_dependencies()
+    dep_names = {p.name for p in deps}
+    assert "_python_gates.j2.fragment" in dep_names
+    assert "_require_tool_macro.j2.fragment" in dep_names
+
+
+def test_enumerate_dependencies_includes_per_stack_fragments() -> None:
+    """Every per-stack `lefthook.j2.fragment` must be enumerated.
+    Regression shield against accidental directory-skip in the
+    enumeration loop."""
+    deps = enumerate_lefthook_template_dependencies()
+    dep_relpaths = {str(p.parent.parent.name) for p in deps if p.parent.name == "templates"}
+    # Active v2.1 stacks per STACK_ID_ACTIVE_ENUM should all have a
+    # lefthook fragment (every adapter ships one).
+    for stack_id in (
+        "nextjs_fastapi",
+        "nextjs_standalone",
+        "astro",
+        "generic",
+        "ts_monorepo",
+    ):
+        assert stack_id in dep_relpaths, (
+            f"missing lefthook fragment dep for stack {stack_id!r}"
+        )
+
+
+def test_enumerate_dependencies_is_deterministic_and_sorted() -> None:
+    """Multiple invocations return identical ordering. Critical for the
+    composite SHA's stability across processes / hosts."""
+    a = [str(p) for p in enumerate_lefthook_template_dependencies()]
+    b = [str(p) for p in enumerate_lefthook_template_dependencies()]
+    assert a == b
+
+
+def test_composite_lefthook_sha_changes_when_dep_content_modified(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Tamper detection: when ANY enumerated dependency's content
+    changes, the composite SHA must change. Locks in the BL-316
+    Slice 4c.5 fix for the Codex P1 manifest weakness on b2d0673."""
+    from lp_bootstrap import manifest_writer, stack_lefthook
+
+    fake_dep = tmp_path / "fake.fragment"
+    fake_dep.write_bytes(b"original content")
+    monkeypatch.setattr(
+        stack_lefthook,
+        "enumerate_lefthook_template_dependencies",
+        lambda: [fake_dep],
+    )
+
+    sha_before = manifest_writer._composite_lefthook_sha("kernel_sha_abc")
+    fake_dep.write_bytes(b"modified content")
+    sha_after = manifest_writer._composite_lefthook_sha("kernel_sha_abc")
+
+    assert sha_before != sha_after, (
+        "composite SHA must change when contributing dep content changes"
+    )
+
+
+def test_composite_lefthook_sha_changes_when_kernel_sha_changes() -> None:
+    """The kernel template SHA is part of the composite input; changing
+    it must propagate."""
+    from lp_bootstrap.manifest_writer import _composite_lefthook_sha
+
+    a = _composite_lefthook_sha("kernel_sha_one")
+    b = _composite_lefthook_sha("kernel_sha_two")
+    assert a != b
+
+
+def test_composite_lefthook_sha_is_stable_across_calls() -> None:
+    """Determinism: two invocations on the same plugin install with the
+    same kernel SHA produce the same composite. Required for manifest
+    SHA comparison to skip atomic writes on clean overlays."""
+    from lp_bootstrap.manifest_writer import _composite_lefthook_sha
+
+    a = _composite_lefthook_sha("test_kernel_sha")
+    b = _composite_lefthook_sha("test_kernel_sha")
+    assert a == b
+    assert len(a) == 64  # sha256 hex length
+
+
+def test_composite_lefthook_sha_differs_from_kernel_only_sha() -> None:
+    """The composite must integrate the kernel SHA non-trivially, NOT
+    just return the kernel SHA verbatim. Otherwise Slice 4c.5 is a
+    no-op and Codex P1 stays open."""
+    from lp_bootstrap.manifest_writer import _composite_lefthook_sha
+
+    kernel_sha = "a" * 64
+    composite = _composite_lefthook_sha(kernel_sha)
+    assert composite != kernel_sha
+
+
+def test_compute_source_template_shas_uses_composite_for_lefthook_only() -> None:
+    """End-to-end: `compute_source_template_shas` against the production
+    root produces a `lefthook.yml` SHA that does NOT equal the bare
+    kernel template SHA, while OTHER infrastructure files keep their
+    plain per-template SHA. Confirms the composite is correctly scoped
+    to lefthook.yml only and doesn't bleed into siblings."""
+    from lp_bootstrap.manifest_writer import (
+        _INFRA_TEMPLATE_ROOT,
+        compute_source_template_shas,
+    )
+    from plugin_default_generators._renderer_base import sha256_file
+
+    shas = compute_source_template_shas()
+    kernel_lefthook_path = _INFRA_TEMPLATE_ROOT / "lefthook.yml.j2"
+    bare_kernel_sha = sha256_file(kernel_lefthook_path)
+    assert shas["lefthook.yml"] != bare_kernel_sha, (
+        "lefthook.yml manifest SHA must be composite, not bare kernel SHA"
+    )
+
+    # Spot-check: gitignore (a non-stack-aware infra file) must still
+    # have its plain template SHA.
+    gitignore_path = _INFRA_TEMPLATE_ROOT / "gitignore.j2"
+    assert shas[".gitignore"] == sha256_file(gitignore_path)

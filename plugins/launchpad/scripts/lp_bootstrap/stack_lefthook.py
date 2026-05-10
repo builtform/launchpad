@@ -181,4 +181,49 @@ def _safe_dump_lefthook_yaml(payload: dict[str, Any]) -> str:
     )
 
 
-__all__ = ["enrich_lefthook_with_stacks"]
+def enumerate_lefthook_template_dependencies() -> list[Path]:
+    """Return all plugin-shipped template files that can contribute to a
+    rendered `lefthook.yml`. Used by
+    `manifest_writer.compute_source_template_shas` to compose a hash that
+    captures the full template surface — kernel + per-stack fragments +
+    shared partials — so manifest tamper-detection
+    (`verify_source_template_shas`) fires on modification of ANY
+    contributor, not just the kernel template.
+
+    Stable across bootstrap runs regardless of which stacks are persisted
+    in `.launchpad/config.yml`: the enumeration covers what CAN
+    contribute, not what DID on a given run. This avoids false-positive
+    tamper warnings when users legitimately add or remove stacks.
+
+    Sorted (POSIX-style) for cross-platform determinism. Returns an
+    empty list if `_STACK_FRAGMENTS_ROOT` is missing (e.g., in fixture-
+    root test scenarios where stack adapters aren't shipped).
+    """
+    if not _STACK_FRAGMENTS_ROOT.is_dir():
+        return []
+
+    deps: list[Path] = []
+
+    # Per-stack lefthook fragments. Skip dot-prefixed and
+    # underscore-prefixed entries (the latter covers `_partials/` which
+    # is enumerated separately below).
+    for stack_dir in sorted(_STACK_FRAGMENTS_ROOT.iterdir()):
+        if not stack_dir.is_dir():
+            continue
+        if stack_dir.name.startswith((".", "_")):
+            continue
+        fragment = stack_dir / "templates" / "lefthook.j2.fragment"
+        if fragment.is_file():
+            deps.append(fragment)
+
+    # Shared partials (everything under `_partials/` ending in .fragment).
+    partials_dir = _STACK_FRAGMENTS_ROOT / "_partials"
+    if partials_dir.is_dir():
+        for partial in sorted(partials_dir.iterdir()):
+            if partial.is_file() and partial.name.endswith(".fragment"):
+                deps.append(partial)
+
+    return deps
+
+
+__all__ = ["enrich_lefthook_with_stacks", "enumerate_lefthook_template_dependencies"]
