@@ -14,6 +14,7 @@ to the count of `docs/architecture/*` outputs the doc generator emits at
 v2.0 (PRD, TECH_STACK, BACKEND_STRUCTURE, APP_FLOW = 4) — single-source
 TIER1_ARCHITECTURE_DOCS_RENDERED constant lives in `lp_scaffold_stack/__init__.py`.
 """
+
 from __future__ import annotations
 
 import fcntl
@@ -21,9 +22,10 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timezone
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping, Sequence, TypedDict
+from typing import Any, TypedDict
 
 # Sibling-script imports.
 _SCRIPTS = Path(__file__).resolve().parent.parent
@@ -57,9 +59,11 @@ class LayerReceiptEntry(TypedDict):
 # v2.1.0 completion plan §3.5: receipt-side `*_meta` allowlist.
 # Mirrors `decision_validator._ALLOWED_DECISION_META_KEYS` on the
 # publishing surface; `adapter_dispatch_meta` is the only v2.1.0 sibling.
-_ALLOWED_RECEIPT_META_KEYS: frozenset[str] = frozenset({
-    "adapter_dispatch_meta",
-})
+_ALLOWED_RECEIPT_META_KEYS: frozenset[str] = frozenset(
+    {
+        "adapter_dispatch_meta",
+    }
+)
 
 # Cycle-5 lock per v2.1.0 completion plan §3.5: identical regex to the
 # validator-side `_META_KEY_REGEX`. Duplicated by-design at this seam to
@@ -89,7 +93,7 @@ class ReceiptBuildError(ValueError):
 
 
 def _utc_now_iso_sec() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def build_receipt_payload(

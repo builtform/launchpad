@@ -23,6 +23,7 @@ structured triple `.reason / .path / .remediation` documented in Phase 4
 §3.11.5(b), and bridge cleanly via `bridge_to_scaffold_error` at the engine
 boundary.
 """
+
 from __future__ import annotations
 
 from ._resolver import (

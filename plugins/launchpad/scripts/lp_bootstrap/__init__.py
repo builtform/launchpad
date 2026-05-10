@@ -35,14 +35,15 @@ Path inventory pinned in `INFRASTRUCTURE_FILES`. `.gitignore` renders FIRST
 in the loop (per harden C2) so sentinel + backup paths are gitignored before
 sentinel write fires.
 """
+
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from types import MappingProxyType
-from typing import Final, Literal, Mapping
-
+from typing import Final, Literal
 
 # --- Filesystem name constants --------------------------------------------
 
@@ -78,6 +79,7 @@ WARNINGS_FILENAME: Final[str] = "bootstrap-warnings.json"
 
 # --- Error code contract (section 3.7) ------------------------------------
 
+
 class BootstrapErrorCode(StrEnum):
     """Structured error codes raised by `/lp-bootstrap`.
 
@@ -90,6 +92,7 @@ class BootstrapErrorCode(StrEnum):
     `tests/test_bootstrap_manifest.py::test_no_unknown_error_codes_emitted`
     matching the Phase 1 `IdentityValidationError` precedent.
     """
+
     # Manifest-class
     MANIFEST_TAMPERED = "manifest_tampered"
     MANIFEST_CORRUPT = "manifest_corrupt"
@@ -132,6 +135,7 @@ class BootstrapStatus(StrEnum):
     informational outcomes the engine surfaces to callers (and to the
     `--recover` flow) to disambiguate "what state did we end up in".
     """
+
     # `--recover` cleared the sentinel; manifest unlinked because
     # manifest.created_at predated sentinel.acquired_at (provably stale).
     RECOVERED_SENTINEL_CLEAR_ONLY = "recovered_sentinel_clear_only"
@@ -144,6 +148,7 @@ class BootstrapStatus(StrEnum):
 @dataclass(frozen=True)
 class BootstrapError:
     """Structured per-file or per-run failure surfaced through engine result."""
+
     code: BootstrapErrorCode
     path: Path | None
     remediation: str
@@ -151,6 +156,7 @@ class BootstrapError:
 
 
 # --- 5-state cwd-state enum (section 3.9) ---------------------------------
+
 
 class BootstrapState(StrEnum):
     """Result of `cwd_state.infrastructure_present(cwd)`.
@@ -160,6 +166,7 @@ class BootstrapState(StrEnum):
     the boolean tuple shape is insufficient; brownfield `/lp-define`
     dispatches on richer state.
     """
+
     FULL = "full"
     PARTIAL_MISSING = "partial-missing"
     PARTIAL_STALE = "partial-stale"
@@ -169,6 +176,7 @@ class BootstrapState(StrEnum):
 
 # --- Per-file conflict policies (section 3.2) -----------------------------
 
+
 class BootstrapPolicy(StrEnum):
     """3 active policies (v2.1) plus 1 `--refresh`-mode variant.
 
@@ -176,6 +184,7 @@ class BootstrapPolicy(StrEnum):
     `overwrite-always`) are NOT shipped per harden B1; defer to Phase 4 if
     an adapter overlay demands them, else v2.2.
     """
+
     OVERWRITE_IF_UNCHANGED = "overwrite-if-unchanged"
     MERGE_KEYS = "merge-keys"
     APPEND_ONLY = "append-only"
@@ -203,71 +212,199 @@ class BootstrapPolicy(StrEnum):
 # Phase 4 stack-aware files; Phase 3 ships the stack-agnostic baseline
 # (Tier-1 typescript-monorepo defaults). Phase 4 adapter overlays
 # specialize via wrap-and-overlay.
-INFRASTRUCTURE_FILES: Final[tuple[
-    tuple[str, str, BootstrapPolicy, int], ...
-]] = (
+INFRASTRUCTURE_FILES: Final[tuple[tuple[str, str, BootstrapPolicy, int], ...]] = (
     # 1. Gitignore renders FIRST (harden C2)
     ("gitignore.j2", ".gitignore", BootstrapPolicy.APPEND_ONLY, 0o644),
-
     # 2-12. scripts/compound/ (build pipeline + config)
-    ("scripts/compound/build.sh.j2", "scripts/compound/build.sh", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o755),
-    ("scripts/compound/board.sh.j2", "scripts/compound/board.sh", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o755),
-    ("scripts/compound/analyze-report.sh.j2", "scripts/compound/analyze-report.sh", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o755),
-    ("scripts/compound/compound-learning.sh.j2", "scripts/compound/compound-learning.sh", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o755),
-    ("scripts/compound/evaluate.sh.j2", "scripts/compound/evaluate.sh", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o755),
-    ("scripts/compound/lib.sh.j2", "scripts/compound/lib.sh", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o644),
-    ("scripts/compound/loop.sh.j2", "scripts/compound/loop.sh", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o755),
-    ("scripts/compound/contract-prompt.md.j2", "scripts/compound/contract-prompt.md", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o644),
-    ("scripts/compound/evaluate-prompt.md.j2", "scripts/compound/evaluate-prompt.md", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o644),
-    ("scripts/compound/grading-criteria.md.j2", "scripts/compound/grading-criteria.md", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o644),
-    ("scripts/compound/iteration-claude.md.j2", "scripts/compound/iteration-claude.md", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o644),
-    ("scripts/compound/config.json.j2", "scripts/compound/config.json", BootstrapPolicy.MERGE_KEYS, 0o644),
-
+    (
+        "scripts/compound/build.sh.j2",
+        "scripts/compound/build.sh",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o755,
+    ),
+    (
+        "scripts/compound/board.sh.j2",
+        "scripts/compound/board.sh",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o755,
+    ),
+    (
+        "scripts/compound/analyze-report.sh.j2",
+        "scripts/compound/analyze-report.sh",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o755,
+    ),
+    (
+        "scripts/compound/compound-learning.sh.j2",
+        "scripts/compound/compound-learning.sh",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o755,
+    ),
+    (
+        "scripts/compound/evaluate.sh.j2",
+        "scripts/compound/evaluate.sh",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o755,
+    ),
+    (
+        "scripts/compound/lib.sh.j2",
+        "scripts/compound/lib.sh",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
+    (
+        "scripts/compound/loop.sh.j2",
+        "scripts/compound/loop.sh",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o755,
+    ),
+    (
+        "scripts/compound/contract-prompt.md.j2",
+        "scripts/compound/contract-prompt.md",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
+    (
+        "scripts/compound/evaluate-prompt.md.j2",
+        "scripts/compound/evaluate-prompt.md",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
+    (
+        "scripts/compound/grading-criteria.md.j2",
+        "scripts/compound/grading-criteria.md",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
+    (
+        "scripts/compound/iteration-claude.md.j2",
+        "scripts/compound/iteration-claude.md",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
+    (
+        "scripts/compound/config.json.j2",
+        "scripts/compound/config.json",
+        BootstrapPolicy.MERGE_KEYS,
+        0o644,
+    ),
     # 14-15. scripts/hooks/ (lefthook helpers)
-    ("scripts/hooks/audit-skills.sh.j2", "scripts/hooks/audit-skills.sh", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o755),
-    ("scripts/hooks/track-skill-usage.sh.j2", "scripts/hooks/track-skill-usage.sh", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o755),
-
+    (
+        "scripts/hooks/audit-skills.sh.j2",
+        "scripts/hooks/audit-skills.sh",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o755,
+    ),
+    (
+        "scripts/hooks/track-skill-usage.sh.j2",
+        "scripts/hooks/track-skill-usage.sh",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o755,
+    ),
     # 15a. v2.1 Codex PR #50 P1.A (D1): restamp-history commit-msg hook
     # (downstream-rendered template; introduces subject-line allowlist
     # accepting conventional-commit prefixes + `wip`).
-    ("scripts/hooks/restamp-history-hook.py.j2", "scripts/hooks/restamp-history-hook.py", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o755),
-
+    (
+        "scripts/hooks/restamp-history-hook.py.j2",
+        "scripts/hooks/restamp-history-hook.py",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o755,
+    ),
     # 16-17. scripts/maintenance/ (structure drift detection; Phase 4 stack-aware)
-    ("scripts/maintenance/check-repo-structure.sh.j2", "scripts/maintenance/check-repo-structure.sh", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o755),
-    ("scripts/maintenance/detect-structure-drift.sh.j2", "scripts/maintenance/detect-structure-drift.sh", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o755),
-
+    (
+        "scripts/maintenance/check-repo-structure.sh.j2",
+        "scripts/maintenance/check-repo-structure.sh",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o755,
+    ),
+    (
+        "scripts/maintenance/detect-structure-drift.sh.j2",
+        "scripts/maintenance/detect-structure-drift.sh",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o755,
+    ),
     # 18. scripts/agent_hydration/ (CLAUDE.md sub-agent enumeration)
-    ("scripts/agent_hydration/hydrate.sh.j2", "scripts/agent_hydration/hydrate.sh", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o755),
-
+    (
+        "scripts/agent_hydration/hydrate.sh.j2",
+        "scripts/agent_hydration/hydrate.sh",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o755,
+    ),
     # 19. lefthook.yml (Phase 4 stack-aware; v2.1 ships ts-monorepo baseline)
     ("lefthook.yml.j2", "lefthook.yml", BootstrapPolicy.MERGE_KEYS, 0o644),
-
     # 20. secret-patterns (sourced by lefthook secret-scan hook)
-    ("secret-patterns.txt.j2", ".launchpad/secret-patterns.txt", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o644),
-
+    (
+        "secret-patterns.txt.j2",
+        ".launchpad/secret-patterns.txt",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
     # 21-26. .github/ (governance + CI)
     ("github/CODEOWNERS.j2", ".github/CODEOWNERS", BootstrapPolicy.MERGE_KEYS, 0o644),
-    ("github/ISSUE_TEMPLATE/bug_report.yml.j2", ".github/ISSUE_TEMPLATE/bug_report.yml", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o644),
-    ("github/ISSUE_TEMPLATE/plugin_install_issue.yml.j2", ".github/ISSUE_TEMPLATE/plugin_install_issue.yml", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o644),
-    ("github/ISSUE_TEMPLATE/feature_request.yml.j2", ".github/ISSUE_TEMPLATE/feature_request.yml", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o644),
-    ("github/workflows/ci.yml.j2", ".github/workflows/ci.yml", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o644),
-    ("github/workflows/v2-handshake-lint.yml.j2", ".github/workflows/v2-handshake-lint.yml", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o644),
-
+    (
+        "github/ISSUE_TEMPLATE/bug_report.yml.j2",
+        ".github/ISSUE_TEMPLATE/bug_report.yml",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
+    (
+        "github/ISSUE_TEMPLATE/plugin_install_issue.yml.j2",
+        ".github/ISSUE_TEMPLATE/plugin_install_issue.yml",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
+    (
+        "github/ISSUE_TEMPLATE/feature_request.yml.j2",
+        ".github/ISSUE_TEMPLATE/feature_request.yml",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
+    (
+        "github/workflows/ci.yml.j2",
+        ".github/workflows/ci.yml",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
+    (
+        "github/workflows/v2-handshake-lint.yml.j2",
+        ".github/workflows/v2-handshake-lint.yml",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
     # 27-28. .harness/ (review context + gitignore)
-    ("harness/harness.local.md.j2", ".harness/harness.local.md", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o644),
-    ("harness/gitignore.j2", ".harness/.gitignore", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o644),
-
+    (
+        "harness/harness.local.md.j2",
+        ".harness/harness.local.md",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
+    (
+        "harness/gitignore.j2",
+        ".harness/.gitignore",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
     # 29-30. Review tooling configs
-    ("greptile.json.j2", ".greptile.json", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o644),
-    ("gitleaks.toml.j2", ".gitleaks.toml", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o644),
+    (
+        "greptile.json.j2",
+        ".greptile.json",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
+    (
+        "gitleaks.toml.j2",
+        ".gitleaks.toml",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
 )
 
 
 # Derived constants -------------------------------------------------------
 
-FILE_MODES: Final[Mapping[str, int]] = MappingProxyType({
-    target: mode for _template, target, _policy, mode in INFRASTRUCTURE_FILES
-})
+FILE_MODES: Final[Mapping[str, int]] = MappingProxyType(
+    {target: mode for _template, target, _policy, mode in INFRASTRUCTURE_FILES}
+)
 
 INFRASTRUCTURE_TARGETS: Final[frozenset[str]] = frozenset(
     target for _template, target, _policy, _mode in INFRASTRUCTURE_FILES
@@ -278,11 +415,13 @@ INFRASTRUCTURE_TARGETS: Final[frozenset[str]] = frozenset(
 # target_relpath. Co-located with INFRASTRUCTURE_FILES so the drift gate
 # (`set(HOOK_CLASSIFICATIONS) <= INFRASTRUCTURE_TARGETS`) catches any
 # rename mismatch. v2.2 BL-265 refactors to a dataclass single-source.
-HOOK_CLASSIFICATIONS: Final[Mapping[str, str]] = MappingProxyType({
-    "scripts/hooks/restamp-history-hook.py": "commit-msg",
-    "scripts/hooks/audit-skills.sh": "lefthook-helper",
-    "scripts/hooks/track-skill-usage.sh": "lefthook-helper",
-})
+HOOK_CLASSIFICATIONS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "scripts/hooks/restamp-history-hook.py": "commit-msg",
+        "scripts/hooks/audit-skills.sh": "lefthook-helper",
+        "scripts/hooks/track-skill-usage.sh": "lefthook-helper",
+    }
+)
 
 
 # v2.1 Codex PR #50 P1.D (D4): bootstrap sentinel staleness threshold (hours).

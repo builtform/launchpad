@@ -27,6 +27,7 @@ Exit codes:
   N   first command that failed returned code N
   2   fatal (bad args, config error, CI override mismatch)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -44,7 +45,6 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import yaml  # noqa: E402
-
 
 VALID_STAGES = ("test", "typecheck", "lint", "format", "build", "dev")
 
@@ -68,8 +68,7 @@ def load_commands(repo_root: Path, stage: str) -> list[str]:
     cfg_path = repo_root / ".launchpad" / "config.yml"
     if not cfg_path.is_file():
         raise ConfigMissingError(
-            f".launchpad/config.yml not found at {cfg_path}. "
-            "Run /lp-define to seed it."
+            f".launchpad/config.yml not found at {cfg_path}. Run /lp-define to seed it."
         )
 
     doc = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
@@ -89,7 +88,9 @@ def load_commands(repo_root: Path, stage: str) -> list[str]:
     if isinstance(val, str):
         return [val] if val else []
     if not isinstance(val, list):
-        raise ValueError(f"commands.{stage}: expected list or string, got {type(val).__name__}")
+        raise ValueError(
+            f"commands.{stage}: expected list or string, got {type(val).__name__}"
+        )
     # Every item MUST be a string. Previously this used str(v), which
     # silently coerced YAML scalars like `true`, `123`, or mappings into
     # shell command strings — turning a mistyped config into an executed
@@ -139,7 +140,8 @@ def _resolve_review_state(repo_root: Path) -> tuple[str, str, int]:
     script = SCRIPT_DIR / "plugin-config-hash.py"
     result = subprocess.run(
         [
-            sys.executable, str(script),
+            sys.executable,
+            str(script),
             f"--repo-root={repo_root}",
             "--resolve-review-state",
         ],
@@ -267,8 +269,7 @@ def run_stage(repo_root: Path, stage: str, *, check_only: bool = False) -> int:
                 return 2
         summary = ", ".join(f"{s}={n}" for s, n in per_stage_counts.items())
         print(
-            f"[preflight ok] requested-stage={stage}; "
-            f"all-stages-validated ({summary})",
+            f"[preflight ok] requested-stage={stage}; all-stages-validated ({summary})",
             file=sys.stderr,
         )
         return 0
@@ -307,6 +308,7 @@ def run_stage(repo_root: Path, stage: str, *, check_only: bool = False) -> int:
             SafeRunUnsupportedPlatform,
             safe_run_long_shell,
         )
+
         cmd = cmds[0]
         prefix = f"[{stage} 1/1]"
         print(f"{prefix} {cmd}", file=sys.stderr)
@@ -333,9 +335,11 @@ def run_stage(repo_root: Path, stage: str, *, check_only: bool = False) -> int:
     for i, cmd in enumerate(cmds, start=1):
         prefix = f"[{stage} {i}/{len(cmds)}]"
         print(f"{prefix} {cmd}", file=sys.stderr)
-        result = subprocess.run(cmd, shell=True, cwd=repo_root)
+        result = subprocess.run(cmd, shell=True, cwd=repo_root)  # nosec B602 -- shell=True intentional for stage runner; user-cmd from commands.<stage> array. Security boundary is `LP_CONFIG_REVIEWED` upstream gate, NOT this call site (cf. BL-308 | HANDSHAKE §6 | Phase 3 §6 threat-model). Also allowlisted in plugin-v2-handshake-lint LINT_SHELL_TRUE_ALLOWLIST.
         if result.returncode != 0:
-            print(f"{prefix} exited {result.returncode}; stopping stage", file=sys.stderr)
+            print(
+                f"{prefix} exited {result.returncode}; stopping stage", file=sys.stderr
+            )
             return result.returncode
 
     return 0

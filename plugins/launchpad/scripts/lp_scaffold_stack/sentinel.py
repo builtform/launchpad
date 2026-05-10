@@ -22,6 +22,7 @@ by `lp_update_identity/engine.py:_validate_preconditions` for
 bidirectional cross-detect; lifecycle write/clear is owned by
 `lp_scaffold_stack/engine.py`.
 """
+
 from __future__ import annotations
 
 import errno
@@ -29,7 +30,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -38,10 +39,8 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from atomic_io import _full_fsync_darwin, _fsync_parent  # noqa: E402
-
+from atomic_io import _fsync_parent, _full_fsync_darwin  # noqa: E402
 from lp_bootstrap import LAUNCHPAD_DIR_NAME  # noqa: E402
-
 
 SCAFFOLD_STACK_SENTINEL_NAME = ".scaffold-stack-in-progress"
 
@@ -53,6 +52,7 @@ class ScaffoldStackSentinelError(RuntimeError):
 @dataclass(frozen=True)
 class ScaffoldStackSentinelSnapshot:
     """Decoded scaffold-stack sentinel JSON payload."""
+
     command_pid: int
     started_at: str
     mode: str
@@ -64,7 +64,7 @@ def sentinel_path(cwd: Path) -> Path:
 
 
 def _utc_iso8601_now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def write_sentinel(
@@ -146,14 +146,10 @@ def read_sentinel(cwd: Path) -> ScaffoldStackSentinelSnapshot | None:
             )
     pid = payload["command_pid"]
     if not isinstance(pid, int):
-        raise ScaffoldStackSentinelError(
-            f"sentinel {target}: command_pid must be int"
-        )
+        raise ScaffoldStackSentinelError(f"sentinel {target}: command_pid must be int")
     mode_str = payload["mode"]
     if not isinstance(mode_str, str):
-        raise ScaffoldStackSentinelError(
-            f"sentinel {target}: mode must be a string"
-        )
+        raise ScaffoldStackSentinelError(f"sentinel {target}: mode must be a string")
     return ScaffoldStackSentinelSnapshot(
         command_pid=pid,
         started_at=str(payload["started_at"]),

@@ -8,6 +8,7 @@ filesystem-realpath check (`_validate_filesystem_safety`); the public
 `validate_relative_path()` orchestrates both. The split lets unit tests cover
 string-shape rules without touching the filesystem.
 """
+
 from __future__ import annotations
 
 import re

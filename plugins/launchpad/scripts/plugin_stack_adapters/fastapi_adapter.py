@@ -7,6 +7,7 @@ knowledge-anchor pattern doc (`fastapi-pattern.md`) into the layer dir.
 Per Phase 0.5 handoff §1.3: load-time pure (no subprocess), `run()` returns
 an AdapterOutput with `stack_id == "fastapi"`.
 """
+
 from .contracts import (
     AdapterOutput,
     AppFlowInfo,

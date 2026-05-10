@@ -19,6 +19,7 @@ Empty output when no workspace config / no matching manifests.
 Usage:
   LP_REPO_ROOT=/path/to/repo plugin-workspace-manifests.py
 """
+
 from __future__ import annotations
 
 import glob as _glob
@@ -35,6 +36,7 @@ def _read_pnpm_workspace_packages(pw: Path) -> list[str]:
     """
     if not pw.is_file():
         return []
+
     def _strip_inline_comment(s: str) -> str:
         """Strip a YAML-style trailing '# ...' comment, but only when the
         '#' is not inside a quoted string. Conservative: a quoted token

@@ -9,6 +9,7 @@ Dual-resolved SHAs only: every pin must have been verified via BOTH
 endpoint, with both returning the same value, before being recorded here.
 See Phase 4 plan section 3.2.
 """
+
 from __future__ import annotations
 
 import re

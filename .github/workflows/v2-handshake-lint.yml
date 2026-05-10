@@ -38,11 +38,60 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --require-hashes -r plugins/launchpad/scripts/requirements.txt
 
-      - name: Install pytest
-        run: python -m pip install pytest
-
       - name: Run v2 handshake lint
         run: python plugins/launchpad/scripts/plugin-v2-handshake-lint.py
+
+      # v2.1.1 Phase 4 — Layer 3 static analysis (DA-4.8). 6 step entries,
+      # 4 logical tools (ruff split into check + format; semgrep split into
+      # general + launchpad-internal). Required for parity with the lefthook
+      # pre-commit + pre-push gates so CI catches what local hooks would.
+      # Hash-pinned via plugins/launchpad/scripts/requirements.txt.
+
+      - name: Ruff check (style + import order + bugbear)
+        # 1 of 6: ruff lint check.
+        run: ruff check --config plugins/launchpad/scripts/pyproject.toml plugins/launchpad/scripts/
+
+      - name: Ruff format check (formatting consistency)
+        # 2 of 6: ruff format-check.
+        run: ruff format --check --config plugins/launchpad/scripts/pyproject.toml plugins/launchpad/scripts/
+
+      - name: Pyright type-check
+        # 3 of 6: pyright. Standard mode codebase-wide; strict on 3 contract
+        # modules (decision_validator, nonce_ledger, decision_integrity)
+        # via per-file `# pyright: strict` directive.
+        working-directory: plugins/launchpad/scripts
+        run: pyright
+
+      - name: Bandit security audit (medium+ severity)
+        # 4 of 6: bandit at MEDIUM+ matches local lefthook gate.
+        run: bandit -r plugins/launchpad/scripts/ -x '_vendor,tests' -ll
+
+      - name: Semgrep general patterns (R1-T1-X exit-code branching)
+        # 5 of 6: 8 universal Python static-analysis patterns. Distinguish
+        # exit 1 (rule fired) from exit 2+ (tool crashed/timed out).
+        run: |
+          set +e
+          timeout 120 semgrep --config=plugins/launchpad/.semgrep/general.yml \
+            plugins/launchpad/scripts/ --error --metrics=off
+          ec=$?
+          set -e
+          if [ "$ec" -eq 0 ]; then echo "semgrep general: clean"; exit 0
+          elif [ "$ec" -eq 1 ]; then echo "semgrep general: rule findings (exit 1)"; exit 1
+          else echo "semgrep general: TOOL CRASH or TIMEOUT (exit $ec) — escalate"; exit "$ec"; fi
+
+      - name: Semgrep launchpad-internal invariants (R1-T1-X exit-code branching)
+        # 6 of 6: 4 LaunchPad-internal cross-cutting invariants
+        # (atomic_io trusted_root + kernel SHA domain-tag + composition
+        # backup rmtree + v2 module safe_run usage).
+        run: |
+          set +e
+          timeout 120 semgrep --config=plugins/launchpad/.semgrep/launchpad-internal.yml \
+            plugins/launchpad/scripts/ --error --metrics=off
+          ec=$?
+          set -e
+          if [ "$ec" -eq 0 ]; then echo "semgrep launchpad-internal: clean"; exit 0
+          elif [ "$ec" -eq 1 ]; then echo "semgrep launchpad-internal: invariant violation (exit 1)"; exit 1
+          else echo "semgrep launchpad-internal: TOOL CRASH or TIMEOUT (exit $ec) — escalate"; exit "$ec"; fi
 
       - name: Schema-CODEOWNERS gate (v2.1+)
         # V3 plan §11.6 + §11.7 + HANDSHAKE §10.v2.1: schema-source code
@@ -96,8 +145,8 @@ jobs:
         # exists yet (e.g., pre-tag development cycles).
         run: |
           version=$(python -c "import json; print(json.load(open('plugins/launchpad/.claude-plugin/plugin.json'))['version'])")
-          if grep -q "^## \[$version\]" CHANGELOG.md; then
+          if grep -qE "^## \[v?$version\]" CHANGELOG.md; then
             python plugins/launchpad/scripts/plugin-backlog-orphan-check.py --release "$version"
           else
-            echo "backlog-orphan-check: skipped (no [$version] block in CHANGELOG.md yet)"
+            echo "backlog-orphan-check: skipped (no [$version] or [v$version] block in CHANGELOG.md yet)"
           fi

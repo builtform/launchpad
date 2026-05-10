@@ -19,10 +19,11 @@ The frontmatter parser is intentionally minimal — we don't depend on the
 heavyweight `frontmatter` package; the simple `---` block delimiters and
 YAML body parse via the already-vendored PyYAML.
 """
+
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -74,7 +75,7 @@ def _split_frontmatter(text: str) -> tuple[str, str]:
             reason="brainstorm_summary_invalid_frontmatter",
         )
     fm = "\n".join(lines[start:end])
-    body = "\n".join(lines[end + 1:])
+    body = "\n".join(lines[end + 1 :])
     return fm, body
 
 
@@ -104,7 +105,12 @@ def validate_frontmatter(fm: dict[str, Any]) -> None:
       - `brainstorm_summary_greenfield_false`: well-formed but greenfield: false
     """
     # Required keys present.
-    required = {"generated_at", "generated_by", "greenfield", "cwd_state_when_generated"}
+    required = {
+        "generated_at",
+        "generated_by",
+        "greenfield",
+        "cwd_state_when_generated",
+    }
     missing = required - set(fm.keys())
     if missing:
         raise BrainstormSummaryError(
@@ -121,7 +127,9 @@ def validate_frontmatter(fm: dict[str, Any]) -> None:
     generated_at = fm["generated_at"]
     if isinstance(generated_at, datetime):
         # Reject naive datetimes (no tzinfo) — the spec requires UTC Z suffix.
-        if generated_at.tzinfo is None or generated_at.utcoffset() != timezone.utc.utcoffset(None):
+        if generated_at.tzinfo is None or generated_at.utcoffset() != UTC.utcoffset(
+            None
+        ):
             raise BrainstormSummaryError(
                 f"brainstorm-summary.md `generated_at` must be UTC (Z suffix); "
                 f"got {generated_at!r} (naive or non-UTC tzinfo)",

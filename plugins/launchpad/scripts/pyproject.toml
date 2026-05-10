@@ -1,0 +1,91 @@
+# LaunchPad v2.1.1 Phase 4 — Layer 3 static analysis configuration.
+#
+# Located at plugins/launchpad/scripts/pyproject.toml (NOT repo root) per
+# R1-T1-19 — symmetric with vendor-pin location DA-4.1, preserves plugin
+# downstream-portability. Self-host only at v2.1.1; downstream emission is
+# v2.1.x BL (DA-4.10).
+#
+# Tools configured here:
+#   - ruff       (style + import + bugbear; lefthook pre-commit gate)
+#   - pyright    (type-check; lefthook pre-push gate; strict on 5 contract modules)
+#   - bandit     (security audit at MEDIUM+; lefthook pre-commit gate)
+#
+# Semgrep rules live separately at plugins/launchpad/.semgrep/{general,launchpad-internal}.yml.
+
+[tool.ruff]
+target-version = "py311"
+# Paths are relative to this pyproject.toml's directory
+# (= plugins/launchpad/scripts/). `tests/` excluded per R1-T1-2 — those carry
+# 200+ deferred ruff violations; v2.1.x BL: tests-dir ruff baseline.
+extend-exclude = [
+    "_vendor",
+    "plugin_stack_adapters/_vendor",
+    "tests",
+    "**/*.j2",
+]
+
+[tool.ruff.lint]
+extend-select = ["E", "F", "I", "B", "UP"]
+extend-ignore = [
+    # 181 violations dominantly in error-message strings + URLs; manual rewrap
+    # is high-effort low-value; deferred to v2.1.x BL (choose between raising
+    # line-length to 100 OR systematic rewrap into named constants).
+    "E501",
+]
+
+[tool.ruff.format]
+# Standard ruff format defaults; mirror the eslint-fix + prettier-fix pairing
+# pattern used on the TS side.
+
+[tool.pyright]
+include = ["."]
+exclude = [
+    "**/_vendor",
+    "**/tests",
+    "**/*.j2",
+    "plugin_stack_adapters/_vendor",
+]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
+
+# Pre-existing v2.0 type-surface accommodation (v2.1.1 Phase 4 introduces
+# the GATE; pre-existing 30 errors are NOT part of Phase 4's scope — fixing
+# them in-flight would expand the phase by 4-8h). Each downgraded rule has
+# a v2.1.x BL pin to lift back to "error" once the pre-existing surface is
+# cleaned. Per-file `# pyright: strict` directives on 5 contract modules
+# OVERRIDE these severities (strict re-enables them as errors at the call
+# site). New code outside the 5 strict modules: use `# type: ignore[xxx]`
+# at call sites if the warning is truly intentional, OR fix the type.
+reportArgumentType = "warning"          # 16 sites (BL-308)
+reportOptionalMemberAccess = "warning"  # 5 sites (BL-308)
+reportReturnType = "warning"            # 3 sites: stack adapter Pin/dict (BL-308)
+reportPossiblyUnboundVariable = "warning"  # 2 sites: lp_bootstrap/engine.py (BL-308)
+reportTypedDictNotRequiredAccess = "warning"  # 1 site: polyglot.py (BL-308)
+reportRedeclaration = "warning"         # 1 site: template_cache/_store.py:480 (BL-308)
+reportMissingImports = "warning"        # 1 site: lp_define_runner.py:480 (BL-308; dynamic-import path)
+reportAttributeAccessIssue = "warning"  # 1 site: jinja2.SandboxedEnvironment (BL-308; vendored type stub gap)
+# Per-file `# pyright: strict` directives on 3 SECURITY-BOUNDARY modules
+# (DA-4.4 + DA-4.11 R1-T1-10 hybrid escalation): the original 5-module set
+# included two engine.py modules (lp_pick_stack/engine.py 23 errors +
+# lp_scaffold_stack/engine.py 108 errors) which are subprocess/path-
+# manipulation surfaces dominated by Any-leakage from JSON/path APIs —
+# NOT security-boundary code. Per R2-T1-18 priority + Hybrid disposition,
+# strict ships on the 3 trust-surface modules; engines BL'd to v2.1.x.
+#   - lp_scaffold_stack/decision_validator.py  (JSON validation boundary; R2-T1-18 MUST-include)
+#   - lp_scaffold_stack/nonce_ledger.py        (identity scoping)
+#   - decision_integrity.py                    (decision-hash validation)
+# BL'd to v2.1.x:
+#   - lp_pick_stack/engine.py                  (23 strict-mode errors)
+#   - lp_scaffold_stack/engine.py              (108 strict-mode errors)
+
+[tool.bandit]
+exclude_dirs = [
+    "_vendor",
+    "plugin_stack_adapters/_vendor",
+    "tests",
+]
+# Severity gate: medium+ at lefthook + CI; LOW skipped at v2.1.1 (40 LOW
+# findings dominantly false-positive-class — B311 SystemRandom, B404
+# subprocess imports, B608 SQL false-positives on error-message strings).
+# BL-pinned: manual LOW-severity audit cadence + `# nosec` documentation pass.
+# CLI invocation: bandit -r plugins/launchpad/scripts/ -ll

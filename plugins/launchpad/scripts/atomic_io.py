@@ -30,6 +30,7 @@ over the bytes they wrote, or seal a payload via canonical_hash, do that
 themselves and pass the encoded bytes in. Keeping the helpers I/O-only
 preserves testability (no payload-shape coupling).
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -38,9 +39,8 @@ import os
 import sys
 import tempfile
 import warnings
+from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Iterator, Mapping
-
 
 __all__ = [
     "atomic_write_excl",
@@ -90,10 +90,7 @@ def _assert_path_safe(
     target_abs = target if target.is_absolute() else (trusted_abs / target)
     # Check 1: target itself.
     if target_abs.is_symlink():
-        raise OSError(
-            f"atomic_io: refused write through symlinked target "
-            f"{target!r}"
-        )
+        raise OSError(f"atomic_io: refused write through symlinked target {target!r}")
     # Check 2: walk parent chain up to trusted_root inclusive. We compare
     # `current.resolve()` against `trusted_abs` because the unresolved
     # chain may traverse system-level symlinks (e.g., macOS
@@ -103,12 +100,11 @@ def _assert_path_safe(
     while True:
         try:
             current_resolved = current.resolve()
-        except OSError:
+        except OSError as err:
             # Component disappeared mid-walk; refuse fail-closed.
             raise OSError(
-                f"atomic_io: parent chain of {target!r} could not be "
-                f"resolved"
-            )
+                f"atomic_io: parent chain of {target!r} could not be resolved"
+            ) from err
         if not current_resolved.is_relative_to(trusted_abs):
             # Walked above trusted_root — Check 3 below is the
             # authoritative escape-detector, so leave that to it.
@@ -288,9 +284,9 @@ def atomic_write_replace(
 
 
 def atomic_write_replace_batch(
-    batch: "Mapping[Path, bytes]",
+    batch: Mapping[Path, bytes],
     *,
-    modes: "Mapping[Path, int] | None" = None,
+    modes: Mapping[Path, int] | None = None,
     default_mode: int = 0o600,
     trusted_root: Path | None = None,
 ) -> None:

@@ -19,26 +19,30 @@ multi-frontend-allowed, backend-managed-pairing, path-uniqueness) compose
 ON TOP OF the per-tuple base check. The base helper (`is_valid_combination`)
 is gating the single-stack tuples; the cross-layer rules are gated here.
 """
+
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
-from lp_pick_stack import VALID_COMBINATIONS, is_valid_combination
+from lp_pick_stack import is_valid_combination
 
 # Roles allowed in a v2.0 scaffold-decision.json layer.role field
 # (HANDSHAKE §4 schema enum). Manual-override accepts the same superset; the
 # (stack, role) tuple is then constrained to VALID_COMBINATIONS (a subset).
-ALLOWED_ROLES = frozenset({
-    "frontend",
-    "backend",
-    "frontend-main",
-    "frontend-dashboard",
-    "fullstack",
-    "mobile",
-    "backend-managed",
-    "desktop",
-})
+ALLOWED_ROLES = frozenset(
+    {
+        "frontend",
+        "backend",
+        "frontend-main",
+        "frontend-dashboard",
+        "fullstack",
+        "mobile",
+        "backend-managed",
+        "desktop",
+    }
+)
 
 
 class ManualOverrideError(ValueError):
@@ -62,16 +66,12 @@ def _normalize_layer(raw: Mapping[str, Any], index: int, cwd: Path) -> dict:
     """
     field = f"layers[{index}]"
     if not isinstance(raw, Mapping):
-        raise ManualOverrideError(
-            f"expected mapping, got {type(raw).__name__}", field
-        )
+        raise ManualOverrideError(f"expected mapping, got {type(raw).__name__}", field)
     for key in ("stack", "role", "path"):
         if key not in raw:
             raise ManualOverrideError(f"missing required key {key!r}", field)
         if not isinstance(raw[key], str) or not raw[key]:
-            raise ManualOverrideError(
-                f"{key} must be non-empty str", f"{field}.{key}"
-            )
+            raise ManualOverrideError(f"{key} must be non-empty str", f"{field}.{key}")
 
     stack = raw["stack"]
     role = raw["role"]
@@ -143,6 +143,7 @@ def resolve_manual(
     # against `supabase` from a sibling layer.
     def _norm(p: str) -> str:
         return p.rstrip("/") if p != "/" else p
+
     paths = [layer["path"] for layer in layers]
     norm_paths = [_norm(p) for p in paths]
     if len(norm_paths) != len(set(norm_paths)):
@@ -168,12 +169,14 @@ def resolve_manual(
     if "backend-managed" in roles:
         # Allowed peers: frontend, frontend-main, frontend-dashboard
         # (NOT backend or fullstack — would mean two backends)
-        allowed_peers = frozenset({
-            "backend-managed",
-            "frontend",
-            "frontend-main",
-            "frontend-dashboard",
-        })
+        allowed_peers = frozenset(
+            {
+                "backend-managed",
+                "frontend",
+                "frontend-main",
+                "frontend-dashboard",
+            }
+        )
         for r in roles:
             if r not in allowed_peers:
                 raise ManualOverrideError(

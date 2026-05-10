@@ -163,3 +163,30 @@ def test_multi_version_label_is_parsed(tmp_path: Path) -> None:
     assert _run("2.1.0", bl, cl).returncode == 0
     assert _run("2.0.1", bl, cl).returncode == 0
     assert _run("2.0.2", bl, cl).returncode == 0
+
+
+def test_pass_with_v_prefixed_changelog_heading(tmp_path: Path) -> None:
+    """Regression test (v2.1.1 Slice I): orphan-check tolerates `## [v<version>]`.
+
+    The release-notes-check.yml v2.1 co-ship invariant requires CHANGELOG
+    headings to use the `v` prefix (`^## (\\[)?v2\\.1\\.[0-9]+(\\])?`).
+    The orphan-check regex must accept both `[2.1.1]` (legacy) and
+    `[v2.1.1]` (v2.1.1+ canonical) so the slip-prevention gate stays
+    active across both heading conventions.
+    """
+    bl, cl = _write(
+        tmp_path,
+        """
+        # BACKLOG
+        #### BL-200 - v2.1.1: shipped feature
+        Body text.
+        """,
+        """
+        # Changelog
+        ## [v2.1.1]
+        ### Added
+        - BL-200 reference
+        """,
+    )
+    # BL-200 is referenced in the [v2.1.1] block: PASS
+    assert _run("2.1.1", bl, cl).returncode == 0

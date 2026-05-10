@@ -37,6 +37,7 @@ Sequential render (Codex PR #50 P1-B harden):
      paths in reverse order. Errors during cleanup are logged with the
      secrets-warning recommendation per harden P0.
 """
+
 from __future__ import annotations
 
 import errno
@@ -48,18 +49,15 @@ import shutil
 import stat
 import sys
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Iterable
 
 from .contracts import (
     Adapter,
-    AdapterScaffoldError,
     StackIdActive,
-    _validate_package_workspace_paths,
-    _validate_workspace_source_map,
 )
 
 LOG = logging.getLogger("plugin_stack_adapters.composition")
@@ -101,9 +99,7 @@ _REJECT_TS_MONOREPO = (
     "stack. Pick one of: ts_monorepo (alone) OR nextjs_standalone/"
     "nextjs_fastapi/astro/generic with a second stack."
 )
-_REJECT_DUPLICATE = (
-    "Duplicate stacks are not allowed. Pick two different stacks."
-)
+_REJECT_DUPLICATE = "Duplicate stacks are not allowed. Pick two different stacks."
 _COLLISION_INFO = (
     "Renamed first 'app' workspace to 'app-fe' due to composition "
     "collision; second adapter retains 'app'."
@@ -221,10 +217,7 @@ def _validate_workspace_source_map_consistency(adapter: Adapter) -> None:
         extras = tuple(getattr(adapter, "additional_workspaces", ()))
         if extras:
             raise CompositionAbortError(
-                reason=(
-                    CompositionRejectionCode
-                    .WORKSPACE_SOURCE_MAP_MISMATCH.value
-                ),
+                reason=(CompositionRejectionCode.WORKSPACE_SOURCE_MAP_MISMATCH.value),
                 path=None,
                 remediation=(
                     f"adapter {adapter.stack_id} declares "
@@ -244,10 +237,7 @@ def _validate_workspace_source_map_consistency(adapter: Adapter) -> None:
     extra_keys = map_keys - declared
     if extra_keys:
         raise CompositionAbortError(
-            reason=(
-                CompositionRejectionCode
-                .WORKSPACE_SOURCE_MAP_MISMATCH.value
-            ),
+            reason=(CompositionRejectionCode.WORKSPACE_SOURCE_MAP_MISMATCH.value),
             path=None,
             remediation=(
                 f"adapter {adapter.stack_id} workspace_source_map_composition "
@@ -260,10 +250,7 @@ def _validate_workspace_source_map_consistency(adapter: Adapter) -> None:
     missing_keys = declared - map_keys
     if missing_keys:
         raise CompositionAbortError(
-            reason=(
-                CompositionRejectionCode
-                .WORKSPACE_SOURCE_MAP_MISMATCH.value
-            ),
+            reason=(CompositionRejectionCode.WORKSPACE_SOURCE_MAP_MISMATCH.value),
             path=None,
             remediation=(
                 f"adapter {adapter.stack_id} declares "
@@ -318,9 +305,7 @@ def resolve_workspace_allocation(
     # Resolve the `app + app` collision: if BOTH primary workspace_names are
     # 'app', rename the FIRST occurrence to 'app-fe' per section 3.4 +
     # section 3.12 INFO log.
-    primary_app_claimers = [
-        a for a in adapters if a.workspace_name == "app"
-    ]
+    primary_app_claimers = [a for a in adapters if a.workspace_name == "app"]
     if len(primary_app_claimers) == 2:
         first_adapter = primary_app_claimers[0]
         # rebuild mapping respecting the collision rename
@@ -397,19 +382,14 @@ def _build_placement_plan(
                 # additional_workspaces still in dest_names without primary
                 # entry): fall back to renamed primary if exactly one
                 # un-claimed dest_name remains.
-                claimed = {
-                    e.dest_workspace_name
-                    for e in plan
-                    if e.adapter is adapter
-                }
+                claimed = {e.dest_workspace_name for e in plan if e.adapter is adapter}
                 remaining = [d for d in dest_names if d not in claimed]
                 if declared_key == primary and len(remaining) == 1:
                     dest_workspace_name = remaining[0]
                 else:
                     raise CompositionAbortError(
                         reason=(
-                            CompositionRejectionCode
-                            .WORKSPACE_SOURCE_MAP_MISMATCH.value
+                            CompositionRejectionCode.WORKSPACE_SOURCE_MAP_MISMATCH.value
                         ),
                         path=None,
                         remediation=(
@@ -467,9 +447,7 @@ def _reject_symlinks_in_subtree(src: Path) -> None:
         # is_symlink() on a missing path is False; so a stat check covers
         # the "src never existed" case in caller.
         return
-    for dirpath, dirnames, filenames in os.walk(
-        str(src), followlinks=False
-    ):
+    for dirpath, dirnames, filenames in os.walk(str(src), followlinks=False):
         for name in (*dirnames, *filenames):
             child = Path(dirpath) / name
             try:
@@ -478,10 +456,7 @@ def _reject_symlinks_in_subtree(src: Path) -> None:
                 continue
             if stat.S_ISLNK(child_stat.st_mode):
                 raise CompositionAbortError(
-                    reason=(
-                        CompositionRejectionCode
-                        .SYMLINK_IN_SCAFFOLD_TREE.value
-                    ),
+                    reason=(CompositionRejectionCode.SYMLINK_IN_SCAFFOLD_TREE.value),
                     path=child,
                     remediation=(
                         f"scaffold tree contains symlink at {child}; "
@@ -492,9 +467,7 @@ def _reject_symlinks_in_subtree(src: Path) -> None:
                 )
 
 
-def _assert_within(
-    candidate: Path, root: Path, *, field_name: str
-) -> Path:
+def _assert_within(candidate: Path, root: Path, *, field_name: str) -> Path:
     """Per Codex PR #50 P1-B harden P1-α: containment check before every
     `os.replace`. `Path.is_relative_to` rejects path traversal even if the
     adapter import-time validator was bypassed.
@@ -506,10 +479,7 @@ def _assert_within(
     resolved_root = root.resolve(strict=False)
     if not resolved_candidate.is_relative_to(resolved_root):
         raise CompositionAbortError(
-            reason=(
-                CompositionRejectionCode
-                .PATH_TRAVERSAL_IN_WORKSPACE_MAP.value
-            ),
+            reason=(CompositionRejectionCode.PATH_TRAVERSAL_IN_WORKSPACE_MAP.value),
             path=candidate,
             remediation=(
                 f"{field_name} resolves to {resolved_candidate} which "
@@ -575,7 +545,7 @@ def _backup_existing_target(
 def _rollback(
     rendered_tempdirs: list[tuple[Adapter, Path]],
     placed_paths: list[Path],
-    backups: "list[tuple[Path, Path]] | None" = None,
+    backups: list[tuple[Path, Path]] | None = None,
 ) -> None:
     """Per Codex PR #50 P1-B harden P1-γ: rollback rmtrees BOTH rendered
     tempdirs AND already-placed `apps/<workspace>/` + composition_root
@@ -624,7 +594,11 @@ def _rollback(
                         "rollback could not restore %s from backup %s: "
                         "original path still exists post-rollback. Manual "
                         "intervention required: rm -rf %s && mv %s %s",
-                        original, backup, original, backup, original,
+                        original,
+                        backup,
+                        original,
+                        backup,
+                        original,
                     )
                     continue
                 os.rename(str(backup), str(original))
@@ -633,9 +607,12 @@ def _rollback(
                     "rollback restore failed for %s -> %s; manual cleanup "
                     "required (backup at %s contains user's pre-composition "
                     "tree; mv it back manually): %s",
-                    backup, original, backup, restore_err,
+                    backup,
+                    original,
+                    backup,
+                    restore_err,
                 )
-    for adapter, tempdir in rendered_tempdirs:
+    for _adapter, tempdir in rendered_tempdirs:
         try:
             shutil.rmtree(tempdir, ignore_errors=False)
         except OSError as cleanup_err:
@@ -666,10 +643,7 @@ def _check_no_residual_moved_subtree(
             offenders.append(candidate)
     if offenders:
         raise CompositionAbortError(
-            reason=(
-                CompositionRejectionCode
-                .RESIDUAL_TAMPERED_TEMPDIR.value
-            ),
+            reason=(CompositionRejectionCode.RESIDUAL_TAMPERED_TEMPDIR.value),
             path=tempdir,
             remediation=(
                 f"tempdir {tempdir} contains residual paths previously "
@@ -703,10 +677,7 @@ def _validate_backup_relpath(relpath: Path) -> None:
     """
     if relpath.is_absolute():
         raise CompositionAbortError(
-            reason=(
-                CompositionRejectionCode
-                .PATH_TRAVERSAL_IN_WORKSPACE_MAP.value
-            ),
+            reason=(CompositionRejectionCode.PATH_TRAVERSAL_IN_WORKSPACE_MAP.value),
             path=relpath,
             remediation=(
                 f"backup relpath {relpath!r} is absolute; v2.1 requires "
@@ -717,10 +688,7 @@ def _validate_backup_relpath(relpath: Path) -> None:
     for part in relpath.parts:
         if part in ("", ".."):
             raise CompositionAbortError(
-                reason=(
-                    CompositionRejectionCode
-                    .PATH_TRAVERSAL_IN_WORKSPACE_MAP.value
-                ),
+                reason=(CompositionRejectionCode.PATH_TRAVERSAL_IN_WORKSPACE_MAP.value),
                 path=relpath,
                 remediation=(
                     f"backup relpath {relpath!r} contains forbidden "
@@ -731,10 +699,7 @@ def _validate_backup_relpath(relpath: Path) -> None:
             )
         if "\x00" in part or "/" in part or "\\" in part:
             raise CompositionAbortError(
-                reason=(
-                    CompositionRejectionCode
-                    .PATH_TRAVERSAL_IN_WORKSPACE_MAP.value
-                ),
+                reason=(CompositionRejectionCode.PATH_TRAVERSAL_IN_WORKSPACE_MAP.value),
                 path=relpath,
                 remediation=(
                     f"backup relpath {relpath!r} contains null byte or "
@@ -778,9 +743,7 @@ def _read_plugin_version_for_manifest(composition_root: Path) -> str:
     Returns "unknown" if the decision file is missing or malformed.
     Manifest write must not fail because of decision-file unavailability.
     """
-    decision_path = (
-        composition_root / ".launchpad" / "scaffold-decision.json"
-    )
+    decision_path = composition_root / ".launchpad" / "scaffold-decision.json"
     try:
         text = decision_path.read_text(encoding="utf-8")
         payload = json.loads(text)
@@ -832,7 +795,9 @@ def _relocate_backups_to_launchpad(
     os.chmod(staging_dir, 0o700)
 
     # Phase A: stage all backups. Track for rollback on partial failure.
-    staged: list[tuple[Path, Path, Path]] = []  # (workspace_backup, staged_dest, original_target)
+    staged: list[
+        tuple[Path, Path, Path]
+    ] = []  # (workspace_backup, staged_dest, original_target)
     try:
         for target, workspace_backup in backups:
             relpath = target.relative_to(composition_root)
@@ -843,8 +808,7 @@ def _relocate_backups_to_launchpad(
                 dest,
                 staging_dir,
                 field_name=(
-                    f"backup-relocation dest for relpath "
-                    f"{relpath.as_posix()!r}"
+                    f"backup-relocation dest for relpath {relpath.as_posix()!r}"
                 ),
             )
             try:
@@ -897,21 +861,21 @@ def _relocate_backups_to_launchpad(
     for _workspace_backup, staged_dest, target in staged:
         relpath_posix = target.relative_to(composition_root).as_posix()
         file_count, size_bytes = _count_tree(staged_dest)
-        manifest_targets.append({
-            "original_path": relpath_posix,
-            "size_bytes": size_bytes,
-            "file_count": file_count,
-        })
+        manifest_targets.append(
+            {
+                "original_path": relpath_posix,
+                "size_bytes": size_bytes,
+                "file_count": file_count,
+            }
+        )
     composition_run_id = hashlib.sha256(
-        "|".join(sorted(
-            str(t["original_path"]) for t in manifest_targets
-        )).encode("utf-8")
+        "|".join(sorted(str(t["original_path"]) for t in manifest_targets)).encode(
+            "utf-8"
+        )
     ).hexdigest()[:8]
     manifest = {
         "schema_version": "1.0",
-        "created_at": datetime.now(timezone.utc).strftime(
-            "%Y-%m-%dT%H:%M:%SZ"
-        ),
+        "created_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "composition_run_id": composition_run_id,
         "targets": manifest_targets,
         "plugin_version": _read_plugin_version_for_manifest(composition_root),
@@ -986,7 +950,7 @@ def _warn_if_backups_dir_large(composition_root: Path) -> None:
     for entry in entries:
         _, sz = _count_tree(entry)
         total_bytes += sz
-    one_gb = 1024 ** 3
+    one_gb = 1024**3
     if len(entries) > 50 or total_bytes > one_gb:
         sys.stderr.write(
             f"warn: .launchpad/backups/ contains {len(entries)} backup "
@@ -1041,8 +1005,7 @@ def compose(
             if pkg_path in seen_packages:
                 raise CompositionAbortError(
                     reason=(
-                        CompositionRejectionCode
-                        .PACKAGE_WORKSPACE_PATH_COLLISION.value
+                        CompositionRejectionCode.PACKAGE_WORKSPACE_PATH_COLLISION.value
                     ),
                     path=composition_root,
                     remediation=(
@@ -1103,8 +1066,7 @@ def compose(
             if not src.exists():
                 raise CompositionAbortError(
                     reason=(
-                        CompositionRejectionCode
-                        .WORKSPACE_SOURCE_MAP_MISMATCH.value
+                        CompositionRejectionCode.WORKSPACE_SOURCE_MAP_MISMATCH.value
                     ),
                     path=src,
                     remediation=(
@@ -1119,9 +1081,7 @@ def compose(
             workspace_target = _assert_within(
                 workspace_target_raw,
                 composition_root,
-                field_name=(
-                    f"apps/{entry.dest_workspace_name}"
-                ),
+                field_name=(f"apps/{entry.dest_workspace_name}"),
             )
             # v2.1 Codex PR #50 post-review P0: replace rmtree-then-place
             # with backup-rename-then-place. Atomic rename preserves the
@@ -1200,9 +1160,7 @@ def compose(
     # The relocation preserves the user's pre-existing tree forensically
     # AND lifts it OUT of workspace globs (`apps/*`, `packages/*`) so the
     # next composition run cannot trigger `STALE_PRE_COMPOSITION_BACKUP`.
-    final_backup_dir = _relocate_backups_to_launchpad(
-        backups, composition_root
-    )
+    final_backup_dir = _relocate_backups_to_launchpad(backups, composition_root)
     if final_backup_dir is not None:
         _emit_backup_relocation_notice(final_backup_dir)
         _warn_if_backups_dir_large(composition_root)

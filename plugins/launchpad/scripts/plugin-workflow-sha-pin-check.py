@@ -8,6 +8,7 @@ tags. This script catches ALL non-SHA refs: `@main`, `@master`,
 Exit 0 if all refs are valid SHA pins (or no workflow files found).
 Exit 1 if any violation is found, printing each to stderr.
 """
+
 from __future__ import annotations
 
 import re

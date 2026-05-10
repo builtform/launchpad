@@ -28,12 +28,13 @@ mustache), no string interpolation that could be injected. Section bodies
 are constructed from the matched category's `canonical_stack` + the
 sanitized funnel answers + `<untrusted_user_input>`-wrapped describe text.
 """
+
 from __future__ import annotations
 
-import re
 import unicodedata
-from datetime import datetime, timezone
-from typing import Any, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
+from typing import Any
 
 from lp_pick_stack.matcher import MatchCandidate
 from lp_pick_stack.rationale_summary_extractor import (
@@ -44,7 +45,7 @@ from lp_pick_stack.rationale_summary_extractor import (
 
 
 def _utc_now_iso_sec() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _sanitize_bullet(text: str) -> str | None:
@@ -132,7 +133,9 @@ def render_rationale(
     `alternatives` bullet > 30 chars (caller's responsibility to supply).
     """
     cat_id = matched_category_id or matched.id
-    stack_layers = canonical_stack if canonical_stack is not None else matched.canonical_stack
+    stack_layers = (
+        canonical_stack if canonical_stack is not None else matched.canonical_stack
+    )
     name = matched_name or matched.name
     explanation = matched_explanation or matched.explanation
     ts = generated_at or _utc_now_iso_sec()

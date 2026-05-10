@@ -16,35 +16,36 @@ The repo root is clean and predictable. Only whitelisted files and directories b
 
 ### Allowed Files at Root
 
-| File                           | Purpose                                                                       |
-| ------------------------------ | ----------------------------------------------------------------------------- |
-| `README.md`                    | Project overview                                                              |
-| `CLAUDE.md`                    | AI agent operating rules for Claude Code                                      |
-| `AGENTS.md`                    | OpenAI Codex agent configuration                                              |
-| `CONTRIBUTING.md`              | Contribution guidelines                                                       |
-| `CODE_OF_CONDUCT.md`           | Code of conduct                                                               |
-| `SECURITY.md`                  | Security policy                                                               |
-| `CHANGELOG.md`                 | Changelog (user-authored)                                                     |
-| `ROADMAP.md`                   | Roadmap of upcoming work (user-authored)                                      |
-| `LICENSE` / `LICENSE.template` | MIT license (Thinking Hand Studio LLC); `.template` is kernel-renderer source |
-| `package.json`                 | Root workspace config, shared devDependencies                                 |
-| `pnpm-workspace.yaml`          | Workspace globs: `apps/*`, `packages/*`                                       |
-| `pnpm-lock.yaml`               | Lockfile (auto-generated, never edit)                                         |
-| `turbo.json`                   | Turborepo task pipeline                                                       |
-| `prettier.config.js`           | Root Prettier config (must be at root)                                        |
-| `lefthook.yml`                 | Git hook config (lint, format, structure)                                     |
-| `vitest.config.ts`             | Root Vitest config with project references                                    |
-| `eslint.config.mjs`            | Root ESLint 9 flat config                                                     |
-| `.prettierignore`              | Prettier exclusions                                                           |
-| `.env.example`                 | Template for `.env.local` (no real secrets)                                   |
-| `.env.local`                   | Real environment variables (gitignored)                                       |
-| `.env.consultant`              | Consultant env reference (gitignored, read-only subset credentials only)      |
-| `.editorconfig`                | Cross-editor indent/line-ending baseline                                      |
-| `.nvmrc`                       | Pins Node.js version (22.x)                                                   |
-| `.gitignore`                   | Standard ignore rules                                                         |
-| `.gitattributes`               | Git attribute rules, line endings (optional, created when needed)             |
-| `.worktreeinclude`             | Claude Code worktree env file declarations (which `.env*` files to copy)      |
-| `greptile.json`                | Greptile AI code-reviewer config (must be at root per Greptile's spec)        |
+| File                           | Purpose                                                                                                                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `README.md`                    | Project overview                                                                                                                                                               |
+| `CLAUDE.md`                    | AI agent operating rules for Claude Code                                                                                                                                       |
+| `AGENTS.md`                    | OpenAI Codex agent configuration                                                                                                                                               |
+| `CONTRIBUTING.md`              | Contribution guidelines                                                                                                                                                        |
+| `CODE_OF_CONDUCT.md`           | Code of conduct                                                                                                                                                                |
+| `SECURITY.md`                  | Security policy                                                                                                                                                                |
+| `CHANGELOG.md`                 | Changelog (user-authored)                                                                                                                                                      |
+| `ROADMAP.md`                   | Roadmap of upcoming work (user-authored)                                                                                                                                       |
+| `LICENSE` / `LICENSE.template` | MIT license (Thinking Hand Studio LLC); `.template` is kernel-renderer source                                                                                                  |
+| `package.json`                 | Root workspace config, shared devDependencies                                                                                                                                  |
+| `pnpm-workspace.yaml`          | Workspace globs: `apps/*`, `packages/*`                                                                                                                                        |
+| `pnpm-lock.yaml`               | Lockfile (auto-generated, never edit)                                                                                                                                          |
+| `turbo.json`                   | Turborepo task pipeline                                                                                                                                                        |
+| `prettier.config.js`           | Root Prettier config (must be at root)                                                                                                                                         |
+| `lefthook.yml`                 | Git hook config (lint, format, structure)                                                                                                                                      |
+| `vitest.config.ts`             | Root Vitest config with project references                                                                                                                                     |
+| `eslint.config.mjs`            | Root ESLint 9 flat config                                                                                                                                                      |
+| `.prettierignore`              | Prettier exclusions                                                                                                                                                            |
+| `.env.example`                 | Template for `.env.local` (no real secrets)                                                                                                                                    |
+| `.env.local`                   | Real environment variables (gitignored)                                                                                                                                        |
+| `.env.consultant`              | Consultant env reference (gitignored, read-only subset credentials only)                                                                                                       |
+| `.editorconfig`                | Cross-editor indent/line-ending baseline                                                                                                                                       |
+| `.nvmrc`                       | Pins Node.js version (22.x)                                                                                                                                                    |
+| `.gitignore`                   | Standard ignore rules                                                                                                                                                          |
+| `.gitattributes`               | Git attribute rules, line endings (optional, created when needed)                                                                                                              |
+| `.worktreeinclude`             | Claude Code worktree env file declarations (which `.env*` files to copy)                                                                                                       |
+| `greptile.json`                | Greptile AI code-reviewer config (must be at root per Greptile's spec)                                                                                                         |
+| `Makefile`                     | Project-level dependency-locking entrypoint (`make lock-deps` regenerates `plugins/launchpad/scripts/requirements.txt` via pip-compile; v2.1.1 Phase 4 R1-T1-16 escape hatch). |
 
 Note: v2.1 (BL-247) decommissioned the `*.template.*` root files. The v2.x kernel renderer at `plugins/launchpad/scripts/plugin_default_generators/kernel_renderer/` ships templated equivalents for `README`, `CONTRIBUTING`, `CODE_OF_CONDUCT`, `SECURITY`, and `LICENSE`. `CHANGELOG.md`, `ROADMAP.md`, and `greptile.json` are now user-authored; no v2.x kernel template ships for them (v2.2 BL). See `docs/maintainers/decommission-history.md`.
 

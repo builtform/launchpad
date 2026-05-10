@@ -29,26 +29,27 @@ for greenfield render, lp_update_identity engine for refresh) is
 responsible for the atomic re-seal. This keeps the renderer reusable
 in test fixtures and brownfield contexts that have no scaffold-decision.
 """
+
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator, Mapping, Sequence
+from typing import Any
 
 from ._renderer_base import RendererBase, sha256_bytes
-
 
 # Inventory: (template name relative to TEMPLATE_SUBDIR, output relpath)
 # Output relpaths are relative to the project root (cwd at scaffold time).
 KERNEL_FILES: Sequence[tuple[str, str]] = (
-    ("LICENSE.j2",            "LICENSE"),
-    ("CONTRIBUTING.md.j2",    "CONTRIBUTING.md"),
+    ("LICENSE.j2", "LICENSE"),
+    ("CONTRIBUTING.md.j2", "CONTRIBUTING.md"),
     ("CODE_OF_CONDUCT.md.j2", "CODE_OF_CONDUCT.md"),
-    ("README.md.j2",          "README.md"),
-    ("SECURITY.md.j2",        "SECURITY.md"),
-    ("AGENTS.md.j2",          "AGENTS.md"),
-    ("CLAUDE.md.j2",          "CLAUDE.md"),
+    ("README.md.j2", "README.md"),
+    ("SECURITY.md.j2", "SECURITY.md"),
+    ("AGENTS.md.j2", "AGENTS.md"),
+    ("CLAUDE.md.j2", "CLAUDE.md"),
 )
 
 
@@ -73,6 +74,7 @@ class RefreshResult:
         the atomic re-seal of this state into the caller (engine.py),
         so the renderer no longer depends on lp_pick_stack.decision_writer.
     """
+
     rendered: list[tuple[Path, str]]
     skipped_user_edits: list[Path]
     template_drift_infos: list[str]
@@ -84,9 +86,7 @@ class KernelRenderer(RendererBase):
 
     TEMPLATE_SUBDIR = "kernel"
 
-    def render_targets(
-        self, context: Mapping[str, Any]
-    ) -> Iterator[tuple[Path, str]]:
+    def render_targets(self, context: Mapping[str, Any]) -> Iterator[tuple[Path, str]]:
         """Yield `(absolute_target_path, rendered_text)` for each kernel
         template. Context must carry `cwd: Path` and `identity: Mapping`.
         """
@@ -187,19 +187,23 @@ class KernelRenderer(RendererBase):
             patterns_file=patterns_file,
             allowlist_path=allowlist_path,
         )
-        rendered = [(target, sha256_bytes(content)) for target, content in batch.items()]
+        rendered = [
+            (target, sha256_bytes(content)) for target, content in batch.items()
+        ]
 
         kernel_render_state: list[dict] = []
         for template_name, output_relpath in KERNEL_FILES:
             target = cwd / output_relpath
             if not target.is_file():
                 continue
-            kernel_render_state.append({
-                "path": output_relpath,
-                "rendered_content_sha256": sha256_bytes(target.read_bytes()),
-                "source_template_sha256": self._template_sha256(template_name),
-                "missing_on_disk": False,
-            })
+            kernel_render_state.append(
+                {
+                    "path": output_relpath,
+                    "rendered_content_sha256": sha256_bytes(target.read_bytes()),
+                    "source_template_sha256": self._template_sha256(template_name),
+                    "missing_on_disk": False,
+                }
+            )
 
         return rendered, kernel_render_state
 
@@ -327,8 +331,7 @@ class KernelRenderer(RendererBase):
             )
 
         rendered = [
-            (target, sha256_bytes(content))
-            for target, content in write_subset.items()
+            (target, sha256_bytes(content)) for target, content in write_subset.items()
         ]
 
         # Compute the new state for the rendered subset AND the unchanged
@@ -364,23 +367,31 @@ class KernelRenderer(RendererBase):
                     # dict-spread (v2.1.0 Codex P1 #2 fold replaces the
                     # prior `user_has_drift` sticky-preservation — the
                     # missing_on_disk signal carries the same information).
-                    new_state_entries.append({
-                        "path": output_relpath,
-                        "rendered_content_sha256": prior_entry["rendered_content_sha256"],
-                        "source_template_sha256": prior_entry["source_template_sha256"],
-                        "missing_on_disk": bool(prior_entry.get("missing_on_disk")),
-                    })
+                    new_state_entries.append(
+                        {
+                            "path": output_relpath,
+                            "rendered_content_sha256": prior_entry[
+                                "rendered_content_sha256"
+                            ],
+                            "source_template_sha256": prior_entry[
+                                "source_template_sha256"
+                            ],
+                            "missing_on_disk": bool(prior_entry.get("missing_on_disk")),
+                        }
+                    )
                     continue
                 # Defensive fallback (should not happen given how `skipped`
                 # is populated above): no prior_entry available, so we have
                 # no choice but to re-hash. The next refresh's comparison
                 # will skip again the moment the user touches the file.
-            new_state_entries.append({
-                "path": output_relpath,
-                "rendered_content_sha256": sha256_bytes(target.read_bytes()),
-                "source_template_sha256": self._template_sha256(template_name),
-                "missing_on_disk": False,
-            })
+            new_state_entries.append(
+                {
+                    "path": output_relpath,
+                    "rendered_content_sha256": sha256_bytes(target.read_bytes()),
+                    "source_template_sha256": self._template_sha256(template_name),
+                    "missing_on_disk": False,
+                }
+            )
 
         return RefreshResult(
             rendered=rendered,

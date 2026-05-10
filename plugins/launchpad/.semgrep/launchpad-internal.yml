@@ -1,0 +1,84 @@
+# LaunchPad v2.1.1 Phase 4 — cross-cutting LaunchPad invariants.
+#
+# 4 rules per DA-4.6 + R1-T1-9 composition rule rewrite. Self-host only;
+# DOES NOT ship to downstream consumers (rules name LaunchPad-internal
+# symbols).
+
+rules:
+  # NOTE (v2.1.x BL): `lp-engine-sentinel-must-precede-materialize` rule
+  # was authored but the multi-statement-sequence pattern fails to parse
+  # under semgrep's universal pattern semantics (per R1-T1-9 + adversarial
+  # P2-A iteration cap). Sentinel-precedes-materialize ordering is enforced
+  # at runtime by engine code structure; defense-in-depth is provided by
+  # plugin-v2-handshake-lint.py's `safe_run` gate. v2.1.x BL: re-author
+  # with semgrep `taint` mode OR a custom AST walker.
+
+  - id: lp-kernel-renderer-sha-must-be-domain-tagged
+    message: |
+      kernel_renderer SHA computations MUST use domain-tagged variable names
+      (rendered_sha vs template_sha; cycle-3 Round 3 P1 closure). Bare `sha`
+      ambiguates context and was the source of an actual cross-domain bug.
+    severity: WARNING
+    languages: [python]
+    paths:
+      include:
+        - "plugins/launchpad/scripts/plugin_default_generators/kernel_renderer.py"
+    pattern-regex: '\bsha\s*=\s*hashlib\.'
+
+  # R1-T1-9 REWRITE: original pattern with multi-ellipsis pattern-not produced
+  # ~100% FP rate per adversarial review. This form anchors on backup_dir
+  # assignment and requires the SAME function body lack a shutil.rmtree call
+  # on that variable.
+  - id: lp-composition-success-must-cleanup-backup
+    message: |
+      composition.py success path MUST shutil.rmtree(backup_dir).
+      v2.0 Round 4 P1 closure — orphaned *.pre-composition-* dirs accumulate
+      indefinitely without explicit cleanup. Apply to functions whose body
+      assigns backup_dir AND lacks shutil.rmtree(backup_dir) in the same body.
+    severity: ERROR
+    languages: [python]
+    paths:
+      include:
+        - "plugins/launchpad/scripts/plugin_stack_adapters/composition.py"
+    patterns:
+      - pattern-inside: |
+          def $FN(...):
+              ...
+      - pattern: $BACKUP_DIR = ...
+      - metavariable-regex:
+          metavariable: $BACKUP_DIR
+          regex: ^backup_dir$
+      - pattern-not-inside: |
+          def $FN(...):
+              ...
+              shutil.rmtree($BACKUP_DIR)
+              ...
+
+  - id: lp-v2-module-must-use-safe-run
+    message: |
+      v2.0 contract scope (plugins/launchpad/scripts/, excluding _vendor/, tests/, .j2)
+      MUST route subprocess via safe_run(); audited exemptions in
+      LINT_RAW_SUBPROCESS_ALLOWLIST. This rule is a defense-in-depth backstop
+      to plugin-v2-handshake-lint.py for diff-time detection.
+    severity: WARNING
+    languages: [python]
+    paths:
+      include:
+        - "plugins/launchpad/scripts/**/*.py"
+      exclude:
+        - "**/_vendor/**"
+        - "**/tests/**"
+        - "plugins/launchpad/scripts/safe_run.py"
+        - "plugins/launchpad/scripts/plugin-v2-handshake-lint.py"
+        - "plugins/launchpad/scripts/plugin-build-runner.py"
+        - "plugins/launchpad/scripts/lp_scaffold_stack/nonce_ledger.py"
+        - "plugins/launchpad/scripts/plugin-audit-log.py"
+        - "plugins/launchpad/scripts/plugin_stack_adapters/autonomous_guard.py"
+        - "plugins/launchpad/scripts/lp_define_runner.py"
+        - "plugins/launchpad/scripts/lp_update_identity/engine.py"
+    pattern-either:
+      - pattern: subprocess.run(...)
+      - pattern: subprocess.Popen(...)
+      - pattern: subprocess.call(...)
+      - pattern: subprocess.check_output(...)
+      - pattern: subprocess.check_call(...)

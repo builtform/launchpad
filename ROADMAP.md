@@ -1,137 +1,45 @@
 # Roadmap
 
-This document is the public-facing summary of where LaunchPad is going. It is updated each release. For day-to-day operator guidance see [HOW_IT_WORKS.md](docs/guides/HOW_IT_WORKS.md); for architectural rationale see [METHODOLOGY.md](docs/guides/METHODOLOGY.md).
+LaunchPad's roadmap is a story, not a feature list. Each version exists because the previous one left a structural hole, and each future version closes one we can already name. This document tells that story end to end so you can see where the project came from, where it is now, and where it is going. For day-to-day operator guidance see [HOW_IT_WORKS.md](docs/guides/HOW_IT_WORKS.md); for architectural rationale see [METHODOLOGY.md](docs/guides/METHODOLOGY.md); for the live punch-list of every deferred item see [docs/tasks/BACKLOG.md](docs/tasks/BACKLOG.md).
 
-## v1.0.x — stability patches
+## Where we started
 
-The first weeks after `v1.0.0` are reserved for patch-level fixes surfaced by real-world installation across diverse brownfields. No new features land on the patch line — only:
+LaunchPad began life in April 2026 as an installable Claude Code plugin you drop on top of an existing repo. Thirty-eight slash commands, thirty-six sub-agents, and sixteen skills, designed to give Claude Code a structured shape-plan-build-review-ship loop in any TypeScript, Python, Go, Django, or polyglot codebase you already had. The premise was simple: most coding work happens in repos that already exist, and the hard part is wrapping a disciplined workflow around one without rewriting it. v1.0 shipped to the Anthropic plugin marketplace and accumulated patch releases through v1.1.0, mostly install-flow regressions, stack-detection misfires on previously untested stacks, doc corrections, and cross-platform bugs.
 
-- Install-flow regressions
-- Stack-detection misfires on previously untested stacks
-- Doc corrections
-- Cross-platform bugs (macOS / Linux / Windows under WSL)
+What v1 quietly didn't do was start a project from zero. Run `/lp-kickoff` in an empty directory and the harness had nothing to wrap around: no stack, no architecture, no governance scaffolding. Greenfield was a hole, and that hole defined the next version.
 
-If you hit a v1.0.0 issue, please open an issue from the `plugin install issue` template — install flow is our most likely failure surface and the dedicated template makes triage faster.
+## v2.0 — the greenfield pipeline
 
-## v1.1.0 — Codex overlay
+v2.0 was compelled by that hole. It introduced a four-command pipeline that runs before the brownfield harness kicks in: `/lp-brainstorm` classifies the working directory, `/lp-pick-stack` runs a five-question funnel into an eighteen-category match and emits a SHA-256-sealed `scaffold-decision.json`, `/lp-scaffold-stack` validates that decision against twelve rules and materializes layers into a `scaffold-receipt.json`, and `/lp-define` dispatches one of ten stack adapters covering Astro, Next.js, Eleventy, Hugo, Hono, FastAPI, Django, Rails, Supabase, and Expo, plus a generic fallback and a polyglot composer. v2.0 also introduced the Tier 1 governance kernel — a repository-structure whitelist, lefthook pre-commit gates, the `.launchpad/config.yml` and `.harness/` runtime directories, and four architecture documents — and locked in the integrity primitives every later version builds on: byte-deterministic JSON canonicalization, the `bound_cwd` realpath-and-inode triple on every decision, nonce-ledger replay protection with a four-hour window, chain-of-custody between decision and receipt, and a strict `safe_run()` subprocess helper. It took twelve review cycles to ship clean.
 
-The headline feature of v1.1 is a **Codex overlay generator**: a build script that produces a parallel set of Codex CLI plugin artifacts from the canonical Claude Code plugin source. Goal: a single `LaunchPad` source tree that ships natively to both Claude Code (via the BuiltForm marketplace) and Codex CLI.
+What v2.0 missed was that the plugin scaffolded layers but didn't own the project kernel — the `LICENSE`, `README`, `CONTRIBUTING`, `CODE_OF_CONDUCT`, `SECURITY`, `AGENTS.md`, and `CLAUDE.md` files were either absent or hand-stitched. The plugin had no idea who you were, what license you wanted, or what your copyright string should be. The schema couldn't evolve safely. The Python supply chain wasn't pinned. And there was no path to bootstrap the harness into an existing repo without replaying the full greenfield pipeline.
 
-What this unlocks for Codex users:
+## v2.1 — plugin owns everything
 
-- Native parallel sub-agent dispatch (currently degrades to single-generalist review in non-Claude CLIs)
-- Skill format support (Codex's TOML-based skills)
-- 1-command install via Codex's plugin system
-- Version parity with the Claude Code plugin from the same git tag
+v2.1's branch name said it out loud: `feat/v2.1-plugin-owns-everything`. The plugin became the sole author of every file it generates, and the project kernel grew up to match. A sealed seven-field identity contract is captured at pick-stack time and lives inside a new `schema_version: "1.1"` envelope, with `/lp-update-identity` letting you edit it atomically while preserving generated timestamps byte-for-byte across re-seal. Schema evolution is now safe through a four-rule acceptance ladder, and v2.0 receipts auto-migrate in memory on first contact. Seven stack-agnostic kernel templates render with full canonical license bodies for MIT, Apache, GPL, BSD, ISC, and MPL. `/lp-scaffold-stack` actually dispatches now via `dispatch_by_stack_ids` for the five active v2.1 stacks, with five v2.2-candidate stacks routing to generic behind an explicit opt-in flag. A new `/lp-bootstrap` command finally closes the brownfield-bootstrap hole by seeding the harness into existing repos with sentinel-protected execution and per-file conflict policies. All thirty-six review agents gained stack-scope frontmatter so a Python-only project never loads the TypeScript reviewer. Every kernel and adapter render passes through a full-batch secret scanner where a single finding refuses the whole batch atomically. All four Python dependencies are hash-pinned across sdist, macOS arm64, and manylinux wheels. And a CODEOWNERS gate fails CI if any of the four schema-source files change without `SCAFFOLD_HANDSHAKE.md` being touched in the same diff, preventing silent schema drift.
 
-The cross-tool bridge ([AGENTS.md](AGENTS.md)) continues to work for Cursor, Aider, Windsurf, Jules, and other CLIs that follow the AGENTS.md convention.
+What v2.1 still missed was that review remained optional. `/lp-commit` and `/lp-ship` prompted you to run `/lp-review` but didn't require it, static analysis wasn't wired in at all, and the maintainer's hardened lefthook didn't propagate to the consumer's project. The first release that actually exercised v2.1's full review surface against itself was v2.1.1.
 
-Other v1.1 items:
+## v2.1.1 — review becomes mandatory
 
-- Single-app TypeScript adapter (`ts_app` / `ts_service`) so plain Next.js / Hono projects without workspaces or Turborepo get sensible non-monorepo defaults instead of falling through to `generic`. Today the detector deliberately routes them to `generic` to avoid seeding hardcoded `apps/web/`, `apps/api/`, `packages/db/`, pnpm-only commands into single-app repos.
-- Polyglot stack-detection refinements (Python framework distinction beyond Django, env-manager detection for poetry/uv)
-- Non-interactive mode for dialogue-heavy commands (`/lp-pnf`, `/lp-brainstorm`)
-- Brownfield TODO-import adapter (`/lp-shape-section --from-todo <id>`)
-- Runner exit-code remap to the reserved 64–78 range
-- Test-coverage gaps surfaced during v1.0 stabilization
+v2.1.1, in flight as of this writing, is the release that closes the review-gate hole. A new `--no-context` blind-pass flag on `/lp-review` lets the same review agents run a second time without seeing context, so specialist findings can be cross-validated against unbiased ones. The dual-pass review is now mandatory inside `/lp-commit` and `/lp-ship`, with `--skip-review` honored only on hotfix branches behind a TTY-guarded confirmation and an audit-trail trailer; this is a deliberate behavior change. `/lp-ship` gains a three-round autonomous fix loop with a ninety-minute timeout. A universal `lefthook.yml` routes test, typecheck, and lint through a `plugin-build-runner.py` indirection so commands stay stack-aware via `.launchpad/config.yml`. And a Layer 3 static-analysis stack — ruff, bandit, semgrep, and pyright, with strict mode on the three security-boundary modules — runs on every plugin script, backed by a pip-compile-locked `requirements.txt` with `--require-hashes`. v2.1.1's mandatory review gates were validated by passing v2.1.1's own release through them: Phase 5's commit was the first production exercise of the full Layer 1+2+3 stack, so the release ate its own dog food before shipping.
 
-## What is NOT in v1.1
+What v2.1.1 leaves on the table is that those hardened gates only apply to the maintainer's repo. Consumer projects that install LaunchPad get none of the propagation, because the plugin's own `lefthook.yml.j2` template is unchanged. That is the next hole.
 
-Explicit non-goals so the scope stays honest:
+## What's next
 
-- **Gemini CLI overlay.** Gemini users continue on the [AGENTS.md](AGENTS.md) bridge pattern with manual `context.fileName` configuration. Gemini support is on the long-term roadmap; no version assigned. Re-evaluated based on demand.
-- **Auto-bundled memory backend.** LaunchPad does not ship its own session-memory store. Users who want verbatim session recall pair LaunchPad with [MemPalace](https://github.com/MemPalace/mempalace) — see [docs/guides/MEMPALACE_INTEGRATION.md](docs/guides/MEMPALACE_INTEGRATION.md).
-- **Cross-CLI plugin marketplace federation.** Each CLI continues to ship from its own marketplace. The overlay generator produces artifacts; it does not publish them automatically.
-- **`lp-` filename-prefix removal.** The plugin already namespaces commands at the CLI level; the additional `lp-` filename prefix is cosmetic redundancy. Removal is queued indefinitely as it touches ~100 files for no functional gain.
+v2.1.2 will push the hardened gates downstream through stack-aware Jinja fragments injected into the consumer's `lefthook.yml`, alongside a corpus-trained reviewer agent built from the body of Codex and Greptile findings already accumulated across v2.0 and v2.1 ship cycles. From there, v2.1.3 collects roughly twenty-two hardening items surfaced during v2.1.1's sweeps and Phase 4 deferrals — sentinel race conditions, identity-write hardening, additional semgrep invariants, doc-vs-code coherence patches, pyright strict mode on engine modules, false-positive cleanup in the secret-pattern set, and a backup-retention command — while v2.1.x absorbs a handful of small fit-and-finish items that ship whenever they happen to land cleanly.
 
-## v2.0 — Released
+v2.2 is the minor release where the patch series ends and the larger story resumes. It absorbs the operational and security infrastructure deferred from v2.0 to keep that ship focused: a forensic writer split into single-responsibility modules with rotation and chain-verify consumers, full tag-and-release ceremony hardening including a recall procedure and twenty-four-hour observation window, a `/lp-release` command that automates the manual ship pipeline, multi-signal CI detection and AST-level workflow validation, cross-platform parity for the Known-Answer Test on macOS and Windows, encryption-at-rest and tamper-detection for the local backup directory, runtime enforcement of `recovery_commands`, and removal of the legacy YAML canonicalization fallback. v2.2 also lands the ten stacks queued behind v2.0's curated catalog: Cloudflare Workers, Tauri, NestJS, Laravel, Vite, SvelteKit, Elysia, Phoenix LiveView, Convex, and Flutter. User demand and ecosystem signal drive priority within that list — open an issue titled `[v2.2] Stack request: <name>` with a one-paragraph use case if you want one moved up.
 
-v2.0 introduces a 4-step user pipeline for greenfield project scaffolding: `/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`. The brownfield path (existing-repo `/lp-brainstorm` → `/lp-define`) continues to work unchanged.
+## Long-term, no version assigned
 
-Full release notes: [docs/releases/v2.0.0.md](docs/releases/v2.0.0.md).
-
-### v2.0 catalog (10 stacks)
-
-| Stack      | Pillar                       | Status  |
-| ---------- | ---------------------------- | ------- |
-| `astro`    | Frontend Content/Performance | ✅ v2.0 |
-| `next`     | Frontend App                 | ✅ v2.0 |
-| `eleventy` | Frontend Content             | ✅ v2.0 |
-| `hugo`     | Frontend Content (Go)        | ✅ v2.0 |
-| `hono`     | Backend Edge-native TS       | ✅ v2.0 |
-| `fastapi`  | Backend Python               | ✅ v2.0 |
-| `django`   | Backend Python               | ✅ v2.0 |
-| `rails`    | Backend MVC (Ruby)           | ✅ v2.0 |
-| `supabase` | Backend Managed              | ✅ v2.0 |
-| `expo`     | Frontend Mobile (RN)         | ✅ v2.0 |
-
-The 10-stack scope is curated so every recommendation `/lp-pick-stack` makes points to a stack with a working `/lp-define` adapter rendering stack-specific architecture docs.
-
-### v2.0 integrity primitives
-
-- **JSON canonicalization + `canonical_hash()`** — byte-deterministic SHA-256 across implementations
-- **`scaffold-decision.json` schema** with `bound_cwd` triple (realpath + st_dev + st_ino), nonce ledger replay protection, 4-hour replay window
-- **`scaffold-receipt.json`** with chain-of-custody back to pick-stack
-- **Path validator + greenfield/brownfield detector** as single sources of truth across commands
-- **Rationale summary extractor** with prompt-injection defenses (NFKC normalization, forbidden-bullet patterns)
-- **`safe_run()` subprocess helper** with strict env allowlist + LC_CTYPE override
-
-## v2.1
-
-v2.1 is documentation-only: refreshed `METHODOLOGY.md` + `HOW_IT_WORKS.md` + governance updates that reflect the v2.0 pipeline as a first-class workflow. No new stacks, no new commands.
-
-## v2.2
-
-v2.2 lands the operational/security infrastructure deferred from v2.0 per the v2.0 strip-back, plus the 10 deferred stacks queued behind v2.0's curated catalog.
-
-### Operational/security infrastructure
-
-- `forensic_writer.py` SRP-split module with `security-events.jsonl` chain-hashing
-- Multi-signal CI detection (filesystem markers + parent-process check)
-- PyYAML AST `pull_request_target` shape check (replaces grep-based v2.0 check)
-- Tag protection rule + content verification + nightly watchdog
-- Recall procedure (`vX.Y.Z-recalled` rename) + 24h post-tag observation window
-- Authored runbooks: `rollback-runbook.md` + `branch-protection-token.md`
-- Consolidated `v2-nightly-checks.yml` workflow
-- `recovery_commands` runtime enforcement contract
-- Exponential-backoff polling for `verify-v2-ship`
-- KAT cross-platform parity (macOS CI leg)
-- `.first-run-marker` integrity binding (JSON envelope + sha256 + bound_cwd)
-
-### Deferred stacks
-
-The following stacks are queued for v2.2 alongside the infrastructure work — user demand and ecosystem signal drive prioritization within the list.
-
-| Stack                | Pillar                    |
-| -------------------- | ------------------------- |
-| `cloudflare-workers` | Backend Edge-native       |
-| `tauri`              | Cross-platform desktop    |
-| `nestjs`             | Enterprise TS backend     |
-| `laravel`            | PHP MVC framework         |
-| `vite`               | Generic SPA scaffolder    |
-| `sveltekit`          | Frontend App              |
-| `elysia`             | Backend Edge-native TS    |
-| `phoenix-liveview`   | Backend Realtime (Elixir) |
-| `convex`             | Backend Managed           |
-| `flutter`            | Frontend Mobile (Dart)    |
-
-Want a deferred stack moved up the v2.2 priority list? Open an issue at the LaunchPad GitHub repo with the title `[v2.2] Stack request: <name>` and a one-paragraph use case.
+A few items live on the roadmap but without a version anchor. A Codex CLI overlay would let a single LaunchPad source tree ship natively to both Claude Code and Codex CLI with parallel sub-agent dispatch and Codex's TOML skill format; it is paused while v2.x architecture stabilizes. Gemini support continues to ride on the [AGENTS.md](AGENTS.md) bridge pattern that Cursor, Aider, Windsurf, and Jules already use, and will be re-evaluated based on demand. LaunchPad does not ship its own session-memory store — users who want verbatim session recall pair LaunchPad with [MemPalace](https://github.com/MemPalace/mempalace) per [docs/guides/MEMPALACE_INTEGRATION.md](docs/guides/MEMPALACE_INTEGRATION.md). Cross-CLI marketplace federation is not planned; each CLI continues to ship from its own marketplace. Removing the cosmetic `lp-` filename prefix is queued indefinitely, since the plugin already namespaces commands at the CLI level and the rename would touch roughly a hundred files for no functional gain.
 
 ## Branch model
 
-LaunchPad uses a simple branch model:
-
-- **`main`** — the only long-lived branch. End-user plugin installs read from `main` (default branch). All releases tag `main`.
-- **Feature branches** — short-lived, named with conventional-commit prefixes: `feat/<topic>`, `fix/<topic>`, `chore/<topic>`, `docs/<topic>`, `refactor/<topic>`, `test/<topic>`, `style/<topic>`, `perf/<topic>`, `ci/<topic>`. Branched from `main`, merged back via PR.
-
-Direct merges to `main` are blocked. All changes — including from the maintainer — go through pull requests and pass CI before landing.
-
-A more elaborate Gitflow (with a separate `develop` integration branch and release branches) is not used at this time. If maintainer count grows past one, the model will be revisited.
+LaunchPad uses one long-lived branch, `main`, which is what end-user plugin installs read from and what every release tags. Feature work happens on short-lived branches named with conventional-commit prefixes (`feat/`, `fix/`, `chore/`, `docs/`, `refactor/`, `test/`, `style/`, `perf/`, `ci/`) branched from `main` and merged back via pull request. Direct merges to `main` are blocked, and every change — including the maintainer's own — passes CI through a PR before landing. A more elaborate Gitflow with a separate integration branch is not used at this time and will be revisited if the maintainer count grows past one.
 
 ## How to influence this roadmap
 
-- **Open an issue** from the `feature_request` template with concrete use-cases.
-- **Open a discussion** for shape questions before writing a feature request.
-- **Send a PR** — PRs that align with a roadmap item or close a known limitation are reviewed quickly. PRs that expand scope beyond the roadmap may be asked to land as a separate maintained fork until the surface area stabilizes.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution flow.
+The fastest paths in are an issue from the `feature_request` template with a concrete use case, a discussion for shape questions before writing the request, or a pull request that aligns with a roadmap item or closes a known limitation. PRs that expand scope beyond the roadmap may be asked to land as a separate maintained fork until the surface area stabilizes. If you hit an install issue on any v1 or v2 release, please file it from the `plugin install issue` template — install flow is the most likely failure surface and the dedicated template makes triage faster. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution flow.

@@ -21,6 +21,7 @@ Injection defenses (Phase 7 §4.9 acceptance):
 The `prev_entry_sha256` chain field (BL-215) is DEFERRED to v2.2 per
 HANDSHAKE §1.5 strip-back. v2.0 ships baseline injection-defense only.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -28,7 +29,7 @@ import fcntl
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -43,7 +44,7 @@ LOCK_FILENAME = ".restamp-history.lock"
 
 
 def _utc_now_iso_sec() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _harness_obs_dir(repo_root: Path) -> Path:
@@ -80,13 +81,16 @@ def append_entry(repo_root: Path, payload: dict) -> Path:
     target = obs / RESTAMP_FILENAME
     lock_path = obs / LOCK_FILENAME
 
-    line = json.dumps(
-        payload,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        allow_nan=False,
-    ) + "\n"
+    line = (
+        json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        )
+        + "\n"
+    )
     encoded = line.encode("utf-8")
 
     lock_fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o600)
@@ -118,25 +122,26 @@ def append_entry(repo_root: Path, payload: dict) -> Path:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="commit-msg hook: validates the subject and appends a "
-                    "restamp-history.jsonl entry. Rejects on \\n/\\r\\n "
-                    "injection (exit non-zero, no JSONL write).",
+        "restamp-history.jsonl entry. Rejects on \\n/\\r\\n "
+        "injection (exit non-zero, no JSONL write).",
     )
     parser.add_argument(
         "commit_msg_path",
         help="Path to the commit-msg file (lefthook passes this as $1).",
     )
     parser.add_argument(
-        "--repo-root", type=Path, default=None,
+        "--repo-root",
+        type=Path,
+        default=None,
         help="Override the repo root (defaults to the current working "
-             "directory; tests use this).",
+        "directory; tests use this).",
     )
     args = parser.parse_args(argv)
 
     repo_root = args.repo_root if args.repo_root is not None else Path.cwd()
     msg_path = Path(args.commit_msg_path)
     if not msg_path.is_file():
-        print(f"restamp-hook: commit-msg file not found: {msg_path}",
-              file=sys.stderr)
+        print(f"restamp-hook: commit-msg file not found: {msg_path}", file=sys.stderr)
         return 1
 
     raw_bytes = msg_path.read_bytes()

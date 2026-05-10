@@ -20,12 +20,14 @@ Composition mode silent default: `marketing` plus an INFO log per section
 `select_sub_template_or_decline` and is consumed by lp_pick_stack /
 composition.py rather than this adapter.
 """
+
 from __future__ import annotations
 
 import logging
 import shutil
+from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Callable, Literal, Mapping
+from typing import Literal
 
 from .contracts import (
     _EMPTY_PACKAGE_PATHS,
@@ -241,8 +243,7 @@ class AstroAdapter:
                 reason="invalid_astro_sub_template",
                 path=None,
                 remediation=(
-                    f"sub_template_id {sub_template_id!r} not in "
-                    f"{_SUB_TEMPLATES!r}"
+                    f"sub_template_id {sub_template_id!r} not in {_SUB_TEMPLATES!r}"
                 ),
             )
         self.sub_template_id: AstroSubTemplate = sub_template_id
@@ -270,9 +271,7 @@ class AstroAdapter:
         from template_cache import fetch
 
         try:
-            cached = fetch(
-                pin["repo_url"], pin["sha"], fetcher=self._fetcher_override
-            )
+            cached = fetch(pin["repo_url"], pin["sha"], fetcher=self._fetcher_override)
         except Exception as exc:
             raise AdapterScaffoldError(
                 reason="template_cache_fetch_failed",

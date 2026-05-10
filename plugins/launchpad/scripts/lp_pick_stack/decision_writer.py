@@ -17,18 +17,21 @@ L9 footgun where the loser's rationale.md would otherwise overwrite the
 survivor's, surfacing later as a confusing scaffold-stack rationale_sha256
 mismatch.
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
 import os
 import uuid
-from datetime import datetime, timezone
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from atomic_io import atomic_write_excl
 from decision_integrity import canonical_hash
+
 from lp_pick_stack import (
     IDENTITY_COPYRIGHT_FORBIDDEN_CHARS,
     IDENTITY_COPYRIGHT_HOLDER_RE,
@@ -67,6 +70,7 @@ class IdentityValidationError(ValueError):
         super().__init__(message)
         self.field = field
 
+
 # rationale_sha256 sentinel for --no-rationale flag mode (per Phase 2 §4.1
 # Step 5: when --no-rationale skips rationale.md write, rationale_sha256 is
 # the empty-file hash).
@@ -90,7 +94,7 @@ class DecisionWriteError(RuntimeError):
 
 
 def _utc_now_iso_sec() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def compute_bound_cwd(cwd: Path) -> dict:
@@ -167,11 +171,11 @@ _CATALOG_FALLBACK_MAP: Mapping[str, str] = {
     "expo": "generic",
     "eleventy": "generic",
     "hugo": "generic",
-    "hono": "generic",          # uncomposed singleton; composition-first
-                                # promotes ["next", "hono"] to nextjs_hono_cloudflare.
+    "hono": "generic",  # uncomposed singleton; composition-first
+    # promotes ["next", "hono"] to nextjs_hono_cloudflare.
     "next": "nextjs_standalone",
-    "django": "python_generic", # NOT python_django at v2.1 — widening invariant
-                                # deferred to BL-263.
+    "django": "python_generic",  # NOT python_django at v2.1 — widening invariant
+    # deferred to BL-263.
     "fastapi": "python_generic",
 }
 
@@ -363,7 +367,7 @@ def validate_identity(
     else:
         if not IDENTITY_COPYRIGHT_HOLDER_RE.fullmatch(copyright_holder):
             raise IdentityValidationError(
-                f"identity.copyright_holder fails printable-ASCII allowlist",
+                "identity.copyright_holder fails printable-ASCII allowlist",
                 field="copyright_holder",
             )
         bad = IDENTITY_COPYRIGHT_FORBIDDEN_CHARS.intersection(copyright_holder)
@@ -577,6 +581,7 @@ def re_seal_decision_atomic(
     mutation only.
     """
     from atomic_io import atomic_write_replace
+
     payload = read_decision_atomic(cwd)
     pre_generated_at = payload.get("generated_at")
 

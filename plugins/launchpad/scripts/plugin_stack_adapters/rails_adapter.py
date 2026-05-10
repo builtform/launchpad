@@ -7,6 +7,7 @@ architecture-doc-backing data once the layer materializes.
 Per Phase 0.5 handoff §1.3: load-time pure (no subprocess), `run()` returns
 an AdapterOutput with `stack_id == "rails"`.
 """
+
 from .contracts import (
     AdapterOutput,
     AppFlowInfo,

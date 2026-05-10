@@ -12,6 +12,7 @@ internally split into:
 
 The split keeps the validator hot-path testable without subprocess fork.
 """
+
 from __future__ import annotations
 
 import errno
@@ -20,18 +21,25 @@ import re
 import signal
 import subprocess
 import time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 # argv-element shape: alphanumerics + path-safe punctuation + flag glue.
 _ARGV_SAFE_RE = re.compile(r"^[A-Za-z0-9@._\-/=:]+$")
 
 
-SAFE_ENV_ALLOWLIST = frozenset({
-    "PATH", "HOME", "USER", "LANG", "LC_ALL", "TMPDIR",
-    # Git terminal hardening: GIT_TERMINAL_PROMPT=0 is the only GIT_* allowed
-    "GIT_TERMINAL_PROMPT",
-})
+SAFE_ENV_ALLOWLIST = frozenset(
+    {
+        "PATH",
+        "HOME",
+        "USER",
+        "LANG",
+        "LC_ALL",
+        "TMPDIR",
+        # Git terminal hardening: GIT_TERMINAL_PROMPT=0 is the only GIT_* allowed
+        "GIT_TERMINAL_PROMPT",
+    }
+)
 
 
 class UnsafeArgvError(ValueError):
@@ -51,9 +59,7 @@ def _validate_argv(argv: Sequence[str]) -> None:
                 f"argv[{i}] is not a string (got {type(el).__name__})"
             )
         if not _ARGV_SAFE_RE.fullmatch(el):
-            raise UnsafeArgvError(
-                f"argv[{i}] fails allowlist: {el!r}"
-            )
+            raise UnsafeArgvError(f"argv[{i}] fails allowlist: {el!r}")
 
 
 def _build_safe_env() -> dict[str, str]:
@@ -225,9 +231,7 @@ def safe_run_long(
                 proc, sigint_timeout_s, sigterm_timeout_s
             )
     except BaseException:
-        _signal_child_group_then_descendants(
-            proc, sigint_timeout_s, sigterm_timeout_s
-        )
+        _signal_child_group_then_descendants(proc, sigint_timeout_s, sigterm_timeout_s)
         raise
 
     rc = proc.returncode
@@ -293,7 +297,7 @@ def safe_run_long_shell(
         except ValueError:
             pass
 
-    proc = subprocess.Popen(
+    proc = subprocess.Popen(  # nosec B602 -- safe_run_long_shell is the canonical shell-with-env-allowlist helper; security boundary is the env-allowlist construction at call sites, NOT this Popen (cf. BL-308 | HANDSHAKE §6 | Phase 3 §6).
         cmd_string,
         shell=True,
         env=env,
@@ -314,9 +318,7 @@ def safe_run_long_shell(
                 proc, sigint_timeout_s, sigterm_timeout_s
             )
     except BaseException:
-        _signal_child_group_then_descendants(
-            proc, sigint_timeout_s, sigterm_timeout_s
-        )
+        _signal_child_group_then_descendants(proc, sigint_timeout_s, sigterm_timeout_s)
         raise
 
     rc = proc.returncode
@@ -369,9 +371,7 @@ def _signal_child_group_then_descendants(
         pass
 
     if not _wait_for_exit(proc, 1.0):
-        raise SafeRunTimedOut(
-            f"safe_run_long pid={pid} did not exit after SIGKILL"
-        )
+        raise SafeRunTimedOut(f"safe_run_long pid={pid} did not exit after SIGKILL")
 
 
 def _wait_for_exit(proc: subprocess.Popen, deadline_s: float) -> bool:

@@ -38,6 +38,7 @@ Per HANDSHAKE §1.5 strip-back: AST-based `pull_request_target` shape check
 (BL-233) are deferred to v2.2 — this script ships the grep-based / single-shot
 substitutes.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -59,7 +60,12 @@ VERSION_RESIDUAL = "0.x-test"
 # §12). Validated by check_scaffolders_catalog + check_category_patterns_catalog.
 SCAFFOLDERS_YML = REPO_ROOT / "plugins" / "launchpad" / "scaffolders.yml"
 CATEGORY_PATTERNS_YML = (
-    REPO_ROOT / "plugins" / "launchpad" / "scripts" / "lp_pick_stack" / "data"
+    REPO_ROOT
+    / "plugins"
+    / "launchpad"
+    / "scripts"
+    / "lp_pick_stack"
+    / "data"
     / "category-patterns.yml"
 )
 ANCHOR_DIR = REPO_ROOT / "plugins" / "launchpad" / "scaffolders"
@@ -72,10 +78,18 @@ FRESHNESS_WINDOW_DAYS = 30
 # Allowed roles per HANDSHAKE §4 rule 2 / pick-stack plan §3.4. Manual-override
 # entries may carry an empty canonical_stack; otherwise every layer's role MUST
 # be in this set.
-ALLOWED_ROLES = frozenset({
-    "frontend", "backend", "frontend-main", "frontend-dashboard",
-    "fullstack", "mobile", "backend-managed", "desktop",
-})
+ALLOWED_ROLES = frozenset(
+    {
+        "frontend",
+        "backend",
+        "frontend-main",
+        "frontend-dashboard",
+        "fullstack",
+        "mobile",
+        "backend-managed",
+        "desktop",
+    }
+)
 
 # Allowed scaffolder type/flavor enums per HANDSHAKE §11 + scaffolding-layer
 # test plan §1.
@@ -121,6 +135,10 @@ LINT_SCAN_EXCLUDES = (
     ".git/",
     ".pytest_cache/",
     ".harness/",
+    # v2.1.1 Phase 4: ruff cache mirrors source content into binary blobs;
+    # the leakage scanner picks them up as accidental matches. Cache dir is
+    # gitignored.
+    ".ruff_cache/",
 )
 
 # pull_request_target forbidden patterns — bracket/dot AST paths that resolve
@@ -140,23 +158,62 @@ PR_TARGET_FORBIDDEN_PATTERNS = (
 
 PYTHON_FILES = list(PLUGINS_SCRIPTS.rglob("*.py"))
 
-# v2.0 contract scope — modules introduced in v2.0 must use safe_run() per
-# OPERATIONS §1. v1 modules predate the contract and are out of scope for
-# the no-raw-subprocess + no-shell-true checks. Listed by basename so test
-# harness scaffolds + similar v1 utilities aren't flagged.
-V2_MODULES = frozenset({
-    "decision_integrity.py",
-    "knowledge_anchor_loader.py",
-    "path_validator.py",
-    "cwd_state.py",
-    "safe_run.py",
-    "telemetry_writer.py",
-    "pid_identity.py",
-    "plugin-v2-handshake-lint.py",
-    "plugin-scaffold-receipt-loader.py",
-    "plugin-freshness-check.py",
-    "plugin-scaffold-stack.py",
-})
+# v2.0 contract scope — all Python under plugins/launchpad/scripts/ uses
+# safe_run() per OPERATIONS §1, EXCEPT vendored third-party code, test
+# harnesses, and Jinja templates (which are emitted to downstream projects,
+# not LaunchPad runtime code). v2.1.1 Phase 3 broadens scope from a 11-
+# basename frozenset (BL-237) to a path-prefix matcher; new violations
+# trigger lint failure unless added to LINT_RAW_SUBPROCESS_ALLOWLIST with
+# docstring justification.
+V2_SCOPE_ROOT = "plugins/launchpad/scripts/"
+V2_SCOPE_EXCLUDE_PREFIXES = (
+    "plugins/launchpad/scripts/_vendor/",
+    "plugins/launchpad/scripts/plugin_stack_adapters/_vendor/",
+    "plugins/launchpad/scripts/tests/",
+)
+V2_SCOPE_EXCLUDE_SUFFIXES = (".j2",)
+
+# Audited raw-subprocess exemptions. Each entry is a FULL relative path
+# from repo root (NOT a basename — there are 4 distinct engine.py files in
+# scope: lp_update_identity/, lp_pick_stack/, lp_scaffold_stack/,
+# lp_bootstrap/. Basename allowlist would silently exempt all four,
+# defeating future enforcement). Adding to this list requires PR review;
+# auditors verify the justification and BL-track migration if appropriate.
+LINT_RAW_SUBPROCESS_ALLOWLIST = frozenset(
+    {
+        # Self-allowlist — IS the runner. Subprocess is its purpose.
+        # (cf. safe_run.py inline skip; both are canonical helpers.)
+        "plugins/launchpad/scripts/plugin-build-runner.py",
+        # macOS /sbin/mount filesystem introspection — fixed argv, no shell.
+        # Internal FS check (NOT scaffolder-emitting subprocess); safe_run is
+        # for caller code paths. Documented inline at nonce_ledger.py:152-155.
+        "plugins/launchpad/scripts/lp_scaffold_stack/nonce_ledger.py",
+        # Best-effort git config + python subprocess for audit-log forensics;
+        # FileNotFoundError-tolerant, fixed argv. Migration to safe_run is
+        # BL-308 (Phase 5 stash-pop seeds the concrete number).
+        "plugins/launchpad/scripts/plugin-audit-log.py",
+        # Best-effort git invocations for autonomous-guard ack check;
+        # FileNotFoundError + non-repo tolerant. Migration BL-308.
+        "plugins/launchpad/scripts/plugin_stack_adapters/autonomous_guard.py",
+        # Stack detector subprocess invocation; bounded env (LP_REPO_ROOT pin
+        # only). Migration BL-308.
+        "plugins/launchpad/scripts/lp_define_runner.py",
+        # git config user.email read (best-effort; fail-closed empty per
+        # cycle-3 security P2-A). Migration BL-308.
+        "plugins/launchpad/scripts/lp_update_identity/engine.py",
+    }
+)
+
+# shell=True allowlist — currently a single entry. plugin-build-runner.py:336
+# uses shell=True for serial command execution in test/typecheck/lint stages;
+# the user-supplied cmd string from commands.<stage> is intentionally shell-
+# parsed for pipe / redirection / env-var support. v2.1.x BL: extend
+# safe_run_long_shell from --stage=dev to all stages.
+LINT_SHELL_TRUE_ALLOWLIST = frozenset(
+    {
+        "plugins/launchpad/scripts/plugin-build-runner.py",
+    }
+)
 
 # Private-origin leakage patterns (HANDSHAKE §12 verify-v2-ship #5; v2.0 hard-
 # codes the generic markers since the user-specific name allowlist lives in
@@ -169,14 +226,21 @@ PRIVATE_ORIGIN_PATTERNS = (
     r"extracted\s+from\s+(my|our|the)\s+(private|internal|downstream)",
 )
 
-# Leakage-scan paths: extends the `_git_grep` defaults to also include
+# Leakage-scan paths: extends the `_walk_grep` defaults to also include
 # `.claude-plugin/` and root-level `.json` files (per HANDSHAKE §12 verify-v2-
 # ship #4: "grep all committed paths under plugins/, docs/, .claude-plugin/,
 # .github/, root .md/.json files").
 LEAKAGE_SCAN_PATHS = (
-    "plugins/", "docs/", ".github/", ".claude-plugin/",
-    "ROADMAP.md", "README.md", "CHANGELOG.md", "AGENTS.md",
-    "CONTRIBUTING.md", "SECURITY.md",
+    "plugins/",
+    "docs/",
+    ".github/",
+    ".claude-plugin/",
+    "ROADMAP.md",
+    "README.md",
+    "CHANGELOG.md",
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
 )
 
 # Per-file leakage-scan allowlist (Option A — preserve "BuiltForm" public
@@ -225,6 +289,7 @@ LEAKAGE_FILE_ALLOWLIST = (
 
 # --- helper utilities ---
 
+
 def _run(cmd: list[str], *, cwd: Path = REPO_ROOT) -> tuple[int, str]:
     """Run a shell-free subprocess and capture stdout.
 
@@ -245,18 +310,19 @@ def _run(cmd: list[str], *, cwd: Path = REPO_ROOT) -> tuple[int, str]:
     return res.returncode, res.stdout
 
 
-def _git_grep(
+def _walk_grep(
     pattern: str,
     *paths: str,
     fixed: bool = False,
     regex: bool = False,
     ignorecase: bool = False,
 ) -> list[str]:
-    """Search for pattern across the worktree (tracked + untracked).
+    """Filesystem-walk grep over the worktree (tracked + untracked).
 
-    We walk the filesystem rather than calling `git grep` so the lint works
-    on untracked files during Phase -1 (the v2 modules are not yet committed
-    per the no-push golden rule).
+    Walks the filesystem directly rather than invoking `git grep` so the lint
+    works on untracked files during Phase -1 (the v2 modules are not yet
+    committed per the no-push golden rule). Despite the prior `_git_grep`
+    name, no git invocation occurs; D9 closure renamed to `_walk_grep`.
 
     `ignorecase` (PR #41 cycle 7 #1 closure): if True, the prefilter regex
     compiles with `re.IGNORECASE`. Required by the private-origin leakage
@@ -280,7 +346,14 @@ def _git_grep(
         match = lambda line: bool(pat.search(line))  # noqa: E731
 
     if not paths:
-        paths = ("plugins/", "docs/", "ROADMAP.md", "README.md", "CHANGELOG.md", ".github/")
+        paths = (
+            "plugins/",
+            "docs/",
+            "ROADMAP.md",
+            "README.md",
+            "CHANGELOG.md",
+            ".github/",
+        )
     hits: list[str] = []
     seen_files: set[Path] = set()
     for p in paths:
@@ -293,8 +366,10 @@ def _git_grep(
                 if not f.is_file():
                     continue
                 rel = str(f.relative_to(REPO_ROOT))
-                if any(rel.startswith(ex) or f"/{ex}" in f"/{rel}/"
-                       for ex in LINT_SCAN_EXCLUDES):
+                if any(
+                    rel.startswith(ex) or f"/{ex}" in f"/{rel}/"
+                    for ex in LINT_SCAN_EXCLUDES
+                ):
                     continue
                 files.append(f)
         else:
@@ -325,35 +400,49 @@ def _emit(failures: list[str], rule: str, hits: list[str]) -> None:
 
 # --- read-only checks ---
 
+
 def _is_v2_module(path: str) -> bool:
-    """A path is in the v2.0 contract scope iff its basename is listed in
-    V2_MODULES. v1 modules predate the v2.0 subprocess contract and are out
-    of scope until they are individually migrated."""
-    return Path(path).name in V2_MODULES
+    """A path is in the v2.0 contract scope iff it lives under
+    plugins/launchpad/scripts/, NOT under _vendor/ or tests/, and is NOT
+    a Jinja template (.j2 — emitted code, not runtime code)."""
+    if not path.startswith(V2_SCOPE_ROOT):
+        return False
+    if any(path.startswith(p) for p in V2_SCOPE_EXCLUDE_PREFIXES):
+        return False
+    if any(path.endswith(s) for s in V2_SCOPE_EXCLUDE_SUFFIXES):
+        return False
+    return True
 
 
 def check_no_raw_subprocess(failures: list[str]) -> None:
-    """All subprocess calls in v2.0 MODULES must go through `safe_run()`
-    (OPERATIONS §1). v1 modules predate the contract and are exempt; the
-    v2-modules list in V2_MODULES is the authoritative scope."""
+    """All subprocess calls in v2.0 contract scope (path-prefix-matched)
+    must go through `safe_run()` (OPERATIONS §1). Audited exceptions live
+    in `LINT_RAW_SUBPROCESS_ALLOWLIST` (full-path strings)."""
     bad = []
-    for hit in _git_grep(r"^[^#]*subprocess\.(run|Popen|call|check_output|check_call)",
-                         "plugins/launchpad/scripts/", regex=True):
+    for hit in _walk_grep(
+        r"^[^#]*subprocess\.(run|Popen|call|check_output|check_call)",
+        "plugins/launchpad/scripts/",
+        regex=True,
+    ):
         path = hit.split(":", 1)[0]
         if not _is_v2_module(path):
-            continue  # v1 module — out of v2.0 contract scope
+            continue
+        if path in LINT_RAW_SUBPROCESS_ALLOWLIST:
+            continue  # audited exemption with docstring justification
         if path.endswith("safe_run.py"):
             continue  # safe_run is the helper itself
         if path.endswith("plugin-v2-handshake-lint.py"):
             continue  # this script IS the enforcement
         if "/tests/" in path:
-            continue
+            continue  # already excluded by _is_v2_module; defense-in-depth
         bad.append(hit)
     _emit(failures, "no-raw-subprocess", bad)
 
 
 def check_no_shell_true(failures: list[str]) -> None:
-    """shell=True is forbidden in v2.0 modules. v1 modules out of scope.
+    """shell=True is forbidden in v2.0 contract scope (path-prefix-matched).
+    Audited exceptions live in `LINT_SHELL_TRUE_ALLOWLIST` (full-path
+    strings).
 
     Allow lines that only mention shell=True as documentation/prohibition
     (heuristic: comment-marker before the match, or contains "no shell=True"
@@ -361,10 +450,12 @@ def check_no_shell_true(failures: list[str]) -> None:
     safe_run() and do not appear in user code at all.
     """
     bad = []
-    for hit in _git_grep("shell=True", "plugins/launchpad/scripts/", fixed=True):
+    for hit in _walk_grep("shell=True", "plugins/launchpad/scripts/", fixed=True):
         path = hit.split(":", 1)[0]
         if not _is_v2_module(path):
             continue
+        if path in LINT_SHELL_TRUE_ALLOWLIST:
+            continue  # audited exemption with docstring justification
         if path.endswith("plugin-v2-handshake-lint.py"):
             continue
         # Phase 5 v2.1 (cycle-1 security-lens F-SEC-LENS-2 + cycle-2
@@ -378,8 +469,12 @@ def check_no_shell_true(failures: list[str]) -> None:
             continue
         # Documentation/prohibition mentions allowed.
         line_text = hit.split(":", 2)[2] if hit.count(":") >= 2 else ""
-        if "no shell=True" in line_text or "shell=True is" in line_text \
-                or "Never use" in line_text or "forbidden" in line_text.lower():
+        if (
+            "no shell=True" in line_text
+            or "shell=True is" in line_text
+            or "Never use" in line_text
+            or "forbidden" in line_text.lower()
+        ):
             continue
         # Inline comment hash before the match → documentation.
         if "#" in line_text and line_text.index("#") < line_text.index("shell=True"):
@@ -393,10 +488,11 @@ def check_zx_test_residual(failures: list[str]) -> None:
     v2.0.0 bump commit. During development the HANDSHAKE.md + OPERATIONS.md
     + plan files + this script are exempt (allowlist)."""
     bad = []
-    for hit in _git_grep(VERSION_RESIDUAL, fixed=True):
+    for hit in _walk_grep(VERSION_RESIDUAL, fixed=True):
         path = hit.split(":", 1)[0]
-        if any(path == allowed or path.startswith(allowed)
-               for allowed in ZX_ALLOWED_PATHS):
+        if any(
+            path == allowed or path.startswith(allowed) for allowed in ZX_ALLOWED_PATHS
+        ):
             continue
         bad.append(hit)
     _emit(failures, "no-0.x-test-residual", bad)
@@ -405,14 +501,19 @@ def check_zx_test_residual(failures: list[str]) -> None:
 def check_brownfield_manifests_single_source(failures: list[str]) -> None:
     """`BROWNFIELD_MANIFESTS = {` definition must occur exactly once (in
     cwd_state.py). Per HANDSHAKE §8 single-source assertion #2."""
-    hits = _git_grep(r"BROWNFIELD_MANIFESTS\s*=\s*\{",
-                     "plugins/launchpad/scripts/", regex=True)
+    hits = _walk_grep(
+        r"BROWNFIELD_MANIFESTS\s*=\s*\{", "plugins/launchpad/scripts/", regex=True
+    )
     # Filter out hits inside this lint script + tests (test source includes
     # the regex literal).
-    real = [h for h in hits if not (
-        h.split(":", 1)[0].endswith("plugin-v2-handshake-lint.py")
-        or "/tests/" in h.split(":", 1)[0]
-    )]
+    real = [
+        h
+        for h in hits
+        if not (
+            h.split(":", 1)[0].endswith("plugin-v2-handshake-lint.py")
+            or "/tests/" in h.split(":", 1)[0]
+        )
+    ]
     if len(real) != 1:
         failures.append(
             f"[brownfield-manifests-single-source] expected exactly 1 definition, "
@@ -485,7 +586,9 @@ def check_pull_request_target_safety(failures: list[str]) -> None:
         for pat in PR_TARGET_FORBIDDEN_PATTERNS:
             for i, line in enumerate(text.splitlines(), 1):
                 if re.search(pat, line):
-                    bad.append(f"{wf.relative_to(REPO_ROOT)}:{i}: forbidden pattern {pat!r}")
+                    bad.append(
+                        f"{wf.relative_to(REPO_ROOT)}:{i}: forbidden pattern {pat!r}"
+                    )
     _emit(failures, "pull-request-target-safety", bad)
 
 
@@ -525,8 +628,10 @@ def _is_leakage_allowlisted(path: str) -> bool:
         return True
     if path.endswith(".launchpad/secret-patterns.txt"):
         return True
-    return any(path == allowed or path.endswith("/" + allowed)
-               for allowed in LEAKAGE_FILE_ALLOWLIST)
+    return any(
+        path == allowed or path.endswith("/" + allowed)
+        for allowed in LEAKAGE_FILE_ALLOWLIST
+    )
 
 
 def check_private_origin_leakage(failures: list[str]) -> None:
@@ -545,7 +650,7 @@ def check_private_origin_leakage(failures: list[str]) -> None:
             cre = re.compile(pat, re.IGNORECASE)
         except re.error:
             continue
-        for hit in _git_grep(pat, *LEAKAGE_SCAN_PATHS, regex=True, ignorecase=True):
+        for hit in _walk_grep(pat, *LEAKAGE_SCAN_PATHS, regex=True, ignorecase=True):
             path = hit.split(":", 1)[0]
             if _is_leakage_allowlisted(path):
                 continue
@@ -626,9 +731,7 @@ ATOMIC_WRITE_REPLACE_NAMES = (
     "atomic_write_replace",
     "atomic_write_replace_batch",
 )
-ATOMIC_WRITE_REPLACE_SCAN_GLOBS = (
-    "plugins/launchpad/scripts/**/*.py",
-)
+ATOMIC_WRITE_REPLACE_SCAN_GLOBS = ("plugins/launchpad/scripts/**/*.py",)
 
 # Phase 8.5 plan section 2.3: audit-log enforcement rule. Any deletion of a
 # CODEOWNERS-protected path requires a same-commit
@@ -639,9 +742,7 @@ DECOMMISSION_AUDIT_LOG = "docs/maintainers/decommission-history.md"
 # Phase 4 v2.1: pin-registry rotation-detector. Every modification of a
 # `sha` value in pin_registry.py requires a same-commit append-only entry in
 # `docs/maintainers/upstream-pin-rotations.md` (Phase 4 plan §3.9).
-PIN_REGISTRY_FILE = (
-    "plugins/launchpad/scripts/plugin_stack_adapters/pin_registry.py"
-)
+PIN_REGISTRY_FILE = "plugins/launchpad/scripts/plugin_stack_adapters/pin_registry.py"
 PIN_ROTATION_AUDIT_LOG = "docs/maintainers/upstream-pin-rotations.md"
 SCHEMA_DOC = "docs/architecture/SCAFFOLD_HANDSHAKE.md"
 BOOTSTRAP_MANIFEST_DOC = "docs/architecture/SCAFFOLD_HANDSHAKE.md"
@@ -700,7 +801,7 @@ def check_schema_codeowners_gate(
         f"[{rule}] schema-source files changed without {SCHEMA_DOC} also "
         f"being touched in the same diff:\n  "
         + "\n  ".join(sorted(schema_changed))
-        + f"\n\nThe v2.1 schema contract (HANDSHAKE §10.v2.1) requires "
+        + f"\n\nThe v2.1 schema contract (HANDSHAKE §10.v2.1) requires "  # nosec B608 -- false positive; constructing error-message string, not SQL query (the word "schema" + adjacent string concat triggers B608's heuristic) (cf. BL-308 | HANDSHAKE §10.v2.1 | plan §6 alternatives table).
         f"that any change to schema-source code be paired with an update "
         f"to {SCHEMA_DOC}. If this PR genuinely needs to ship without a "
         f"docs change (e.g., pure refactor), set commit footer "
@@ -748,9 +849,7 @@ def check_pin_registry_rotation_audit_log(
     """
     rule = "pin-registry-rotation-audit-log"
 
-    rc, names_out = _run(
-        ["git", "diff", "--name-only", f"{base_ref}...HEAD"]
-    )
+    rc, names_out = _run(["git", "diff", "--name-only", f"{base_ref}...HEAD"])
     if rc != 0:
         failures.append(
             f"[{rule}] git diff against {base_ref} failed (rc={rc}); set "
@@ -761,13 +860,9 @@ def check_pin_registry_rotation_audit_log(
     if PIN_REGISTRY_FILE not in changed:
         return  # pin_registry untouched; gate trivially satisfied
 
-    rc, diff_out = _run(
-        ["git", "diff", f"{base_ref}...HEAD", "--", PIN_REGISTRY_FILE]
-    )
+    rc, diff_out = _run(["git", "diff", f"{base_ref}...HEAD", "--", PIN_REGISTRY_FILE])
     if rc != 0:
-        failures.append(
-            f"[{rule}] git diff for {PIN_REGISTRY_FILE} failed (rc={rc})."
-        )
+        failures.append(f"[{rule}] git diff for {PIN_REGISTRY_FILE} failed (rc={rc}).")
         return
 
     added_shas = _PIN_SHA_LINE_RE.findall(diff_out)
@@ -779,9 +874,9 @@ def check_pin_registry_rotation_audit_log(
             f"[{rule}] pin_registry.py adds new SHA value(s) without a same-"
             f"commit entry in {PIN_ROTATION_AUDIT_LOG}.\n  added SHAs:\n  "
             + "\n  ".join(sorted(added_shas))
-            + f"\n\nPhase 4 plan §3.9: every _UPSTREAM_SHA rotation requires "
-            f"an append-only audit-log entry with non-empty Reason + Reviewer "
-            f"in the same commit."
+            + "\n\nPhase 4 plan §3.9: every _UPSTREAM_SHA rotation requires "
+            "an append-only audit-log entry with non-empty Reason + Reviewer "
+            "in the same commit."
         )
 
 
@@ -815,6 +910,7 @@ def run_check_leakage() -> int:
 
 
 # --- Phase 1 catalog-validation checks ---
+
 
 def _load_yaml_or_fail(path: Path, failures: list[str], rule: str) -> dict | None:
     """Load YAML via vendored PyYAML safe_load. Append failure on error."""
@@ -857,7 +953,9 @@ def _check_freshness(date_str: str, *, today: _dt.date) -> str | None:
     return None
 
 
-def check_scaffolders_catalog(failures: list[str], today: _dt.date | None = None) -> set[str]:
+def check_scaffolders_catalog(
+    failures: list[str], today: _dt.date | None = None
+) -> set[str]:
     """Validate scaffolders.yml shape + freshness + per-entry sha256 against
     its knowledge_anchor file. Returns the set of stack ids it found (used by
     the cross-reference check in check_category_patterns_catalog).
@@ -892,13 +990,18 @@ def check_scaffolders_catalog(failures: list[str], today: _dt.date | None = None
         if not isinstance(entry, dict):
             failures.append(f"[{rule}] entry {stack_id!r} must be a mapping")
             continue
-        for required in ("pillar", "type", "flavor", "knowledge_anchor",
-                         "knowledge_anchor_sha256", "options_schema",
-                         "last_validated"):
+        for required in (
+            "pillar",
+            "type",
+            "flavor",
+            "knowledge_anchor",
+            "knowledge_anchor_sha256",
+            "options_schema",
+            "last_validated",
+        ):
             if required not in entry:
                 failures.append(
-                    f"[{rule}] entry {stack_id!r} missing required field "
-                    f"{required!r}"
+                    f"[{rule}] entry {stack_id!r} missing required field {required!r}"
                 )
         # Type/flavor enum
         if entry.get("type") not in ALLOWED_TYPES:
@@ -955,9 +1058,7 @@ def check_scaffolders_catalog(failures: list[str], today: _dt.date | None = None
                     f"{anchor_rel} does not exist"
                 )
             else:
-                actual_sha = hashlib.sha256(
-                    anchor_path.read_bytes()
-                ).hexdigest()
+                actual_sha = hashlib.sha256(anchor_path.read_bytes()).hexdigest()
                 pinned = entry.get("knowledge_anchor_sha256")
                 if pinned != actual_sha:
                     failures.append(
@@ -978,9 +1079,9 @@ def check_scaffolders_catalog(failures: list[str], today: _dt.date | None = None
     return found_ids
 
 
-def check_category_patterns_catalog(failures: list[str],
-                                    *, scaffolder_ids: set[str],
-                                    today: _dt.date | None = None) -> None:
+def check_category_patterns_catalog(
+    failures: list[str], *, scaffolder_ids: set[str], today: _dt.date | None = None
+) -> None:
     """Validate category-patterns.yml shape + freshness + cross-reference each
     canonical_stack[].stack against scaffolder_ids."""
     if today is None:
@@ -1019,12 +1120,16 @@ def check_category_patterns_catalog(failures: list[str],
         if cat_id in seen_ids:
             failures.append(f"[{rule}] duplicate category id {cat_id!r}")
         seen_ids.add(cat_id)
-        for required in ("name", "fits_when", "canonical_stack",
-                         "explanation", "last_validated"):
+        for required in (
+            "name",
+            "fits_when",
+            "canonical_stack",
+            "explanation",
+            "last_validated",
+        ):
             if required not in entry:
                 failures.append(
-                    f"[{rule}] category {cat_id!r} missing required field "
-                    f"{required!r}"
+                    f"[{rule}] category {cat_id!r} missing required field {required!r}"
                 )
         # Cross-reference canonical_stack[].stack against scaffolder_ids
         layers = entry.get("canonical_stack", [])
@@ -1075,7 +1180,9 @@ def check_category_patterns_catalog(failures: list[str],
             failures.append(f"[{rule}] category {cat_id!r}: {err}")
 
 
-def check_anchor_doc_freshness(failures: list[str], today: _dt.date | None = None) -> None:
+def check_anchor_doc_freshness(
+    failures: list[str], today: _dt.date | None = None
+) -> None:
     """Each plugins/launchpad/scaffolders/<stack>-pattern.md MUST carry a
     YAML frontmatter `last_validated:` within the 30d window."""
     if today is None:
@@ -1084,8 +1191,7 @@ def check_anchor_doc_freshness(failures: list[str], today: _dt.date | None = Non
     if not ANCHOR_DIR.exists():
         return
     fm_re = re.compile(r"^---\s*\n(.*?)\n---", re.DOTALL)
-    lv_re = re.compile(r"^last_validated:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})",
-                       re.MULTILINE)
+    lv_re = re.compile(r"^last_validated:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})", re.MULTILINE)
     for anchor in sorted(ANCHOR_DIR.glob("*-pattern.md")):
         text = anchor.read_text(encoding="utf-8")
         m = fm_re.match(text)
@@ -1107,6 +1213,7 @@ def check_anchor_doc_freshness(failures: list[str], today: _dt.date | None = Non
 
 
 # --- Phase -1 acceptance gates ---
+
 
 def check_psutil_cve(failures: list[str]) -> int:
     """Cross-reference `_vendor/PSUTIL_VERSION` against the public CVE feed.
@@ -1170,6 +1277,7 @@ def check_legacy_yaml_canonical_hash_removal(failures: list[str]) -> int:
     if not plugin_json.exists():
         return 0  # nothing to gate against
     import json
+
     try:
         meta = json.loads(plugin_json.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
@@ -1183,11 +1291,14 @@ def check_legacy_yaml_canonical_hash_removal(failures: list[str]) -> int:
     major, minor = int(m.group(1)), int(m.group(2))
     if (major, minor) < (2, 2):
         return 0  # gate not yet active
-    hits = _git_grep("_legacy_yaml_canonical_hash",
-                     "plugins/launchpad/scripts/", fixed=True)
-    real = [h for h in hits if not h.split(":", 1)[0].endswith(
-        "plugin-v2-handshake-lint.py"
-    )]
+    hits = _walk_grep(
+        "_legacy_yaml_canonical_hash", "plugins/launchpad/scripts/", fixed=True
+    )
+    real = [
+        h
+        for h in hits
+        if not h.split(":", 1)[0].endswith("plugin-v2-handshake-lint.py")
+    ]
     if real:
         failures.append(
             f"[legacy-yaml-removal] BL-210 gate: at version {version} the "
@@ -1199,6 +1310,7 @@ def check_legacy_yaml_canonical_hash_removal(failures: list[str]) -> int:
 
 
 # --- mode dispatch ---
+
 
 def check_scaffold_receipt_schema(failures: list[str]) -> None:
     """L1 (Phase 3): validate any `scaffold-receipt.json` files in fixtures
@@ -1213,14 +1325,22 @@ def check_scaffold_receipt_schema(failures: list[str]) -> None:
     # — the previous shape only checked required-field presence, so a
     # corrupted fixture with a wrong sha256 passed silently).
     import sys as _sys
+
     if str(PLUGINS_SCRIPTS) not in _sys.path:
         _sys.path.insert(0, str(PLUGINS_SCRIPTS))
     from decision_integrity import canonical_hash  # type: ignore[import-not-found]
 
     required = (
-        "version", "scaffolded_at", "decision_sha256", "decision_nonce",
-        "layers_materialized", "cross_cutting_files", "toolchains_detected",
-        "secret_scan_passed", "tier1_governance_summary", "sha256",
+        "version",
+        "scaffolded_at",
+        "decision_sha256",
+        "decision_nonce",
+        "layers_materialized",
+        "cross_cutting_files",
+        "toolchains_detected",
+        "secret_scan_passed",
+        "tier1_governance_summary",
+        "sha256",
     )
     bad: list[str] = []
     for f in fixtures.glob("scaffold_receipt*.json"):
@@ -1238,7 +1358,9 @@ def check_scaffold_receipt_schema(failures: list[str]) -> None:
         # 3 counts after dispatch.
         tier1 = payload.get("tier1_governance_summary") or {}
         if "architecture_docs_rendered" not in tier1:
-            bad.append(f"{f.name}: tier1_governance_summary.architecture_docs_rendered missing")
+            bad.append(
+                f"{f.name}: tier1_governance_summary.architecture_docs_rendered missing"
+            )
         # sha256 self-hash verification (closes silent-corruption gap).
         # Skip if `sha256` key is missing — already flagged by required-fields check.
         declared_sha = payload.get("sha256")
@@ -1282,7 +1404,9 @@ def check_nonce_ledger_format(failures: list[str]) -> None:
             if ln.startswith("#"):
                 continue
             if len(ln.encode("utf-8")) != 33:
-                bad.append(f"{f.name}: data line is not 33 bytes (got {len(ln.encode('utf-8'))})")
+                bad.append(
+                    f"{f.name}: data line is not 33 bytes (got {len(ln.encode('utf-8'))})"
+                )
                 break
     _emit(failures, "nonce-ledger-format", bad)
 
@@ -1294,6 +1418,7 @@ def check_scaffold_rejection_schema(failures: list[str]) -> None:
     if not fixtures.exists():
         return
     import json
+
     required = ("schema_version", "reason", "timestamp", "pid", "pid_start_time")
     bad: list[str] = []
     for f in fixtures.rglob("scaffold-rejection-*.jsonl"):
@@ -1314,7 +1439,9 @@ def check_scaffold_rejection_schema(failures: list[str]) -> None:
                 if fld not in rec:
                     bad.append(f"{f.name}: missing required field {fld!r}")
             if rec.get("schema_version") != "1.0":
-                bad.append(f"{f.name}: schema_version must be '1.0' (got {rec.get('schema_version')!r})")
+                bad.append(
+                    f"{f.name}: schema_version must be '1.0' (got {rec.get('schema_version')!r})"
+                )
     _emit(failures, "scaffold-rejection-schema", bad)
 
 
@@ -1326,15 +1453,25 @@ def check_scaffold_failed_schema(failures: list[str]) -> None:
     if not fixtures.exists():
         return
     import json
+
     required = (
-        "schema_version", "version", "failed_at", "reason", "failed_layer_index",
-        "materialized_files", "recovery_commands", "recommended_recovery_action",
+        "schema_version",
+        "version",
+        "failed_at",
+        "reason",
+        "failed_layer_index",
+        "materialized_files",
+        "recovery_commands",
+        "recommended_recovery_action",
         "see_recovery_doc",
     )
     valid_reasons = {
-        "layer_materialization_failed", "auth_precondition_unmet",
-        "network_precondition_unmet", "cross_cutting_wiring_collision",
-        "secret_scan_failed", "recovery_precondition_unmet",
+        "layer_materialization_failed",
+        "auth_precondition_unmet",
+        "network_precondition_unmet",
+        "cross_cutting_wiring_collision",
+        "secret_scan_failed",
+        "recovery_precondition_unmet",
     }
     destructive_paths = {".", "./", "..", "/", "~", ".launchpad", ".git", ".github"}
     bad: list[str] = []
@@ -1348,11 +1485,15 @@ def check_scaffold_failed_schema(failures: list[str]) -> None:
             if fld not in rec:
                 bad.append(f"{f.name}: missing required field {fld!r}")
         if rec.get("reason") not in valid_reasons:
-            bad.append(f"{f.name}: reason {rec.get('reason')!r} not in OPERATIONS §6 gate #11 enum")
-        for entry in (rec.get("recovery_commands") or []):
+            bad.append(
+                f"{f.name}: reason {rec.get('reason')!r} not in OPERATIONS §6 gate #11 enum"
+            )
+        for entry in rec.get("recovery_commands") or []:
             path = entry.get("path")
             if path in destructive_paths:
-                bad.append(f"{f.name}: recovery_commands carries destructive path {path!r}")
+                bad.append(
+                    f"{f.name}: recovery_commands carries destructive path {path!r}"
+                )
     _emit(failures, "scaffold-failed-schema", bad)
 
 
@@ -1385,8 +1526,10 @@ def check_atomic_write_replace_allowlist(failures: list[str]) -> None:
             continue
         if "/_vendor/" in rel or "/__pycache__/" in rel:
             continue
-        if "/tests/" in rel or rel.endswith("_test.py") or rel.startswith(
-            "plugins/launchpad/scripts/tests/"
+        if (
+            "/tests/" in rel
+            or rel.endswith("_test.py")
+            or rel.startswith("plugins/launchpad/scripts/tests/")
         ):
             # Tests are permitted to call atomic_write_replace as part
             # of fixture setup; the gate targets production code paths.
@@ -1432,8 +1575,7 @@ def check_atomic_write_replace_allowlist(failures: list[str]) -> None:
         failures.append(
             f"[{rule}] atomic_write_replace called from non-allowlisted "
             f"module(s); only {sorted(permitted)} may call this function "
-            f"(Phase 8.5 plan section 2.3). Hits:\n  "
-            + "\n  ".join(sorted(hits))
+            f"(Phase 8.5 plan section 2.3). Hits:\n  " + "\n  ".join(sorted(hits))
         )
 
 
@@ -1488,9 +1630,9 @@ def check_decommission_audit_log_required(
             f"[{rule}] CODEOWNERS-protected path(s) deleted without a "
             f"same-commit append entry in {DECOMMISSION_AUDIT_LOG}:\n  "
             + "\n  ".join(sorted(protected_deleted))
-            + f"\n\nPhase 8.5 plan section 2.3 audit-log enforcement: every "
-            f"deletion under plugins/launchpad/scripts/ requires an "
-            f"append-only audit-log entry with non-empty Reason + Reviewer."
+            + "\n\nPhase 8.5 plan section 2.3 audit-log enforcement: every "
+            "deletion under plugins/launchpad/scripts/ requires an "
+            "append-only audit-log entry with non-empty Reason + Reviewer."
         )
 
 
@@ -1537,15 +1679,16 @@ def run_check_version_coherence(phase: str) -> int:
     (modulo the documentary allowlist). Wired into v2-release.yml check #3.
     """
     if phase not in ("pre-bump", "post-tag"):
-        print(f"--phase must be pre-bump or post-tag; got {phase}",
-              file=sys.stderr)
+        print(f"--phase must be pre-bump or post-tag; got {phase}", file=sys.stderr)
         return 2
     failures: list[str] = []
     if phase == "post-tag":
         check_zx_test_residual(failures)
         if failures:
-            print("version-coherence (post-tag): FAIL — 0.x-test residual",
-                  file=sys.stderr)
+            print(
+                "version-coherence (post-tag): FAIL — 0.x-test residual",
+                file=sys.stderr,
+            )
             for f in failures:
                 print(f, file=sys.stderr)
             return 1
@@ -1567,19 +1710,23 @@ def run_regenerate_fixtures(max_fixtures: int) -> int:
     if not manifest.exists():
         print("regenerate-fixtures: no manifest.yml yet (Phase -1 — no fixtures)")
         return 0
-    print(f"regenerate-fixtures: max_fixtures={max_fixtures}; "
-          f"manifest at {manifest.relative_to(REPO_ROOT)} (Phase 7.5 path)")
+    print(
+        f"regenerate-fixtures: max_fixtures={max_fixtures}; "
+        f"manifest at {manifest.relative_to(REPO_ROOT)} (Phase 7.5 path)"
+    )
     return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--check-version-coherence", action="store_true",
+        "--check-version-coherence",
+        action="store_true",
         help="Run the version-coherence check (requires --phase).",
     )
     parser.add_argument(
-        "--phase", choices=("pre-bump", "post-tag"),
+        "--phase",
+        choices=("pre-bump", "post-tag"),
         help="Phase for version-coherence check.",
     )
     parser.add_argument(
@@ -1597,44 +1744,53 @@ def main() -> int:
     # the next public release. NOT addressed in cycle 11 to keep scope
     # tight on the three P1 correctness fixes; tracked for v2.1.
     parser.add_argument(
-        "--check-psutil-cve", action="store_true",
+        "--check-psutil-cve",
+        action="store_true",
         help="Phase -1 acceptance gate: psutil pin shape check "
-             "(BL-238 — does NOT yet cross-reference a CVE DB).",
+        "(BL-238 — does NOT yet cross-reference a CVE DB).",
     )
     parser.add_argument(
-        "--check-pyyaml-cve", action="store_true",
+        "--check-pyyaml-cve",
+        action="store_true",
         help="PyYAML pin shape check (BL-238 — does NOT yet cross-reference a CVE DB).",
     )
     parser.add_argument(
-        "--check-leakage", action="store_true",
+        "--check-leakage",
+        action="store_true",
         help="Standalone private-origin leakage scan (verify-v2-ship #4).",
     )
     parser.add_argument(
-        "--check-schema-codeowners-gate", action="store_true",
+        "--check-schema-codeowners-gate",
+        action="store_true",
         dest="check_schema_codeowners_gate",
         help="v2.1+: fail PRs that change schema-source files without "
-             "touching SCAFFOLD_HANDSHAKE.md in the same diff. Reads "
-             "LP_BASE_REF (default origin/main) for the diff base.",
+        "touching SCAFFOLD_HANDSHAKE.md in the same diff. Reads "
+        "LP_BASE_REF (default origin/main) for the diff base.",
     )
     parser.add_argument(
-        "--check-pin-registry-rotation-audit-log", action="store_true",
+        "--check-pin-registry-rotation-audit-log",
+        action="store_true",
         dest="check_pin_registry_rotation_audit_log",
         help="Phase 4 v2.1: fail PRs that rotate an _UPSTREAM_SHA value in "
-             "pin_registry.py without a same-commit append-only entry in "
-             "docs/maintainers/upstream-pin-rotations.md. Reads LP_BASE_REF "
-             "(default origin/main) for the diff base.",
+        "pin_registry.py without a same-commit append-only entry in "
+        "docs/maintainers/upstream-pin-rotations.md. Reads LP_BASE_REF "
+        "(default origin/main) for the diff base.",
     )
     parser.add_argument(
-        "--regenerate-fixtures", action="store_true",
+        "--regenerate-fixtures",
+        action="store_true",
         help="WRITE-MUTATING: regenerate test fixtures from manifest.yml. "
-             "Permitted ONLY in v2-release.yml.",
+        "Permitted ONLY in v2-release.yml.",
     )
     parser.add_argument(
-        "--max-fixtures", type=int, default=200,
+        "--max-fixtures",
+        type=int,
+        default=200,
         help="Cap on number of fixtures regenerated (Layer 5 P2-L5-2).",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Pass-1 only; do not write fixtures.",
     )
     args = parser.parse_args()
@@ -1647,7 +1803,9 @@ def main() -> int:
 
     failures: list[str] = []
     if args.check_legacy_removal:
-        return check_legacy_yaml_canonical_hash_removal(failures) or (1 if failures else 0)
+        return check_legacy_yaml_canonical_hash_removal(failures) or (
+            1 if failures else 0
+        )
     if args.check_psutil_cve:
         rc = check_psutil_cve(failures)
         if failures:

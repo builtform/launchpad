@@ -21,20 +21,21 @@ Composition mode: dispatches to `composition.compose(adapters,
 composition_root)`. The N=2 cap is enforced upstream by
 `composition.validate_pair`; this module surfaces the rejection unchanged.
 """
+
 from __future__ import annotations
 
 import os
 import shutil
 import uuid
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 from plugin_default_generators._renderer_base import STACK_ID_ACTIVE_ENUM
 from plugin_stack_adapters.composition import (
+    TMP_PARENT_DIRNAME,
     CompositionAbortError,
     CompositionRejectionCode,
     CompositionResult,
-    TMP_PARENT_DIRNAME,
     _assert_within,
     _ensure_same_fs,
     _reject_symlinks_in_subtree,
@@ -43,10 +44,9 @@ from plugin_stack_adapters.composition import (
 )
 from plugin_stack_adapters.contracts import (
     Adapter,
-    bridge_to_scaffold_error,
     ScaffoldStepFailedError,
+    bridge_to_scaffold_error,
 )
-
 
 _ADAPTER_REGISTRY: dict[str, str] = {
     "ts_monorepo": "plugin_stack_adapters.ts_monorepo",
@@ -62,9 +62,7 @@ _ADAPTER_REGISTRY: dict[str, str] = {
 # STACK_ID_ACTIVE_ENUM auto-classifies as candidate-or-active by registry
 # membership; drift becomes impossible). Replaces the cycle-0 drift-gate
 # test approach with a one-line invariant.
-_V22_CANDIDATE_IDS: frozenset[str] = (
-    STACK_ID_ACTIVE_ENUM - frozenset(_ADAPTER_REGISTRY)
-)
+_V22_CANDIDATE_IDS: frozenset[str] = STACK_ID_ACTIVE_ENUM - frozenset(_ADAPTER_REGISTRY)
 
 
 def resolve_adapter(
@@ -104,6 +102,7 @@ def resolve_adapter(
                 ),
             )
         import sys
+
         print(
             f"[v2.1 dispatch] stack_id {stack_id!r} routed via generic "
             f"adapter — no specialized v2.1 adapter; v2.2 ships dedicated "
@@ -171,7 +170,8 @@ def _dispatch_single_adapter_into_apps(
         if ws_name in path_overrides:
             t = project_root / path_overrides[ws_name]
             _assert_within(
-                t, project_root,
+                t,
+                project_root,
                 field_name=f"path_override[{ws_name!r}]",
             )
             t.parent.mkdir(parents=True, exist_ok=True)
@@ -214,9 +214,10 @@ def _dispatch_single_adapter_into_apps(
         adapter.scaffold_into(tempdir)
         adapter.apply_overlay(tempdir)
 
-        for workspace_name, source_relpath in (
-            adapter.workspace_source_map_single.items()
-        ):
+        for (
+            workspace_name,
+            source_relpath,
+        ) in adapter.workspace_source_map_single.items():
             src_raw = tempdir / source_relpath
             src = _assert_within(
                 src_raw,
@@ -229,8 +230,7 @@ def _dispatch_single_adapter_into_apps(
             if not src.exists():
                 raise CompositionAbortError(
                     reason=(
-                        CompositionRejectionCode
-                        .WORKSPACE_SOURCE_MAP_MISMATCH.value
+                        CompositionRejectionCode.WORKSPACE_SOURCE_MAP_MISMATCH.value
                     ),
                     path=src,
                     remediation=(
@@ -249,9 +249,7 @@ def _dispatch_single_adapter_into_apps(
             # Idempotency pre-check above already verified the target is
             # empty/missing; safe to rmdir an empty placeholder if one
             # exists from the apps_root.mkdir above.
-            if workspace_target.exists() and not any(
-                workspace_target.iterdir()
-            ):
+            if workspace_target.exists() and not any(workspace_target.iterdir()):
                 workspace_target.rmdir()
             os.replace(str(src), str(workspace_target))
             placed.append(workspace_target)
@@ -262,8 +260,7 @@ def _dispatch_single_adapter_into_apps(
                 src_raw,
                 tempdir,
                 field_name=(
-                    f"package_workspace_paths[{pkg_relpath!r}] of "
-                    f"{adapter.stack_id}"
+                    f"package_workspace_paths[{pkg_relpath!r}] of {adapter.stack_id}"
                 ),
             )
             if not src.exists():
@@ -281,15 +278,13 @@ def _dispatch_single_adapter_into_apps(
             placed.append(dst)
 
         # Per harden P3-ν: surface tampered-tempdir slip-through.
-        for workspace_name, source_relpath in (
-            adapter.workspace_source_map_single.items()
-        ):
+        for (
+            _workspace_name,
+            source_relpath,
+        ) in adapter.workspace_source_map_single.items():
             if (tempdir / source_relpath).exists():
                 raise CompositionAbortError(
-                    reason=(
-                        CompositionRejectionCode
-                        .RESIDUAL_TAMPERED_TEMPDIR.value
-                    ),
+                    reason=(CompositionRejectionCode.RESIDUAL_TAMPERED_TEMPDIR.value),
                     path=tempdir,
                     remediation=(
                         f"tempdir {tempdir} still contains "
@@ -300,10 +295,7 @@ def _dispatch_single_adapter_into_apps(
         for pkg_relpath in adapter.package_workspace_paths:
             if (tempdir / pkg_relpath).exists():
                 raise CompositionAbortError(
-                    reason=(
-                        CompositionRejectionCode
-                        .RESIDUAL_TAMPERED_TEMPDIR.value
-                    ),
+                    reason=(CompositionRejectionCode.RESIDUAL_TAMPERED_TEMPDIR.value),
                     path=tempdir,
                     remediation=(
                         f"tempdir {tempdir} still contains "
@@ -365,7 +357,9 @@ def dispatch_single_adapter(
         return workspace_dir
     try:
         return _dispatch_single_adapter_into_apps(
-            adapter, workspace_dir, layer_paths=layer_paths,
+            adapter,
+            workspace_dir,
+            layer_paths=layer_paths,
         )
     except CompositionAbortError:
         raise
@@ -412,11 +406,11 @@ def dispatch_by_stack_ids(
             remediation="at least one stack_id is required",
         )
     if len(stack_ids) == 1:
-        adapter = resolve_adapter(
-            stack_ids[0], accept_v22_fallback=accept_v22_fallback
-        )
+        adapter = resolve_adapter(stack_ids[0], accept_v22_fallback=accept_v22_fallback)
         return dispatch_single_adapter(
-            adapter, workspace_dir, layer_paths=layer_paths,
+            adapter,
+            workspace_dir,
+            layer_paths=layer_paths,
         )
     adapters = [
         resolve_adapter(sid, accept_v22_fallback=accept_v22_fallback)
@@ -425,9 +419,7 @@ def dispatch_by_stack_ids(
     return dispatch_composition(adapters, workspace_dir)
 
 
-def fallback_ids_used(
-    stack_ids: list[str], *, accept_v22_fallback: bool
-) -> list[str]:
+def fallback_ids_used(stack_ids: list[str], *, accept_v22_fallback: bool) -> list[str]:
     """Return the post-validation intersection of `stack_ids` with the
     v2.2-candidate set, only when the fallback flag is in effect.
 

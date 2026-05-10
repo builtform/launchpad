@@ -22,13 +22,13 @@ Behavior:
   - Empty list = safe to write
   - Non-empty list = caller decides: refuse, warn-and-prompt, or allow with confirmation
 """
+
 from __future__ import annotations
 
 import functools
 import re
 from dataclasses import dataclass
 from pathlib import Path
-
 
 # Conservative built-in patterns. Lower risk of false negatives than a
 # completely empty default. Projects can still override via secret-patterns.txt.
@@ -159,7 +159,9 @@ def scan(
                 # at column 0 of the line.
                 redacted = pat.sub("<REDACTED>", line)
                 preview = redacted.strip()[:80]
-                matches.append(SecretMatch(pattern=pat.pattern, line_no=line_no, preview=preview))
+                matches.append(
+                    SecretMatch(pattern=pat.pattern, line_no=line_no, preview=preview)
+                )
                 break  # one hit per line is enough to flag it
     return matches
 
@@ -171,7 +173,9 @@ def format_matches(matches: list[SecretMatch]) -> str:
         return "(no secret patterns matched)"
     lines = [f"Found {len(matches)} possible secret(s):"]
     for m in matches:
-        lines.append(f"  line {m.line_no}: {m.preview!r} (matched pattern /{m.pattern[:40]}.../)")
+        lines.append(
+            f"  line {m.line_no}: {m.preview!r} (matched pattern /{m.pattern[:40]}.../)"
+        )
     return "\n".join(lines)
 
 

@@ -9,6 +9,7 @@ window between read-time hash check and consumption.
 Callers MUST pass the returned bytes (never the path) into Claude's context
 constructor.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -53,9 +54,7 @@ def read_and_verify(
         except FileNotFoundError:
             break
         if stat_module.S_ISLNK(cur_stat.st_mode):
-            raise ValueError(
-                f"knowledge anchor path or ancestor is a symlink: {cur}"
-            )
+            raise ValueError(f"knowledge anchor path or ancestor is a symlink: {cur}")
         parent = cur.parent
         if parent == cur:  # reached filesystem root
             break

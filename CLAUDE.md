@@ -85,11 +85,24 @@ Auto-fix command: `pnpm format`
 
 ### Definition of Done
 
-Claude must confirm all three before closing a task:
+Claude must confirm all of the following before closing a task:
+
+**TypeScript / JavaScript (existing):**
 
 - [ ] Tests pass: `pnpm test`
 - [ ] Typecheck passes: `pnpm typecheck`
 - [ ] No new lint errors: `pnpm lint`
+
+**Python (when changes touch `*.py` or `plugins/launchpad/scripts/` — added in v2.1.1):**
+
+- [ ] Tests pass: `cd plugins/launchpad/scripts && pytest -q`
+- [ ] Typecheck passes: `cd plugins/launchpad/scripts && pyright .` (run from `plugins/launchpad/scripts/` so pyproject.toml is discovered — matches CI invocation)
+- [ ] No new lint errors: `cd plugins/launchpad/scripts && ruff check .`
+
+**Universal:**
+
+- [ ] Pre-commit hooks pass: `lefthook run pre-commit`
+- [ ] Code review pass: `/lp-review --headless` (specialist) + `/lp-review --headless --no-context` (blind) per Phase 2 mandatory dual-pass
 
 ---
 

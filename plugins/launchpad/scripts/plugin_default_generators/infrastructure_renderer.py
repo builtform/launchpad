@@ -28,31 +28,30 @@ Behavioural contract (locked in plan section 3.10):
     harden B4 to share the Jinja environment across `run_bootstrap()`
     calls in a single Python process.
 """
+
 from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Iterator, Mapping, Sequence
+from typing import Any
 
 # Sibling-script imports.
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from ._renderer_base import RendererBase, sha256_bytes  # noqa: E402
-
 from lp_bootstrap import (  # noqa: E402
-    FILE_MODES,
     INFRASTRUCTURE_FILES,
     INFRASTRUCTURE_TARGETS,
-    LAUNCHPAD_DIR_NAME,
-    WARNINGS_FILENAME,
     BootstrapErrorCode,
 )
 
+from ._renderer_base import RendererBase, sha256_bytes  # noqa: E402
 
 # --- Per-module exception (parallel to manifest_writer / policy) -----------
+
 
 class InfrastructureRenderError(RuntimeError):
     """Render-side failure raised by this module.
@@ -119,7 +118,7 @@ _GITIGNORE_ALLOWLIST_REGEXES: tuple[re.Pattern[str], ...] = tuple(
         # composition + single-adapter wrapping.
         r"^\.lp-tmp(/|$)",
         r"^# .*$",  # comments
-        r"^$",       # blank lines
+        r"^$",  # blank lines
     )
 )
 
@@ -151,6 +150,7 @@ def _validate_gitignore_content(rendered_text: str) -> list[str]:
 
 
 # --- Renderer subclass ---------------------------------------------------
+
 
 class InfrastructureRenderer(RendererBase):
     """Render the 30 infrastructure files for a project's identity block."""
@@ -209,9 +209,7 @@ class InfrastructureRenderer(RendererBase):
             ) from exc
         return text.encode("utf-8")
 
-    def render_targets(
-        self, context: Mapping[str, Any]
-    ) -> Iterator[tuple[Path, str]]:
+    def render_targets(self, context: Mapping[str, Any]) -> Iterator[tuple[Path, str]]:
         """Yield `(absolute_target_path, rendered_text)` for each
         infrastructure template. Context carries `cwd: Path`,
         `identity: Mapping`, and optional `only_paths: Sequence[str]`.

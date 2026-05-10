@@ -10,15 +10,14 @@ deferred to v2.2 per HANDSHAKE §1.5 strip-back.
 Honors the `.launchpad/config.yml` `telemetry: off` opt-out: when off, the
 writer is a no-op (does not create the directory or any files).
 """
+
 from __future__ import annotations
 
-import errno
 import fcntl
 import json
 import os
-import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # JSONL line cap: PIPE_BUF on Linux is 4096; OPERATIONS §5 forces atomic
@@ -57,7 +56,7 @@ def _telemetry_off(repo_root: Path) -> bool:
 
 
 def _utc_now_iso_sec() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _open_lock(lock_path: Path) -> int:
@@ -112,13 +111,16 @@ def write_telemetry_entry(
         timestamp_basename = _utc_now_iso_sec().replace(":", "-")
     target = obs / f"v2-pipeline-{timestamp_basename}.jsonl"
 
-    line = json.dumps(
-        payload,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        allow_nan=False,
-    ) + "\n"
+    line = (
+        json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        )
+        + "\n"
+    )
     encoded = line.encode("utf-8")
     if len(encoded) > MAX_LINE_BYTES:
         raise ValueError(
@@ -173,7 +175,7 @@ def _entry_age_days(line: str, now_epoch: float) -> float | None:
         return None
     try:
         # Accept the canonical sec-precision Z form.
-        dt = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        dt = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
     except ValueError:
         return None
     return (now_epoch - dt.timestamp()) / 86400.0
@@ -224,13 +226,13 @@ def prune_telemetry(
             if f.name in completed:
                 continue
             try:
-                st = os.stat(f)
+                os.stat(f)
             except FileNotFoundError:
                 # ENOENT after lock — manually cleaned between cycles. Skip.
                 completed.add(f.name)
                 continue
 
-            with open(f, "r", encoding="utf-8") as fh:
+            with open(f, encoding="utf-8") as fh:
                 lines = fh.readlines()
 
             kept = []
@@ -278,7 +280,9 @@ def prune_telemetry(
         # All files done — atomic-rename the progress file to a .completed
         # marker; retain max 5.
         if progress_path.exists():
-            done_name = f".prune-progress.completed.{_utc_now_iso_sec().replace(':', '-')}"
+            done_name = (
+                f".prune-progress.completed.{_utc_now_iso_sec().replace(':', '-')}"
+            )
             try:
                 os.rename(progress_path, obs / done_name)
             except OSError:

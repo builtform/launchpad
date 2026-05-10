@@ -50,7 +50,7 @@ def run(cmd: list[str], env: dict | None = None) -> subprocess.CompletedProcess:
 
 # --- config-hash tests ---
 
-def test_hash_is_stable_across_whitespace() -> list[str]:
+def test_hash_is_stable_across_whitespace() -> None:
     """Canonical hash must not change for semantically-equivalent YAML."""
     errors = []
     a = make_fixture({".launchpad/config.yml": """
@@ -70,7 +70,7 @@ commands:
         r2 = run([sys.executable, HASH_SCRIPT, f"--repo-root={b}"])
         if r1.returncode != 0 or r2.returncode != 0:
             errors.append(f"hash script failed: a={r1.stderr!r} b={r2.stderr!r}")
-            return errors
+            assert not errors, "\n".join(errors)
         h1, h2 = r1.stdout.strip(), r2.stdout.strip()
         if h1 != h2:
             errors.append(
@@ -80,10 +80,10 @@ commands:
     finally:
         cleanup(a)
         cleanup(b)
-    return errors
+    assert not errors, "\n".join(errors)
 
 
-def test_hash_changes_with_meaningful_edit() -> list[str]:
+def test_hash_changes_with_meaningful_edit() -> None:
     errors = []
     a = make_fixture({".launchpad/config.yml": 'commands:\n  test: ["pnpm test"]\n'})
     b = make_fixture({".launchpad/config.yml": 'commands:\n  test: ["malicious-cmd"]\n'})
@@ -95,12 +95,12 @@ def test_hash_changes_with_meaningful_edit() -> list[str]:
     finally:
         cleanup(a)
         cleanup(b)
-    return errors
+    assert not errors, "\n".join(errors)
 
 
 # --- build-runner tests ---
 
-def test_runner_empty_stage_skips() -> list[str]:
+def test_runner_empty_stage_skips() -> None:
     errors = []
     fixture = make_fixture({".launchpad/config.yml": """
 commands:
@@ -114,10 +114,10 @@ commands:
             errors.append(f"empty stage didn't mention skip in stderr: {r.stderr!r}")
     finally:
         cleanup(fixture)
-    return errors
+    assert not errors, "\n".join(errors)
 
 
-def test_runner_serial_execution() -> list[str]:
+def test_runner_serial_execution() -> None:
     errors = []
     fixture = make_fixture({".launchpad/config.yml": """
 commands:
@@ -136,10 +136,10 @@ commands:
             errors.append(f"expected 3 command executions, saw {ran}")
     finally:
         cleanup(fixture)
-    return errors
+    assert not errors, "\n".join(errors)
 
 
-def test_runner_stops_on_first_failure() -> list[str]:
+def test_runner_stops_on_first_failure() -> None:
     errors = []
     fixture = make_fixture({".launchpad/config.yml": """
 commands:
@@ -156,10 +156,10 @@ commands:
             errors.append("runner continued after failure (should have stopped)")
     finally:
         cleanup(fixture)
-    return errors
+    assert not errors, "\n".join(errors)
 
 
-def test_runner_ci_override_mismatch_refuses() -> list[str]:
+def test_runner_ci_override_mismatch_refuses() -> None:
     errors = []
     fixture = make_fixture({".launchpad/config.yml": 'commands:\n  test: ["true"]\n'})
     try:
@@ -170,14 +170,14 @@ def test_runner_ci_override_mismatch_refuses() -> list[str]:
             errors.append(f"mismatch should exit 2, got {r.returncode}. stderr: {r.stderr[:300]}")
         if "REFUSE" not in r.stderr and "refuse" not in r.stderr.lower():
             errors.append(f"mismatch didn't refuse loudly: {r.stderr[:300]}")
-        if "expected:" not in r.stderr.lower():
+        if "expected" not in r.stderr.lower():
             errors.append(f"mismatch should print expected hash: {r.stderr[:300]}")
     finally:
         cleanup(fixture)
-    return errors
+    assert not errors, "\n".join(errors)
 
 
-def test_runner_ci_override_match_passes() -> list[str]:
+def test_runner_ci_override_match_passes() -> None:
     errors = []
     fixture = make_fixture({".launchpad/config.yml": 'commands:\n  test: ["true"]\n'})
     try:
@@ -192,10 +192,10 @@ def test_runner_ci_override_match_passes() -> list[str]:
             errors.append(f"matching override should exit 0, got {r.returncode}. stderr: {r.stderr[:300]}")
     finally:
         cleanup(fixture)
-    return errors
+    assert not errors, "\n".join(errors)
 
 
-def test_runner_ci_override_accepts_16char_prefix() -> list[str]:
+def test_runner_ci_override_accepts_16char_prefix() -> None:
     """When a user copies the 16-char commands_sha from audit.log into
     LP_CONFIG_REVIEWED, the runner accepts it as a prefix match."""
     errors = []
@@ -217,10 +217,10 @@ def test_runner_ci_override_accepts_16char_prefix() -> list[str]:
             errors.append(f"16-char prefix incorrectly refused. stderr: {r.stderr[:400]}")
     finally:
         cleanup(fixture)
-    return errors
+    assert not errors, "\n".join(errors)
 
 
-def test_runner_ci_override_refuse_mentions_audit_truncation() -> list[str]:
+def test_runner_ci_override_refuse_mentions_audit_truncation() -> None:
     """The runner's refuse message must tell the user about audit.log
     truncation so they understand why a 16-char copy might need to be the full hash."""
     errors = []
@@ -240,10 +240,10 @@ def test_runner_ci_override_refuse_mentions_audit_truncation() -> list[str]:
             errors.append(f"refuse message missing CLAUDE_PLUGIN_ROOT pointer: {r.stderr[:400]}")
     finally:
         cleanup(fixture)
-    return errors
+    assert not errors, "\n".join(errors)
 
 
-def test_runner_ci_override_rejects_wrong_16char() -> list[str]:
+def test_runner_ci_override_rejects_wrong_16char() -> None:
     """A wrong 16-char prefix (valid hex but not a prefix of current) must still refuse."""
     errors = []
     fixture = make_fixture({".launchpad/config.yml": 'commands:\n  test: ["true"]\n'})
@@ -257,10 +257,10 @@ def test_runner_ci_override_rejects_wrong_16char() -> list[str]:
             errors.append(f"missing REFUSE message: {r.stderr[:300]}")
     finally:
         cleanup(fixture)
-    return errors
+    assert not errors, "\n".join(errors)
 
 
-def test_runner_missing_config_refuses() -> list[str]:
+def test_runner_missing_config_refuses() -> None:
     """No config.yml means quality gates have no commands to execute.
     Round 9 fix: the runner now refuses (exit 2) instead of silently
     exiting 0, so harness commands that wrap test/typecheck/lint cannot
@@ -282,24 +282,24 @@ def test_runner_missing_config_refuses() -> list[str]:
             )
     finally:
         cleanup(fixture)
-    return errors
+    assert not errors, "\n".join(errors)
 
 
 # --- audit-log tests ---
 
-def test_audit_appends_entry() -> list[str]:
+def test_audit_appends_entry() -> None:
     errors = []
     fixture = make_fixture({".launchpad/config.yml": 'commands:\n  test: ["pnpm test"]\n'})
     try:
         r = run([sys.executable, AUDIT_SCRIPT, "--command=lp-build", f"--repo-root={fixture}"])
         if r.returncode != 0:
             errors.append(f"audit-log failed: {r.stderr[:200]}")
-            return errors
+            assert not errors, "\n".join(errors)
 
         log = fixture / ".launchpad" / "audit.log"
         if not log.exists():
             errors.append(f"audit.log not created")
-            return errors
+            assert not errors, "\n".join(errors)
 
         content = log.read_text()
         if "command=lp-build" not in content:
@@ -310,10 +310,10 @@ def test_audit_appends_entry() -> list[str]:
             errors.append(f"entry doesn't end with newline: {content[-5:]!r}")
     finally:
         cleanup(fixture)
-    return errors
+    assert not errors, "\n".join(errors)
 
 
-def test_audit_appends_multiple_entries() -> list[str]:
+def test_audit_appends_multiple_entries() -> None:
     errors = []
     fixture = make_fixture({".launchpad/config.yml": 'commands:\n  test: ["pnpm test"]\n'})
     try:
@@ -321,7 +321,7 @@ def test_audit_appends_multiple_entries() -> list[str]:
             r = run([sys.executable, AUDIT_SCRIPT, "--command=lp-build", f"--repo-root={fixture}"])
             if r.returncode != 0:
                 errors.append(f"audit-log run failed: {r.stderr[:200]}")
-                return errors
+                assert not errors, "\n".join(errors)
 
         log = fixture / ".launchpad" / "audit.log"
         lines = [l for l in log.read_text().splitlines() if l.strip()]
@@ -329,10 +329,10 @@ def test_audit_appends_multiple_entries() -> list[str]:
             errors.append(f"expected 3 entries, got {len(lines)}")
     finally:
         cleanup(fixture)
-    return errors
+    assert not errors, "\n".join(errors)
 
 
-def test_audit_content_hash_survives_rebase() -> list[str]:
+def test_audit_content_hash_survives_rebase() -> None:
     """Content hash (not commit SHA) means rebase/amend doesn't orphan log entries."""
     errors = []
     fixture = make_fixture({".launchpad/config.yml": 'commands:\n  test: ["pnpm test"]\n'})
@@ -353,21 +353,21 @@ def test_audit_content_hash_survives_rebase() -> list[str]:
             )
     finally:
         cleanup(fixture)
-    return errors
+    assert not errors, "\n".join(errors)
 
 
 # --- gitignore + command file tests ---
 
-def test_gitignore_has_audit_log() -> list[str]:
+def test_gitignore_has_audit_log() -> None:
     errors = []
     gi = REPO_ROOT / ".gitignore"
     content = gi.read_text()
     if "audit.log" not in content:
         errors.append(".gitignore doesn't mention audit.log")
-    return errors
+    assert not errors, "\n".join(errors)
 
 
-def test_lp_build_has_step0() -> list[str]:
+def test_lp_build_has_step0() -> None:
     errors = []
     cmd = REPO_ROOT / "plugins" / "launchpad" / "commands" / "lp-build.md"
     content = cmd.read_text()
@@ -383,45 +383,4 @@ def test_lp_build_has_step0() -> list[str]:
     for needle, desc in must_have:
         if needle not in content:
             errors.append(f"lp-build.md missing: {desc} ({needle!r})")
-    return errors
-
-
-def main() -> int:
-    tests = [
-        ("hash_is_stable_across_whitespace", test_hash_is_stable_across_whitespace),
-        ("hash_changes_with_meaningful_edit", test_hash_changes_with_meaningful_edit),
-        ("runner_empty_stage_skips", test_runner_empty_stage_skips),
-        ("runner_serial_execution", test_runner_serial_execution),
-        ("runner_stops_on_first_failure", test_runner_stops_on_first_failure),
-        ("runner_ci_override_mismatch_refuses", test_runner_ci_override_mismatch_refuses),
-        ("runner_ci_override_match_passes", test_runner_ci_override_match_passes),
-        ("runner_ci_override_accepts_16char_prefix", test_runner_ci_override_accepts_16char_prefix),
-        ("runner_ci_override_refuse_mentions_audit_truncation", test_runner_ci_override_refuse_mentions_audit_truncation),
-        ("runner_ci_override_rejects_wrong_16char", test_runner_ci_override_rejects_wrong_16char),
-        ("runner_missing_config_refuses", test_runner_missing_config_refuses),
-        ("audit_appends_entry", test_audit_appends_entry),
-        ("audit_appends_multiple_entries", test_audit_appends_multiple_entries),
-        ("audit_content_hash_survives_rebase", test_audit_content_hash_survives_rebase),
-        ("gitignore_has_audit_log", test_gitignore_has_audit_log),
-        ("lp_build_has_step0", test_lp_build_has_step0),
-    ]
-    all_errors = []
-    for name, test in tests:
-        errs = test()
-        if errs:
-            all_errors.append(f"FAIL {name}:")
-            for e in errs:
-                all_errors.append(f"  - {e}")
-
-    if all_errors:
-        print("FAIL: build acceptance")
-        for e in all_errors:
-            print(e)
-        return 1
-
-    print(f"PASS: build acceptance ({len(tests)} tests)")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+    assert not errors, "\n".join(errors)

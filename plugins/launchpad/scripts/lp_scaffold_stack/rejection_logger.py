@@ -29,6 +29,7 @@ Protocol:
 - schema_version: "1.0" (strict-policy per OPERATIONS §4 — readers reject
   absent OR unknown via single reason `scaffold_rejection_schema_version_invalid`).
 """
+
 from __future__ import annotations
 
 import errno
@@ -37,9 +38,10 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timezone
+from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping, TextIO
+from typing import Any, TextIO
 
 # Sibling-script imports.
 _SCRIPTS = Path(__file__).resolve().parent.parent
@@ -77,11 +79,11 @@ def _harness_obs_dir(repo_root: Path) -> Path:
 
 
 def _utc_now_microsec() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S.%fZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%S.%fZ")
 
 
 def _utc_now_iso_sec() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _build_payload(
@@ -291,17 +293,19 @@ def write_rejection(
         seen_version=seen_version,
         extra=extra,
     )
-    line = (json.dumps(
-        payload,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        allow_nan=False,
-    ) + "\n").encode("utf-8")
+    line = (
+        json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
     if len(line) > MAX_LINE_BYTES:
         # Truncate would corrupt JSON; emit fallback to stderr.
-        print(f"JSONL-fallback: payload exceeds {MAX_LINE_BYTES} bytes",
-              file=stderr)
+        print(f"JSONL-fallback: payload exceeds {MAX_LINE_BYTES} bytes", file=stderr)
         print(f"JSONL-fallback: {payload}", file=stderr)
         _write_part_2(None, stderr=stderr)
         return None
@@ -312,8 +316,10 @@ def write_rejection(
         obs.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         # ENOENT / EROFS / EACCES / ENOSPC — emit JSONL-fallback to stderr.
-        print(f"JSONL-fallback: makedirs failed ({exc.errno}={exc.strerror}): {payload}",
-              file=stderr)
+        print(
+            f"JSONL-fallback: makedirs failed ({exc.errno}={exc.strerror}): {payload}",
+            file=stderr,
+        )
         _write_part_2(None, stderr=stderr)
         return None
 
@@ -337,20 +343,26 @@ def write_rejection(
         except OSError as exc:
             # ENOENT/EROFS/EACCES/ENOSPC — fallback to stderr immediately.
             if exc.errno in (
-                errno.ENOENT, errno.EROFS, errno.EACCES, errno.ENOSPC,
+                errno.ENOENT,
+                errno.EROFS,
+                errno.EACCES,
+                errno.ENOSPC,
             ):
-                print(f"JSONL-fallback: write failed ({exc.errno}={exc.strerror}): {payload}",
-                      file=stderr)
+                print(
+                    f"JSONL-fallback: write failed ({exc.errno}={exc.strerror}): {payload}",
+                    file=stderr,
+                )
                 break
             # Other OSError: log fallback then surface as part 2.
-            print(f"JSONL-fallback: unexpected OSError ({exc}): {payload}",
-                  file=stderr)
+            print(f"JSONL-fallback: unexpected OSError ({exc}): {payload}", file=stderr)
             break
 
     if written is not None:
         # Best-effort directory fsync.
         try:
-            dirfd = os.open(str(_harness_obs_dir(repo_root)), os.O_RDONLY | os.O_DIRECTORY)
+            dirfd = os.open(
+                str(_harness_obs_dir(repo_root)), os.O_RDONLY | os.O_DIRECTORY
+            )
             try:
                 os.fsync(dirfd)
             finally:

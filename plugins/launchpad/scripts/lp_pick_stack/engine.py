@@ -21,13 +21,16 @@ Per HANDSHAKE §1.5 strip-back: brainstorm_session_id field OMITTED from
 decision file; marker is simple positive-presence sentinel only at v2.0
 (BL-235). The engine does NOT read .first-run-marker for a session_id.
 """
+
 from __future__ import annotations
 
+import json
 import sys
 import time
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 # Ensure scripts/ is on path for sibling-module imports when invoked as a
 # library from outside the package.
@@ -43,8 +46,8 @@ from lp_pick_stack.brainstorm_summary_validator import (  # noqa: E402
     validate_brainstorm_summary,
 )
 from lp_pick_stack.decision_writer import (  # noqa: E402
-    DecisionWriteError,
     EMPTY_FILE_SHA256,
+    DecisionWriteError,
     IdentityValidationError,
     validate_identity,
     write_decision_file,
@@ -66,7 +69,6 @@ from lp_pick_stack.question_funnel import (  # noqa: E402
 )
 from lp_pick_stack.rationale_renderer import render_rationale  # noqa: E402
 from lp_pick_stack.rationale_summary_extractor import extract_summary  # noqa: E402
-
 
 COMMAND_NAME = "/lp-pick-stack"
 DEFAULT_CATEGORY_PATTERNS_PATH = (
@@ -322,8 +324,11 @@ def run_pipeline(
 
     if len(candidates) > 1:
         # Tied-at-the-top: ambiguity cluster narrowing.
-        clusters = {c.cluster for c in candidates if c.cluster}
-        if len(clusters) != 1 or None in {c.cluster for c in candidates}:
+        # D13: single-pass set-comp keeps each candidate's cluster (including
+        # None for unclustered) so the size check + None-presence check both
+        # operate on one materialized set, instead of double-scanning.
+        all_clusters = {c.cluster for c in candidates}
+        if len(all_clusters) != 1 or None in all_clusters:
             elapsed = time.monotonic() - start
             result = PipelineResult(
                 success=False,
@@ -341,7 +346,9 @@ def run_pipeline(
                 _emit_telemetry(cwd, result)
             return result
 
-        cluster_name = next(iter(clusters))
+        # D13: post-refusal block, all_clusters is the {one non-None}
+        # singleton (None-presence + size-mismatch both already refused above).
+        cluster_name = next(iter(all_clusters))
         if cluster_choice is None:
             elapsed = time.monotonic() - start
             return PipelineResult(
@@ -525,12 +532,37 @@ def _finalize_decision(
     # rule 7's ≥1-non-empty-bullet rule.
     if no_rationale:
         rationale_summary: list[dict] = [
-            {"section": "project-understanding", "bullets": ["Rationale rendering disabled via --no-rationale."]},
-            {"section": "matched-category", "bullets": [f"{matched_category_id}: matched."]},
-            {"section": "stack", "bullets": [f"{layer['stack']} as {layer['role']} at {layer['path']}" for layer in layers]},
-            {"section": "why-this-fits", "bullets": ["Engine matched on funnel answers (rationale not rendered)."]},
-            {"section": "alternatives", "bullets": ["No alternatives surfaced (degraded mode)."]},
-            {"section": "notes", "bullets": ["--no-rationale flag was set; rationale.md was not written."]},
+            {
+                "section": "project-understanding",
+                "bullets": ["Rationale rendering disabled via --no-rationale."],
+            },
+            {
+                "section": "matched-category",
+                "bullets": [f"{matched_category_id}: matched."],
+            },
+            {
+                "section": "stack",
+                "bullets": [
+                    f"{layer['stack']} as {layer['role']} at {layer['path']}"
+                    for layer in layers
+                ],
+            },
+            {
+                "section": "why-this-fits",
+                "bullets": [
+                    "Engine matched on funnel answers (rationale not rendered)."
+                ],
+            },
+            {
+                "section": "alternatives",
+                "bullets": ["No alternatives surfaced (degraded mode)."],
+            },
+            {
+                "section": "notes",
+                "bullets": [
+                    "--no-rationale flag was set; rationale.md was not written."
+                ],
+            },
         ]
     else:
         assert rationale_path is not None
@@ -591,8 +623,10 @@ def _emit_telemetry(
             cwd_state_value=cwd_state_value,
         )
         write_telemetry_entry(cwd, payload)
-    except Exception:
-        pass
+    except (OSError, ValueError, json.JSONDecodeError):
+        pass  # D10: narrowed from `except Exception`. Telemetry is analytics,
+        # not forensic — disk-write/serialization failures swallow silently;
+        # programming errors (TypeError, NameError) propagate.
 
 
 __all__ = [

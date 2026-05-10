@@ -17,12 +17,13 @@ unwrap_strategy is "none" because the upstream is NOT itself a Turborepo;
 composition.py copies app/ + api/ subdirs without the nested-Turborepo
 hoist that nextjs_standalone uses.
 """
+
 from __future__ import annotations
 
 import shutil
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from types import MappingProxyType
-from typing import Callable, Mapping
 
 from .contracts import (
     _EMPTY_PACKAGE_PATHS,
@@ -98,23 +99,25 @@ class NextjsFastapiAdapter:
     # `app/` (Next.js) and `api/` (FastAPI) at upstream root. Both single
     # and composition mode wrap them under `apps/<name>/` siblings so
     # `pnpm-workspace.yaml` globs resolve.
-    workspace_source_map_single: Mapping[str, str] = MappingProxyType({
-        "app": "app",
-        "api": "api",
-    })
-    workspace_source_map_composition: Mapping[str, str] = MappingProxyType({
-        "app": "app",
-        "api": "api",
-    })
+    workspace_source_map_single: Mapping[str, str] = MappingProxyType(
+        {
+            "app": "app",
+            "api": "api",
+        }
+    )
+    workspace_source_map_composition: Mapping[str, str] = MappingProxyType(
+        {
+            "app": "app",
+            "api": "api",
+        }
+    )
     package_workspace_paths: tuple[str, ...] = _EMPTY_PACKAGE_PATHS
     layer_stack_to_workspace: dict[str, str] = {
         "next": "app",
         "fastapi": "api",
     }
 
-    def __init__(
-        self, *, fetcher: Callable[[Path], None] | None = None
-    ) -> None:
+    def __init__(self, *, fetcher: Callable[[Path], None] | None = None) -> None:
         self._fetcher_override = fetcher
 
     def _resolve_pin(self) -> dict:
@@ -135,9 +138,7 @@ class NextjsFastapiAdapter:
         from template_cache import fetch
 
         try:
-            cached = fetch(
-                pin["repo_url"], pin["sha"], fetcher=self._fetcher_override
-            )
+            cached = fetch(pin["repo_url"], pin["sha"], fetcher=self._fetcher_override)
         except Exception as exc:
             raise AdapterScaffoldError(
                 reason="template_cache_fetch_failed",

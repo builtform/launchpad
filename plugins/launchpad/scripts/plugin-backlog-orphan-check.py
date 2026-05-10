@@ -30,6 +30,7 @@ Version matching:
   * BL header `v2.1 / v2.1.1` (slash- or comma-separated) matches either
   * Patch slips MUST be made explicit by re-labeling the BL header
 """
+
 from __future__ import annotations
 
 import argparse
@@ -50,7 +51,7 @@ STATUS_LINE_RE = re.compile(
     re.MULTILINE,
 )
 CLOSED_VALUES = ("shipped", "closed", "re-targeted", "deferred", "superseded")
-CHANGELOG_VERSION_RE = re.compile(r"^## \[(?P<version>[\d.]+)\]", re.MULTILINE)
+CHANGELOG_VERSION_RE = re.compile(r"^## \[v?(?P<version>[\d.]+)\]", re.MULTILINE)
 
 
 def parse_versions(label: str) -> list[str]:
@@ -125,7 +126,9 @@ def main() -> int:
             continue
 
         if re.search(rf"\bBL-{bl_num}\b", release_block):
-            closed.append((bl_num, f"CHANGELOG [{args.release}] references BL-{bl_num}"))
+            closed.append(
+                (bl_num, f"CHANGELOG [{args.release}] references BL-{bl_num}")
+            )
             continue
 
         orphans.append((bl_num, header.group(0).strip()))

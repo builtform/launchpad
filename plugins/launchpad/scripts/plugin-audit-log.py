@@ -31,6 +31,7 @@ Usage:
 
 Exit 0 on success; 1 on failure (missing config.yml, write-permission issue).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -119,7 +120,7 @@ def _sanitize_field(raw: str) -> str:
         # Field separator we choose (' ') is fine to keep, but any other
         # control character (DEL, \t, \0, ANSI escapes) gets percent-escaped
         # so nothing renders as terminal control or breaks log parsing.
-        elif ord(ch) < 0x20 or ord(ch) == 0x7f:
+        elif ord(ch) < 0x20 or ord(ch) == 0x7F:
             out_chars.append(f"\\x{ord(ch):02x}")
         else:
             out_chars.append(ch)
@@ -134,7 +135,7 @@ def append_entry(repo_root: Path, command: str) -> Path:
     log_path = log_dir / "audit.log"
 
     timestamp = _sanitize_field(
-        datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+        datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
     )
     user = _sanitize_field(_git_user(repo_root))
     head = _sanitize_field(_git_head(repo_root))
@@ -152,7 +153,9 @@ def append_entry(repo_root: Path, command: str) -> Path:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--command", required=True, help="name of the invoking command (e.g. lp-build)")
+    ap.add_argument(
+        "--command", required=True, help="name of the invoking command (e.g. lp-build)"
+    )
     ap.add_argument("--repo-root", default=os.environ.get("LP_REPO_ROOT", os.getcwd()))
     args = ap.parse_args()
 

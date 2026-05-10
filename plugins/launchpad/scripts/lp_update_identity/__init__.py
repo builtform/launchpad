@@ -25,11 +25,11 @@ Behavioural code lives in:
   * `engine.py` (Slice C) -- `run_update_identity()` orchestration +
     inline `_validate_preconditions()`.
 """
+
 from __future__ import annotations
 
 from enum import StrEnum
 from typing import Final
-
 
 # --- Filesystem name constants --------------------------------------------
 
@@ -47,6 +47,7 @@ IDENTITY_UPDATE_SENTINEL_MODE: Final[str] = "update-identity"
 
 # --- Error code contract (DA4) --------------------------------------------
 
+
 class IdentityUpdateErrorCode(StrEnum):
     """Structured error codes raised by `/lp-update-identity`.
 
@@ -55,6 +56,7 @@ class IdentityUpdateErrorCode(StrEnum):
     User-visible category map lives in `commands/lp-update-identity.md`
     ## Error codes section.
     """
+
     SCAFFOLD_DECISION_MISSING = "scaffold_decision_missing"
     IDENTITY_UPDATE_IN_PROGRESS = "identity_update_in_progress"
     BOOTSTRAP_IN_PROGRESS = "bootstrap_in_progress"
@@ -76,6 +78,7 @@ class IdentityUpdateStatus(StrEnum):
     Per DA4 status-vs-error split (code-simplicity P2). Carried by
     `UpdateIdentityResult.status`.
     """
+
     UPDATED = "updated"
     NO_OP = "no_op"
     SEEDED_FIRST_TIME = "seeded_first_time"
@@ -94,7 +97,7 @@ class IdentityUpdateSentinelError(RuntimeError):
         message: str,
         *,
         reason: IdentityUpdateErrorCode,
-        path: "object | None" = None,
+        path: object | None = None,
         remediation: str = "",
     ) -> None:
         super().__init__(message)

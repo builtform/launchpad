@@ -30,6 +30,7 @@ Usage:
 Exit 0 on success; 1 on any blocking failure (secret found, user
 declined, etc.).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -38,8 +39,9 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Any, Iterator, Mapping
+from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 VENDOR = SCRIPT_DIR / "plugin_stack_adapters" / "_vendor"
@@ -48,6 +50,10 @@ if str(VENDOR) not in sys.path:
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from plugin_default_generators._renderer_base import (  # noqa: E402
+    RendererBase,
+    SecretScannerViolation,
+)
 from plugin_stack_adapters import (  # noqa: E402
     astro,
     eleventy_adapter,
@@ -66,11 +72,6 @@ from plugin_stack_adapters.contracts import AdapterOutput  # noqa: E402
 from plugin_stack_adapters.polyglot_path_rewriter import (  # noqa: E402
     _rewrite_adapter_paths,
 )
-from plugin_default_generators._renderer_base import (  # noqa: E402
-    RendererBase,
-    SecretScannerViolation,
-)
-
 
 # Phase 8.5 plan section 3.12 verbatim.
 TRUST_BANNER = (
@@ -83,19 +84,30 @@ TRUST_BANNER = (
 
 # Canonical doc inventory: (template, output_relpath, friendly, is_launchpad_yml)
 DOCS: tuple[tuple[str, str, str, bool], ...] = (
-    ("PRD.md.j2",                "docs/architecture/PRD.md",                "PRD",                 False),
-    ("TECH_STACK.md.j2",         "docs/architecture/TECH_STACK.md",         "TECH_STACK",          False),
-    ("BACKEND_STRUCTURE.md.j2",  "docs/architecture/BACKEND_STRUCTURE.md",  "BACKEND_STRUCTURE",   False),
-    ("APP_FLOW.md.j2",           "docs/architecture/APP_FLOW.md",           "APP_FLOW",            False),
-    ("SECTION_REGISTRY.md.j2",   "docs/tasks/SECTION_REGISTRY.md",          "SECTION_REGISTRY",    False),
-    ("config.yml.j2",            ".launchpad/config.yml",                   "config.yml",          True),
-    ("agents.yml.j2",            ".launchpad/agents.yml",                   "agents.yml",          True),
+    ("PRD.md.j2", "docs/architecture/PRD.md", "PRD", False),
+    ("TECH_STACK.md.j2", "docs/architecture/TECH_STACK.md", "TECH_STACK", False),
+    (
+        "BACKEND_STRUCTURE.md.j2",
+        "docs/architecture/BACKEND_STRUCTURE.md",
+        "BACKEND_STRUCTURE",
+        False,
+    ),
+    ("APP_FLOW.md.j2", "docs/architecture/APP_FLOW.md", "APP_FLOW", False),
+    (
+        "SECTION_REGISTRY.md.j2",
+        "docs/tasks/SECTION_REGISTRY.md",
+        "SECTION_REGISTRY",
+        False,
+    ),
+    ("config.yml.j2", ".launchpad/config.yml", "config.yml", True),
+    ("agents.yml.j2", ".launchpad/agents.yml", "agents.yml", True),
 )
 
 
 # ---------------------------------------------------------------------------
 # Detector wrapper (delegates to plugin-stack-detector.py via subprocess)
 # ---------------------------------------------------------------------------
+
 
 def run_detector(repo_root: Path) -> dict[str, Any]:
     detector = SCRIPT_DIR / "plugin-stack-detector.py"
@@ -115,6 +127,7 @@ def run_detector(repo_root: Path) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Adapter dispatch
 # ---------------------------------------------------------------------------
+
 
 def _single_adapter(stack_id: str):
     mapping = {
@@ -150,6 +163,7 @@ def compose_adapter_output(stacks: list[str]) -> AdapterOutput:
 # LpDefineRenderer subclass + render orchestration
 # ---------------------------------------------------------------------------
 
+
 class LpDefineRenderer(RendererBase):
     """Renderer for the 7 canonical /lp-define docs.
 
@@ -161,9 +175,7 @@ class LpDefineRenderer(RendererBase):
 
     TEMPLATE_SUBDIR = "."
 
-    def render_targets(
-        self, context: Mapping[str, Any]
-    ) -> Iterator[tuple[Path, str]]:
+    def render_targets(self, context: Mapping[str, Any]) -> Iterator[tuple[Path, str]]:
         repo_root: Path = context["repo_root"]
         ctx: dict[str, Any] = context["jinja_context"]
         only: set[str] | None = context.get("only")
@@ -202,8 +214,12 @@ def _build_jinja_context(
         "commands": adapter_out["commands"],
         "manifests": relative_manifests,
         "stacks": detector_report.get("stacks", []),
-        "pipeline_design_enabled": adapter_out["pipeline_overrides"].get("design_enabled", True),
-        "pipeline_test_browser_enabled": adapter_out["pipeline_overrides"].get("test_browser_enabled", True),
+        "pipeline_design_enabled": adapter_out["pipeline_overrides"].get(
+            "design_enabled", True
+        ),
+        "pipeline_test_browser_enabled": adapter_out["pipeline_overrides"].get(
+            "test_browser_enabled", True
+        ),
     }
 
 
@@ -221,11 +237,15 @@ def render_docs(
     """
     ctx = _build_jinja_context(adapter_out, detector_report, product_name, repo_root)
     renderer = LpDefineRenderer()
-    batch = renderer.render_batch([{
-        "repo_root": repo_root,
-        "jinja_context": ctx,
-        "only": only,
-    }])
+    batch = renderer.render_batch(
+        [
+            {
+                "repo_root": repo_root,
+                "jinja_context": ctx,
+                "only": only,
+            }
+        ]
+    )
     rendered: dict[str, str] = {}
     for abs_path, content_bytes in batch.items():
         rel = abs_path.relative_to(repo_root).as_posix()
@@ -237,6 +257,7 @@ def render_docs(
 # Secret scan over the full render set (preserves legacy refuse-all-on-any
 # contract; Phase 8.5 plan section 3.11)
 # ---------------------------------------------------------------------------
+
 
 def scan_all(rendered: dict[str, str], repo_root: Path) -> dict[str, list]:
     """Run secret-pattern scan WITH ALLOWLIST on every rendered doc.
@@ -277,6 +298,7 @@ def scan_all(rendered: dict[str, str], repo_root: Path) -> dict[str, list]:
 # Overwrite menu (verbatim port from plugin-doc-generator.py:336-382)
 # ---------------------------------------------------------------------------
 
+
 def prompt_overwrite(
     out_path: str,
     existing: str,
@@ -293,13 +315,15 @@ def prompt_overwrite(
     if all_mode and not is_launchpad_yml:
         return "overwrite"
 
-    diff = list(difflib.unified_diff(
-        existing.splitlines(keepends=True),
-        new.splitlines(keepends=True),
-        fromfile=f"a/{out_path}",
-        tofile=f"b/{out_path}",
-        n=3,
-    ))
+    diff = list(
+        difflib.unified_diff(
+            existing.splitlines(keepends=True),
+            new.splitlines(keepends=True),
+            fromfile=f"a/{out_path}",
+            tofile=f"b/{out_path}",
+            n=3,
+        )
+    )
     diff_text = "".join(diff[:60])
 
     if is_launchpad_yml:
@@ -341,6 +365,7 @@ def prompt_overwrite(
 # Helpers (in-tree carry-over of the legacy plugin-doc-generator helpers)
 # ---------------------------------------------------------------------------
 
+
 def _read_config_overwrite(repo_root: Path) -> str:
     """Read existing config.yml's `overwrite:` policy. Returns
     'skip' | 'prompt' | 'force'. Defaults to 'prompt' on missing /
@@ -350,6 +375,7 @@ def _read_config_overwrite(repo_root: Path) -> str:
         return "prompt"
     try:
         import yaml  # type: ignore
+
         cfg = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     except Exception:
         return "prompt"
@@ -369,8 +395,11 @@ def ensure_sections_dir(repo_root: Path, summary: dict) -> None:
 
     try:
         import yaml  # type: ignore
+
         cfg = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
-        sections_dir = ((cfg.get("paths") or {}).get("sections_dir")) or "docs/tasks/sections"
+        sections_dir = (
+            (cfg.get("paths") or {}).get("sections_dir")
+        ) or "docs/tasks/sections"
     except Exception:
         sections_dir = "docs/tasks/sections"
 
@@ -407,6 +436,7 @@ def ensure_audit_gitignore(repo_root: Path, summary: dict) -> None:
 
     try:
         import yaml  # type: ignore
+
         cfg = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
         committed = bool((cfg.get("audit") or {}).get("committed", False))
     except Exception:
@@ -437,7 +467,9 @@ def ensure_audit_gitignore(repo_root: Path, summary: dict) -> None:
                 fh.write(append_block)
         else:
             gitignore_path.write_text(append_block.lstrip("\n"), encoding="utf-8")
-        summary.setdefault("gitignore_updated", []).append(".gitignore (audit.log entry)")
+        summary.setdefault("gitignore_updated", []).append(
+            ".gitignore (audit.log entry)"
+        )
     except OSError as exc:
         print(
             f"warning: could not update .gitignore ({exc}). "
@@ -449,6 +481,7 @@ def ensure_audit_gitignore(repo_root: Path, summary: dict) -> None:
 # ---------------------------------------------------------------------------
 # Top-level orchestration
 # ---------------------------------------------------------------------------
+
 
 def generate(
     repo_root: Path,
@@ -477,9 +510,12 @@ def generate(
     receipt_layers: list[dict] = []
     if receipt_path.is_file():
         try:
-            from plugin_scaffold_receipt_loader import load_receipt  # type: ignore[import-not-found]
+            from plugin_scaffold_receipt_loader import (
+                load_receipt,  # type: ignore[import-not-found]
+            )
         except ImportError:
             import importlib.util
+
             spec = importlib.util.spec_from_file_location(
                 "plugin_scaffold_receipt_loader",
                 SCRIPT_DIR / "plugin-scaffold-receipt-loader.py",
@@ -500,11 +536,13 @@ def generate(
                     receipt_stacks.append(stack_id)
                     if "path" in layer:
                         receipt_layer_paths[stack_id] = str(layer["path"])
-                    receipt_layers.append({
-                        "stack": stack_id,
-                        "role": str(layer.get("role", "")),
-                        "path": str(layer.get("path", "")),
-                    })
+                    receipt_layers.append(
+                        {
+                            "stack": stack_id,
+                            "role": str(layer.get("role", "")),
+                            "path": str(layer.get("path", "")),
+                        }
+                    )
             except Exception:
                 receipt_stacks = []
                 receipt_layer_paths = {}
@@ -581,10 +619,14 @@ def generate(
                 decision = (
                     "overwrite"
                     if not is_lp_yml
-                    else prompt_overwrite(out_rel, existing, new_content, all_mode, is_lp_yml)
+                    else prompt_overwrite(
+                        out_rel, existing, new_content, all_mode, is_lp_yml
+                    )
                 )
             else:
-                decision = prompt_overwrite(out_rel, existing, new_content, all_mode, is_lp_yml)
+                decision = prompt_overwrite(
+                    out_rel, existing, new_content, all_mode, is_lp_yml
+                )
 
             if decision == "all":
                 all_mode = True
@@ -698,10 +740,20 @@ def redetect_stack(repo_root: Path, *, force: bool) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--repo-root", default=os.environ.get("LP_REPO_ROOT", os.getcwd()))
-    ap.add_argument("--dry-run", action="store_true", help="render + secret-scan but don't write")
-    ap.add_argument("--force", action="store_true", help="skip per-file prompts except for .launchpad/*.yml")
-    ap.add_argument("--only", default="", help="comma-separated list of filenames to render")
-    ap.add_argument("--product-name", default="Your Product", help="Name for PRD scaffold")
+    ap.add_argument(
+        "--dry-run", action="store_true", help="render + secret-scan but don't write"
+    )
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help="skip per-file prompts except for .launchpad/*.yml",
+    )
+    ap.add_argument(
+        "--only", default="", help="comma-separated list of filenames to render"
+    )
+    ap.add_argument(
+        "--product-name", default="Your Product", help="Name for PRD scaffold"
+    )
     ap.add_argument(
         "--no-trust-banner",
         action="store_true",
@@ -721,9 +773,7 @@ def main() -> int:
 
     if args.redetect_stack:
         try:
-            return redetect_stack(
-                Path(args.repo_root).resolve(), force=args.force
-            )
+            return redetect_stack(Path(args.repo_root).resolve(), force=args.force)
         except Exception as e:
             print(f"redetect-stack error: {e}", file=sys.stderr)
             return 1

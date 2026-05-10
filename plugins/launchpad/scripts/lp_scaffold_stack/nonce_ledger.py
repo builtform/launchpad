@@ -1,3 +1,4 @@
+# pyright: strict
 """Nonce ledger management (HANDSHAKE §4 rule 10 — full Layer 5/7/8 protocol).
 
 Append-only ledger for consumed `scaffold-decision.json` nonces. The ledger
@@ -25,6 +26,7 @@ Subprotocols implemented:
 - F_FULLFSYNC on darwin (Layer 3 pattern-finder P1-C).
 - EIO/EROFS handling per Layer 2 P1-3 + Layer 3 frontend-races P2-C.
 """
+
 from __future__ import annotations
 
 import errno
@@ -34,12 +36,20 @@ import os
 import re
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Per HANDSHAKE §4 rule 10: 33-byte fixed records (32 hex + newline).
 _RECORD_LEN = 33
-_UUID_HEX_RE = re.compile(r"^[0-9a-f]{32}$")
+
+# v2.1.1 Phase 4 review-amend (architect P1 SoT consolidation): the regex
+# is a 32-lower-hex matcher (NOT v4 bit-pattern enforcement, despite the
+# misleading `_UUID4_*` naming used at decision_validator.py — sibling
+# package). Promoted to a public alias `UUID_HEX_RE` so package-internal
+# call sites can import-share rather than redefine. The leading-underscore
+# `_UUID_HEX_RE` is retained as a backward-compatible private alias.
+UUID_HEX_RE = re.compile(r"^[0-9a-f]{32}$")
+_UUID_HEX_RE = UUID_HEX_RE
 _FORMAT_HEADER = "# nonce-ledger-format: v1\n"
 
 # 1 MiB rollover threshold per HANDSHAKE §4 rule 10.
@@ -52,16 +62,26 @@ _BAK_WINDOW_SECONDS = 4 * 3600
 # Whitelist of accepted filesystem types (HANDSHAKE §4 rule 10 + Layer 5
 # product-lens P1-PL5-1). v2.0 SHIPS this whitelist; the BL-218 LP_ALLOW_NONLOCAL_FS
 # override defers to v2.1.
-_FS_WHITELIST = frozenset({
-    "apfs", "hfs", "hfs+", "ext2", "ext3", "ext4",
-    "xfs", "btrfs", "zfs",
-    # GHA Ubuntu runner default per HANDSHAKE §4 rule 10 acceptance gate.
-    "overlay", "overlayfs",
-    # Linux tmpfs — accepted because pytest-tmp_path uses /tmp (often tmpfs);
-    # Layer 5 acknowledges tmpfs replay risk but tmpfs is per-boot ephemeral
-    # and at v2.0 single-maintainer scale this is documented as acceptable.
-    "tmpfs",
-})
+_FS_WHITELIST = frozenset(
+    {
+        "apfs",
+        "hfs",
+        "hfs+",
+        "ext2",
+        "ext3",
+        "ext4",
+        "xfs",
+        "btrfs",
+        "zfs",
+        # GHA Ubuntu runner default per HANDSHAKE §4 rule 10 acceptance gate.
+        "overlay",
+        "overlayfs",
+        # Linux tmpfs — accepted because pytest-tmp_path uses /tmp (often tmpfs);
+        # Layer 5 acknowledges tmpfs replay risk but tmpfs is per-boot ephemeral
+        # and at v2.0 single-maintainer scale this is documented as acceptable.
+        "tmpfs",
+    }
+)
 
 
 class NonceLedgerError(RuntimeError):
@@ -94,11 +114,15 @@ def _migration_tmp_glob(repo_root: Path) -> str:
 
 
 def _rollover_tmp(repo_root: Path) -> Path:
-    return _launchpad_dir(repo_root) / f".scaffold-nonces.log.rollover-tmp.{os.getpid()}"
+    return (
+        _launchpad_dir(repo_root) / f".scaffold-nonces.log.rollover-tmp.{os.getpid()}"
+    )
 
 
 def _migration_tmp(repo_root: Path) -> Path:
-    return _launchpad_dir(repo_root) / f".scaffold-nonces.log.migration-tmp.{os.getpid()}"
+    return (
+        _launchpad_dir(repo_root) / f".scaffold-nonces.log.migration-tmp.{os.getpid()}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -127,7 +151,7 @@ def _detect_filesystem_type(path: Path) -> str:
     fs_type = "unknown"
     if sys.platform.startswith("linux"):
         try:
-            with open("/proc/self/mountinfo", "r", encoding="utf-8") as f:
+            with open("/proc/self/mountinfo", encoding="utf-8") as f:
                 # Sort by mount-point length descending so the longest prefix
                 # wins — handles nested mounts (e.g., /home/user/.cache-on-tmpfs).
                 best_mp = ""
@@ -142,7 +166,9 @@ def _detect_filesystem_type(path: Path) -> str:
                     after = line.split(" - ", 1)[1].split()
                     fs = after[0] if after else "unknown"
                     if real == mp_field or real.startswith(mp_field.rstrip("/") + "/"):
-                        if len(mp_field) >= len(best_mp):
+                        # D11: strict longest-match-wins; tiebreak by first-seen
+                        # (deterministic, not filesystem-ordering-dependent).
+                        if len(mp_field) > len(best_mp):
                             best_mp = mp_field
                             best_fs = fs
                 fs_type = best_fs
@@ -155,6 +181,7 @@ def _detect_filesystem_type(path: Path) -> str:
         # for scaffolder-emitting subprocess; this is internal FS introspection.
         try:
             import subprocess  # noqa: PLC0415
+
             proc = subprocess.run(
                 ["/sbin/mount"],
                 shell=False,
@@ -237,7 +264,7 @@ def _open_lock(repo_root: Path) -> int:
 def _read_ledger_lines(path: Path) -> list[str]:
     if not path.exists():
         return []
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return f.readlines()
 
 
@@ -371,7 +398,7 @@ def _bak_filename_epoch(name: str) -> float | None:
         return None
     try:
         dt = datetime.strptime(m.group(1), "%Y-%m-%dT%H-%M-%SZ").replace(
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         )
     except ValueError:
         return None
@@ -424,7 +451,7 @@ def _read_nonces_from(path: Path) -> set[str]:
     """
     out: set[str] = set()
     try:
-        f = open(path, "r", encoding="utf-8")
+        f = open(path, encoding="utf-8")
     except OSError:
         # File may have been deleted between listing and reading (.bak
         # retention, race with rotation). Tolerate missing-file; corruption
@@ -465,7 +492,7 @@ def is_nonce_seen(
     call. Per HANDSHAKE §4 rule 10 — listing the `.bak` set under the lock
     prevents racing against retention deletion.
     """
-    if not isinstance(nonce, str) or not _UUID_HEX_RE.fullmatch(nonce):
+    if not isinstance(nonce, str) or not _UUID_HEX_RE.fullmatch(nonce):  # pyright: ignore[reportUnnecessaryIsInstance]
         raise ValueError(f"is_nonce_seen: nonce must be 32 hex chars; got {nonce!r}")
 
     _check_filesystem_whitelist(repo_root)
@@ -509,7 +536,7 @@ def append_nonce(
       - 1MB rollover via atomic-rename to `.bak.<iso-ts>` + 5-bak retention.
       - EIO/EROFS handled with structured rejections.
     """
-    if not isinstance(nonce, str) or not _UUID_HEX_RE.fullmatch(nonce):
+    if not isinstance(nonce, str) or not _UUID_HEX_RE.fullmatch(nonce):  # pyright: ignore[reportUnnecessaryIsInstance]
         raise ValueError(f"append_nonce: nonce must be 32 hex chars; got {nonce!r}")
 
     _check_filesystem_whitelist(repo_root)
@@ -560,7 +587,7 @@ def append_nonce(
                 if post_size != pre_size + len(record):
                     # Partial line — write a corruption sentinel comment.
                     try:
-                        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                        ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
                         os.write(fd, f"# corrupt:{ts}\n".encode("ascii"))
                         os.fsync(fd)
                     except OSError as exc2:
@@ -572,7 +599,10 @@ def append_nonce(
                         # The sentinel preserves recovery options
                         # (PR #41 cycle 5 / Greptile cycle-1 G-B closure).
                         try:
-                            sentinel = ledger_path(repo_root).parent / ".nonce-ledger.corrupted"
+                            sentinel = (
+                                ledger_path(repo_root).parent
+                                / ".nonce-ledger.corrupted"
+                            )
                             sentinel.touch(exist_ok=True)
                         except OSError:
                             pass
@@ -609,7 +639,9 @@ def append_nonce(
             os.close(fd)
 
         try:
-            dirfd = os.open(str(_launchpad_dir(repo_root)), os.O_RDONLY | os.O_DIRECTORY)
+            dirfd = os.open(
+                str(_launchpad_dir(repo_root)), os.O_RDONLY | os.O_DIRECTORY
+            )
             try:
                 os.fsync(dirfd)
             finally:
@@ -659,13 +691,14 @@ def _recover_orphan_rollover_tmps(repo_root: Path) -> None:
         name = entry.name
         if not name.startswith(prefix):
             continue
-        pid_suffix = name[len(prefix):]
+        pid_suffix = name[len(prefix) :]
         try:
             st = entry.stat()
         except OSError:
             continue
         ts = datetime.fromtimestamp(
-            st.st_mtime, tz=timezone.utc,
+            st.st_mtime,
+            tz=UTC,
         ).strftime("%Y-%m-%dT%H-%M-%SZ")
         target = lp / f".scaffold-nonces.log.bak.{ts}.recovered.{pid_suffix}"
         if target.exists():
@@ -707,7 +740,9 @@ def _rotate_at_threshold(repo_root: Path) -> None:
     try:
         # fsync the directory after the rename for durability.
         try:
-            dirfd = os.open(str(_launchpad_dir(repo_root)), os.O_RDONLY | os.O_DIRECTORY)
+            dirfd = os.open(
+                str(_launchpad_dir(repo_root)), os.O_RDONLY | os.O_DIRECTORY
+            )
             try:
                 os.fsync(dirfd)
             finally:
@@ -716,11 +751,14 @@ def _rotate_at_threshold(repo_root: Path) -> None:
             pass
 
         # Now rename to a final .bak.<iso-ts>.
-        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
+        ts = datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%SZ")
         bak = _launchpad_dir(repo_root) / f".scaffold-nonces.log.bak.{ts}"
         # If a .bak with this exact second already exists, retry with .pid suffix.
         if bak.exists():
-            bak = _launchpad_dir(repo_root) / f".scaffold-nonces.log.bak.{ts}.{os.getpid()}"
+            bak = (
+                _launchpad_dir(repo_root)
+                / f".scaffold-nonces.log.bak.{ts}.{os.getpid()}"
+            )
         os.rename(str(rollover_tmp), str(bak))
     except OSError:
         # Best-effort: leave the rollover tmp file in place; next call
@@ -746,8 +784,11 @@ def _rotate_at_threshold(repo_root: Path) -> None:
 
     # Retention: keep newest 5.
     baks = sorted(
-        (p for p in _launchpad_dir(repo_root).iterdir()
-         if p.name.startswith(".scaffold-nonces.log.bak.")),
+        (
+            p
+            for p in _launchpad_dir(repo_root).iterdir()
+            if p.name.startswith(".scaffold-nonces.log.bak.")
+        ),
         key=lambda p: p.name,
     )
     for old in baks[:-_BAK_RETENTION_COUNT]:

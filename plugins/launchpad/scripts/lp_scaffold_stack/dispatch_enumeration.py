@@ -8,6 +8,7 @@ silently included. The post-dispatch walk produces the
 `materialized_files` list consumed by `wire_cross_cutting` and the
 scaffold-receipt's downstream surface.
 """
+
 from __future__ import annotations
 
 import sys
@@ -25,19 +26,26 @@ if TYPE_CHECKING:  # pragma: no cover
 # `.venv`, `__pycache__`) deferred to v2.2 alongside adapters that
 # install dependencies. Security-credential dotdirs added as
 # defense-in-depth (cycle-1 SEC-1 hardening intent).
-_DISPATCH_EXCLUDE_DIRS: frozenset[str] = frozenset({
-    ".launchpad", ".lp-tmp",          # plugin-managed
-    "node_modules",                   # universal JS dep dir (kept for safety)
-    ".ssh", ".aws", ".gnupg",         # credential dotdirs
-    ".config", ".docker", ".kube",    # config dotdirs
-})
+_DISPATCH_EXCLUDE_DIRS: frozenset[str] = frozenset(
+    {
+        ".launchpad",
+        ".lp-tmp",  # plugin-managed
+        "node_modules",  # universal JS dep dir (kept for safety)
+        ".ssh",
+        ".aws",
+        ".gnupg",  # credential dotdirs
+        ".config",
+        ".docker",
+        ".kube",  # config dotdirs
+    }
+)
 
 _MAX_ENUMERATED_FILES = 50_000
 
 
 def enumerate_files(
     cwd: Path,
-    dispatch_result: "CompositionResult | Path",
+    dispatch_result: CompositionResult | Path,
 ) -> list[str]:
     """Walk the post-dispatch workspace and return cwd-relative file paths.
 

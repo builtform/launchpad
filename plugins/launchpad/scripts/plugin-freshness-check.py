@@ -19,12 +19,13 @@ Phase 7.5 promotes it to a gating check.
 Per OPERATIONS §4 single-30d-window simplification (Layer 3 P1-B): tier-based
 freshness (90d/30d/14d) is BL-213 deferred to v2.1 if observed drift demands it.
 """
+
 from __future__ import annotations
 
 import argparse
 import re
 import sys
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -42,9 +43,7 @@ TARGET_FILES = (
 )
 
 # Glob patterns for per-entry pattern docs.
-TARGET_GLOBS = (
-    "plugins/launchpad/scaffolders/*-pattern.md",
-)
+TARGET_GLOBS = ("plugins/launchpad/scaffolders/*-pattern.md",)
 
 LAST_VALIDATED_RE = re.compile(
     r"^\s*last_validated\s*:\s*['\"]?(\d{4}-\d{2}-\d{2})['\"]?\s*$",
@@ -57,7 +56,7 @@ def _parse_date(s: str) -> date:
 
 
 def _today_utc() -> date:
-    return datetime.now(timezone.utc).date()
+    return datetime.now(UTC).date()
 
 
 def _extract_last_validated(text: str) -> str | None:
@@ -116,8 +115,7 @@ def check_freshness(
         last = _extract_last_validated(text)
         if last is None:
             findings.append(
-                f"{path.relative_to(REPO_ROOT)}: missing `last_validated:` "
-                f"frontmatter"
+                f"{path.relative_to(REPO_ROOT)}: missing `last_validated:` frontmatter"
             )
             continue
         try:
@@ -137,31 +135,34 @@ def check_freshness(
 
     if findings:
         label = "ADVISORY" if advisory else "FAIL"
-        print(f"freshness check {label} ({len(findings)} finding(s)):",
-              file=sys.stderr)
+        print(f"freshness check {label} ({len(findings)} finding(s)):", file=sys.stderr)
         for f in findings:
             print(f"  {f}", file=sys.stderr)
         if not advisory:
             return 1
 
     if not findings:
-        print(f"freshness check: PASS ({len(targets)} target(s) within "
-              f"{window_days}d)")
+        print(f"freshness check: PASS ({len(targets)} target(s) within {window_days}d)")
     return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--window-days", type=int, default=DEFAULT_WINDOW_DAYS,
+        "--window-days",
+        type=int,
+        default=DEFAULT_WINDOW_DAYS,
         help=f"Freshness window in days (default: {DEFAULT_WINDOW_DAYS})",
     )
     parser.add_argument(
-        "--gating", action="store_true",
+        "--gating",
+        action="store_true",
         help="Gating mode: exit 1 on stale; default is advisory (always exit 0).",
     )
     parser.add_argument(
-        "--today", type=str, default=None,
+        "--today",
+        type=str,
+        default=None,
         help="Override today's date as YYYY-MM-DD (for testing/Phase 7.5 lock).",
     )
     args = parser.parse_args()

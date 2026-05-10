@@ -19,22 +19,20 @@ allowlist entry. WARN logs (per Phase 8.5 plan section 3.9 sec-auditor
 P2-1) are emitted for every suppression so maintainers see what is being
 masked.
 """
+
 from __future__ import annotations
 
 import fnmatch
 import re
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
-
 
 # Jinja comment marker shape -- matches `{# secret-allowlist: <reason> #}`.
 # The reason field is captured for the WARN log; trailing whitespace inside
 # the marker is permitted.
-_OPEN_MARKER_RE = re.compile(
-    r"\{#\s*secret-allowlist:\s*(?P<reason>[^#]*?)\s*#\}"
-)
+_OPEN_MARKER_RE = re.compile(r"\{#\s*secret-allowlist:\s*(?P<reason>[^#]*?)\s*#\}")
 _CLOSE_MARKER_RE = re.compile(r"\{#\s*secret-allowlist-end\s*#\}")
 
 

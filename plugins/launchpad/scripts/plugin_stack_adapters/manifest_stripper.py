@@ -26,11 +26,11 @@ Fields stripped:
 Stripped values appear as '<redacted>' in generated docs. Users can manually
 restore if the fields aren't actually sensitive in their repo.
 """
+
 from __future__ import annotations
 
 import re
 from typing import Any
-
 
 REDACTED = "<redacted>"
 
@@ -124,7 +124,7 @@ def strip_go_mod(data: dict[str, Any]) -> dict[str, Any]:
         stripped = line.strip()
         # Heuristic: 'replace' directives with URL-like targets
         if stripped.startswith("replace ") and ("://" in stripped or "@" in stripped):
-            cleaned_lines.append(f"replace <redacted> => <redacted>")
+            cleaned_lines.append("replace <redacted> => <redacted>")
         else:
             cleaned_lines.append(line)
     out["raw"] = "\n".join(cleaned_lines)
@@ -142,7 +142,7 @@ def strip_gemfile(data: dict[str, Any]) -> dict[str, Any]:
     cleaned_lines = []
     for line in raw.splitlines():
         if _CREDS_URL.search(line):
-            cleaned_lines.append(f"# <redacted: line contained credentials>")
+            cleaned_lines.append("# <redacted: line contained credentials>")
         else:
             cleaned_lines.append(line)
     out["raw"] = "\n".join(cleaned_lines)

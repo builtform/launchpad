@@ -15,13 +15,14 @@ Nested-Turborepo unwrap is the composition wrapper's responsibility (Slice E)
 since unwrap is a cross-adapter concern; the adapter only declares the
 strategy via `unwrap_strategy="nested_turborepo"`.
 """
+
 from __future__ import annotations
 
 import re
 import shutil
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from types import MappingProxyType
-from typing import Callable, Mapping
 
 from .contracts import (
     _EMPTY_WORKSPACE_MAP,
@@ -90,9 +91,7 @@ _CLERK_IMPORT_RE = re.compile(
     r"^import\s+\{[^}]*\}\s+from\s+['\"]@clerk/[^'\"]+['\"];?\s*\n",
     re.MULTILINE,
 )
-_CLERK_PROVIDER_RE = re.compile(
-    r"<ClerkProvider[\s\S]*?</ClerkProvider>", re.MULTILINE
-)
+_CLERK_PROVIDER_RE = re.compile(r"<ClerkProvider[\s\S]*?</ClerkProvider>", re.MULTILINE)
 
 
 class NextjsStandaloneAdapter:
@@ -114,14 +113,14 @@ class NextjsStandaloneAdapter:
     #    `composition_root/apps/app`, and lift `packages/` to top-level
     #    sibling so `pnpm-workspace.yaml` globs resolve.
     workspace_source_map_single: Mapping[str, str] = _EMPTY_WORKSPACE_MAP
-    workspace_source_map_composition: Mapping[str, str] = MappingProxyType({
-        "app": "apps/app",
-    })
+    workspace_source_map_composition: Mapping[str, str] = MappingProxyType(
+        {
+            "app": "apps/app",
+        }
+    )
     package_workspace_paths: tuple[str, ...] = ("packages",)
 
-    def __init__(
-        self, *, fetcher: Callable[[Path], None] | None = None
-    ) -> None:
+    def __init__(self, *, fetcher: Callable[[Path], None] | None = None) -> None:
         self._fetcher_override = fetcher
 
     def _resolve_pin(self) -> dict:
@@ -142,9 +141,7 @@ class NextjsStandaloneAdapter:
         from template_cache import fetch
 
         try:
-            cached = fetch(
-                pin["repo_url"], pin["sha"], fetcher=self._fetcher_override
-            )
+            cached = fetch(pin["repo_url"], pin["sha"], fetcher=self._fetcher_override)
         except Exception as exc:
             raise AdapterScaffoldError(
                 reason="template_cache_fetch_failed",
@@ -187,9 +184,7 @@ class NextjsStandaloneAdapter:
             new_text = _CLERK_IMPORT_RE.sub("", text)
             new_text = _CLERK_PROVIDER_RE.sub("{children}", new_text)
             if not new_text.lstrip().startswith("import { auth }"):
-                new_text = (
-                    'import { auth } from "@/lib/auth";\n' + new_text
-                )
+                new_text = 'import { auth } from "@/lib/auth";\n' + new_text
             new_text = new_text.replace("@clerk/nextjs", "@/lib/auth")
             new_text = new_text.replace("@clerk/clerk-react", "@/lib/auth")
             if new_text != text:

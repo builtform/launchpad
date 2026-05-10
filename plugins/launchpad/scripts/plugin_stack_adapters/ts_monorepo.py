@@ -9,11 +9,11 @@ another stack: it is itself a Turborepo). The legacy function API
 (`describe_*`, `run`) is preserved for the polyglot composer; new v2.1
 dispatch sites import `ADAPTER` (the module-level Adapter instance).
 """
+
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
-
-from typing import Mapping
 
 from .contracts import (
     _EMPTY_PACKAGE_PATHS,

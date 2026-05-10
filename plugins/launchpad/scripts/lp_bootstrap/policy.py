@@ -27,6 +27,7 @@ Atomic-write primitives ride Phase 1's `atomic_io.atomic_write_replace`.
 chmod runs AFTER `os.replace` per harden B8 to avoid the tempfile-mode
 race (chmod on the tempfile is overwritten by replace).
 """
+
 from __future__ import annotations
 
 import json
@@ -34,10 +35,11 @@ import os
 import secrets
 import sys
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 # Sibling-script imports.
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
@@ -45,16 +47,16 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from atomic_io import atomic_write_replace  # noqa: E402
-
-from plugin_default_generators._renderer_base import sha256_bytes, sha256_file  # noqa: E402
+from plugin_default_generators._renderer_base import (  # noqa: E402
+    sha256_bytes,
+    sha256_file,
+)
 
 from lp_bootstrap import (  # noqa: E402
     BACKUP_DIR_NAME,
     LAUNCHPAD_DIR_NAME,
     WARNINGS_FILENAME,
-    BootstrapError,
     BootstrapErrorCode,
-    BootstrapPolicy,
 )
 
 
@@ -82,6 +84,7 @@ class BootstrapPolicyError(RuntimeError):
 
 # --- Policy action result -------------------------------------------------
 
+
 class PolicyAction(StrEnum):
     """What the policy applicator decided to do for this target.
 
@@ -89,17 +92,19 @@ class PolicyAction(StrEnum):
     user-friendly summaries and so test fixtures can assert exact
     branching.
     """
-    WRITE = "write"                    # write rendered content to target
+
+    WRITE = "write"  # write rendered content to target
     SKIP_UNCHANGED = "skip-unchanged"  # on-disk == rendered; no-op
     KEPT_USER_EDITS = "kept-user-edits"  # on-disk diverges from manifest; preserve
-    APPENDED = "appended"              # append-only added new lines
-    MERGED = "merged"                  # merge-keys merged user + plugin
+    APPENDED = "appended"  # append-only added new lines
+    MERGED = "merged"  # merge-keys merged user + plugin
     OVERWROTE_WITH_BACKUP = "overwrote-with-backup"  # --refresh wrote backup
 
 
 @dataclass(frozen=True)
 class PolicyResult:
     """Outcome of one policy applicator call."""
+
     action: PolicyAction
     path: Path
     bytes_written: bytes | None
@@ -108,6 +113,7 @@ class PolicyResult:
 
 
 # --- Backup directory helper (section 3.2 + harden C1) --------------------
+
 
 def make_backup_dir(cwd: Path, *, command_pid: int | None = None) -> Path:
     """Create a fresh backup directory beneath `.launchpad/backups/`.
@@ -195,6 +201,7 @@ def write_backup_then_overwrite(
 
 # --- overwrite-if-unchanged (section 3.2 row 1) ---------------------------
 
+
 def apply_overwrite_if_unchanged(
     *,
     target: Path,
@@ -277,6 +284,7 @@ def apply_overwrite_if_unchanged(
 
 
 # --- append-only (section 3.2 row 3 + harden A14) -------------------------
+
 
 def apply_append_only(
     *,
@@ -374,6 +382,7 @@ def apply_append_only(
 
 # --- merge-keys (section 3.2 row 2 + harden A13) --------------------------
 
+
 def _is_mapping(v: Any) -> bool:
     return isinstance(v, Mapping)
 
@@ -430,7 +439,9 @@ def merge_keys_additive(
                         user_set.add(_jsonish_repr(item))
                 continue
 
-            if type(user_value) is not type(plugin_value) or _is_mapping(user_value) != _is_mapping(plugin_value):
+            if type(user_value) is not type(plugin_value) or _is_mapping(
+                user_value
+            ) != _is_mapping(plugin_value):
                 warnings.append(
                     f"merge-keys: value-type conflict at {here}; user value "
                     f"({type(user_value).__name__}) wins over plugin value "
@@ -522,7 +533,9 @@ def apply_merge_keys(
                 remediation="re-render the template; merge-keys requires a mapping at the top",
             )
         merged, warnings = merge_keys_additive(user=user_obj, plugin=plugin_obj)
-        new_bytes = (json.dumps(merged, indent=2, sort_keys=True) + "\n").encode("utf-8")
+        new_bytes = (json.dumps(merged, indent=2, sort_keys=True) + "\n").encode(
+            "utf-8"
+        )
 
     elif serializer == "yaml":
         if yaml_dumper is None:
@@ -533,6 +546,7 @@ def apply_merge_keys(
                 remediation="pass yaml_dumper=yaml.safe_dump from the caller",
             )
         import yaml  # type: ignore[import-not-found]
+
         plugin_obj = yaml.safe_load(rendered_bytes.decode("utf-8")) or {}
         user_obj = None
         if target.exists():
@@ -564,7 +578,9 @@ def apply_merge_keys(
         # append-only at the line level: every plugin line that is not
         # already present is appended in document order. User lines are
         # never reordered or deleted.
-        return apply_append_only(target=target, rendered_bytes=rendered_bytes, mode=mode, cwd=cwd)
+        return apply_append_only(
+            target=target, rendered_bytes=rendered_bytes, mode=mode, cwd=cwd
+        )
 
     else:
         raise BootstrapPolicyError(
@@ -586,6 +602,7 @@ def apply_merge_keys(
 
 
 # --- Warnings ledger ------------------------------------------------------
+
 
 def record_warnings(cwd: Path, warnings: list[str]) -> None:
     """Append structured warnings to `.launchpad/bootstrap-warnings.json`.
@@ -611,6 +628,7 @@ def record_warnings(cwd: Path, warnings: list[str]) -> None:
 
 
 # --- Gitignore append helper for backups dir (harden A14) -----------------
+
 
 def ensure_backups_in_gitignore(cwd: Path) -> None:
     """Make sure `.launchpad/backups/` is gitignored before the first refresh.
@@ -659,6 +677,7 @@ def ensure_backups_in_gitignore(cwd: Path) -> None:
 
 
 # --- Phase 6 v2.1 lp-define config.yml writer (DA6 + cycle-3 architecture P1-A) ----
+
 
 def write_config_yaml_atomic(path: Path, content: str, *, cwd: Path) -> None:
     """Atomically write `.launchpad/config.yml` for /lp-define.

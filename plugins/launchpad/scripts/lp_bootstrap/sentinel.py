@@ -27,14 +27,15 @@ success when the PID exists in the process table OR raises
 `ProcessLookupError` when the PID is dead. Engine catches the exception and
 treats it as dead-PID auto-recover.
 """
+
 from __future__ import annotations
 
 import errno
 import json
 import os
 import sys
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -43,7 +44,7 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from atomic_io import _full_fsync_darwin, _fsync_parent  # noqa: E402
+from atomic_io import _fsync_parent, _full_fsync_darwin  # noqa: E402
 
 from lp_bootstrap import (  # noqa: E402
     LAUNCHPAD_DIR_NAME,
@@ -72,6 +73,7 @@ class BootstrapSentinelError(RuntimeError):
 @dataclass(frozen=True)
 class SentinelSnapshot:
     """Decoded sentinel JSON payload (section 3.6)."""
+
     command_pid: int
     started_at: str
     pre_edit_manifest_sha256: str | None
@@ -85,7 +87,7 @@ def sentinel_path(cwd: Path) -> Path:
 
 
 def _utc_iso8601_now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def write_sentinel(

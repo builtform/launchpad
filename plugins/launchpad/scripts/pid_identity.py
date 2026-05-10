@@ -18,12 +18,14 @@ Used inline at v2.0 by:
 `forensic_writer.py` (BL-223) will route these writers through a single
 SRP-split module at v2.2; at v2.0 each writer calls this helper directly.
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 try:
     import psutil  # type: ignore[import-not-found]
+
     _PSUTIL_AVAILABLE = True
 except ImportError:  # pragma: no cover
     psutil = None  # type: ignore[assignment]
@@ -54,7 +56,8 @@ def get_pid_start_time() -> str:
         # `pid_start_time` field carries the placeholder.
         return "psutil-unavailable"
     return datetime.fromtimestamp(
-        psutil.Process().create_time(), tz=timezone.utc  # type: ignore[union-attr]
+        psutil.Process().create_time(),
+        tz=UTC,  # type: ignore[union-attr]
     ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 

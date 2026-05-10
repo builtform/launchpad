@@ -29,6 +29,7 @@ Contract:
   - Missing files or repo in detached-head / shallow-clone state → returns
     False (don't block legitimate users with edge-case git state).
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -81,7 +82,8 @@ def _find_section_introduction_commit(repo_root: Path, section_name: str) -> str
         repo_root,
         "log",
         "--follow",
-        "-S", pickaxe,
+        "-S",
+        pickaxe,
         "--pretty=format:%H",
         "--",
         registry_rel,
