@@ -1084,6 +1084,17 @@ def _render_loop(
     for template_relpath, target_relpath, policy, file_mode in targets:
         target_path = cwd / target_relpath
         rendered_bytes = _RENDERER.render_target(target_relpath, identity)
+        # BL-316 Slice 4c.4: stack-aware lefthook enrichment. Reads
+        # `.launchpad/config.yml` for persisted stacks, renders each stack's
+        # `lefthook.j2.fragment`, and additively merges into the kernel
+        # rendered bytes BEFORE SHA computation so the fast-path check and
+        # manifest stamping see the enriched output. Greenfield (no stacks
+        # persisted) returns kernel bytes unchanged for byte-identical
+        # behavior with prior versions.
+        if target_relpath == "lefthook.yml":
+            from .stack_lefthook import enrich_lefthook_with_stacks
+
+            rendered_bytes = enrich_lefthook_with_stacks(rendered_bytes, cwd)
         rendered_batch[target_path] = rendered_bytes
         rendered_sha = sha256_bytes(rendered_bytes)
         manifest_sha = _entry_sha_for(existing_manifest, target_relpath)
