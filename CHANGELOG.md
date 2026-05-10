@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 Tracked in [ROADMAP.md](ROADMAP.md). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` (BL-251 through BL-254) for v2.2-deferred items captured during v2.1 ship.
 
+## [v2.1.2]
+
+<!-- Phase 0 placeholder. Entries appended by Phases 1-3; finalized at Phase 4. -->
+
 ## [v2.1.1]
 
 Mandatory `/lp-review` dual-pass wiring + `--no-context` blind-review flag + Layer 3 static-analysis gate (ruff + bandit + semgrep + pyright). Universal `lefthook.yml` routes test/typecheck/lint through `plugin-build-runner.py` for stack-aware dispatch. **Validation:** v2.1.1's mandatory review gates were validated by passing this very release through them — Phase 5's commit was the first production exercise of the full Layer 1+2+3 stack.
@@ -232,6 +236,7 @@ Carried forward into v1.1:
 Full v1.1 scope in [ROADMAP.md](ROADMAP.md).
 
 [Unreleased]: https://github.com/builtform/launchpad/compare/v2.1.1...HEAD
+[v2.1.2]: https://github.com/builtform/launchpad/compare/v2.1.1...v2.1.2
 [v2.1.1]: https://github.com/builtform/launchpad/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/builtform/launchpad/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/builtform/launchpad/compare/v1.1.0...v2.0.0

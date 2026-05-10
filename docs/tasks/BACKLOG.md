@@ -1285,7 +1285,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 <!-- v2.1.1 patch lane (created 2026-05-06 during the final cross-cutting hardening pass over `c563d81..HEAD`). The 14-agent review surfaced ~25 P2 / P3 items that did not block v2.1.0 ship but should land as a fast-follow patch within 7-14 days of v2.1.0. v2.1.1 is the dedicated patch home; v2.2 stays for operational/security infrastructure + stack catalog restorations. Items added empirically as real-world v2.1 use surfaces them. -->
 
-#### BL-255 - v2.1.3: Sentinel + identity-write security hardening bundle
+#### BL-255 - v2.1.4: Sentinel + identity-write security hardening bundle
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Driver**: 2026-05-06 cross-cutting hardening pass surfaced 5 sentinel/identity-write defenses that are currently asymmetric or incomplete. Tier A (this hardening cycle) wired the missing scaffold-stack sentinel write-side and harmonized bootstrap to `O_CREAT|O_EXCL`; the remaining items are non-blocking but should land in v2.1.1 to close the defense surface fully.
 
@@ -1303,7 +1305,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. v2.1.0 already converges defenses for the common-case attack vectors (atomic-write sentinel acquisition + bidirectional cross-detect after Tier A); items 1-5 close the long tail.
 
-#### BL-256 - v2.1.3: Doc-vs-code coherence patch bundle
+#### BL-256 - v2.1.4: Doc-vs-code coherence patch bundle
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Driver**: 2026-05-06 cross-cutting hardening pass surfaced ~12 documentation-vs-code drift items. Tier A locked the highest-impact P1s (re-entry case framing, license enum, Phase 1 in release notes, --force phantom flag, v1.0.0 stale strings, refusal hint). The Tier B residuals are individually small but worth bundling into a single doc-patch PR to ship clean.
 
@@ -1378,7 +1382,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. None of the three are runtime-hot at v2.1.0 ship time; the docstring is over-specifying a property the implementation doesn't promise, the backup-dir collision requires same-process sub-second reinvocation (no current command path triggers this), and the shell word-split only fires when a downstream operator runs `compound/analyze-report.sh` against a path containing spaces.
 
-#### BL-260 - v2.1.3: Cross-command sentinel TOCTOU race + catalog-vs-active-enum integration polish
+#### BL-260 - v2.1.4: Cross-command sentinel TOCTOU race + catalog-vs-active-enum integration polish
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Driver**: Codex re-review on PR #50 (post-2dbf839 commit) flagged a check-then-write race between `/lp-bootstrap`, `/lp-scaffold-stack`, and `/lp-update-identity` sentinels, plus Greptile noted that v2.0 catalog short names like `supabase`, `expo`, `eleventy`, `hugo` can be picked from `/lp-pick-stack`'s manual-override menu but are not members of `STACK_ID_ACTIVE_ENUM` — leading to a `ValueError` at `/lp-review` time when those ids are persisted in `scaffold-decision.json.stacks`. Both items are real but neither blocks v2.1.0 ship: the sentinel race window is microseconds in a single-user CLI, and the catalog-vs-active-enum mismatch fails at `/lp-scaffold-stack` time with a clear "unknown_v21_stack_id" error rather than silently breaking review.
 
@@ -1394,7 +1400,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. The race is theoretical; the catalog mismatch fails at scaffold-stack time with a clear error rather than silently breaking review.
 
-#### BL-261 - v2.1.3: Backlog-slip prevention mechanisms #2, #4, #5
+#### BL-261 - v2.1.4: Backlog-slip prevention mechanisms #2, #4, #5
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-07)**: NEW. Prevention mechanisms #1 (orphan-check script + lefthook + CI) and #3 (BL ↔ CHANGELOG cross-reference convention) shipped in v2.1.0 alongside the BL-236 retroactive re-target. Three further structural mechanisms are deferred to v2.1.1.
 
@@ -1412,7 +1420,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. Mechanisms #1 + #3 close the immediate gap (an orphan in BACKLOG.md will now fail CI). Mechanisms #2 + #4 + #5 are belt-and-suspenders defenses that make slip impossible at multiple stages of the planning chain rather than only at ship time.
 
-#### BL-262 - v2.1.3: `/lp-bootstrap --recover` full reconciliation
+#### BL-262 - v2.1.4: `/lp-bootstrap --recover` full reconciliation
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-07)**: NEW — deferred to v2.1.1 from v2.1.0 Codex PR #50 P1.D follow-up bundle. v2.1.0 ships only sentinel-clear + provably-stale-manifest unlink; full reconciliation (auto-completing partial runs by re-rendering paths whose hashes diverge from the current manifest) is the BL-262 scope. Documented at `docs/architecture/SCAFFOLD_OPERATIONS.md` §12.6 + `plugins/launchpad/commands/lp-bootstrap.md`.
 
@@ -1514,7 +1524,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1+. Low severity (P3); the generated script is advisory and rarely encounters paths with spaces in practice.
 
-#### BL-284 - v2.1.3: tier-2-nightly composition matrix not consumed
+#### BL-284 - v2.1.4: tier-2-nightly composition matrix not consumed
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-08)**: NEW — deferred from v2.1.0 Codex PR #50 cycle 5 P2. `.github/workflows/tier-2-nightly.yml:30` declares two canonical stack compositions in the matrix, but the test command at `:70` does not consume `matrix.composition.stacks` or run the composition suite. Both matrix jobs run identical adapter/template-cache tests, so the advertised hot-path compositions are not actually exercised.
 
@@ -1522,7 +1534,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. CI hygiene only; doesn't affect runtime correctness.
 
-#### BL-285 - v2.1.3: backup secret-scan gate
+#### BL-285 - v2.1.4: backup secret-scan gate
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-08)**: NEW — deferred from v2.1.0 PR #50 cycle 6 hardening (security-lens P1-1). `.launchpad/backups/<ts>-<PID>-<rand4>/` may contain user content with secrets-shaped files (e.g., `.env.example`). v2.1 secret-scanner does NOT walk this directory.
 
@@ -1542,7 +1556,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. Documentation hygiene; doesn't block ship.
 
-#### BL-287 - v2.1.3: `/lp-cleanup-backups` retention command
+#### BL-287 - v2.1.4: `/lp-cleanup-backups` retention command
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-08)**: NEW — deferred from v2.1.0 PR #50 cycle 6 (DA-F8.11; perf, scope-guardian, product-lens reviews concurred).
 
@@ -1633,7 +1649,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. Low severity (P3); doesn't affect runtime correctness or downstream installs. Reproducibility hardening fits naturally with v2.1.1's supply-chain posture work.
 
-#### BL-297 - v2.1.2: Codex/Greptile corpus-trained reviewer agent
+#### BL-297 - v2.1.3: Codex/Greptile corpus-trained reviewer agent
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.2 → v2.1.3. See BL-316.
 
 **Status (2026-05-08)**: NEW — v2.1.2 dedicated work; primary deliverable. Plan authored at [docs/plans/launchpad_plans/2026-05-07-v2.1.2-codex-corpus-trained-reviewer-plan.md](../plans/launchpad_plans/2026-05-07-v2.1.2-codex-corpus-trained-reviewer-plan.md).
 
@@ -1654,7 +1672,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: ship after v2.1.1. ~12-16h of corpus tooling + agent definition + integration work. See plan file for full 5-phase breakdown + DA-decisions (D1: in-context learning not fine-tuning; D6: combined corpus complementary lanes; D9: lane-balanced sampling).
 
-#### BL-298 - v2.1.3: Pyright strict on engine modules
+#### BL-298 - v2.1.4: Pyright strict on engine modules
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-09)**: NEW — deferred from v2.1.1 Phase 4 hybrid disposition.
 
@@ -1674,7 +1694,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.3. Engine modules are subprocess/path-manipulation surfaces where pyright strict has lower bang-for-buck than at the JSON validation boundary.
 
-#### BL-299 - v2.1.3: nodeenv binary download outside pip hash coverage
+#### BL-299 - v2.1.4: nodeenv binary download outside pip hash coverage
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-09)**: NEW — deferred from v2.1.1 Phase 4 R1-T1-16 escape hatch (pip-compile transitive coverage).
 
@@ -1687,7 +1709,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.3. Pyright was locked at master plan D6; nodeenv hole is a residual supply-chain surface acceptable for v2.1.1's single-maintainer threat model. Surfaced in user-facing `docs/guides/CODE_REVIEW_LAYERS.md` per Round 1 security-lens P2-2 (not BL-only).
 
-#### BL-300 - v2.1.3: `--strict-dispatch` flag on `/lp-review`
+#### BL-300 - v2.1.4: `--strict-dispatch` flag on `/lp-review`
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-09)**: NEW — surfaced by v2.1.1 Phase 3 sibling Hard Rule 6 violation (substituted self-review for parallel agent dispatch).
 
@@ -1702,7 +1726,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.3. v2.1.1 closes the gap procedurally via `tool_use_id` reporting in handoff template + sweep-sibling validation (DA-5.7); programmatic enforcement deserves its own design pass.
 
-#### BL-301 - v2.1.3: semgrep synthetic-violation fixtures
+#### BL-301 - v2.1.4: semgrep synthetic-violation fixtures
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-09)**: NEW — deferred from v2.1.1 Phase 5 Slice F. Phase 4 master plan §4 specified `tests/fixtures/semgrep_violations/{sentinel_after_materialize,atomic_io_no_trusted_root,sha_no_domain_tag,composition_no_rmtree}.py` as deliverables; not shipped at Phase 4 final state. Phase 5 deferred per "ships NO RUNTIME CODE" rule.
 
@@ -1718,7 +1744,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.3. Phase 4 invariants are still enforced on production code; fixtures formalize regression protection for the rules themselves.
 
-#### BL-303 - v2.1.3: `lp-engine-sentinel-must-precede-materialize` semgrep rule
+#### BL-303 - v2.1.4: `lp-engine-sentinel-must-precede-materialize` semgrep rule
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-09)**: NEW — Phase 4 Slice 7 BL-DEFERRED per R1-T1-9 + adversarial P2-A iteration cap (>2 fail-to-validate iterations).
 
@@ -1732,7 +1760,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.3. The invariant is real but enforcement is currently via code review + the existing sentinel acquisition contract documented in OPERATIONS.md.
 
-#### BL-304 - v2.1.3: secret-patterns.txt over-match on `\bdownstream\s+project`
+#### BL-304 - v2.1.4: secret-patterns.txt over-match on `\bdownstream\s+project`
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-09)**: NEW — Phase 4 sibling iteration finding (1 false-positive in Jinja-template comment surface ride-along moved by ruff import-sort).
 
@@ -1746,7 +1776,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.3. False-positive frequency is low (1 confirmed); not blocking ship.
 
-#### BL-305 - v2.1.3: portable timeout wrapper for macOS lefthook entries
+#### BL-305 - v2.1.4: portable timeout wrapper for macOS lefthook entries
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-09)**: NEW — Phase 4 sibling iteration finding. Plan DA-4.9 specified `timeout 60/120 semgrep ...` wrappers but `timeout` binary is absent on macOS (unlike Linux/CI). Phase 4 removed wrappers; lefthook handles its own timeouts.
 
@@ -1760,7 +1792,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.3. lefthook native timeout handling is sufficient at v2.1.1; portable wrappers are polish.
 
-#### BL-306 - v2.1.3: semgrep allowlist-vs-handshake-lint parallelism
+#### BL-306 - v2.1.4: semgrep allowlist-vs-handshake-lint parallelism
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-09)**: NEW — Phase 4 sibling /lp-review accepted finding (NOT amended); referenced in Phase 4 R2-T1-14.
 
@@ -1773,7 +1807,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.3. Operational hygiene; not a correctness issue.
 
-#### BL-307 - v2.1.3 / v2.2: Phase 4 simplicity-reviewer cleanup-style P1s
+#### BL-307 - v2.1.4 / v2.2: Phase 4 simplicity-reviewer cleanup-style P1s
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 / v2.2 → v2.1.4 / v2.2 (single-tag side only). See BL-316.
 
 **Status (2026-05-09)**: NEW — bundle of 9 simplicity-reviewer findings from Phase 4 /lp-review Commit 2 (12 P1 total — 3 amended; 9 NOT amended with documented rationale "out of v2.1.1 scope").
 
@@ -1787,7 +1823,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.3 / v2.2. Not blocking; quality-of-life polish.
 
-#### BL-308 - v2.1.3: Resolve outstanding pyright/nosec `BL-<TBD>` deferrals from v2.1.1
+#### BL-308 - v2.1.4: Resolve outstanding pyright/nosec `BL-<TBD>` deferrals from v2.1.1
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-09)**: NEW — surfaced by v2.1.1 cross-cutting sweep-review.
 
@@ -1853,7 +1891,9 @@ The canonical surface — `docs/architecture/CI_CD.md:108`, `docs/guides/CODE_RE
 
 **Default decision**: defer to v2.1.x.
 
-#### BL-312 - v2.1.3: plugin-workflow-sha-pin-check.py regex bypass via GH Actions `${{ }}` expressions
+#### BL-312 - v2.1.4: plugin-workflow-sha-pin-check.py regex bypass via GH Actions `${{ }}` expressions
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-09)**: NEW — surfaced by v2.1.1 cross-cutting sweep-review.
 
@@ -1865,7 +1905,9 @@ The canonical surface — `docs/architecture/CI_CD.md:108`, `docs/guides/CODE_RE
 
 **Default decision**: defer to v2.1.3.
 
-#### BL-313 - v2.1.3: lefthook here-string filename-quoting hardening
+#### BL-313 - v2.1.4: lefthook here-string filename-quoting hardening
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-09)**: NEW — surfaced by v2.1.1 cross-cutting sweep-review (pre-existing pattern; v2.1.1 inherits).
 
@@ -1877,7 +1919,9 @@ The canonical surface — `docs/architecture/CI_CD.md:108`, `docs/guides/CODE_RE
 
 **Default decision**: defer to v2.1.3.
 
-#### BL-314 - v2.1.3: nonce_ledger.py darwin branch tiebreak determinism
+#### BL-314 - v2.1.4: nonce_ledger.py darwin branch tiebreak determinism
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-09)**: NEW — surfaced by v2.1.1 cross-cutting sweep-review.
 
@@ -1889,7 +1933,9 @@ The canonical surface — `docs/architecture/CI_CD.md:108`, `docs/guides/CODE_RE
 
 **Default decision**: defer to v2.1.3. Real platform asymmetry but D11 verdict scope was Linux-only at Phase 4 close; v2.1.3 is the appropriate window to extend.
 
-#### BL-315 - v2.1.3: plugin-restamp-redact-wip.py atomic_io import path hardening
+#### BL-315 - v2.1.4: plugin-restamp-redact-wip.py atomic_io import path hardening
+
+**Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-09)**: NEW — surfaced by v2.1.1 cross-cutting sweep-review.
 
@@ -1900,6 +1946,38 @@ The canonical surface — `docs/architecture/CI_CD.md:108`, `docs/guides/CODE_RE
 **At v2.1.3 design time**: replace lines 88-89 with `sys.path.insert(0, str(Path(__file__).resolve().parent))` + `from atomic_io import atomic_write_replace`. Pins the import to the script's own installed directory regardless of caller-supplied `--repo-root`.
 
 **Default decision**: defer to v2.1.3.
+
+#### BL-316 - v2.1.2: Propagate hardened lefthook gates to consumer template via stack-adapter fragments
+
+**Status (2026-05-10)**: NEW — primary v2.1.2 deliverable. Implementation begins Phase 1 of v2.1.2.
+
+**Source**: v2.1.1 ship retrospective (2026-05-09 evaluation) + v2.1.2 prep plan locked 2026-05-10 (Path B + Q1=(a) + Q2=(a)).
+
+**Driver**: v2.1.1 hardened the maintainer's `lefthook.yml` with 7 Python gates (bandit, ruff-check, ruff-format-check, semgrep-general, semgrep-launchpad-internal, pyright, pytest) but consumer projects that install LaunchPad get NONE of this propagation. The plugin's `infrastructure/lefthook.yml.j2` template is unchanged by v2.1.1, and the stack-adapter fragments (e.g., `nextjs_fastapi/templates/lefthook.j2.fragment`) are no-ops. Maintainer-side gates also hardcode plugin-specific paths (`plugins/launchpad/scripts/`) and the `[ -d plugins/launchpad/scripts ] || exit 0` early-out, which would silently no-op in every consumer repo.
+
+**At v2.1.2 design time**:
+
+1. Edit `plugins/launchpad/scripts/plugin_stack_adapters/nextjs_fastapi/templates/lefthook.j2.fragment` to add 5 gates: bandit (no config), ruff-check (auto-discover), ruff-format-check (auto-discover), pyright (auto-discover via `[tool.pyright]`), pytest (auto-discover). **Each gate MUST include a `command -v <tool> >/dev/null || { echo 'GATE MISSING: <tool>' >&2; exit 1; }` preamble** — never silent no-op (per security-lens P2: silent-skip is a security regression masquerading as a gate). For bandit specifically: ship a minimal `[tool.bandit]` exclude list in `pyproject.toml.fragment` to avoid scanning vendored Python adjacent to `node_modules`.
+2. SKIP semgrep-general (requires shipping rules YAML) + semgrep-launchpad-internal (plugin-specific, no meaning outside).
+3. Append the 5 tools to `plugins/launchpad/scripts/plugin_stack_adapters/nextjs_fastapi/requirements.in.fragment` (or equivalent install-fragment surface) so consumers get them via `pip install -r requirements.in`. Consumers without Python in their stack are unaffected (fragment renders to no-op for non-Python stacks).
+4. Add tests at `plugins/launchpad/scripts/tests/test_lefthook_template_python_gates.py` asserting the 5 gates appear in the rendered template for a Python-bearing stack.
+5. Update `docs/architecture/CI_CD.md` + `docs/guides/CODE_REVIEW_LAYERS.md` with one-line cross-reference to the propagated gates.
+
+**Per-stack scope (v2.1.2 only)**: nextjs_fastapi only. v2.2 fills additional Python-bearing stacks as those land.
+
+**User-facing upgrade impact**: existing consumer projects on older LaunchPad will get NEW failing pre-commit gates after upgrade. v2.1.2 release notes (Phase 4) MUST document this as an upgrade impact + provide opt-out guidance (e.g., `lefthook.yml` skip block).
+
+**Default decision**: ship in v2.1.2 (~3-4h main deliverable).
+
+#### BL-317 - v2.1.x: Remove dead-code `validate_subject` from `plugin-restamp-history-hook.py:54-71`
+
+**Status (2026-05-10)**: NEW — surfaced by v2.1.1 sweep iteration 3 (blind simplicity reviewer); correctly suppressed under "pre-existing" rule. Will RIDE ALONG in v2.1.2 Phase 3.
+
+**Source**: v2.1.1 PR #62 sweep iteration 3 (2026-05-09)
+
+**Driver**: `validate_subject` was introduced in v2.0 commit `c563d81` with zero callers since. v2.1.1 only touched this file via ride-along ruff format (datetime.UTC import alias + whitespace). Cleanup opportunity. Verify zero callers via grep before removal; then delete the function and any associated tests.
+
+**Default decision**: fold into v2.1.2 Phase 3 ride-alongs (~10min).
 
 #### BL-318 - v2.1.x: Stale `v2.1.0` references in HOW_IT_WORKS.md + V2.2-CANDIDATES.md.j2
 
@@ -1972,3 +2050,21 @@ Additionally, `lp-test-browser.md:103` is a SECOND writer of `.harness/todos/*.m
 3. (Optional) Add a single-source-of-truth schema doc at `docs/architecture/HARNESS_TODOS.md` enumerating all current frontmatter fields + their consumer contracts.
 
 **Default decision**: defer to v2.1.x. v2.1.1 ships with the missing-field tolerance baked in; sibling-doc sync is documentation hygiene, not a runtime defect.
+
+#### BL-322 - v2.1.x: Migrate to Prisma 7 (datasource URL → prisma.config.ts)
+
+**Status (2026-05-10)**: NEW — Dependabot PR #54 (closed 2026-05-10) attempted Prisma 6.19.3 → 7.8.0 bump; fails on `schema.prisma` validation (P1012). NOT v2.1.2 scope.
+
+**Source**: v2.1.1 post-ship dependabot triage (2026-05-10)
+
+**Driver**: Prisma 7 dropped the `url` property from `schema.prisma` `datasource` block. Connection URLs must move to a new `prisma.config.ts` with either `adapter` (direct connection) or `accelerateUrl` (Accelerate to PrismaClient constructor). See https://pris.ly/d/config-datasource and https://pris.ly/d/prisma7-client-config. Migration is opt-in; not a drop-in bump.
+
+**At v2.1.x design time**:
+
+1. Author `packages/db/prisma.config.ts` with appropriate adapter (direct postgres connection most likely, given v2.0 monorepo template uses standard PG). **Verify the file reads connection strings via `process.env.DATABASE_URL` ONLY** — never literal — and update `.launchpad/secret-patterns.txt` (or gitleaks config) if `accelerateUrl` (with `?api_key=` query string) becomes in-scope.
+2. Remove `url` from `packages/db/prisma/schema.prisma` `datasource` block.
+3. Update `PrismaClient` instantiation in `packages/db/src/` to pass `adapter` config.
+4. Verify `pnpm install` postinstall (which runs `prisma generate`) succeeds against migrated schema.
+5. If LaunchPad scaffolds Prisma in any stack template, propagate the new pattern.
+
+**Default decision**: defer to v2.1.x. Real migration work (~2-4h); not critical given Prisma 6.x is still supported.
