@@ -935,7 +935,7 @@ Trade-off: grep can be bypassed via `fromJSON(toJSON())` / bracket-notation / ex
 
 #### BL-236 - v2.1.1: Lefthook Python coverage expansion (ruff + pytest + pyright + v2-handshake-lint pre-push)
 
-**Status (2026-05-09)**: SHIPPED in v2.1.1 — see PR #<PR-TBD> + commit `<SHA>`
+**Status (2026-05-09)**: SHIPPED in v2.1.1 — see PR #62 + commit `<SHA>`
 
 **Status (2026-05-07)**: RE-TARGETED v2.1 → v2.1.1. The original v2.1 scope (post-v2.0.0 rebalance, 2026-05-02) was BL-236 + BL-237 (two contributor-experience BLs). v2.1 then expanded into "plugin-owns-everything" (composition wrapper, sealed identity, `/lp-bootstrap`, `/lp-update-identity`, kernel renderer, stack-aware dispatch — 12 implementation phases over 4 days). BL-236 was never folded into any phase plan and was not surfaced in any phase exit criterion or Phase 11 ship-readiness checklist. Discovered post-hoc on 2026-05-07 during PR #50 ship preparation when the user asked whether v2.1 had implemented Python lefthook coverage. Re-targeting to v2.1.1 alongside BL-255..260 rather than blocking v2.1.0 ship — adding ruff now would surface hundreds of pre-existing warnings and require a baseline auto-fix commit, both of which are inappropriate during a ship window. See "Backlog-slip prevention" notes appended to v2.1.1 patch lane after this entry.
 
@@ -999,7 +999,7 @@ These are the polish/hardening items the agent surfaced; ruff itself catches a s
 
 #### BL-237 - v2.1.1: Tighten `V2_MODULES` scope to package-aware path-prefix matching
 
-**Status (2026-05-09)**: SHIPPED in v2.1.1 — see PR #<PR-TBD> + commit `<SHA>`
+**Status (2026-05-09)**: SHIPPED in v2.1.1 — see PR #62 + commit `<SHA>`
 
 **Status (2026-05-07)**: RE-TARGETED v2.1 → v2.1.1. Paired sibling of BL-236 in the original 2026-05-02 v2.1 scope rebalance (two contributor-experience BLs). Slipped through the same architecture-doc → master-plan handoff that lost BL-236. Re-targeting to v2.1.1 alongside BL-236 + BL-245 + BL-246 + BL-255..260.
 
@@ -1021,7 +1021,7 @@ These are the polish/hardening items the agent surfaced; ruff itself catches a s
 
 #### BL-245 - v2.1.1: Stack-aware `lefthook.yml` generation by `/lp-define` per-stack adapters
 
-**Status (2026-05-09)**: SHIPPED in v2.1.1 — subsumed by universal lefthook + build-runner indirection (master plan D1); see PR #<PR-TBD> + commit `<SHA>`
+**Status (2026-05-09)**: SHIPPED in v2.1.1 — subsumed by universal lefthook + build-runner indirection (master plan D1); see PR #62 + commit `<SHA>`
 
 **Status (2026-05-07)**: RE-TARGETED v2.1 → v2.1.1. Companion to BL-236 (LaunchPad self-host side) per the original BL-245 driver paragraph ("BL-236 fixes the upstream side; BL-245 fixes the downstream side"). Slipped from v2.1 alongside BL-236.
 

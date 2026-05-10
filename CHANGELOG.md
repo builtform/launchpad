@@ -41,9 +41,9 @@ Mandatory `/lp-review` dual-pass wiring + `--no-context` blind-review flag + Lay
 
 ### Closed BL items
 
-- **BL-236** (Lefthook Python coverage expansion): SHIPPED via Phase 3 + Phase 4 — see PR #<PR-TBD>
-- **BL-237** (V2_MODULES scope tightening): SHIPPED via Phase 3 — see PR #<PR-TBD>
-- **BL-245** (Stack-aware lefthook generation): SHIPPED via universal lefthook + build-runner indirection (master plan D1); see PR #<PR-TBD>
+- **BL-236** (Lefthook Python coverage expansion): SHIPPED via Phase 3 + Phase 4 — see PR #62
+- **BL-237** (V2_MODULES scope tightening): SHIPPED via Phase 3 — see PR #62
+- **BL-245** (Stack-aware lefthook generation): SHIPPED via universal lefthook + build-runner indirection (master plan D1); see PR #62
 
 ### Deferred to v2.1.3 / v2.2
 
