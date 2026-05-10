@@ -150,16 +150,18 @@ def test_pytest_probes_apps_api_then_api() -> None:
     assert "pytest -x --tb=short api" in pytest_run
 
 
-def test_pre_commit_gates_use_set_dash_dash_pattern() -> None:
-    """Each pre-commit gate uses the empty-staged-files guard via positional
-    reset + `--` sentinel option-injection defense.
+def test_pre_commit_gates_use_safe_xargs_pipeline() -> None:
+    """Each pre-commit gate uses the shell-injection-safe NUL-delimited
+    pipeline (BL-316 Slice 4c.6 / closes BL-313): `git diff -z` emits
+    NUL-delimited filenames; `xargs -0 -r` execs argv directly with no
+    shell re-parse. The unsafe `set -- {staged_files}` pattern is
+    REPLACED — this test guards the security regression shield.
 
-    KNOWN LIMITATION (cycle-3 honest disclosure): this pattern does NOT
-    handle filenames containing spaces. Lefthook does textual replacement
-    of `{staged_files}`, so `set -- my file.py` becomes 2 positional args.
-    Tracked at v2.2 BL for proper fix via lefthook's per-file iteration
-    template form. Maintainer's `lefthook.yml` ships the same pattern at
-    v2.1.1 — not a regression introduced by Phase 1.
+    Crucially: `{staged_files}` MUST NOT appear in any rendered run body
+    because lefthook substitutes it as raw text into the shell, evaluating
+    metacharacters in filenames. See `tests/test_lp_bootstrap_stack_lefthook.py`
+    for the malicious-filename regression test that proves the new
+    pipeline resists `evil$(touch SHOULD_NOT_EXIST).py` injection.
     """
     rendered = _render(["nextjs_fastapi"])
     parsed = yaml.safe_load(rendered)
@@ -169,9 +171,33 @@ def test_pre_commit_gates_use_set_dash_dash_pattern() -> None:
         ("ruff-format-check", "ruff format --check"),
     ):
         run = parsed["pre-commit"]["commands"][gate_name]["run"]
-        assert "set -- {staged_files}" in run, f"{gate_name} missing set --"
-        assert "[ $# -eq 0 ] && exit 0" in run, f"{gate_name} missing empty-guard"
-        assert f'{tool} -- "$@"' in run, f"{gate_name} missing -- separator"
+        # New safe pipeline must be present.
+        assert "git diff --cached --name-only -z" in run, (
+            f"{gate_name} missing NUL-delimited git diff pipeline"
+        )
+        assert "xargs -0 -r" in run, (
+            f"{gate_name} missing safe xargs invocation"
+        )
+        assert tool in run, f"{gate_name} missing tool invocation: {tool}"
+        # The OLD unsafe pattern MUST be gone — security regression shield.
+        # Strip comment lines (lines whose first non-whitespace char is `#`)
+        # because the safety-narrative comment legitimately mentions
+        # `{staged_files}` to explain WHY the pipeline replaces it.
+        active_lines = [
+            line
+            for line in run.splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        active_body = "\n".join(active_lines)
+        assert "{staged_files}" not in active_body, (
+            f"{gate_name} REGRESSED: {{staged_files}} is shell-unsafe; "
+            f"BL-313 / Slice 4c.6 closure violated (found in active "
+            f"command lines, not just comments)"
+        )
+        assert "set -- " not in active_body, (
+            f"{gate_name} REGRESSED to legacy `set -- {{staged_files}}` "
+            f"pattern; security fix lost"
+        )
 
 
 def test_python_gates_dropped_self_host_paths() -> None:

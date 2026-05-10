@@ -211,20 +211,27 @@ def compute_source_template_shas(*, root: Path | None = None) -> Mapping[str, st
     `BootstrapManifestError(reason=TEMPLATE_NOT_FOUND)` so a half-installed
     plugin surfaces fast.
 
-    `lefthook.yml` returns a COMPOSITE hash (kernel + every plugin-shipped
-    stack fragment + every shared partial under `_partials/`) per BL-316
-    Slice 4c.5. The composite covers the full template surface that
+    PRODUCTION-ROOT MODE (`root is None`): `lefthook.yml` returns a
+    COMPOSITE hash (kernel + every plugin-shipped stack fragment + every
+    shared partial under `_partials/`) per BL-316 Slice 4c.5. The
+    composite covers the full template surface that
     `stack_lefthook.enrich_lefthook_with_stacks` may pull from at render
     time, so manifest tamper-detection (`verify_source_template_shas`)
     fires on modification of ANY contributor — not just the kernel
     template. The composite is stable across user `.launchpad/config.yml`
     stack changes because enumeration is plugin-static.
 
-    Fixture-root callers get kernel-only behavior for `lefthook.yml`
-    (the helper falls back when `_STACK_FRAGMENTS_ROOT` is empty), so
-    existing fixture-based tests continue to pass.
+    FIXTURE-ROOT MODE (`root is not None`): `lefthook.yml` returns the
+    kernel-only SHA. This preserves the injected-root contract — fixture
+    callers get a hermetic result that depends only on files under
+    `root`, never on production stack adapters (BL-316 Slice 4c.6 closes
+    the contract violation Codex flagged on eda298c). Tests that need
+    composite behavior with a custom root would have to pair an
+    infrastructure root with a stack-fragment root; for v2.1.x that
+    pairing is intentionally unsupported (no v2.1.x test needs it).
     """
     base = root if root is not None else _INFRA_TEMPLATE_ROOT
+    use_composite_for_lefthook = root is None
     out: dict[str, str] = {}
     for template_relpath, target_relpath, _policy, _mode in INFRASTRUCTURE_FILES:
         template_path = base / template_relpath
@@ -239,7 +246,7 @@ def compute_source_template_shas(*, root: Path | None = None) -> Mapping[str, st
                 ),
             )
         kernel_sha = sha256_file(template_path)
-        if target_relpath == "lefthook.yml":
+        if target_relpath == "lefthook.yml" and use_composite_for_lefthook:
             out[target_relpath] = _composite_lefthook_sha(kernel_sha)
         else:
             out[target_relpath] = kernel_sha

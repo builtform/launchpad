@@ -59,16 +59,33 @@ pre-commit:
   commands:
     # ---- Auto-fixers (run first, fix and re-stage) ----
 
+    # Shell-injection-safe file enumeration (BL-316 Slice 4c.6 / closes
+    # BL-313): bypass lefthook's textual `{staged_files}` substitution,
+    # which is shell-evaluated and unsafe for filenames containing
+    # metacharacters like `;`, backticks, or `$()`. Pattern: `git diff -z`
+    # emits NUL-delimited names; `xargs -0` execs argv directly with no
+    # shell re-parse. `--diff-filter=ACMR` excludes deleted entries; `-r`
+    # skips invocation if no files. `stage_fixed: true` re-stages from
+    # lefthook's internal staged-files list (independent of the run body)
+    # so auto-fix re-staging continues to work.
     prettier-fix:
       glob: "*.{js,jsx,ts,tsx,json,css,md,yml,yaml,html}"
-      run: pnpm prettier --write {staged_files}
+      run: |
+        git diff --cached --name-only -z --diff-filter=ACMR \
+          -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.json' '*.css' \
+             '*.md' '*.yml' '*.yaml' '*.html' \
+          | xargs -0 -r pnpm prettier --write
       stage_fixed: true
       priority: 1
 
     eslint-fix:
       glob: "*.{js,jsx,ts,tsx,mjs,cjs}"
       exclude: "next-env\\.d\\.ts$"
-      run: pnpm eslint --fix {staged_files}
+      run: |
+        git diff --cached --name-only -z --diff-filter=ACMR \
+          -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.mjs' '*.cjs' \
+             ':(exclude)*next-env.d.ts' \
+          | xargs -0 -r pnpm eslint --fix
       stage_fixed: true
       priority: 2
 
@@ -106,7 +123,9 @@ pre-commit:
       exclude: "plugins/launchpad/scripts/tests/.*\\.py$"
       run: |
         [ -d plugins/launchpad/scripts ] || exit 0
-        bandit -ll {staged_files}
+        git diff --cached --name-only -z --diff-filter=ACMR \
+          -- '*.py' ':(exclude)plugins/launchpad/scripts/tests/' \
+          | xargs -0 -r bandit -ll --
       priority: 10
 
     ruff-check:
@@ -114,7 +133,9 @@ pre-commit:
       exclude: "plugins/launchpad/scripts/tests/.*\\.py$"
       run: |
         [ -d plugins/launchpad/scripts ] || exit 0
-        ruff check --config plugins/launchpad/scripts/pyproject.toml {staged_files}
+        git diff --cached --name-only -z --diff-filter=ACMR \
+          -- '*.py' ':(exclude)plugins/launchpad/scripts/tests/' \
+          | xargs -0 -r ruff check --config plugins/launchpad/scripts/pyproject.toml --
       priority: 11
 
     ruff-format-check:
@@ -122,7 +143,9 @@ pre-commit:
       exclude: "plugins/launchpad/scripts/tests/.*\\.py$"
       run: |
         [ -d plugins/launchpad/scripts ] || exit 0
-        ruff format --check --config plugins/launchpad/scripts/pyproject.toml {staged_files}
+        git diff --cached --name-only -z --diff-filter=ACMR \
+          -- '*.py' ':(exclude)plugins/launchpad/scripts/tests/' \
+          | xargs -0 -r ruff format --check --config plugins/launchpad/scripts/pyproject.toml --
       priority: 12
 
     semgrep-general:
@@ -130,7 +153,9 @@ pre-commit:
       exclude: "plugins/launchpad/scripts/tests/.*\\.py$"
       run: |
         [ -d plugins/launchpad/.semgrep ] || exit 0
-        semgrep --config=plugins/launchpad/.semgrep/general.yml {staged_files} --error --metrics=off
+        git diff --cached --name-only -z --diff-filter=ACMR \
+          -- '*.py' ':(exclude)plugins/launchpad/scripts/tests/' \
+          | xargs -0 -r semgrep --config=plugins/launchpad/.semgrep/general.yml --error --metrics=off --
       priority: 10
 
     structure-check:
@@ -148,54 +173,36 @@ pre-commit:
       run: python3 plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py
       priority: 10
 
+    # Shell-injection-safe iteration (BL-316 Slice 4c.6 / closes BL-313):
+    # `git diff -z` emits NUL-delimited names; `xargs -0 -r sh -c '...' _`
+    # invokes a POSIX sh subshell with all matching files as positional
+    # args (`$@`). `for file in "$@"` iterates safely — filenames are
+    # only ever referenced as quoted variables, never re-eval'd through
+    # the shell. POSIX-sh-compatible (no bashisms like `< <(...)` or
+    # `<<<`) so it runs under lefthook's default `sh -c` invocation.
     large-file-guard:
       glob: "*.{js,jsx,ts,tsx,json,css,md,yml,yaml,html,sh,mjs,cjs}"
       run: |
-        max_size=512000
-        violations=""
-        while IFS= read -r file; do
-          if [ -f "$file" ]; then
-            size=$(wc -c < "$file" | tr -d ' ')
-            if [ "$size" -gt "$max_size" ]; then
-              violations="$violations\n  $file ($(( size / 1024 ))KB)"
-            fi
-          fi
-        done <<< "$(echo "{staged_files}" | tr ' ' '\n')"
-        if [ -n "$violations" ]; then
-          echo "Files exceed 500KB limit:$violations"
-          exit 1
-        fi
+        git diff --cached --name-only -z --diff-filter=ACMR \
+          -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.json' '*.css' \
+             '*.md' '*.yml' '*.yaml' '*.html' '*.sh' '*.mjs' '*.cjs' \
+          | xargs -0 -r sh -c 'max_size=512000; violations=0; for file in "$@"; do [ -f "$file" ] || continue; size=$(wc -c < "$file" | tr -d " "); if [ "$size" -gt "$max_size" ]; then printf "  %s (%dKB)\n" "$file" $((size / 1024)) >&2; violations=$((violations + 1)); fi; done; if [ "$violations" -gt 0 ]; then echo "Files exceed 500KB limit ($violations violations)" >&2; exit 1; fi' _
       priority: 10
 
     trailing-whitespace:
       glob: "*.{js,jsx,ts,tsx,json,css,md,yml,yaml,html,sh}"
       run: |
-        found=0
-        while IFS= read -r file; do
-          if [ -f "$file" ] && grep -n '[[:blank:]]$' "$file" > /dev/null 2>&1; then
-            echo "$file has trailing whitespace:"
-            grep -n '[[:blank:]]$' "$file"
-            found=1
-          fi
-        done <<< "$(echo "{staged_files}" | tr ' ' '\n')"
-        if [ "$found" -eq 1 ]; then
-          exit 1
-        fi
+        git diff --cached --name-only -z --diff-filter=ACMR \
+          -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.json' '*.css' \
+             '*.md' '*.yml' '*.yaml' '*.html' '*.sh' \
+          | xargs -0 -r sh -c 'found=0; for file in "$@"; do [ -f "$file" ] || continue; if grep -nE "[[:blank:]]+$" "$file" >/dev/null 2>&1; then echo "$file has trailing whitespace:"; grep -nE "[[:blank:]]+$" "$file"; found=1; fi; done; [ "$found" -eq 0 ]' _
       priority: 10
 
     end-of-file-newline:
       glob: "*.{js,jsx,ts,tsx,json,css,md,yml,yaml,html,sh}"
       run: |
-        failed=""
-        while IFS= read -r file; do
-          if [ -f "$file" ] && [ -s "$file" ]; then
-            if [ "$(tail -c 1 "$file" | od -An -tx1 | tr -d ' \n')" != "0a" ]; then
-              failed="$failed $file"
-            fi
-          fi
-        done <<< "$(echo "{staged_files}" | tr ' ' '\n')"
-        if [ -n "$failed" ]; then
-          echo "Files missing final newline:$failed"
-          exit 1
-        fi
+        git diff --cached --name-only -z --diff-filter=ACMR \
+          -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.json' '*.css' \
+             '*.md' '*.yml' '*.yaml' '*.html' '*.sh' \
+          | xargs -0 -r sh -c 'failed=0; for file in "$@"; do [ -f "$file" ] && [ -s "$file" ] || continue; if [ "$(tail -c 1 "$file" | od -An -tx1 | tr -d " \n")" != "0a" ]; then echo "Missing final newline: $file" >&2; failed=1; fi; done; [ "$failed" -eq 0 ]' _
       priority: 10

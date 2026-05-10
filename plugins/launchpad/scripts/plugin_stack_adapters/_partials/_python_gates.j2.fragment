@@ -51,33 +51,28 @@ pre-commit:
       priority: 10
       run: |
 {{ require_tool("bandit", "bandit>=1.7.10") | indent(8, first=true) }}
-        # Empty-staged-files guard via positional reset.
-        # `--` sentinel prevents option-injection if a filename starts with `-`.
-        # KNOWN LIMITATION: lefthook does textual `{staged_files}` replacement
-        # (not shell-aware quoting). Filenames containing spaces will be split
-        # into separate positional args (`my file.py` → 2 args, not 1). Python
-        # convention discourages spaces in source paths; consumers hitting this
-        # should rename the offending files. Tracked at BL-313 v2.1.4 (broader
-        # pattern; see lefthook.yml:109,117,125,133 for the same issue in
-        # maintainer-side gates).
-        set -- {staged_files}
-        [ $# -eq 0 ] && exit 0
-        bandit -ll -- "$@"
+        # Shell-injection-safe file enumeration (BL-316 Slice 4c.6 / closes
+        # BL-313): bypass lefthook's textual `{staged_files}` substitution,
+        # which is shell-evaluated and unsafe for filenames containing
+        # metacharacters like `;`, backticks, or `$()`. `git diff -z`
+        # emits NUL-delimited names; `xargs -0` execs argv directly with
+        # no shell re-parse. `-r` skips invocation if no files. `--` is
+        # bandit's option-terminator sentinel.
+        git diff --cached --name-only -z --diff-filter=ACMR -- '*.py' \
+          | xargs -0 -r bandit -ll --
 
     ruff-check:
       glob: "**/*.py"
       priority: 11
       run: |
 {{ require_tool("ruff", "ruff>=0.5") | indent(8, first=true) }}
-        set -- {staged_files}
-        [ $# -eq 0 ] && exit 0
-        ruff check -- "$@"
+        git diff --cached --name-only -z --diff-filter=ACMR -- '*.py' \
+          | xargs -0 -r ruff check --
 
     ruff-format-check:
       glob: "**/*.py"
       priority: 12
       run: |
 {{ require_tool("ruff", "ruff>=0.5") | indent(8, first=true) }}
-        set -- {staged_files}
-        [ $# -eq 0 ] && exit 0
-        ruff format --check -- "$@"
+        git diff --cached --name-only -z --diff-filter=ACMR -- '*.py' \
+          | xargs -0 -r ruff format --check --

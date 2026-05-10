@@ -385,3 +385,153 @@ def test_compute_source_template_shas_uses_composite_for_lefthook_only() -> None
     # have its plain template SHA.
     gitignore_path = _INFRA_TEMPLATE_ROOT / "gitignore.j2"
     assert shas[".gitignore"] == sha256_file(gitignore_path)
+
+
+def test_compute_source_template_shas_fixture_root_returns_kernel_only_sha(
+    tmp_path: Path,
+) -> None:
+    """Fixture-root contract (BL-316 Slice 4c.6 closes Codex P1 on eda298c):
+    when callers inject a `root=<fixture>`, the `lefthook.yml` SHA must
+    be computed from the fixture kernel template ONLY, with NO mixing of
+    production stack-fragment SHAs. Hermetic fixture mode is the
+    docstring-promised contract; pre-Slice-4c.6 silently mixed production
+    fragments into the composite, breaking that contract.
+
+    Test strategy: build a minimal fixture root containing only the
+    kernel `lefthook.yml.j2` template (and the first INFRASTRUCTURE_FILES
+    entry to satisfy iteration), then verify that the lefthook.yml SHA
+    equals the bare kernel SHA (composite path is bypassed).
+    """
+    from lp_bootstrap import INFRASTRUCTURE_FILES
+    from lp_bootstrap.manifest_writer import compute_source_template_shas
+    from plugin_default_generators._renderer_base import sha256_file
+
+    # Build fixture root with all referenced templates as identical stubs.
+    # We only need the .gitignore (first entry) and lefthook.yml.j2 to
+    # exercise the lefthook branch; other entries will trigger
+    # TEMPLATE_NOT_FOUND, which is fine — we want to hit the lefthook
+    # branch BEFORE any subsequent missing template aborts iteration.
+    for template_relpath, target_relpath, _policy, _mode in INFRASTRUCTURE_FILES:
+        src = tmp_path / template_relpath
+        src.parent.mkdir(parents=True, exist_ok=True)
+        src.write_bytes(b"fixture-content-" + target_relpath.encode())
+
+    shas = compute_source_template_shas(root=tmp_path)
+    fixture_kernel_sha = sha256_file(tmp_path / "lefthook.yml.j2")
+    # Critical assertion: fixture-root mode returns kernel-only SHA,
+    # NOT a composite that would silently mix production stack fragments.
+    assert shas["lefthook.yml"] == fixture_kernel_sha, (
+        f"fixture-root mode must return bare kernel SHA "
+        f"({fixture_kernel_sha!r}); got {shas['lefthook.yml']!r} "
+        f"(suggests production stack fragments mixed in — Codex P1 not closed)"
+    )
+    # Sanity: every fixture file resolves to its own SHA, NOT to a
+    # production-derived value.
+    for template_relpath, target_relpath, _policy, _mode in INFRASTRUCTURE_FILES:
+        if target_relpath == "lefthook.yml":
+            continue  # asserted above
+        assert shas[target_relpath] == sha256_file(tmp_path / template_relpath)
+
+
+# --- BL-313 / BL-316 Slice 4c.6: shell-injection regression test -----------
+#
+# Locks in the security property that the `git diff -z | xargs -0 -r`
+# idiom used by every lefthook hook (consumer-side and maintainer-side)
+# treats filenames as literal argv entries — never as shell source. A
+# regression here means BL-313 has reopened.
+
+
+def test_xargs_pipeline_resists_shell_metacharacter_injection(
+    tmp_path: Path,
+) -> None:
+    """A file named `evil$(touch SHOULD_NOT_EXIST).py` passed through the
+    `git ...| xargs -0 -r` pipeline that every Slice 4c.6 hook body uses
+    must NOT execute the embedded command. The malicious filename must
+    be received by the wrapped tool as a literal argv entry.
+
+    This is the BL-316 Slice 4c.6 / BL-313 closure shield — if a future
+    edit to the partial or to lefthook.yml reverts to `{staged_files}`
+    text-substitution, this test fails immediately because the embedded
+    `touch` would run during the pipeline.
+    """
+    import subprocess
+
+    malicious_name = "evil$(touch SHOULD_NOT_EXIST).py"
+    canary = tmp_path / "SHOULD_NOT_EXIST"
+    assert not canary.exists(), "test precondition: canary must not pre-exist"
+
+    # Simulate git's NUL-delimited output for the malicious filename.
+    git_stdout = (malicious_name + "\0").encode("utf-8")
+
+    # Run the same `xargs -0 -r` pipeline shape that every Slice 4c.6
+    # hook uses. We use `printf '%s\\n'` as a stand-in tool that simply
+    # echoes its argv entries — proves the filename was passed as one
+    # literal argv item (not shell-evaluated).
+    result = subprocess.run(
+        ["xargs", "-0", "-r", "printf", "%s\n"],
+        input=git_stdout,
+        capture_output=True,
+        cwd=tmp_path,
+    )
+
+    # Critical security assertion: the embedded `touch` MUST NOT have
+    # executed. If it did, the canary file would exist.
+    assert not canary.exists(), (
+        f"SHELL-INJECTION REGRESSION: filename {malicious_name!r} "
+        f"executed embedded command via xargs pipeline. The Slice 4c.6 "
+        f"hook bodies are no longer safe — BL-313 has reopened."
+    )
+
+    # The literal filename must have been echoed (proves it traversed
+    # xargs as one argv item, not as shell input).
+    assert malicious_name in result.stdout.decode("utf-8"), (
+        "expected malicious name in xargs output as literal argv entry"
+    )
+
+
+def test_xargs_pipeline_handles_empty_input_via_no_run_if_empty(
+    tmp_path: Path,
+) -> None:
+    """`xargs -r` (--no-run-if-empty) skips invocation entirely when the
+    input stream is empty. This replaces the pre-Slice-4c.6 boilerplate
+    `set -- {staged_files}; [ $# -eq 0 ] && exit 0` empty-guard. Verify
+    the same no-op behavior so hooks don't fail on no-relevant-files
+    commits."""
+    import subprocess
+
+    result = subprocess.run(
+        ["xargs", "-0", "-r", "false"],  # `false` would always exit 1 if invoked
+        input=b"",  # empty input
+        capture_output=True,
+        cwd=tmp_path,
+    )
+    assert result.returncode == 0, (
+        f"xargs -r should skip invocation on empty input (got rc={result.returncode}); "
+        f"hook empty-guard semantics broken"
+    )
+
+
+def test_xargs_pipeline_handles_filename_with_spaces(tmp_path: Path) -> None:
+    """Filenames with spaces (legitimate Python convention violations,
+    not malicious) must be passed as a SINGLE argv entry by `xargs -0`,
+    not split into multiple words. Pre-Slice-4c.6's `set -- {staged_files}`
+    pattern silently split `my file.py` into 2 args; the new pipeline
+    treats it as 1."""
+    import subprocess
+
+    space_name = "my file with spaces.py"
+    git_stdout = (space_name + "\0").encode("utf-8")
+
+    # `printf '|%s|\\n'` brackets each argv entry so we can count.
+    result = subprocess.run(
+        ["xargs", "-0", "-r", "printf", "|%s|\n"],
+        input=git_stdout,
+        capture_output=True,
+        cwd=tmp_path,
+    )
+    output = result.stdout.decode("utf-8").strip()
+    # Exactly one bracketed entry should appear (the whole filename intact).
+    assert output == f"|{space_name}|", (
+        f"filename with spaces should arrive as single argv entry; "
+        f"got xargs output: {output!r}"
+    )

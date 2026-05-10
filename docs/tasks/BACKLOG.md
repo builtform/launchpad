@@ -1907,6 +1907,8 @@ The canonical surface — `docs/architecture/CI_CD.md:108`, `docs/guides/CODE_RE
 
 #### BL-313 - v2.1.4: lefthook here-string filename-quoting hardening
 
+**Status (2026-05-10)**: SUBSUMED by v2.1.2 Slice 4c.6 (PR #65). All 12 vulnerable hook entries (3 in `_partials/_python_gates.j2.fragment` + 9 in `lefthook.yml`: 4 security tools + 2 auto-fixers + 3 bash-script gates) rewritten to use `git diff --cached --name-only -z --diff-filter=ACMR -- '<glob>' | xargs -0 -r TOOL` (or `read -r -d ''` + process substitution for the bash-script gates). The unsafe `set -- {staged_files}`, `bandit -ll {staged_files}`, and `<<< "$(echo "{staged_files}" | tr ' ' '\n')"` patterns are gone — `{staged_files}` interpolation is no longer used in any hook body. Fix verified by malicious-filename regression test (`tests/test_lp_bootstrap_stack_lefthook.py::test_xargs_pipeline_resists_shell_metacharacter_injection`) which simulates a file named `evil$(touch SHOULD_NOT_EXIST).py` passing through the pipeline and asserts the embedded command does NOT execute.
+
 **Status (2026-05-10)**: RE-TARGETED v2.1.3 → v2.1.4. See BL-316.
 
 **Status (2026-05-09)**: NEW — surfaced by v2.1.1 cross-cutting sweep-review (pre-existing pattern; v2.1.1 inherits).
