@@ -56,7 +56,9 @@ CI lint asserts no platform-specific shell-out (`/proc/<pid>/stat` parsing, `ps 
 
 **Detail follows.** This document was authored across 6 layers of pre-implementation hardening review and accumulated ~50-60% operational/security infrastructure that does not earn its place against v2.0's stated threat model (single-maintainer plugin, ~3-4 downstream projects, "compromised in-process Claude session out of scope," "same-UID attacker out of scope"). Layer 7 strip-back applies user-directed deferral of that infrastructure to v2.2 BL entries, returning v2.0 closer to the original 4-step intent.
 
-**v2.1 is documentation-only** (METHODOLOGY.md / HOW_IT_WORKS.md / governance updates). **v2.2 absorbs the heavyweight operational/security infrastructure deferred below.**
+**v2.1.x evolution (status update, 2026-05-09):** the original Layer-7 framing of "v2.1 is documentation-only" did not hold. **v2.1.0 shipped the Adapter Protocol** (`composes_with`, `unwrap_strategy`, dispatch routing) and the `scaffold-decision.json` `schema_version: "1.1"` envelope with sealed `identity` block — see [docs/releases/v2.1.0.md](../releases/v2.1.0.md). **v2.1.1 ships review + lefthook hardening** (mandatory dual-pass at `/lp-commit` + `/lp-ship`, `--no-context` flag, Layer 3 static-analysis stack on plugin scripts) — see [docs/releases/v2.1.1.md](../releases/v2.1.1.md). v2.1.1's schema-source touches are **pure refactor** (ruff format, `# type: ignore` comments, per-rule pyright severity downgrades, `# nosec` annotations, plus a public-alias promotion of `nonce_ledger._UUID_HEX_RE` → `UUID_HEX_RE` for SoT consolidation) without changes to documented schema contracts (§3 canonicalization, §4 `scaffold-decision.json` schema, §5 `scaffold-receipt.json` schema, §6 path validator).
+
+**v2.2 absorbs the heavyweight operational/security infrastructure deferred below.**
 
 ### What v2.0 SHIPS (this document, as written below, is binding for these primitives)
 
