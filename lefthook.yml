@@ -8,10 +8,10 @@ pre-push:
     backlog-orphan-check:
       run: |
         version=$(python3 -c "import json; print(json.load(open('plugins/launchpad/.claude-plugin/plugin.json'))['version'])")
-        if grep -q "^## \[$version\]" CHANGELOG.md 2>/dev/null; then
+        if grep -qE "^## \[v?$version\]" CHANGELOG.md 2>/dev/null; then
           python3 plugins/launchpad/scripts/plugin-backlog-orphan-check.py --release "$version"
         else
-          echo "backlog-orphan-check: skipped (no [$version] block in CHANGELOG.md yet)"
+          echo "backlog-orphan-check: skipped (no [$version] or [v$version] block in CHANGELOG.md yet)"
         fi
 
     # Phase 3 R1-T1-8 + R2-T1-1: pytest direct-binary pre-push entry per

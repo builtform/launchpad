@@ -113,7 +113,7 @@ LaunchPad/
 │   └── marketplace.json        # name=builtform, source="./plugins/launchpad"
 ├── plugins/launchpad/          # the plugin itself
 │   ├── .claude-plugin/
-│   │   └── plugin.json         # name=launchpad, version=2.1.0
+│   │   └── plugin.json         # name=launchpad, version=2.1.1
 │   ├── commands/               # /lp-* slash commands
 │   ├── agents/                 # 36 sub-agents across 6 namespaces
 │   ├── skills/                 # reusable instruction sets (lp-*/SKILL.md)
@@ -177,7 +177,7 @@ LaunchPad does not bundle either tool, does not auto-install them, and does not 
 
 - [How It Works](docs/guides/HOW_IT_WORKS.md) — day-to-day operator's manual
 - [Methodology](docs/guides/METHODOLOGY.md) — architecture, design principles, credits
-- [Release notes](docs/releases/v2.1.0.md)
+- [Release notes](docs/releases/v2.1.1.md)
 - [Repository structure](docs/architecture/REPOSITORY_STRUCTURE.md) — file-placement decision tree
 - [Contributing](CONTRIBUTING.md)
 

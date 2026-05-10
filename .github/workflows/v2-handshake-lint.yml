@@ -148,8 +148,8 @@ jobs:
         # exists yet (e.g., pre-tag development cycles).
         run: |
           version=$(python -c "import json; print(json.load(open('plugins/launchpad/.claude-plugin/plugin.json'))['version'])")
-          if grep -q "^## \[$version\]" CHANGELOG.md; then
+          if grep -qE "^## \[v?$version\]" CHANGELOG.md; then
             python plugins/launchpad/scripts/plugin-backlog-orphan-check.py --release "$version"
           else
-            echo "backlog-orphan-check: skipped (no [$version] block in CHANGELOG.md yet)"
+            echo "backlog-orphan-check: skipped (no [$version] or [v$version] block in CHANGELOG.md yet)"
           fi

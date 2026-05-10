@@ -1900,3 +1900,37 @@ The canonical surface — `docs/architecture/CI_CD.md:108`, `docs/guides/CODE_RE
 **At v2.1.3 design time**: replace lines 88-89 with `sys.path.insert(0, str(Path(__file__).resolve().parent))` + `from atomic_io import atomic_write_replace`. Pins the import to the script's own installed directory regardless of caller-supplied `--repo-root`.
 
 **Default decision**: defer to v2.1.3.
+
+#### BL-318 - v2.1.x: Stale `v2.1.0` references in HOW_IT_WORKS.md + V2.2-CANDIDATES.md.j2
+
+**Status (2026-05-09)**: NEW — surfaced by v2.1.1 Slice I pre-flight pattern-finder review (specialist pass on plugin.json bump commit).
+
+**Source**: v2.1.1 Slice I pre-flight dual-pass (2026-05-09)
+
+**Driver**:
+
+- `docs/guides/HOW_IT_WORKS.md:53` reads `… LaunchPad should appear with the version from `plugins/launchpad/.claude-plugin/plugin.json` (`2.1.0` at the time of writing) …`. The parenthetical is framed as a snapshot but produces user-visible staleness on every plugin version bump unless updated.
+- `plugins/launchpad/scripts/plugin_default_generators/launchpad/V2.2-CANDIDATES.md.j2:5, :18` contain hardcoded `v2.1.0` strings inside a Jinja template that renders into `.harness/`/downstream output. Strings describe "the version of the plugin that performed the resolution"; coupling to live plugin version is ambiguous (could be (a) emitter-version-tracking → bump literals; (b) parameterize via `{{ plugin_version }}`; (c) leave-as-is since "v2.1.0" refers to the schema/dispatch generation that introduced the closed enum, not the runtime emitter).
+
+**At v2.1.x design time**: HOW_IT_WORKS.md — bump literal to current version OR refactor to dynamic via includes/templating; V2.2-CANDIDATES.md.j2 — make explicit semantic decision (recommend (b) parameterize so emission tracks plugin.json automatically).
+
+**Default decision**: defer to v2.1.x. Both are P2 staleness; not ship-blocking for v2.1.1.
+
+#### BL-319 - v2.1.x: manifest-version-contract test (release-engineering invariant)
+
+**Status (2026-05-09)**: NEW — surfaced by v2.1.1 Slice I pre-flight testing-reviewer review.
+
+**Source**: v2.1.1 Slice I pre-flight dual-pass (2026-05-09)
+
+**Driver**: There is no test asserting `plugins/launchpad/.claude-plugin/plugin.json` `version` field is consistent with one or more of: (a) the latest `## [v<version>]` heading in `CHANGELOG.md`, (b) the presence of `docs/releases/v<version>.md`, (c) (at release time) a git tag matching `v<version>`. Such a test would have caught the v2.1.1 plugin.json scope miss + the missing `docs/releases/v2.1.1.md` scope miss at PHASE 5 plan-author time, not at Slice I pre-flight.
+
+**At v2.1.x design time**: add a release-engineering invariant test under `plugins/launchpad/scripts/tests/` that:
+
+1. Reads `plugin.json.version` (e.g., `2.1.1`)
+2. Greps `CHANGELOG.md` for the latest `## [v<version>]` heading; asserts it matches.
+3. Asserts `docs/releases/v<version>.md` exists and has a top-level `# ` heading.
+4. (Optional, tag-time-only) asserts `git tag --list v<version>` returns exactly one match.
+
+The `plugin-backlog-orphan-check.py` gate enforces a related (BL ↔ CHANGELOG) invariant; this test extends the same release-time-coupling discipline to plugin.json + release-notes.
+
+**Default decision**: defer to v2.1.x. Process improvement, not user-impacting.

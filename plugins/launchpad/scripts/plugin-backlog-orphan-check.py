@@ -51,7 +51,7 @@ STATUS_LINE_RE = re.compile(
     re.MULTILINE,
 )
 CLOSED_VALUES = ("shipped", "closed", "re-targeted", "deferred", "superseded")
-CHANGELOG_VERSION_RE = re.compile(r"^## \[(?P<version>[\d.]+)\]", re.MULTILINE)
+CHANGELOG_VERSION_RE = re.compile(r"^## \[v?(?P<version>[\d.]+)\]", re.MULTILINE)
 
 
 def parse_versions(label: str) -> list[str]:
