@@ -1949,6 +1949,8 @@ The canonical surface — `docs/architecture/CI_CD.md:108`, `docs/guides/CODE_RE
 
 #### BL-316 - v2.1.2: Propagate hardened lefthook gates to consumer template via stack-adapter fragments
 
+**Status (2026-05-10)**: SHIPPED in v2.1.2 — see PR #65.
+
 **Status (2026-05-10)**: NEW — primary v2.1.2 deliverable. Implementation begins Phase 1 of v2.1.2.
 
 **Source**: v2.1.1 ship retrospective (2026-05-09 evaluation) + v2.1.2 prep plan locked 2026-05-10 (Path B + Q1=(a) + Q2=(a)).
@@ -1970,6 +1972,8 @@ The canonical surface — `docs/architecture/CI_CD.md:108`, `docs/guides/CODE_RE
 **Default decision**: ship in v2.1.2 (~3-4h main deliverable).
 
 #### BL-317 - v2.1.x: Remove dead-code `validate_subject` from `plugin-restamp-history-hook.py:54-71`
+
+**Status (2026-05-10)**: SHIPPED in v2.1.2 — see PR #65.
 
 **Status (2026-05-10)**: NEW — surfaced by v2.1.1 sweep iteration 3 (blind simplicity reviewer); correctly suppressed under "pre-existing" rule. Will RIDE ALONG in v2.1.2 Phase 3.
 
@@ -1995,6 +1999,8 @@ The canonical surface — `docs/architecture/CI_CD.md:108`, `docs/guides/CODE_RE
 **Default decision**: defer to v2.1.x. Both are P2 staleness; not ship-blocking for v2.1.1.
 
 #### BL-319 - v2.1.x: manifest-version-contract test (release-engineering invariant)
+
+**Status (2026-05-10)**: SHIPPED in v2.1.2 — see PR #65.
 
 **Status (2026-05-09)**: NEW — surfaced by v2.1.1 Slice I pre-flight testing-reviewer review.
 
@@ -2030,6 +2036,8 @@ The `plugin-backlog-orphan-check.py` gate enforces a related (BL ↔ CHANGELOG) 
 **Default decision**: defer to v2.1.x. Real onboarding gap but not v2.1.1-shipping-blocker. Pick path (1) at v2.1.x — minimum viable documentation.
 
 #### BL-321 - v2.1.x: Synchronize `.harness/todos/*.md` frontmatter schema across all writer/reader docs
+
+**Status (2026-05-10)**: SHIPPED in v2.1.2 — see PR #65.
 
 **Status (2026-05-09)**: NEW — surfaced by v2.1.1 PR #62 Slice H.4 dual-pass (pattern-finder + architecture-strategist).
 
