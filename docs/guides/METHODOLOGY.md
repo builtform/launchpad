@@ -65,6 +65,8 @@ The first four layers form a forward pipeline. Layer 5 (Quality) creates a tight
 
 For the command-level detail of each layer, see [How It Works → The four meta-orchestrators](HOW_IT_WORKS.md#the-four-meta-orchestrators).
 
+**Kernel posture extends to consumers (v2.1.2+)**: prior to v2.1.2, the lefthook gates that protect Layer 1 ran only against LaunchPad's own commits — an inward-facing posture. At v2.1.2 the same gate philosophy propagates outward: stack adapters can contribute pre-commit/pre-push gates that scaffold into consumer repositories, so a `/lp-define`-generated project inherits the harness's "fail loud, fix at commit time" stance instead of waiting for CI to catch what the kernel could have caught locally. See [CI_CD.md → Consumer Python gates](../architecture/CI_CD.md#consumer-python-gates) for the gate inventory and per-stack opt-out paths.
+
 ---
 
 ## The four meta-orchestrators

@@ -2076,3 +2076,37 @@ Additionally, `lp-test-browser.md:103` is a SECOND writer of `.harness/todos/*.m
 5. If LaunchPad scaffolds Prisma in any stack template, propagate the new pattern.
 
 **Default decision**: defer to v2.1.x. Real migration work (~2-4h); not critical given Prisma 6.x is still supported.
+
+#### BL-323 - v2.1.3: lefthook.yml multi-stack last-key-wins drop in outer renderer
+
+**Status (2026-05-10)**: NEW — surfaced by Codex P1-B on PR #65 (v2.1.2). Real regression risk for multi-stack scaffolds that include `nextjs_fastapi`; deferred to v2.1.3 per locked v2.1.2 scope.
+
+**Source**: PR #65 Codex re-review (2026-05-10; v2.1.3 candidate)
+
+**Driver**: `plugins/launchpad/scripts/plugin_default_generators/stack_aware/lefthook.yml.j2.outer:1-3` is text concatenation (`{% for stack_id in selected_stack_ids %}{% include %}{% endfor %}`), NOT a structural YAML merge. Multiple stack fragments can declare the same top-level hook key (`pre-commit:`, `pre-push:`). PyYAML applies last-key-wins on duplicate keys, so e.g. rendering `["nextjs_fastapi", "astro"]` produces a `lefthook.yml` whose effective `pre-commit:` block is only `astro-noop` — silently dropping the v2.1.2 BL-316 bandit/ruff-check/ruff-format-check gates. The same issue exists for any pair where ≥2 stacks declare the same hook (currently `nextjs_standalone + astro`, `nextjs_standalone + generic`, etc.) but is benign pre-v2.1.2 because all such fragments shipped only `<stack>-noop: run: 'true'`. Test `test_composition_includes_python_gates_when_nextjs_fastapi_present` does substring-presence on raw rendered text by design (per its docstring), which doesn't catch the runtime drop. The `_COMPOSES_WITH` rules at `astro.py:73,82-83` and `nextjs_standalone.py:_COMPOSES_WITH` declare `lefthook.yml: merge-keys` as the intended `ConflictPolicy`, but no enforcement code wires `merge-keys` into the outer renderer at v2.1 — `grep -rn 'conflict_policy\[' plugins/launchpad/scripts/` returns zero matches.
+
+**At v2.1.3 design time**:
+
+1. Replace the outer template's text concatenation with a Python-side post-render YAML merge: render each `<stack>/templates/lefthook.j2.fragment` individually, `yaml.safe_load` each, deep-merge by hook key (top-level `pre-commit`/`pre-push`/`commit-msg`/etc.) → merge `commands:` dicts by command name → re-emit via `yaml.safe_dump`. Conflict policy on duplicate command name: first-declared-wins (matches outer template's existing comment "union-merge first-declared-wins").
+2. Rewrite `test_composition_includes_python_gates_when_nextjs_fastapi_present` from substring-presence to parsed-YAML assertion (`yaml.safe_load(rendered)["pre-commit"]["commands"]` must contain all 5 gate names regardless of stack ordering).
+3. Add new tests covering all 3 affected combos involving `nextjs_fastapi` (`+ astro`, `+ generic`, `+ nextjs_standalone`) in both orderings.
+4. Snapshot test: assert single-stack `lefthook.yml` rendering is byte-identical before/after the renderer rewrite (no accidental regression for existing single-stack consumers).
+5. Wire `merge-keys` `ConflictPolicy` enforcement into the outer renderer so the `_COMPOSES_WITH` declarations become load-bearing instead of documentation-only.
+
+**Default decision**: defer to v2.1.3. Real but narrow regression (only multi-stack scaffolds involving `nextjs_fastapi` with the unlucky stack ordering); single-stack consumers (the dominant case at v2.1.x) unaffected. Fix is architectural (~1.5–2h with tests) and warrants its own dedicated commit cycle outside v2.1.2's locked scope.
+
+#### BL-324 - v2.1.4: Layer-aware Python workspace probe in shared `_python_gates` partial
+
+**Status (2026-05-10)**: NEW — surfaced by Codex P2 on PR #65 (v2.1.2). Edge case at v2.1 (no layer overrides yet shipped); deferred to v2.1.4 to ride along with broader stack-adapter layer-override work.
+
+**Source**: PR #65 Codex re-review (2026-05-10; v2.1.4 candidate)
+
+**Driver**: `plugins/launchpad/scripts/plugin_stack_adapters/_partials/_python_gates.j2.fragment:18,38` hardcodes the Python workspace probe order to `apps/api → api → silent-skip`. The `nextjs_fastapi` adapter contract permits custom FastAPI placement via layer-path overrides (e.g. `fastapi: services/api`), so a valid scaffold with a non-default layer path silently skips `pyright` and `pytest` even though the workspace exists at the configured path.
+
+**At v2.1.4 design time**:
+
+1. Read the actual Python workspace path from the scaffold receipt (or whatever post-`/lp-scaffold-stack` artifact records resolved layer paths) and render that path into the partial via a Jinja `python_workspace` arg.
+2. Fallback: when the receipt is unavailable (e.g. ad-hoc render outside the pipeline), retain current `apps/api → api → silent-skip` probe order for compatibility.
+3. Tests: (a) override path resolves correctly and `pyright`/`pytest` target it; (b) fallback ordering still works when no override is present; (c) error or fail-loud when the configured override path doesn't exist post-scaffold (don't silently skip).
+
+**Default decision**: defer to v2.1.4. v2.1 doesn't ship layer overrides yet, so the regression is theoretical at v2.1.x; v2.1.4 is the natural window when layer-override work lands.
