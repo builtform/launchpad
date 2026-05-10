@@ -10,7 +10,24 @@ Tracked in [ROADMAP.md](ROADMAP.md). v2.2 lands the 15 operational/security infr
 
 ## [v2.1.2]
 
-<!-- Phase 0 placeholder. Entries appended by Phases 1-3; finalized at Phase 4. -->
+Consumer-side Python lefthook propagation (BL-316). Projects scaffolded with the `nextjs_fastapi` stack now get bandit + ruff-check + ruff-format-check (pre-commit) and pyright + pytest (pre-push) in their generated `lefthook.yml`, propagated from the v2.1.1 self-host gates via a shared `_partials/_python_gates.j2.fragment` partial. Two ride-along fixes (BL-317 dead-code, BL-321 sibling-doc sync) and one new release-engineering invariant test (BL-319) round out the lane.
+
+### For LaunchPad users (downstream behavior changes)
+
+- **Consumer-side Python lefthook gates** (BL-316). Projects scaffolded with the `nextjs_fastapi` stack now get 5 propagated Python gates in their generated `lefthook.yml`: bandit + ruff-check + ruff-format-check (pre-commit) and pyright + pytest (pre-push). **Consumer install required**: gates fail loud with `GATE MISSING: <tool>. Install with: pip install '<tool>[>=minver]'.` if the tools aren't installed. To opt out of any gate: edit `lefthook.yml` and remove the entry, or set `LEFTHOOK=0` for one-off skip. See `docs/architecture/CI_CD.md#consumer-python-gates` for details.
+- **Pyright probes `apps/api/` (composition layout) before `api/` (legacy single-stack), then silent-skips** if no Python workspace exists — never bare `pyright` cwd-walk. Pytest tolerates exit 5 (no tests collected on fresh scaffolds).
+- **Per-stack scope**: `nextjs_fastapi` only at v2.1.2 (only Python-bearing stack). v2.2 stack adapters with Python workspaces include the new `_partials/_python_gates.j2.fragment` partial with one `{% include %}` line.
+- **Tool minimum versions pinned in install hint**: `bandit>=1.7.10` `ruff>=0.5` `pyright>=1.1.350` `pytest>=8`.
+
+### For LaunchPad contributors
+
+- **New release-engineering invariant test** (BL-319). `plugins/launchpad/scripts/tests/test_manifest_version_contract.py` asserts `plugin.json.version` equals the latest non-placeholder `## [v<version>]` heading in `CHANGELOG.md` and that `docs/releases/v<version>.md` exists. Catches H.3-class staleness (plugin.json drifting from the release version) at PR time, not at ship pre-flight.
+- **Sibling-doc frontmatter sync** (BL-321). Three reader/writer docs (`lp-harness-todo-resolver.md`, `lp-triage.md`, `lp-resolve-todo-parallel.md`) now document the `file:` field added in v2.1.1 Slice H.4 for `/lp-ship` Step 4.6 staged-diff scope filter.
+- **Dead-code cleanup** (BL-317). Removed `validate_subject` from `plugin-restamp-history-hook.py` (zero callers since v2.0; defense preserved inline in `main()`).
+
+### Internal
+
+- New shared template artifacts at `plugins/launchpad/scripts/plugin_stack_adapters/_partials/`: `_python_gates.j2.fragment` (the BL-316 partial) + `_require_tool_macro.j2.fragment` (`require_tool` macro) + `README.md` (naming convention + loader-resolution semantics + v2.2 caveats).
 
 ## [v2.1.1]
 
@@ -235,7 +252,7 @@ Carried forward into v1.1:
 
 Full v1.1 scope in [ROADMAP.md](ROADMAP.md).
 
-[Unreleased]: https://github.com/builtform/launchpad/compare/v2.1.1...HEAD
+[Unreleased]: https://github.com/builtform/launchpad/compare/v2.1.2...HEAD
 [v2.1.2]: https://github.com/builtform/launchpad/compare/v2.1.1...v2.1.2
 [v2.1.1]: https://github.com/builtform/launchpad/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/builtform/launchpad/compare/v2.0.0...v2.1.0
