@@ -177,6 +177,32 @@ re-rendering, with INFO log "adopted N pre-existing infrastructure files".
   `source_template_sha256` for every entry; the manifest catches this
   via `MANIFEST_TAMPERED` only when the next bootstrap runs.
 
+## Python gates installed (consumer install required BEFORE first commit)
+
+When `nextjs_fastapi` (or any future Python-bearing stack) is in the
+detected stacks, the rendered `lefthook.yml` ships 5 Python gates
+(bandit, ruff-check, ruff-format-check, pyright, pytest). They will fail
+your first commit unless the tools are installed:
+
+```
+pip install 'bandit>=1.7.10' 'ruff>=0.5' 'pyright>=1.1.350' 'pytest>=8'
+```
+
+Recommended `pyproject.toml` addition (avoids bandit noise on test code):
+
+```
+[tool.bandit]
+exclude_dirs = ["tests"]
+```
+
+Tooling notes:
+
+- Prefer a virtual environment (`venv` / `poetry` / `uv`) over system pip.
+- For a one-off skip without editing `lefthook.yml`: `LEFTHOOK=0 git commit ...`.
+- To opt out permanently: remove the gate entry from `lefthook.yml`.
+
+See https://github.com/builtform/launchpad/blob/main/docs/architecture/CI_CD.md#consumer-python-gates
+
 ## Examples
 
 ```bash

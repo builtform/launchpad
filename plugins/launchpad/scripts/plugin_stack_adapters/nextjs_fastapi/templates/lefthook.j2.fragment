@@ -1,5 +1,4 @@
-# lefthook fragment for adapter `nextjs_fastapi`
-pre-commit:
-  commands:
-    nextjs_fastapi-noop:
-      run: 'true'
+# lefthook fragment for adapter `nextjs_fastapi` (v2.1.2 BL-316)
+# Includes the shared Python-gate propagation partial.
+# Include path is relative to the ChoiceLoader's `plugin_stack_adapters/` root.
+{% include "_partials/_python_gates.j2.fragment" %}

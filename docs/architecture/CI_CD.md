@@ -126,6 +126,87 @@ Both commands run `/lp-review --headless` (specialist with full context) AND `/l
 
 See [docs/guides/CODE_REVIEW_LAYERS.md](../guides/CODE_REVIEW_LAYERS.md) for the three-layer architecture rationale.
 
+## Consumer Python gates
+
+When a consumer scaffolds a stack containing Python (currently only
+`nextjs_fastapi` at v2.1.2; future v2.2 stacks via the same shared
+partial), the rendered consumer `lefthook.yml` ships 5 Python gates
+propagated from the maintainer's lefthook.yml, cleaned for consumer use.
+
+### Gate inventory
+
+| Gate                | Hook         | Priority | Glob      | Tool      | Min version        |
+| ------------------- | ------------ | -------- | --------- | --------- | ------------------ |
+| `bandit`            | `pre-commit` | 10       | `**/*.py` | `bandit`  | `bandit>=1.7.10`   |
+| `ruff-check`        | `pre-commit` | 11       | `**/*.py` | `ruff`    | `ruff>=0.5`        |
+| `ruff-format-check` | `pre-commit` | 12       | `**/*.py` | `ruff`    | `ruff>=0.5`        |
+| `pyright`           | `pre-push`   | 10       | `**/*.py` | `pyright` | `pyright>=1.1.350` |
+| `pytest`            | `pre-push`   | 10       | `**/*.py` | `pytest`  | `pytest>=8`        |
+
+Per-stack scope: nextjs_fastapi only at v2.1.2. v2.2 stack adapters with
+Python workspaces include the shared partial with one `{% include %}`
+line. Adapters whose Python workspace lives outside `apps/api/` or
+`api/` (e.g., `python_django`) MUST override the pyright probe block in
+their own fragment rather than blanket-include.
+
+### Tool installation
+
+```
+pip install 'bandit>=1.7.10' 'ruff>=0.5' 'pyright>=1.1.350' 'pytest>=8'
+```
+
+Recommended `pyproject.toml` addition (suppresses bandit noise on test
+code, which legitimately uses assert / hardcoded test fixtures):
+
+```
+[tool.bandit]
+exclude_dirs = ["tests"]
+```
+
+Prefer a virtual environment (`venv` / `poetry` / `uv`) over system pip
+so gate dependencies don't pollute the user's global site-packages.
+
+### Trust model
+
+`pre-push` runs `pytest` LOCALLY against the user's working tree. If
+the user has just `git fetch`'d an untrusted PR branch and is about to
+push, that PR's test code runs on the user's machine before push
+completes. This matches the standard lefthook trust model — local hooks
+run local code — and is universal across language ecosystems, not
+specific to BL-316. Consumers cloning third-party PRs should treat
+test-code execution risk the same way they treat any local execution
+of fetched code.
+
+### Cold-cache UX
+
+The first `git push` after install runs pyright cold; budget 30-90
+seconds on a small `apps/api/` workspace, longer if the fallback walks
+`node_modules/` (which the silent-skip guard prevents). Subsequent
+runs are fast (< 5s with warm cache). Do NOT Ctrl-C before 2 minutes
+on a first-push — pyright's initial scan is legitimate, not a hang.
+
+### Opt-out
+
+Three escape hatches, in order of granularity:
+
+1. **One-off skip** (no file edits): `LEFTHOOK=0 git commit ...` /
+   `LEFTHOOK=0 git push ...`. Trade-off: bypasses ALL lefthook gates,
+   not just the Python ones, for that one invocation.
+2. **Per-gate opt-out**: delete the gate entry from `lefthook.yml`.
+   Trade-off: gate doesn't run at all, locally OR in CI if `lefthook
+run` is part of CI.
+3. **Per-hook opt-out**: delete the entire `pre-commit:` or `pre-push:`
+   block. Trade-off: removes ALL gates in that hook.
+
+### Lefthook composition semantics
+
+The 3 pre-commit gates use distinct priorities (bandit=10,
+ruff-check=11, ruff-format-check=12) to serialize ruff variants on the
+shared `.ruff_cache/` directory. Ruff write-locks the cache during
+format-check, so a parallel `ruff check` would fail with
+"database is locked." The two pre-push gates share priority 10 and
+serialize at default `parallel: false`.
+
 ## Dependency hygiene
 
 Dependabot is configured via `.github/dependabot.yml`:

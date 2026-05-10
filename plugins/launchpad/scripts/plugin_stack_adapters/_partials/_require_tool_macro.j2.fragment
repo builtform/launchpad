@@ -1,0 +1,14 @@
+{# Shared fail-loud preamble macro for Python gate propagation (BL-316). #}
+{# Usage: {{ require_tool("bandit", "bandit>=1.7.10") | indent(8, first=true) }} #}
+{# #}
+{# Args MUST satisfy: name matches [A-Za-z0-9_-]+; install_pin matches #}
+{# [A-Za-z0-9._><=!-]+. Stack-adapter authors are responsible for these #}
+{# constraints; future v2.2+ macro versions may add jinja-side validation. #}
+{% macro require_tool(name, install_pin) -%}
+command -v {{ name }} >/dev/null 2>&1 || {
+  echo 'GATE MISSING: {{ name }}. Install with: pip install "{{ install_pin }}".' >&2
+  echo 'To opt out, remove this gate from lefthook.yml or set LEFTHOOK=0 for one-off skip.' >&2
+  echo 'See LaunchPad CI_CD.md (https://github.com/builtform/launchpad/blob/main/docs/architecture/CI_CD.md#consumer-python-gates).' >&2
+  exit 1
+}
+{%- endmacro %}
