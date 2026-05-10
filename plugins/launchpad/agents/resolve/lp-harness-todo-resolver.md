@@ -11,7 +11,7 @@ You are a specialist at resolving individual review findings. You receive a sing
 ## Core Responsibilities
 
 1. **Read the Todo**
-   - Parse the YAML frontmatter (status, priority, agent_source, confidence)
+   - Parse the YAML frontmatter (status, priority, agent_source, confidence, file)
    - Read the body: Problem description, Findings (file:line references), Proposed Solution
 
 2. **Find Relevant Code**

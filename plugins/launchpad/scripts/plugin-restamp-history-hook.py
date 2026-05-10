@@ -51,26 +51,6 @@ def _harness_obs_dir(repo_root: Path) -> Path:
     return repo_root / ".harness" / "observations"
 
 
-def validate_subject(subject: str) -> str | None:
-    """Return None if subject is acceptable; an error reason string otherwise.
-
-    Rejects:
-      - Literal `\\n` (LF) byte anywhere in the subject.
-      - Literal `\\r\\n` (CR+LF) byte sequence anywhere in the subject.
-      - Literal `\\r` (lone CR) byte.
-
-    A clean commit subject is a single line; anything containing newline-class
-    bytes is treated as an injection attempt.
-    """
-    if not isinstance(subject, str):
-        return "subject must be a string"
-    if "\n" in subject:
-        return "subject contains literal LF (\\n) — injection-rejected"
-    if "\r" in subject:
-        return "subject contains literal CR (\\r) — injection-rejected"
-    return None
-
-
 def append_entry(repo_root: Path, payload: dict) -> Path:
     """Atomic append of `payload` to restamp-history.jsonl.
 
@@ -152,6 +132,8 @@ def main(argv: list[str] | None = None) -> int:
     subject_bytes = raw_bytes[:lf_idx] if lf_idx >= 0 else raw_bytes
     subject = subject_bytes.decode("utf-8", errors="replace")
 
+    # Subject injection defense (BL-317): inline replacement for the
+    # deleted validate_subject() helper.
     # Reject if the subject's bytes contain ANY CR (lone or part of a CRLF).
     if b"\r" in subject_bytes:
         print(
