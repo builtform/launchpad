@@ -13,7 +13,7 @@ Multi-agent parallel code review with confidence-based false-positive suppressio
 /lp-review                              → interactive mode (default)
 /lp-review --headless                   → programmatic mode (no interactive output, no report)
 /lp-review --no-context                 → bias-stripped mode (skips PR intent, harness context, agent specialty framing)
-/lp-review --headless --no-context      → both (used by /lp-commit Step 2.5 in Phase 2)
+/lp-review --headless --no-context      → both (used by /lp-commit Step 2.5 + /lp-ship Step 4.6 in Phase 2)
 ```
 
 **Standalone usage:** `--no-context` runs in append mode and does NOT clear `.harness/todos/`. To run blind-only review without accumulation, manually `rm -f .harness/todos/*.md` first OR run `/lp-review --headless` first to reset, then `/lp-review --no-context`.
@@ -218,6 +218,7 @@ Single-file vs directory artifacts have different "append" semantics — intenti
    priority: P1|P2|P3
    agent_source: <agent-name>     # specialist pass
    confidence: 0.XX
+   file: <primary file path>      # primary file the finding refers to; used by /lp-ship Step 4.6 staged-diff scope filter (origin/main..HEAD). For multi-file findings, use the most-impacted file.
    ---
 
    ## Problem

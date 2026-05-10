@@ -38,9 +38,6 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --require-hashes -r plugins/launchpad/scripts/requirements.txt
 
-      - name: Install pytest
-        run: python -m pip install pytest
-
       - name: Run v2 handshake lint
         run: python plugins/launchpad/scripts/plugin-v2-handshake-lint.py
 

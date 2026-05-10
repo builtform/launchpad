@@ -96,8 +96,8 @@ Claude must confirm all of the following before closing a task:
 **Python (when changes touch `*.py` or `plugins/launchpad/scripts/` — added in v2.1.1):**
 
 - [ ] Tests pass: `cd plugins/launchpad/scripts && pytest -q`
-- [ ] Typecheck passes: `pyright plugins/launchpad/scripts/`
-- [ ] No new lint errors: `ruff check plugins/launchpad/scripts/`
+- [ ] Typecheck passes: `cd plugins/launchpad/scripts && pyright .` (run from `plugins/launchpad/scripts/` so pyproject.toml is discovered — matches CI invocation)
+- [ ] No new lint errors: `cd plugins/launchpad/scripts && ruff check .`
 
 **Universal:**
 

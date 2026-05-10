@@ -1812,15 +1812,15 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 #### BL-309 - v2.1.x: lp-ship.md `exit non_zero` typo
 
-**Status (2026-05-09)**: NEW — surfaced by v2.1.1 cross-cutting sweep-review.
+**Status (2026-05-09)**: SHIPPED in v2.1.1 — see PR #62 (Greptile review folded into Slice H.4 fix bundle; `exit non_zero` → `exit 1` at `lp-ship.md:137`).
 
-**Source**: v2.1.1 cross-cutting sweep-review (2026-05-09; sweep P2-1)
+**Source**: v2.1.1 cross-cutting sweep-review (2026-05-09; sweep P2-1) + v2.1.1 PR #62 Greptile review (2026-05-09; G-3)
 
-**Driver**: `plugins/launchpad/commands/lp-ship.md:137` contains the literal text `exit non_zero` inside a fenced bash code block (Step 4.6 HARD STOP path on resolver-completion check failure). Bash interprets this as `bash: exit: non_zero: numeric argument required`. Should be `exit 1`. Doc-only defect in shipped command spec; agent interpreting the spec will likely treat as "exit non-zero" but real bash fires an error.
+**Driver**: `plugins/launchpad/commands/lp-ship.md:137` contained the literal text `exit non_zero` inside a fenced bash code block (Step 4.6 HARD STOP path on resolver-completion check failure). Bash interprets this as `bash: exit: non_zero: numeric argument required`. Should be `exit 1`. Doc-only defect in shipped command spec; agent interpreting the spec will likely treat as "exit non-zero" but real bash fires an error.
 
-**At v2.1.x design time**: 1-line edit, replace `exit non_zero` → `exit 1`. Suitable for a v2.1.x doc-quality patch lane.
+**At v2.1.x design time**: ~~1-line edit, replace `exit non_zero` → `exit 1`. Suitable for a v2.1.x doc-quality patch lane.~~ Superseded — fix landed in v2.1.1 Slice H.4.
 
-**Default decision**: defer to v2.1.x.
+**Default decision**: ~~defer to v2.1.x~~ → SHIPPED in v2.1.1.
 
 #### BL-310 - v2.1.x: Pin-file doc drift on "5 contract modules" vs canonical "3"
 
@@ -1934,3 +1934,41 @@ The canonical surface — `docs/architecture/CI_CD.md:108`, `docs/guides/CODE_RE
 The `plugin-backlog-orphan-check.py` gate enforces a related (BL ↔ CHANGELOG) invariant; this test extends the same release-time-coupling discipline to plugin.json + release-notes.
 
 **Default decision**: defer to v2.1.x. Process improvement, not user-impacting.
+
+#### BL-320 - v2.1.x: Python hook bootstrap path documentation / auto-install
+
+**Status (2026-05-09)**: NEW — surfaced by v2.1.1 PR #62 Codex review (P1 #1).
+
+**Source**: v2.1.1 PR #62 Codex automated review (2026-05-09)
+
+**Driver**: The Phase 4 Layer 3 lefthook hooks (`pytest`, `pyright`, `bandit`, `ruff`, `semgrep`) call the tools directly. Consumer projects skip via the `[ -d plugins/launchpad/scripts ] || exit 0` early-out, but maintainer-side clean checkouts have no documented bootstrap — a fresh contributor cloning the repo will hit `command not found` on first commit. The required incantation is `cd plugins/launchpad/scripts && pip install --require-hashes -r requirements.txt`, but it is not surfaced anywhere user-visible (CLAUDE.md DoD, CONTRIBUTING.md, lefthook hook output).
+
+**At v2.1.x design time**: pick one of:
+
+1. **Documented manual** — add a `## Python tooling` section to CONTRIBUTING.md with the `pip install --require-hashes` recipe; reference from CLAUDE.md DoD line 96 and from a friendly lefthook hook error if `pytest`/`pyright`/`bandit`/`ruff`/`semgrep` not on PATH.
+2. **Auto-bootstrap script** — `scripts/maintenance/install-python-tooling.sh` that creates a `.venv` under `plugins/launchpad/scripts/` and installs `requirements.txt`; lefthook entries source the venv. Requires shipping the venv-bootstrap convention to consumers OR keeping it self-host-only.
+3. **Defer entirely** — accept the contributor-onboarding friction; the PEP 668 environment landscape on macOS Homebrew + Linux distros makes auto-pip-install fragile.
+
+**Default decision**: defer to v2.1.x. Real onboarding gap but not v2.1.1-shipping-blocker. Pick path (1) at v2.1.x — minimum viable documentation.
+
+#### BL-321 - v2.1.x: Synchronize `.harness/todos/*.md` frontmatter schema across all writer/reader docs
+
+**Status (2026-05-09)**: NEW — surfaced by v2.1.1 PR #62 Slice H.4 dual-pass (pattern-finder + architecture-strategist).
+
+**Source**: v2.1.1 PR #62 dual-pass on Slice H.4 (2026-05-09)
+
+**Driver**: Slice H.4 added a new `file:` field to the `.harness/todos/*.md` frontmatter schema documented at `lp-review.md:221`, consumed by `/lp-ship` Step 4.6.3 staged-diff scope filter (`lp-ship.md:124`). Three sibling consumer/producer docs still describe the pre-Slice-H.4 schema:
+
+- `plugins/launchpad/agents/resolve/lp-harness-todo-resolver.md:14` — frontmatter list omits `file:`
+- `plugins/launchpad/commands/lp-triage.md:23,42-46` — frontmatter validation list omits `file:`
+- `plugins/launchpad/commands/lp-resolve-todo-parallel.md:30` — uses prose-body parsing for file refs (not frontmatter `file:`); could be tightened to use `file:` for primary file with prose-body fallback for secondary
+
+Additionally, `lp-test-browser.md:103` is a SECOND writer of `.harness/todos/*.md` pending findings (alongside `lp-review.md`). Browser-test findings key on routes (e.g., `/dashboard/profile`), not source paths, so retrofitting `file:` requires a route → page-file derivation rule (e.g., `apps/web/src/app/{route}/page.tsx`).
+
+**At v2.1.x design time**:
+
+1. Update sibling reader docs (`lp-harness-todo-resolver.md`, `lp-triage.md`, `lp-resolve-todo-parallel.md`) to reflect the `file:` field in their frontmatter documentation.
+2. Decide whether `lp-test-browser.md:103` should derive + emit `file:` from route, OR rely on the missing-field-tolerance fallback in `lp-ship.md:124` (Slice H.4 already documents this fallback as the v2.1.1 default).
+3. (Optional) Add a single-source-of-truth schema doc at `docs/architecture/HARNESS_TODOS.md` enumerating all current frontmatter fields + their consumer contracts.
+
+**Default decision**: defer to v2.1.x. v2.1.1 ships with the missing-field tolerance baked in; sibling-doc sync is documentation hygiene, not a runtime defect.

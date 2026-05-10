@@ -76,7 +76,7 @@ Branch naming convention:
 
 ### 4.5. `--skip-review` protected-branch gate
 
-a. **Protected-branch reject:** if `$ARGUMENTS` contains `--skip-review` AND current branch is in `protected_branches` (default `[main, master]`) OR matches `release/*` / `releases/*` / `release-*` / `prod/*` / `production/*` / `stable/*` / `master_*` / `^v[0-9]`: REJECT with `"--skip-review rejected on protected branches (current: $BRANCH). Emergency-hotfix bypass is allowed only on hotfix/* / fix/* feature branches."` Exit non-zero.
+a. **Protected-branch reject:** if `$ARGUMENTS` contains `--skip-review` AND current branch is in `protected_branches` (default `[main, master]`) OR matches glob `release/*` / `releases/*` / `release-*` / `prod/*` / `production/*` / `stable/*` / `master_*` OR regex `^v[0-9]`: REJECT with `"--skip-review rejected on protected branches (current: $BRANCH). Emergency-hotfix bypass is allowed only on hotfix/* / fix/* feature branches."` Exit non-zero.
 
 b. **Hotfix-branch interactive confirmation (TTY-guarded):** if `$ARGUMENTS` contains `--skip-review` AND current branch matches `hotfix/*` or `fix/*`:
 

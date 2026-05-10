@@ -44,6 +44,7 @@ Mandatory `/lp-review` dual-pass wiring + `--no-context` blind-review flag + Lay
 - **BL-236** (Lefthook Python coverage expansion): SHIPPED via Phase 3 + Phase 4 — see PR #62
 - **BL-237** (V2_MODULES scope tightening): SHIPPED via Phase 3 — see PR #62
 - **BL-245** (Stack-aware lefthook generation): SHIPPED via universal lefthook + build-runner indirection (master plan D1); see PR #62
+- **BL-309** (lp-ship.md `exit non_zero` typo): SHIPPED via Slice H.4 (Greptile review fold); see PR #62
 
 ### Deferred to v2.1.3 / v2.2
 

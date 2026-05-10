@@ -384,5 +384,3 @@ def test_lp_build_has_step0() -> None:
         if needle not in content:
             errors.append(f"lp-build.md missing: {desc} ({needle!r})")
     assert not errors, "\n".join(errors)
-
-
