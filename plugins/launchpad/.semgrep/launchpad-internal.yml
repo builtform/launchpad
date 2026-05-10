@@ -22,7 +22,7 @@ rules:
     languages: [python]
     paths:
       include:
-        - "plugins/launchpad/scripts/lp_bootstrap/kernel_renderer.py"
+        - "plugins/launchpad/scripts/plugin_default_generators/kernel_renderer.py"
     pattern-regex: '\bsha\s*=\s*hashlib\.'
 
   # R1-T1-9 REWRITE: original pattern with multi-ellipsis pattern-not produced
