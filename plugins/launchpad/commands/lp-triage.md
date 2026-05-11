@@ -20,7 +20,7 @@ Interactive finding triage. Reads pending todos, presents each one-by-one, and r
 1. Load pending todos from `.harness/todos/` (filter `status: pending` from YAML frontmatter)
 2. Validate each file:
    - Confirm resolved path is within `.harness/todos/` (no symlink following)
-   - Confirm frontmatter has required fields (`status`, `priority`)
+   - Confirm frontmatter has required fields (`status`, `priority`); `file` is strongly recommended (added in v2.1.1 Slice H.4 for /lp-ship Step 4.6 staged-diff scope filter; absence triggers lp-ship.md:124 missing-field tolerance — finding is treated as in-scope without staged-diff verification, which broadens the autonomous-fix surface beyond the PR diff)
    - Skip with warning if malformed: "Skipping {filename}: invalid frontmatter"
 3. Sort by priority (P1 → P2 → P3)
 4. Group findings referencing the same `file:line` — present together, one decision per group

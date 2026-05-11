@@ -126,6 +126,38 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_define_runner.py \
 Pipeline / commands / paths sections of `config.yml` are preserved
 (only the `stacks:` line is rewritten).
 
+If `--redetect-stack` adds or changes a Python-bearing stack
+(e.g. adds `nextjs_fastapi` to a previously-detected `nextjs_standalone`
+project), also re-run `/lp-bootstrap` so `lefthook.yml` re-renders with
+the propagated Python gates. Auto-rerender on `--redetect-stack` is
+queued for v2.2.
+
+## Python gates installed (consumer install required BEFORE first commit)
+
+When `nextjs_fastapi` (or any future Python-bearing stack) is in the
+detected stacks, the rendered `lefthook.yml` ships 5 Python gates
+(bandit, ruff-check, ruff-format-check, pyright, pytest). They will fail
+your first commit unless the tools are installed:
+
+```
+pip install 'bandit>=1.7.10' 'ruff>=0.5' 'pyright>=1.1.350' 'pytest>=8'
+```
+
+Recommended `pyproject.toml` addition (avoids bandit noise on test code):
+
+```
+[tool.bandit]
+exclude_dirs = ["tests"]
+```
+
+Tooling notes:
+
+- Prefer a virtual environment (`venv` / `poetry` / `uv`) over system pip.
+- For a one-off skip without editing `lefthook.yml`: `LEFTHOOK=0 git commit ...`.
+- To opt out permanently: remove the gate entry from `lefthook.yml`.
+
+See https://github.com/builtform/launchpad/blob/main/docs/architecture/CI_CD.md#consumer-python-gates
+
 ---
 
 ## Step 1.5: Brownfield infrastructure auto-invoke (v2.1 Phase 3 §3.9)

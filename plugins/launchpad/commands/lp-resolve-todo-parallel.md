@@ -27,7 +27,7 @@ Resolves pending review findings from `.harness/todos/` using parallel resolver 
 
 ## Step 2: Group by File Overlap
 
-- Parse `file:line` references from each todo body
+- Use frontmatter `file:` for the primary file reference when present (added in v2.1.1 Slice H.4; authoritative — overrides body refs). For pre-Slice-H.4 todos lacking the field, fall back to parsing `file:line` references from the todo body. Body refs remain useful for secondary file mentions even when frontmatter `file:` is present.
 - Group todos that reference overlapping files → these must run **sequentially** within the group
 - Non-overlapping groups can run in parallel
 

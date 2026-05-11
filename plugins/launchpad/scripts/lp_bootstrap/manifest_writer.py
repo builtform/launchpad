@@ -210,8 +210,28 @@ def compute_source_template_shas(*, root: Path | None = None) -> Mapping[str, st
     may inject a tmp_path-based fixture root. Missing template files raise
     `BootstrapManifestError(reason=TEMPLATE_NOT_FOUND)` so a half-installed
     plugin surfaces fast.
+
+    PRODUCTION-ROOT MODE (`root is None`): `lefthook.yml` returns a
+    COMPOSITE hash (kernel + every plugin-shipped stack fragment + every
+    shared partial under `_partials/`) per BL-316 Slice 4c.5. The
+    composite covers the full template surface that
+    `stack_lefthook.enrich_lefthook_with_stacks` may pull from at render
+    time, so manifest tamper-detection (`verify_source_template_shas`)
+    fires on modification of ANY contributor — not just the kernel
+    template. The composite is stable across user `.launchpad/config.yml`
+    stack changes because enumeration is plugin-static.
+
+    FIXTURE-ROOT MODE (`root is not None`): `lefthook.yml` returns the
+    kernel-only SHA. This preserves the injected-root contract — fixture
+    callers get a hermetic result that depends only on files under
+    `root`, never on production stack adapters (BL-316 Slice 4c.6 closes
+    the contract violation Codex flagged on eda298c). Tests that need
+    composite behavior with a custom root would have to pair an
+    infrastructure root with a stack-fragment root; for v2.1.x that
+    pairing is intentionally unsupported (no v2.1.x test needs it).
     """
     base = root if root is not None else _INFRA_TEMPLATE_ROOT
+    use_composite_for_lefthook = root is None
     out: dict[str, str] = {}
     for template_relpath, target_relpath, _policy, _mode in INFRASTRUCTURE_FILES:
         template_path = base / template_relpath
@@ -225,8 +245,40 @@ def compute_source_template_shas(*, root: Path | None = None) -> Mapping[str, st
                     f"plugin_default_generators/infrastructure/{template_relpath}"
                 ),
             )
-        out[target_relpath] = sha256_file(template_path)
+        kernel_sha = sha256_file(template_path)
+        if target_relpath == "lefthook.yml" and use_composite_for_lefthook:
+            out[target_relpath] = _composite_lefthook_sha(kernel_sha)
+        else:
+            out[target_relpath] = kernel_sha
     return MappingProxyType(out)
+
+
+def _composite_lefthook_sha(kernel_sha: str) -> str:
+    """Compose a deterministic hash over the kernel template SHA + every
+    plugin-shipped lefthook fragment / partial (BL-316 Slice 4c.5).
+
+    Format: sha256( kernel_sha || "\\n" || dep_name || ":" || dep_sha
+    || "\\n" || ... ) over a sorted-by-name dependency list. Each
+    dependency contributes its filename + SHA so two files with identical
+    content but different names produce distinct contributions
+    (defensive; v2.1.2 has no such collision but the design holds for
+    future per-stack `lefthook.j2.fragment` additions).
+
+    Deferred import of `enumerate_lefthook_template_dependencies` to
+    avoid manifest_writer ↔ stack_lefthook load-order coupling.
+    """
+    import hashlib
+
+    from .stack_lefthook import enumerate_lefthook_template_dependencies
+
+    h = hashlib.sha256()
+    h.update(kernel_sha.encode("ascii"))
+    for dep_path in enumerate_lefthook_template_dependencies():
+        h.update(b"\n")
+        h.update(dep_path.name.encode("utf-8"))
+        h.update(b":")
+        h.update(sha256_file(dep_path).encode("ascii"))
+    return h.hexdigest()
 
 
 def source_template_shas() -> Mapping[str, str]:

@@ -1,0 +1,78 @@
+{# Shared Python-gate propagation partial (BL-316). #}
+{# Five gates from maintainer's lefthook.yml, cleaned for consumer use. #}
+{# #}
+{# Include path is relative to the ChoiceLoader's `plugin_stack_adapters/` #}
+{# root, NOT relative to the includer's directory. v2.2 stack-adapter #}
+{# authors: use the absolute-from-loader-root form, not relative. #}
+{% from "_partials/_require_tool_macro.j2.fragment" import require_tool %}
+pre-push:
+  commands:
+    pyright:
+      glob: "**/*.py"
+      priority: 10
+      run: |
+{{ require_tool("pyright", "pyright>=1.1.350") | indent(8, first=true) }}
+        # Probe composition layout (apps/api/) before single-stack layout (api/).
+        # Silent-skip if no Python workspace found — never bare `pyright` from
+        # repo root (would walk node_modules/, .next/, etc.).
+        if [ -d apps/api ]; then
+          pyright apps/api
+        elif [ -d api ]; then
+          pyright api
+        else
+          echo 'pyright: no Python workspace detected at apps/api/ or api/; skipping' >&2
+          exit 0
+        fi
+
+    pytest:
+      glob: "**/*.py"
+      priority: 10
+      run: |
+{{ require_tool("pytest", "pytest>=8") | indent(8, first=true) }}
+        # Probe composition layout (apps/api/) before single-stack layout (api/).
+        # Silent-skip if no Python workspace found — never bare `pytest` from
+        # repo root (pytest's default norecursedirs does NOT exclude
+        # node_modules/, .next/, etc., so cwd-walk would collect deps' tests).
+        # Tolerate exit 5 (no tests collected) on fresh scaffolds.
+        # --tb=short preserves traceback context (security-relevant).
+        if [ -d apps/api ]; then
+          pytest -x --tb=short apps/api || [ $? -eq 5 ]
+        elif [ -d api ]; then
+          pytest -x --tb=short api || [ $? -eq 5 ]
+        else
+          echo 'pytest: no Python workspace detected at apps/api/ or api/; skipping' >&2
+          exit 0
+        fi
+
+pre-commit:
+  commands:
+    bandit:
+      glob: "**/*.py"
+      priority: 10
+      run: |
+{{ require_tool("bandit", "bandit>=1.7.10") | indent(8, first=true) }}
+        # Shell-injection-safe file enumeration (BL-316 Slice 4c.6 / closes
+        # BL-313): bypass lefthook's textual `{staged_files}` substitution,
+        # which is shell-evaluated and unsafe for filenames containing
+        # metacharacters like `;`, backticks, or `$()`. `git diff -z`
+        # emits NUL-delimited names; `xargs -0` execs argv directly with
+        # no shell re-parse. `-r` skips invocation if no files. `--` is
+        # bandit's option-terminator sentinel.
+        git diff --cached --name-only -z --diff-filter=ACMR -- '*.py' \
+          | xargs -0 -r bandit -ll --
+
+    ruff-check:
+      glob: "**/*.py"
+      priority: 11
+      run: |
+{{ require_tool("ruff", "ruff>=0.5") | indent(8, first=true) }}
+        git diff --cached --name-only -z --diff-filter=ACMR -- '*.py' \
+          | xargs -0 -r ruff check --
+
+    ruff-format-check:
+      glob: "**/*.py"
+      priority: 12
+      run: |
+{{ require_tool("ruff", "ruff>=0.5") | indent(8, first=true) }}
+        git diff --cached --name-only -z --diff-filter=ACMR -- '*.py' \
+          | xargs -0 -r ruff format --check --
