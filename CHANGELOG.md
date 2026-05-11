@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 Tracked in [ROADMAP.md](ROADMAP.md). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` (BL-251 through BL-254) for v2.2-deferred items captured during v2.1 ship.
 
+## [v2.1.3]
+
+<!-- v2.1.3 placeholder — polish release: docs (README + HOW_IT_WORKS) + skill metadata (user-invocable frontmatter on 16 skills) + lp-commit skill removal + skills-catalog index. Final entry written by Phase 2 of the release lane before tag. -->
+
 ## [v2.1.2]
 
 Consumer-side Python lefthook propagation (BL-316). Projects scaffolded with the `nextjs_fastapi` stack now get bandit + ruff-check + ruff-format-check (pre-commit) and pyright + pytest (pre-push) in their generated `lefthook.yml`, propagated from the v2.1.1 self-host gates via a shared `_partials/_python_gates.j2.fragment` partial. Two ride-along fixes (BL-317 dead-code, BL-321 sibling-doc sync) and one new release-engineering invariant test (BL-319) round out the lane.

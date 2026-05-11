@@ -1649,7 +1649,9 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. Low severity (P3); doesn't affect runtime correctness or downstream installs. Reproducibility hardening fits naturally with v2.1.1's supply-chain posture work.
 
-#### BL-297 - v2.1.3: Codex/Greptile corpus-trained reviewer agent
+#### BL-297 - v2.1.4: Codex/Greptile corpus-trained reviewer agent
+
+**Status (2026-05-11)**: RE-TARGETED v2.1.3 → v2.1.4. v2.1.3 is reclaimed as the doc + skill-metadata polish lane (this release). The corpus-trained reviewer is a substantial code feature that doesn't belong in a polish release; rides to v2.1.4 alongside the originally-planned hardening bundle.
 
 **Status (2026-05-10)**: RE-TARGETED v2.1.2 → v2.1.3. See BL-316.
 
@@ -1686,13 +1688,13 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 - `lp_pick_stack/engine.py` — 23 errors (deferred to BL-298)
 - `lp_scaffold_stack/engine.py` — 108 errors (deferred to BL-298)
 
-**At v2.1.3 design time**:
+**At v2.1.4 design time**:
 
 1. Engine modules carry significant `Any`-leakage from subprocess + path APIs; evaluate per-module annotation strategy similar to `decision_validator.py` Phase 4 approach.
 2. Lower priority than security-boundary modules already strict-pinned in v2.1.1 (R2-T1-18 honored at Phase 4).
 3. Mechanical type-annotation pass first (kills 40-60% of errors), then targeted `# type: ignore[<rule>]` for legitimate `Any`-leakage at subprocess boundaries.
 
-**Default decision**: defer to v2.1.3. Engine modules are subprocess/path-manipulation surfaces where pyright strict has lower bang-for-buck than at the JSON validation boundary.
+**Default decision**: defer to v2.1.4. Engine modules are subprocess/path-manipulation surfaces where pyright strict has lower bang-for-buck than at the JSON validation boundary.
 
 #### BL-299 - v2.1.4: nodeenv binary download outside pip hash coverage
 
@@ -1702,12 +1704,12 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Driver**: Phase 4 ships `requirements.txt` with `--require-hashes` (Path A pip-compile). Pyright pulls `nodeenv` as a transitive dependency; nodeenv downloads a Node.js binary at install time. The Node binary download is OUTSIDE pip's hash protection — pip-compile only hashes the Python distribution.
 
-**At v2.1.3 design time**: two options:
+**At v2.1.4 design time**: two options:
 
 1. Replace `pyright` with `mypy` (no Node.js dependency). Tradeoff: Pylance integration loss; cold-run slower.
 2. Pin the node binary download via CI checksum verification (custom CI step that re-downloads + verifies SHA256 before pyright runs).
 
-**Default decision**: defer to v2.1.3. Pyright was locked at master plan D6; nodeenv hole is a residual supply-chain surface acceptable for v2.1.1's single-maintainer threat model. Surfaced in user-facing `docs/guides/CODE_REVIEW_LAYERS.md` per Round 1 security-lens P2-2 (not BL-only).
+**Default decision**: defer to v2.1.4. Pyright was locked at master plan D6; nodeenv hole is a residual supply-chain surface acceptable for v2.1.1's single-maintainer threat model. Surfaced in user-facing `docs/guides/CODE_REVIEW_LAYERS.md` per Round 1 security-lens P2-2 (not BL-only).
 
 #### BL-300 - v2.1.4: `--strict-dispatch` flag on `/lp-review`
 
@@ -1717,14 +1719,14 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Driver**: `/lp-review --headless` + `/lp-review --headless --no-context` (the v2.1.1 mandatory dual-pass) suppress interactive prompts and strip context, but neither enforces that the implementing session actually executes Step 3's parallel `Task` dispatch. Phase 3 sibling invoked both flags but skipped Step 3 dispatch — substituting spec-text-inspection (self-review) and writing a clean summary. The `tool_use_id` proof-of-dispatch enforcement at Phase 4 was a procedural workaround.
 
-**At v2.1.3 design time**:
+**At v2.1.4 design time**:
 
 1. Add `--strict-dispatch` (or `--require-task-dispatch`) flag to `/lp-review`.
 2. When set: refuse to fall back to self-review; exit non-zero if Step 3's parallel `Task` block doesn't fire (e.g., empty agent list, agent files missing, dispatch failure).
 3. Wire into `/lp-commit` Step 2.5 + `/lp-ship` Step 4.6 mandatory dual-pass — both invocations gain `--strict-dispatch` post-BL-300.
 4. Add an integration test that invokes `/lp-review --strict-dispatch` against a synthetic empty agents.yml roster; expect non-zero exit with clear error message.
 
-**Default decision**: defer to v2.1.3. v2.1.1 closes the gap procedurally via `tool_use_id` reporting in handoff template + sweep-sibling validation (DA-5.7); programmatic enforcement deserves its own design pass.
+**Default decision**: defer to v2.1.4. v2.1.1 closes the gap procedurally via `tool_use_id` reporting in handoff template + sweep-sibling validation (DA-5.7); programmatic enforcement deserves its own design pass.
 
 #### BL-301 - v2.1.4: semgrep synthetic-violation fixtures
 
@@ -1734,7 +1736,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Driver**: each Phase 4 cross-cutting invariant semgrep rule needs a known-violator fixture to assert the rule fires correctly during CI. Without fixtures, rule regressions surface only when production code accidentally violates them.
 
-**At v2.1.3 design time**:
+**At v2.1.4 design time**:
 
 1. Author 4 minimal Python fixtures (~5-15 lines each) under `plugins/launchpad/scripts/tests/fixtures/semgrep_violations/`.
 2. Each fixture triggers exactly ONE rule from `plugins/launchpad/.semgrep/launchpad-internal.yml`.
@@ -1742,7 +1744,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 4. Each fixture must NOT trigger OTHER rules (false positives break the test contract).
 5. Add CI test that asserts each fixture triggers its target rule.
 
-**Default decision**: defer to v2.1.3. Phase 4 invariants are still enforced on production code; fixtures formalize regression protection for the rules themselves.
+**Default decision**: defer to v2.1.4. Phase 4 invariants are still enforced on production code; fixtures formalize regression protection for the rules themselves.
 
 #### BL-303 - v2.1.4: `lp-engine-sentinel-must-precede-materialize` semgrep rule
 
@@ -1752,13 +1754,13 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Driver**: the `lp-engine-sentinel-must-precede-materialize` rule was specified in Phase 4 plan §4 as one of 4 cross-cutting invariants. Phase 4 sibling iterated >2 times trying to author a semgrep pattern that correctly fires on sentinel-after-materialize ordering violations without false-positives across the lp_pick_stack/lp_scaffold_stack engine modules. Pattern complexity exceeded Phase 4's iteration budget; rule disabled and BL'd.
 
-**At v2.1.3 design time**:
+**At v2.1.4 design time**:
 
 1. Re-attempt rule authoring with semgrep `pattern-inside`/`pattern-not-inside` form (per Phase 4 R1-T1-9 best-practice).
 2. Validate against the 2 actual engine modules — pattern MUST fire on a synthetic violation AND not false-positive on the actual sentinel-precedes-materialize ordering currently in production.
 3. Once active, add to `plugins/launchpad/.semgrep/launchpad-internal.yml` (currently 3 active rules; this becomes the 4th).
 
-**Default decision**: defer to v2.1.3. The invariant is real but enforcement is currently via code review + the existing sentinel acquisition contract documented in OPERATIONS.md.
+**Default decision**: defer to v2.1.4. The invariant is real but enforcement is currently via code review + the existing sentinel acquisition contract documented in OPERATIONS.md.
 
 #### BL-304 - v2.1.4: secret-patterns.txt over-match on `\bdownstream\s+project`
 
@@ -1768,13 +1770,13 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Driver**: the secret-scanner pattern `\bdownstream\s+project` matches innocent prose mentions of "downstream project" in Jinja templates (which contain comment-style documentation about LaunchPad architecture). False-positives slow developer flow and risk normalizing "ignore secret-scanner" muscle memory.
 
-**At v2.1.3 design time**:
+**At v2.1.4 design time**:
 
 1. Scope-narrow the pattern: require additional context (e.g., `=` or `:` indicating an actual key-value secret pattern, not prose).
 2. Verify against the 1 known false-positive site + audit other Jinja-template comment surfaces.
 3. Update `.launchpad/secret-patterns.txt`.
 
-**Default decision**: defer to v2.1.3. False-positive frequency is low (1 confirmed); not blocking ship.
+**Default decision**: defer to v2.1.4. False-positive frequency is low (1 confirmed); not blocking ship.
 
 #### BL-305 - v2.1.4: portable timeout wrapper for macOS lefthook entries
 
@@ -1784,13 +1786,13 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Driver**: portable cross-platform timeout would let plan-spec'd tool-level timeouts work on both macOS dev environments AND Linux CI. `gtimeout` (via `coreutils`) or `perl -e 'alarm shift @ARGV; exec @ARGV' SECONDS CMD` are portable patterns.
 
-**At v2.1.3 design time**:
+**At v2.1.4 design time**:
 
 1. Choose portable timeout strategy (gtimeout via brew install OR perl alarm pattern).
 2. Document in lefthook.yml or wrap in a `scripts/maintenance/portable-timeout.sh` helper.
 3. Re-add timeout wrappers to lefthook entries that benefit (semgrep, pyright on large diffs).
 
-**Default decision**: defer to v2.1.3. lefthook native timeout handling is sufficient at v2.1.1; portable wrappers are polish.
+**Default decision**: defer to v2.1.4. lefthook native timeout handling is sufficient at v2.1.1; portable wrappers are polish.
 
 #### BL-306 - v2.1.4: semgrep allowlist-vs-handshake-lint parallelism
 
@@ -1800,12 +1802,12 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Driver**: semgrep `allowlist` (in semgrep configs) and `plugin-v2-handshake-lint.py` ALLOWLIST mechanism solve overlapping problems via different mechanisms. Operationally, contributor discovers an allowlist need and may modify the wrong system. Convergence opportunity.
 
-**At v2.1.3 design time**:
+**At v2.1.4 design time**:
 
 1. Audit both allowlist mechanisms; identify overlap zones.
 2. Either (a) document clear separation-of-concerns + when to use which, OR (b) consolidate into single allowlist with bidirectional reference.
 
-**Default decision**: defer to v2.1.3. Operational hygiene; not a correctness issue.
+**Default decision**: defer to v2.1.4. Operational hygiene; not a correctness issue.
 
 #### BL-307 - v2.1.4 / v2.2: Phase 4 simplicity-reviewer cleanup-style P1s
 
@@ -1815,7 +1817,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Driver**: Phase 4 simplicity reviewer surfaced 9 cleanup-style P1s on the Phase 4 surface (e.g., DRY refactors, naming standardization, comment density). Phase 4 sibling triaged out-of-scope for v2.1.1 ship.
 
-**At v2.1.3 design time**:
+**At v2.1.4 design time**:
 
 1. Re-load Phase 4 /lp-review report from `.harness/observations/` (if retained) OR re-dispatch /lp-review against v2.1.1 surface.
 2. Triage each P1 individually; absorb cheap items in v2.1.3 patch lane.
@@ -1841,12 +1843,12 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 - `plugins/launchpad/scripts/pyproject.toml:59-66` (8 pyright per-rule severity downgrades)
 - `plugins/launchpad/scripts/plugin-v2-handshake-lint.py:193, 196, 199, 202, 804` (4 deferral pointers + 1 B608 nosec)
 
-**At v2.1.3 design time**:
+**At v2.1.4 design time**:
 
 1. Revisit each suppression and either (a) eliminate the underlying issue (preferred — e.g., refactor safe_run usage, narrow pyright type contracts), or (b) split into per-site dedicated tracking BLs with explicit per-site rationale.
 2. The `BL-308` umbrella allows v2.1.1 to ship without a placeholder hole; v2.1.3 is the appropriate window to tease apart underlying issues vs. accepted-debt sites.
 
-**Default decision**: defer to v2.1.3.
+**Default decision**: defer to v2.1.4.
 
 #### BL-309 - v2.1.x: lp-ship.md `exit non_zero` typo
 
@@ -1901,9 +1903,9 @@ The canonical surface — `docs/architecture/CI_CD.md:108`, `docs/guides/CODE_RE
 
 **Driver**: `_USES_RE = re.compile(r"uses:\s*([^#\s]+)")` at `plugin-workflow-sha-pin-check.py:19` stops the capture at the first whitespace. Any `uses:` value containing a GitHub Actions expression (e.g., `uses: ${{ matrix.action }}@v1`) truncates to `${{` at the space. `_extract_ref` returns None and the line is silently skipped (line 53-54 `continue`). Expression-form `uses:` resolves at runtime to a potentially attacker-controllable ref but slips the gate. Defense-in-depth gap, not exploitable in current corpus, but the gate's docstring claims "catch ALL non-SHA refs".
 
-**At v2.1.3 design time**: parse workflow YAML with PyYAML AST traversal, walk `jobs.*.steps[].uses` nodes, hard-fail any value containing `${{` (expression) or whose ref is not a 40-hex SHA. Until the AST rewrite lands, add a regex pre-check that hard-fails on literal `${{` inside `uses:` values.
+**At v2.1.4 design time**: parse workflow YAML with PyYAML AST traversal, walk `jobs.*.steps[].uses` nodes, hard-fail any value containing `${{` (expression) or whose ref is not a 40-hex SHA. Until the AST rewrite lands, add a regex pre-check that hard-fails on literal `${{` inside `uses:` values.
 
-**Default decision**: defer to v2.1.3.
+**Default decision**: defer to v2.1.4.
 
 #### BL-313 - v2.1.4: lefthook here-string filename-quoting hardening
 
@@ -1917,9 +1919,9 @@ The canonical surface — `docs/architecture/CI_CD.md:108`, `docs/guides/CODE_RE
 
 **Driver**: `lefthook.yml:163, 180, 196` (three pre-commit hooks: `large-file-guard` body line 163, `trailing-whitespace` body line 180, `end-of-file-newline` body line 196) interpolate `{staged_files}` into a double-quoted `echo` command before piping through `tr` and a here-string: `<<< "$(echo "{staged_files}" | tr ' ' '\n')"`. Inside double quotes, `$(...)` and backtick command substitution are evaluated by the shell. A staged file whose pathname contains `$(...)` (Git permits `$` and parentheses in pathnames on POSIX) would cause the embedded command to execute when the hook fires. Defense-in-depth bug; pre-existing in origin/main (NOT v2.1.1-introduced).
 
-**At v2.1.3 design time**: replace `<<< "$(echo "{staged_files}" | tr ' ' '\n')"` with a safe iteration form. Options: (a) use lefthook's per-file `{staged_files}` expansion directly with `xargs -0` and a NUL-delimited list; (b) replace the inline shell with a Python helper script (the codebase already has `python3 plugins/launchpad/scripts/...` helpers for everything else); (c) at minimum, switch to `printf '%s\n' {staged_files}` form and stop double-quoting the substitution.
+**At v2.1.4 design time**: replace `<<< "$(echo "{staged_files}" | tr ' ' '\n')"` with a safe iteration form. Options: (a) use lefthook's per-file `{staged_files}` expansion directly with `xargs -0` and a NUL-delimited list; (b) replace the inline shell with a Python helper script (the codebase already has `python3 plugins/launchpad/scripts/...` helpers for everything else); (c) at minimum, switch to `printf '%s\n' {staged_files}` form and stop double-quoting the substitution.
 
-**Default decision**: defer to v2.1.3.
+**Default decision**: defer to v2.1.4.
 
 #### BL-314 - v2.1.4: nonce_ledger.py darwin branch tiebreak determinism
 
@@ -1931,9 +1933,9 @@ The canonical surface — `docs/architecture/CI_CD.md:108`, `docs/guides/CODE_RE
 
 **Driver**: `lp_scaffold_stack/nonce_ledger.py:171` (Linux branch) uses strict `>` for longest-prefix-match, fixed per Phase 4 D11 absorption. `lp_scaffold_stack/nonce_ledger.py:203` (darwin branch) still uses `>=` — last-seen-wins, filesystem-ordering-dependent. The Linux comment at line 168-170 reads `# D11: strict longest-match-wins; tiebreak by first-seen (deterministic, not filesystem-ordering-dependent).` — that determinism rationale should apply to BOTH platforms. The regression-shield test `test_nonce_ledger_mountpoint_tiebreak.py` mocks Linux only.
 
-**At v2.1.3 design time**: change line 203 from `if len(mp) >= len(best_mp):` to `if len(mp) > len(best_mp):`; extend the regression-shield test with a darwin-platform mock (or a portable test helper that exercises both branches).
+**At v2.1.4 design time**: change line 203 from `if len(mp) >= len(best_mp):` to `if len(mp) > len(best_mp):`; extend the regression-shield test with a darwin-platform mock (or a portable test helper that exercises both branches).
 
-**Default decision**: defer to v2.1.3. Real platform asymmetry but D11 verdict scope was Linux-only at Phase 4 close; v2.1.3 is the appropriate window to extend.
+**Default decision**: defer to v2.1.4. Real platform asymmetry but D11 verdict scope was Linux-only at Phase 4 close; v2.1.3 is the appropriate window to extend.
 
 #### BL-315 - v2.1.4: plugin-restamp-redact-wip.py atomic_io import path hardening
 
@@ -1945,9 +1947,9 @@ The canonical surface — `docs/architecture/CI_CD.md:108`, `docs/guides/CODE_RE
 
 **Driver**: `plugins/launchpad/scripts/plugin-restamp-redact-wip.py:88` does `sys.path.insert(0, str(args.repo_root / "plugins" / "launchpad" / "scripts"))` and imports `atomic_io` from there. `args.repo_root` defaults to `Path.cwd()` and is otherwise user-supplied. If the script runs against a hostile clone (or any directory containing a planted `plugins/launchpad/scripts/atomic_io.py`), Python imports the planted module. Defense-in-depth issue — the script is a manual operator tool with low real-world severity, but the canonical fix is trivial.
 
-**At v2.1.3 design time**: replace lines 88-89 with `sys.path.insert(0, str(Path(__file__).resolve().parent))` + `from atomic_io import atomic_write_replace`. Pins the import to the script's own installed directory regardless of caller-supplied `--repo-root`.
+**At v2.1.4 design time**: replace lines 88-89 with `sys.path.insert(0, str(Path(__file__).resolve().parent))` + `from atomic_io import atomic_write_replace`. Pins the import to the script's own installed directory regardless of caller-supplied `--repo-root`.
 
-**Default decision**: defer to v2.1.3.
+**Default decision**: defer to v2.1.4.
 
 #### BL-316 - v2.1.2: Propagate hardened lefthook gates to consumer template via stack-adapter fragments
 
@@ -2079,15 +2081,15 @@ Additionally, `lp-test-browser.md:103` is a SECOND writer of `.harness/todos/*.m
 
 #### BL-323 - v2.1.3: lefthook.yml multi-stack last-key-wins drop in outer renderer
 
-**Status (2026-05-10)**: SUBSUMED by v2.1.2 Slice 4c.4 production wiring (PR #65). The runtime regression for multi-stack consumer scaffolds is closed natively because `lp_bootstrap.stack_lefthook.enrich_lefthook_with_stacks` routes through `merge_keys_additive` (additive map-merge, first-declared-wins on duplicate command names) rather than the test-only outer template's text concatenation — last-key-wins YAML drop is impossible by construction. Multi-stack `[nextjs_fastapi, astro]` parsed-YAML assertion added in `tests/test_lp_bootstrap_stack_lefthook.py::test_multi_stack_composition_runtime_yaml_keeps_all_gates` (both orderings). The outer template `lefthook.yml.j2.outer` remains test-only at v2.1.2 and is unused in production; v2.1.3 may delete it as dead code or refactor it to use the same merge helper.
+**Status (2026-05-10)**: SUBSUMED by v2.1.2 Slice 4c.4 production wiring (PR #65). The runtime regression for multi-stack consumer scaffolds is closed natively because `lp_bootstrap.stack_lefthook.enrich_lefthook_with_stacks` routes through `merge_keys_additive` (additive map-merge, first-declared-wins on duplicate command names) rather than the test-only outer template's text concatenation — last-key-wins YAML drop is impossible by construction. Multi-stack `[nextjs_fastapi, astro]` parsed-YAML assertion added in `tests/test_lp_bootstrap_stack_lefthook.py::test_multi_stack_composition_runtime_yaml_keeps_all_gates` (both orderings). The outer template `lefthook.yml.j2.outer` remains test-only at v2.1.2 and is unused in production; v2.1.4 may delete it as dead code or refactor it to use the same merge helper.
 
 **Status (2026-05-10)**: NEW — surfaced by Codex P1-B on PR #65 (v2.1.2). Real regression risk for multi-stack scaffolds that include `nextjs_fastapi`; deferred to v2.1.3 per locked v2.1.2 scope.
 
-**Source**: PR #65 Codex re-review (2026-05-10; v2.1.3 candidate)
+**Source**: PR #65 Codex re-review (2026-05-10; v2.1.4 candidate)
 
 **Driver**: `plugins/launchpad/scripts/plugin_default_generators/stack_aware/lefthook.yml.j2.outer:1-3` is text concatenation (`{% for stack_id in selected_stack_ids %}{% include %}{% endfor %}`), NOT a structural YAML merge. Multiple stack fragments can declare the same top-level hook key (`pre-commit:`, `pre-push:`). PyYAML applies last-key-wins on duplicate keys, so e.g. rendering `["nextjs_fastapi", "astro"]` produces a `lefthook.yml` whose effective `pre-commit:` block is only `astro-noop` — silently dropping the v2.1.2 BL-316 bandit/ruff-check/ruff-format-check gates. The same issue exists for any pair where ≥2 stacks declare the same hook (currently `nextjs_standalone + astro`, `nextjs_standalone + generic`, etc.) but is benign pre-v2.1.2 because all such fragments shipped only `<stack>-noop: run: 'true'`. Test `test_composition_includes_python_gates_when_nextjs_fastapi_present` does substring-presence on raw rendered text by design (per its docstring), which doesn't catch the runtime drop. The `_COMPOSES_WITH` rules at `astro.py:73,82-83` and `nextjs_standalone.py:_COMPOSES_WITH` declare `lefthook.yml: merge-keys` as the intended `ConflictPolicy`, but no enforcement code wires `merge-keys` into the outer renderer at v2.1 — `grep -rn 'conflict_policy\[' plugins/launchpad/scripts/` returns zero matches.
 
-**At v2.1.3 design time**:
+**At v2.1.4 design time**:
 
 1. Replace the outer template's text concatenation with a Python-side post-render YAML merge: render each `<stack>/templates/lefthook.j2.fragment` individually, `yaml.safe_load` each, deep-merge by hook key (top-level `pre-commit`/`pre-push`/`commit-msg`/etc.) → merge `commands:` dicts by command name → re-emit via `yaml.safe_dump`. Conflict policy on duplicate command name: first-declared-wins (matches outer template's existing comment "union-merge first-declared-wins").
 2. Rewrite `test_composition_includes_python_gates_when_nextjs_fastapi_present` from substring-presence to parsed-YAML assertion (`yaml.safe_load(rendered)["pre-commit"]["commands"]` must contain all 5 gate names regardless of stack ordering).
@@ -2095,7 +2097,7 @@ Additionally, `lp-test-browser.md:103` is a SECOND writer of `.harness/todos/*.m
 4. Snapshot test: assert single-stack `lefthook.yml` rendering is byte-identical before/after the renderer rewrite (no accidental regression for existing single-stack consumers).
 5. Wire `merge-keys` `ConflictPolicy` enforcement into the outer renderer so the `_COMPOSES_WITH` declarations become load-bearing instead of documentation-only.
 
-**Default decision**: defer to v2.1.3. Real but narrow regression (only multi-stack scaffolds involving `nextjs_fastapi` with the unlucky stack ordering); single-stack consumers (the dominant case at v2.1.x) unaffected. Fix is architectural (~1.5–2h with tests) and warrants its own dedicated commit cycle outside v2.1.2's locked scope.
+**Default decision**: defer to v2.1.4. Real but narrow regression (only multi-stack scaffolds involving `nextjs_fastapi` with the unlucky stack ordering); single-stack consumers (the dominant case at v2.1.x) unaffected. Fix is architectural (~1.5–2h with tests) and warrants its own dedicated commit cycle outside v2.1.2's locked scope.
 
 #### BL-324 - v2.1.4: Layer-aware Python workspace probe in shared `_python_gates` partial
 
@@ -2112,3 +2114,15 @@ Additionally, `lp-test-browser.md:103` is a SECOND writer of `.harness/todos/*.m
 3. Tests: (a) override path resolves correctly and `pyright`/`pytest` target it; (b) fallback ordering still works when no override is present; (c) error or fail-loud when the configured override path doesn't exist post-scaffold (don't silently skip).
 
 **Default decision**: defer to v2.1.4. v2.1 doesn't ship layer overrides yet, so the regression is theoretical at v2.1.x; v2.1.4 is the natural window when layer-override work lands.
+
+#### BL-325 - v2.1.4: `xargs -r` portability defense-in-depth (POSIX-strict)
+
+**Status (2026-05-11)**: NEW — surfaced by Codex P1 on PR #65 commit `0818c16` (v2.1.2 Slice 4c.6). Codex claimed `xargs -r` is GNU-specific and would fail on macOS BSD xargs with "illegal option". Empirically DISPROVEN on the maintainer's macOS 25.3.0 native `/usr/bin/xargs`: `-r` is silently accepted (no error, behavior matches GNU's no-run-on-empty). The flag is undocumented in the BSD man page but implemented for GNU-compat. v2.1.2 ships with `xargs -0 -r` across 12 hook entries and works correctly on every platform the project targets (macOS + Linux + Alpine BusyBox 1.20+). Defense-in-depth concern only: a hypothetical exotic/ancient Unix variant without `-r` support would fail.
+
+**Source**: PR #65 Codex re-review on `0818c16` (2026-05-10; v2.1.4 candidate). Codex's recommendation flagged as overcorrection — removing `-r` would actually REGRESS on GNU Linux (where default behavior without `-r` invokes the command once with empty input, which is wrong for our purpose).
+
+**Driver**: 12 hook entries currently use `xargs -0 -r TOOL` (or `xargs -0 -r sh -c '...' _` for the bash-iteration gates): 3 in `plugins/launchpad/scripts/plugin_stack_adapters/_partials/_python_gates.j2.fragment` (lines 62, 70, 78 post-Slice-4c.6) + 9 in `lefthook.yml` (4 security tools at lines ~109/117/125/133, 2 auto-fixers at lines ~64/71, 3 bash-script gates at lines ~163/180/196). The `-r` flag short-circuits invocation on empty stdin (replaces the legacy `[ $# -eq 0 ] && exit 0` boilerplate). On a system where `xargs` rejects `-r` as illegal, every hook would fail to execute.
+
+**At v2.1.4 design time**: replace each `| xargs -0 -r TOOL [args]` with `| xargs -0 sh -c '[ "$#" -eq 0 ] && exit 0; exec TOOL [args] -- "$@"' _`. The `sh -c` wrapper provides explicit empty-guard in POSIX-strict form. Adds ~35 chars per hook. Touches both the consumer-side `_python_gates.j2.fragment` partial (would trigger a one-time MANIFEST_TAMPERED for installed consumers per BL-316 composite hash — `--accept-plugin-version-drift` covers it) and the maintainer-side `lefthook.yml`. Update the regression test `test_xargs_pipeline_resists_shell_metacharacter_injection` to assert the new `sh -c` form is present.
+
+**Default decision**: defer to v2.1.4. Real risk is theoretical for LaunchPad's target audience (modern macOS + Linux + Alpine). Fix is mechanical and pairs naturally with v2.1.4's broader hardening lane.
