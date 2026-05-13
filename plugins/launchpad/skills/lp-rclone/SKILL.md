@@ -1,6 +1,7 @@
 ---
 name: lp-rclone
 description: "Cloud file management using rclone. Covers setup checking, installation, remote configuration (S3, R2, B2, GDrive, Dropbox), common operations (copy, sync, ls, move), large file handling, and verification. Process skill loaded by /lp-feature-video for cloud storage upload."
+user-invocable: false
 ---
 
 # rclone — Cloud File Management

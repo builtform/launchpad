@@ -8,6 +8,7 @@ description: >
   JavaScript micro-optimizations, composition architecture, and advanced patterns.
   Triggers on: writing React components, reviewing Next.js code, refactoring UI,
   optimizing performance, designing component APIs.
+user-invocable: false
 ---
 
 <!-- ported-from: vercel-labs/agent-skills (react-best-practices + composition-patterns)

@@ -17,27 +17,26 @@ you can browse what's available and port what you need.
 
 ## Harness Skills vs Catalog Skills
 
-**Harness skills** (17 skills shipped under `plugins/launchpad/skills/`, installed
+**Harness skills** (16 skills shipped under `plugins/launchpad/skills/`, installed
 to `${CLAUDE_PLUGIN_ROOT}/skills/` after `/plugin install launchpad@builtform`)
 auto-load in every project and power the LaunchPad workflow:
 
 1. `lp-brainstorming` — structured brainstorming sessions
-2. `lp-commit` — stage, quality-gate, and commit workflow
-3. `lp-compound-docs` — structured problem documentation
-4. `lp-creating-agents` — agent creation and skill-to-agent conversion
-5. `lp-creating-skills` — 7-phase Meta-Skill Forge methodology
-6. `lp-document-review` — brainstorm/plan document review
-7. `lp-frontend-design` — distinctive, production-grade frontend interfaces
-8. `lp-imgup` — lightweight image hosting for quick sharing
-9. `lp-prd` — Product Requirements Document generation
-10. `lp-rclone` — cloud file management
-11. `lp-react-best-practices` — 70 rules across 9 categories
-12. `lp-responsive-design` — responsive-first spec injection
-13. `lp-step-zero` — shared lite-mode prereq check the L2 commands compose with
-14. `lp-stripe-best-practices` — Stripe integration patterns
-15. `lp-tasks` — PRD-to-JSON task conversion
-16. `lp-verification-before-completion` — evidence-before-claims enforcement for completion assertions
-17. `lp-web-design-guidelines` — 100+ accessibility/performance/UX rules
+2. `lp-compound-docs` — structured problem documentation
+3. `lp-creating-agents` — agent creation and skill-to-agent conversion
+4. `lp-creating-skills` — 7-phase Meta-Skill Forge methodology
+5. `lp-document-review` — brainstorm/plan document review
+6. `lp-frontend-design` — distinctive, production-grade frontend interfaces
+7. `lp-imgup` — lightweight image hosting for quick sharing
+8. `lp-prd` — Product Requirements Document generation
+9. `lp-rclone` — cloud file management
+10. `lp-react-best-practices` — 70 rules across 9 categories
+11. `lp-responsive-design` — responsive-first spec injection
+12. `lp-step-zero` — shared lite-mode prereq check the L2 commands compose with
+13. `lp-stripe-best-practices` — Stripe integration patterns
+14. `lp-tasks` — PRD-to-JSON task conversion
+15. `lp-verification-before-completion` — evidence-before-claims enforcement for completion assertions
+16. `lp-web-design-guidelines` — 100+ accessibility/performance/UX rules
 
 **Catalog skills** (listed in CATALOG.md) are recommendations — curated pointers to
 external skills worth porting. They stay inert until explicitly ported into a project

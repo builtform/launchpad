@@ -7,6 +7,7 @@ description: >
   lifecycle: checkout, subscriptions, webhooks, error handling, and go-live readiness.
   Triggers on: implementing payments, adding Stripe checkout, building subscription billing,
   writing webhook handlers, integrating Stripe Connect.
+user-invocable: false
 ---
 
 <!-- ported-from: anthropics/claude-plugins-official/external_plugins/stripe/skills/stripe-best-practices

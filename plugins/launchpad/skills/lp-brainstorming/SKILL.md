@@ -1,6 +1,7 @@
 ---
 name: lp-brainstorming
 description: "Process skill for structured brainstorming sessions. Guides collaborative idea exploration through progressive questioning, approach comparison, and design document capture. Loaded by /lp-brainstorm and /lp-kickoff."
+user-invocable: false
 ---
 
 # Brainstorming Skill
