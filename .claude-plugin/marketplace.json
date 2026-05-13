@@ -1,11 +1,11 @@
 {
-  "name": "builtform",
+  "name": "launchpad",
   "owner": {
     "name": "Foad Shafighi",
     "url": "https://github.com/foadshafighi"
   },
   "metadata": {
-    "description": "BuiltForm marketplace — plugins and tools shipped under the BuiltForm umbrella brand, starting with the LaunchPad harness."
+    "description": "Single-plugin marketplace for local LaunchPad development. Public install path is the BuiltForm catalog at github.com/builtform/marketplace — install via `/plugin marketplace add github:builtform/marketplace` and `/plugin install launchpad@builtform`. This file exists only to support directory-based dogfooding of unreleased changes; it is intentionally NOT a documented install path."
   },
   "plugins": [
     {

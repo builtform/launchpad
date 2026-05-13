@@ -35,18 +35,40 @@ This guide walks the full pipeline day-to-day. For the "why" behind the design, 
 
 ## Installing the plugin
 
-### Quick install
+### Path 1 — Add to any repo (Brownfield)
 
-Inside Claude Code, in the project where you want the commands, register the BuiltForm marketplace and install the plugin:
+Inside Claude Code, in the project where you want the commands, register the BuiltForm marketplace and install the plugin. Copy-paste the two commands below into a fresh Claude Code session:
 
 ```
-/plugin marketplace add builtform/launchpad
+/plugin marketplace add github:builtform/marketplace
 /plugin install launchpad@builtform
 ```
 
-Restart Claude Code. All `/lp-*` commands are now available.
+Restart Claude Code. All `/lp-*` commands are now available. Run `/lp-kickoff` to start.
 
 The `marketplace add` step is required today because BuiltForm is awaiting confirmation in the Anthropic public plugin registry. Once Anthropic confirms BuiltForm, `/plugin install launchpad@builtform` will work on its own and the `marketplace add` line will no longer be necessary. Until then, run both lines.
+
+### Path 2 — Fresh monorepo (Greenfield)
+
+LaunchPad detects greenfield vs brownfield by **inspecting your project folder**. An empty folder (or one containing only `.gitignore`, a short `README.md`, `LICENSE`, or a fresh `git init`) reads as greenfield. Anything else — a `package.json`, `pyproject.toml`, any other dependency manifest, or even a stray `.DS_Store` from opening the folder in Finder — flips detection and the four-command pipeline will refuse to scaffold.
+
+The single source of truth for this rule is the `cwd_state()` heuristic at `plugins/launchpad/scripts/cwd_state.py`, with the brownfield-manifest set documented in [SCAFFOLD_HANDSHAKE.md §8](../architecture/SCAFFOLD_HANDSHAKE.md#8-greenfield-detection-heuristic).
+
+**Step 1.** Create a new, empty folder and `cd` into it:
+
+```bash
+mkdir my-project && cd my-project
+```
+
+Don't `npm init`, don't drop in a `pyproject.toml`, don't open the folder in Finder before you're ready — keep it clean.
+
+**Step 2.** Open Claude Code in that folder and install the plugin using the same two commands from Path 1.
+
+**Step 3.** Run the four-command greenfield pipeline (covered in detail under [The Greenfield Pipeline (v2.0)](#the-greenfield-pipeline-v20) below):
+
+```
+/lp-brainstorm  →  /lp-pick-stack  →  /lp-scaffold-stack  →  /lp-define
+```
 
 ### Verifying installation
 

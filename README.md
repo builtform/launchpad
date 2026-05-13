@@ -39,10 +39,10 @@ For the full pipeline narrative and how each kernel component is used during a r
 
 ### Path 1 — Add to any repo (Best for Brownfield)
 
-Inside Claude Code, in the project where you want the commands, register the BuiltForm marketplace and install the plugin:
+Inside Claude Code, in the project where you want the commands, register the BuiltForm marketplace and install the plugin. Copy-paste the two commands below into a fresh Claude Code session:
 
 ```
-/plugin marketplace add builtform/launchpad
+/plugin marketplace add github:builtform/marketplace
 /plugin install launchpad@builtform
 ```
 
@@ -52,7 +52,26 @@ The marketplace registration step is required today because BuiltForm is awaitin
 
 ### Path 2 — Fresh monorepo (Best for Greenfield)
 
-Inside Claude Code, with the plugin installed via Path 1, run the four-command greenfield pipeline:
+LaunchPad detects greenfield vs brownfield by **inspecting your project folder**. An empty folder (or one containing only `.gitignore`, a short `README.md`, `LICENSE`, or a fresh `git init`) reads as greenfield. Anything else — a `package.json`, `pyproject.toml`, any other dependency manifest, or even a stray `.DS_Store` from opening the folder in Finder — flips detection and the four-command pipeline will refuse to scaffold.
+
+**Step 1.** Create a new, empty folder for your project and `cd` into it:
+
+```bash
+mkdir my-project && cd my-project
+```
+
+Don't `npm init`, don't drop in a `pyproject.toml`, don't open the folder in Finder before you're ready — keep it clean.
+
+**Step 2.** Open Claude Code in that folder and install the plugin using the same two commands from Path 1:
+
+```
+/plugin marketplace add github:builtform/marketplace
+/plugin install launchpad@builtform
+```
+
+Restart Claude Code.
+
+**Step 3.** Run the four-command greenfield pipeline:
 
 ```
 /lp-brainstorm  →  /lp-pick-stack  →  /lp-scaffold-stack  →  /lp-define
