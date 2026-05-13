@@ -10,7 +10,29 @@ Tracked in [ROADMAP.md](ROADMAP.md). v2.2 lands the 15 operational/security infr
 
 ## [v2.1.3]
 
-<!-- v2.1.3 placeholder — polish release: docs (README + HOW_IT_WORKS) + skill metadata (user-invocable frontmatter on 16 skills) + lp-commit skill removal + skills-catalog index. Final entry written by Phase 2 of the release lane before tag. -->
+Polish release: documentation refresh + skill metadata correction + obsolete skill removal. No code-path changes; no behavior regression for existing consumers. v2.1.3 is the version Anthropic Marketplace points at for the initial directory submission.
+
+### For LaunchPad users (downstream behavior changes)
+
+- **Skill discovery surface narrows.** Sixteen process skills (loaded by workflow commands, not directly user-invokable) gain a `user-invocable: false` frontmatter field: `lp-brainstorming`, `lp-compound-docs`, `lp-creating-agents`, `lp-creating-skills`, `lp-document-review`, `lp-frontend-design`, `lp-imgup`, `lp-prd`, `lp-rclone`, `lp-react-best-practices`, `lp-responsive-design`, `lp-step-zero`, `lp-stripe-best-practices`, `lp-tasks`, `lp-verification-before-completion`, `lp-web-design-guidelines`. Claude Code uses this field to decide which skills are shown in user-facing skill lists. Net effect: cleaner skill autocomplete; users see only the skills they can directly trigger.
+- **`lp-commit` skill removed.** The `/lp-commit` slash command is unaffected — only the redundant `SKILL.md` sidecar (which duplicated the command's content) is gone. No workflow change. Anyone scripting against `plugins/launchpad/skills/lp-commit/SKILL.md` directly should switch to `plugins/launchpad/commands/lp-commit.md`.
+- **Skills catalog count.** `docs/skills-catalog/skills-index.md` and `docs/skills-catalog/README.md` updated from 17 → 16 installed skills.
+
+### For LaunchPad maintainers (developer-facing changes)
+
+- **README major rewrite.** Top-level `README.md` replaces the terse one-line tagline with a structured pitch: "The cold-session tax" framing of the problem, a 7-row competitive landscape table (status quo / methodology plugins / first-party platform features / spec-driven IDEs / context-engineering systems / autonomous-engineer products / loop-and-orchestration toolkits), and a sharper distillation of LaunchPad's specific kernel surface. The competitive table positions LaunchPad against Compound Engineering, Superpowers, BMAD-METHOD, Anthropic Code Review, GitHub SpecKit, AWS Kiro, Tessl, HumanLayer CRISPY, Agent OS, Continue.dev, Devin, OpenHands, Factory.ai, Ralph Loop, Claude Flow, and Goose. Net delta: +259 lines.
+- **Methodology-attribution guidance added.** `plugins/launchpad/commands/lp-create-agent.md`, `lp-create-skill.md`, and `plugins/launchpad/skills/lp-creating-agents/SKILL.md` gain a "Methodology attribution" section instructing agent/skill creators to use framework-citation form ("Based on [author]'s [framework]", "Operationalizes [author]'s methodology") rather than ingestion form ("faithful reading", "book-faithful", "ingested", "preserves exact terminology"). Verification grep recipe included. Prevents attribution drift in future agent/skill generation.
+- **`docs/growth/` folder added with allowlist gitignore.** A new top-level docs folder (`docs/growth/`) lands with a nested `.gitignore` that allowlist-tracks only `README.md` + `.gitignore` itself; everything else (positioning.md, sales-pitch-storyboard.md, prepositioning-readme.md, and any future strategy work) is gitignored. The tracked `README.md` is the public-facing pointer to the paid Growth Toolkit plugin; the rest is internal strategy work that lives in the repo but stays out of git.
+
+### Backlog hygiene
+
+- **v2.1.3 → v2.1.4 retargets.** The originally-planned v2.1.3 hardening bundle (~22 items surfaced during v2.1.1 sweeps + Phase 4 deferrals) shifts to v2.1.4 to keep v2.1.3 narrowly scoped as a polish release. BL-297 (corpus-trained reviewer), 9 "defer to v2.1.3" decision lines, and 7 "At v2.1.3 design time" headings retargeted in `docs/tasks/BACKLOG.md`.
+- **BL-325 seeded (v2.1.4).** New entry for `xargs -r` portability defense-in-depth: Codex flagged on PR #65 commit `0818c16` that `xargs -r` is GNU-specific; empirically disproven on macOS BSD xargs (silently accepts the flag), but worth fixing in v2.1.4 as defense-in-depth for exotic Unix variants. Fix recipe documented: `| xargs -0 sh -c '[ "$#" -eq 0 ] && exit 0; exec TOOL [args] -- "$@"' _` across 12 hook entries.
+
+### Verification
+
+- 1457 tests pass (4 skipped); manifest-version-contract test (BL-319) confirms `plugin.json.version` (2.1.3) matches the latest non-placeholder CHANGELOG heading.
+- All lefthook pre-commit hooks pass on the new content (prettier, structure-check, large-file-guard, trailing-whitespace, end-of-file-newline, workflow-action-sha-pin).
 
 ## [v2.1.2]
 
