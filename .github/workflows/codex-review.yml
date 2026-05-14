@@ -13,10 +13,17 @@ jobs:
     name: Codex Code Review
     runs-on: ubuntu-latest
     continue-on-error: true
-    # Skip draft PRs and dependabot
+    # Skip draft PRs, dependabot, AND PRs whose title contains the
+    # `[skip codex]` token. The token lets maintainers opt out of Codex
+    # review (which is paid per-run via OPENAI_API_KEY) for small
+    # follow-up commits where the cost outweighs the value. Toggle the
+    # token on/off via `gh pr edit <number> --title "<new title>"`;
+    # remove the token before merge if you want Codex to fire on the
+    # final state.
     if: |
       !github.event.pull_request.draft &&
-      github.actor != 'dependabot[bot]'
+      github.actor != 'dependabot[bot]' &&
+      !contains(github.event.pull_request.title, '[skip codex]')
 
     steps:
       - name: Checkout repository

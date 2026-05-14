@@ -1,7 +1,6 @@
 ---
 name: lp-creating-agents
 description: "Creates new Claude Code agents or converts existing skills into agents. Produces production-grade agent definitions with 8-section body structure, least-privilege tool assignment, and registration in CLAUDE.md/AGENTS.md. Triggers on: create agent, new agent, build agent, convert skill to agent, turn this into an agent."
-user-invocable: false
 ---
 
 # Agent Forge
