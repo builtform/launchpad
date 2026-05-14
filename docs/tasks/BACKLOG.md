@@ -2129,9 +2129,9 @@ _Previous status (superseded by SUBSUMED above, retained for audit trail):_ NEW 
 
 #### BL-326 - v2.1.4: v2.1.3 PR #66 deferred polish items bundle
 
-**Status (2026-05-14)**: NEW — surfaced across 6 review cycles on PR #66 (v2.1.3 polish release). Six small polish items deferred from v2.1.3 to keep the polish release tightly scoped; bundled here as a v2.1.4 cleanup. All are documentation/metadata hygiene with no runtime impact.
+**Status (2026-05-14)**: NEW — surfaced across 7 review cycles on PR #66 (v2.1.3 polish release). Seven small polish items deferred from v2.1.3 to keep the polish release tightly scoped; bundled here as a v2.1.4 cleanup. All are documentation/metadata hygiene or low-urgency hardening with no runtime impact on the v2.1.3 surface.
 
-**Source**: PR #66 /lp-review Cycle 1 (architecture-strategist + simplicity reviewer) + Codex re-review on 041470b.
+**Source**: PR #66 /lp-review Cycle 1 (architecture-strategist + simplicity reviewer) + Codex re-reviews on 041470b + 01cd4df.
 
 **Items**:
 
@@ -2147,7 +2147,9 @@ _Previous status (superseded by SUBSUMED above, retained for audit trail):_ NEW 
 
 6. **`docs/releases/v2.1.3.md:19` lp-port-skill.md omission** (Codex P3 on 041470b): the methodology-attribution file list in `docs/releases/v2.1.3.md:19` mentions 4 files but omits `plugins/launchpad/commands/lp-port-skill.md` (added in Phase 3 amendments via PR #66 commit 8d4ce79). The parallel `CHANGELOG.md:24` entry correctly lists all 5 files; only the release-notes line is out of sync. Trivial 1-line accuracy fix.
 
-**Default decision**: defer to v2.1.4. None of the 6 items block merge or affect runtime behavior. All are documentation/metadata hygiene; bundling them prevents 6 micro-PRs and lets v2.1.4 absorb them with the broader hardening bundle.
+7. **`[skip codex]` token author_association gate** (Codex P2 on 01cd4df): the `[skip codex]` PR-title token added in v2.1.3 Phase 8 (see `.github/workflows/codex-review.yml`) trusts whoever set the PR title. On a solo-maintainer repo this is fine, but if outside contributors are ever granted PR-title edit rights, a contributor could bypass review by toggling the token. Defense-in-depth fix: extend the workflow `if:` block to additionally require `github.event.pull_request.author_association` ∈ `{OWNER, MEMBER, COLLABORATOR}` for the skip to apply. Low urgency at current contributor model (solo) but worth wiring before the contributor surface widens.
+
+**Default decision**: defer to v2.1.4. None of the 7 items block merge or affect runtime behavior of v2.1.3. All are documentation/metadata hygiene or low-urgency hardening; bundling them prevents 7 micro-PRs and lets v2.1.4 absorb them with the broader hardening bundle.
 
 **Push-back log** (not in BL-326 scope; documented here to prevent re-flagging by future review cycles): the following items from PR #66 reviews were re-evaluated as design choices / conventions / non-issues, NOT real defects requiring fix or defer:
 

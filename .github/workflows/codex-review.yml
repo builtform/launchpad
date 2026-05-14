@@ -2,7 +2,12 @@ name: Codex Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review]
+    # `edited` is included so that toggling the `[skip codex]` token in
+    # the PR title (see `if:` block below) re-evaluates the gate without
+    # requiring a new commit. Without it, a maintainer removing the
+    # token from the title to re-enable Codex on the final PR state
+    # would have to push an empty commit to trigger a re-run.
+    types: [opened, synchronize, ready_for_review, edited]
 
 permissions:
   contents: read
