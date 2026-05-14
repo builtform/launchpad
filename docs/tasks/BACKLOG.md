@@ -2126,3 +2126,37 @@ _Previous status (superseded by SUBSUMED above, retained for audit trail):_ NEW 
 **At v2.1.4 design time**: replace each `| xargs -0 -r TOOL [args]` with `| xargs -0 sh -c '[ "$#" -eq 0 ] && exit 0; exec TOOL [args] -- "$@"' _`. The `sh -c` wrapper provides explicit empty-guard in POSIX-strict form. Adds ~35 chars per hook. Touches both the consumer-side `_python_gates.j2.fragment` partial (would trigger a one-time MANIFEST_TAMPERED for installed consumers per BL-316 composite hash — `--accept-plugin-version-drift` covers it) and the maintainer-side `lefthook.yml`. Update the regression test `test_xargs_pipeline_resists_shell_metacharacter_injection` to assert the new `sh -c` form is present.
 
 **Default decision**: defer to v2.1.4. Real risk is theoretical for LaunchPad's target audience (modern macOS + Linux + Alpine). Fix is mechanical and pairs naturally with v2.1.4's broader hardening lane.
+
+#### BL-326 - v2.1.4: v2.1.3 PR #66 deferred polish items bundle
+
+**Status (2026-05-14)**: NEW — surfaced across 6 review cycles on PR #66 (v2.1.3 polish release). Six small polish items deferred from v2.1.3 to keep the polish release tightly scoped; bundled here as a v2.1.4 cleanup. All are documentation/metadata hygiene with no runtime impact.
+
+**Source**: PR #66 /lp-review Cycle 1 (architecture-strategist + simplicity reviewer) + Codex re-review on 041470b.
+
+**Items**:
+
+1. **Meta-Skill Forge teaches `user-invocable` field** (architecture P2 from /lp-review Cycle 1): `plugins/launchpad/skills/lp-creating-skills/SKILL.md` and `plugins/launchpad/skills/lp-creating-agents/SKILL.md` should be extended with frontmatter-section bullets instructing future skill/agent authors to include `user-invocable: false` when the skill is loaded by a workflow command, or `user-invocable: true` (or omit) when directly user-invokable. Prevents the next `/lp-create-skill` invocation from reproducing the v2.1.3 gap. Same pattern as v2.1.3's methodology-attribution guidance (which IS taught by the Forge).
+
+2. **Methodology-skill scope taxonomy** (architecture P2 from /lp-review Cycle 1 + Codex P3 on 041470b): `lp-react-best-practices` and `lp-stripe-best-practices` are categorized as "Methodology Skills" in `docs/skills-catalog/skills-index.md`, distinct from "Process Skills". v2.1.3 release notes called all 16 "process skills" — imprecise framing relative to the catalog's process/design/methodology/utility split. v2.1.4: either reconcile the release-notes wording to "harness skills" / "plugin-shipped skills", OR reconsider whether methodology rulesets should be more discoverable for ad-hoc review (which would affect their `user-invocable` value).
+
+3. **`docs/growth/` in REPOSITORY_STRUCTURE.md routing table** (architecture P3 from /lp-review Cycle 1): the new top-level docs subdir (added in v2.1.3) is not listed in `docs/architecture/REPOSITORY_STRUCTURE.md` Section 6 (directory routing). The decision tree is silent on `docs/growth/`. Add a row: `| docs/growth/ | Internal positioning/sales/copy strategy work — README + .gitignore tracked; rest gitignored |`.
+
+4. **`docs/growth/` in CODEOWNERS** (architecture P3 from /lp-review Cycle 1): currently `.github/CODEOWNERS` covers `/.github/` and `/plugins/launchpad/` but not `docs/growth/`. Adding `docs/growth/ @foadshafighi` (or equivalent maintainer entry) means any future change to the allowlist gitignore goes through review — defense against accidental leakage of strategy content via a renamed file or third allowlist entry. Low-priority defense-in-depth.
+
+5. **CHANGELOG embedded fix recipe cleanup** (simplicity P3.1 from /lp-review Cycle 1): `CHANGELOG.md:30` (in the v2.1.3 entry) embeds the full bash recipe for BL-325's `xargs -r` portability fix. The recipe is the BACKLOG's job (already in `BACKLOG.md`); CHANGELOG should say "fix tracked in BL-325" and stop. v2.1.4 cleanup: remove the embedded recipe from the v2.1.3 CHANGELOG entry.
+
+6. **`docs/releases/v2.1.3.md:19` lp-port-skill.md omission** (Codex P3 on 041470b): the methodology-attribution file list in `docs/releases/v2.1.3.md:19` mentions 4 files but omits `plugins/launchpad/commands/lp-port-skill.md` (added in Phase 3 amendments via PR #66 commit 8d4ce79). The parallel `CHANGELOG.md:24` entry correctly lists all 5 files; only the release-notes line is out of sync. Trivial 1-line accuracy fix.
+
+**Default decision**: defer to v2.1.4. None of the 6 items block merge or affect runtime behavior. All are documentation/metadata hygiene; bundling them prevents 6 micro-PRs and lets v2.1.4 absorb them with the broader hardening bundle.
+
+**Push-back log** (not in BL-326 scope; documented here to prevent re-flagging by future review cycles): the following items from PR #66 reviews were re-evaluated as design choices / conventions / non-issues, NOT real defects requiring fix or defer:
+
+- `user-invocable: false` on `lp-creating-skills`/`lp-creating-agents` claimed to contradict natural-language triggers — per maintainer's clarification, the field controls visibility in Claude Code's slash-command (`/`) dropdown picker ONLY; natural-language activation remains active. No semantic conflict.
+- README's two competitive landscape tables (the 7-row prose table at lines 24-36 + the 9-criteria check-mark grid at lines 130-156) — the two tables serve different reader contexts (positioning narrative vs feature-comparison grid); both load-bearing.
+- Methodology-attribution guidance duplicated across 4 surfaces (lp-create-agent.md, lp-create-skill.md, lp-creating-agents/SKILL.md, lp-creating-skills/SKILL.md) — each surface is consumed independently; cross-referencing would add indirection without saving meaningful bytes.
+- CHANGELOG/release-notes/ROADMAP narrative duplication — Keep-a-Changelog convention treats these as different-audience artifacts at different verbosity; consolidation would break tooling expectations.
+- "What stayed out" section in `docs/releases/v2.1.3.md` duplicating BACKLOG content — release notes are point-in-time snapshots; BACKLOG is mutable; snapshot duplication is intentional for historical reproducibility.
+- README marketing prose ("LaunchPad is the only row that ships all nine", "Why the combination matters", per-competitor `vs X` sections) — maintainer's intentional positioning content.
+- CHANGELOG v2.1.1 historical block retains "Deferred to v2.1.3" lines for BL-298..BL-307 — Keep-a-Changelog convention says published version blocks are historically immutable.
+- CHANGELOG `[v2.1.3]` entry doesn't cite "PR #66" parallel to v2.1.2 citing "PR #65" — cosmetic parallelism, opt-in.
+- `docs/growth/` internal strategy files (positioning.md, sales-pitch-storyboard.md, prepositioning-readme.md) referencing v2.1.2 in their text — gitignored; never ship to public surface; impossible to "fix".
