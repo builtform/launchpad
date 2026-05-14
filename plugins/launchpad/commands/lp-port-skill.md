@@ -69,3 +69,7 @@ Examples:
 - Use /lp-update-skill to iterate on ported skills (same as any other project skill)
 - Use /lp-create-skill to build skills from scratch instead
 - The porting guide is at `${CLAUDE_PLUGIN_ROOT}/skills/lp-creating-skills/references/PORTING-GUIDE.md`
+
+## Methodology attribution
+
+When the ported skill operationalizes a named author's published work (book, course, article) — which is the most common porting scenario since you are adapting third-party authored material — the same framework-citation rules from `/lp-create-skill` apply. Use framework-citation form ("Based on [author]'s [framework]", "Operationalizes [author]'s methodology", "Frameworks taught by [author]", author + book title in a recommended-reading list, framework-naming with attribution). Avoid ingestion form ("faithful reading", "book-faithful", "ingested" / "books to ingest", "derived from a reading/study/pass of the book", "preserves [author]'s exact terminology/phrasing/wording", block-quote epigraphs attributed to authors, "[Author] writes / notes / explicitly states", section-level book references like "Part 5 of [Book]" or "Chapter 3", author-attributed phrase quotes). The porting guide at `${CLAUDE_PLUGIN_ROOT}/skills/lp-creating-skills/references/PORTING-GUIDE.md` and the underlying `lp-creating-skills` skill carry the full guidance + verification grep recipe.

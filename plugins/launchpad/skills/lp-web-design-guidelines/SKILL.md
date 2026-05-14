@@ -1,6 +1,7 @@
 ---
 name: lp-web-design-guidelines
 description: Engineering compliance checklist for building accessible, performant, correct web interfaces. Covers keyboard, focus, forms, animation, typography, content handling, images, performance, navigation, touch, layout, dark mode, i18n, hydration, and anti-patterns. Complements the frontend-design skill (creative direction) with technical correctness rules.
+user-invocable: false
 ---
 
 <!-- ported-from: https://github.com/vercel-labs/web-interface-guidelines

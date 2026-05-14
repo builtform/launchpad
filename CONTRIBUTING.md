@@ -14,14 +14,7 @@ pnpm install
 
 `pnpm install` also installs Lefthook git hooks. The first commit you make in the repo will trigger them.
 
-If you want the plugin loaded into your local Claude Code while you work on it, use the local-path install:
-
-```
-/plugin marketplace add /absolute/path/to/your/launchpad-clone
-/plugin install launchpad@builtform
-```
-
-Restart Claude Code. Your `/lp-*` commands now run from your working tree — re-install or restart Claude Code after edits to pick them up.
+If you want the plugin loaded into your local Claude Code so you can use the `/lp-*` commands while you work, install it from the public BuiltForm catalog by following the steps in [README.md → Install](README.md#install). The catalog install pulls the latest released version, not your working-tree changes — contributors testing in-progress work locally should rely on `pnpm test` + `pnpm typecheck` + `pnpm lint` (below) plus the lefthook pre-commit gates rather than a live plugin install.
 
 ## Running tests
 

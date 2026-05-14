@@ -1,6 +1,7 @@
 ---
 name: lp-creating-skills
 description: "Creates new Claude Code skills using the 7-phase Meta-Skill Forge methodology. Produces quality-validated skills with progressive disclosure, evaluation loops, and contrarian analysis. Use when creating a new skill, teaching Claude a new workflow, building a custom agent capability, or automating a repeatable task. Triggers on: create skill, new skill, build skill, teach Claude, make a skill for."
+user-invocable: false
 ---
 
 # Meta-Skill Forge
@@ -200,6 +201,10 @@ Read [references/SKILL-TEMPLATE.md](mdc:references/SKILL-TEMPLATE.md) and [refer
 4. **No hedge language.** Remove "consider", "you might want to", "it's generally a good idea". Use imperatives: "Run", "Check", "Emit", "Reject".
 5. **Visible output per phase.** Every phase in the skill produces a named artifact the user can inspect.
 6. **Explicit loading triggers.** Each reference file loading is a specific instruction: "Read [file](path) before proceeding to [next step]."
+7. **Methodology attribution in framework-citation form.** When the skill operationalizes a named author's published work (book, course, article), write attribution in framework-citation form — never ingestion form.
+   - **Use:** "Based on [author]'s [framework]", "Operationalizes [author]'s methodology", "Frameworks taught by [author]", author + book title in a recommended-reading list, framework-naming with attribution (e.g., "Hormozi's $100M Offers methodology", "Dunford's 5-component framework").
+   - **Avoid:** "faithful reading", "book-faithful", "ingested" / "books to ingest", "derived from a reading/study/pass of the book", "preserves [author]'s exact terminology/phrasing/wording", block-quote epigraphs attributed to authors (`> "..." — Author`), "[Author] writes / notes / explicitly states", section-level book references like "Part 5 of [Book]" or "Chapter 3", author-attributed phrase quotes (`Author's "exact phrase here"`).
+   - After writing, verify clean with the following grep recipe. The `<author-names>` token below is a literal placeholder — before running, replace it with the actual author surnames from the methodology the skill operationalizes (e.g., `Hormozi|Dunford|Veloso`), pipe-separated. Recipe: `grep -rn -iE "faithful (reading|end-to-end|pass)|book-?faithful|ingest|preserve.*exact|(<author-names>) (notes|writes|explicitly)|Part [0-9]+ of" --include="*.md" .claude/skills/<skill-name>/`
 
 ### File Creation
 

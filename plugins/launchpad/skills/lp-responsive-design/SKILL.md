@@ -1,6 +1,7 @@
 ---
 name: lp-responsive-design
 description: "Injects responsive-first thinking into section specs and design definitions. Loaded by spec-layer commands (/lp-shape-section, /lp-define-design, /lp-pnf) to ensure every spec includes explicit mobile-first layout decisions, breakpoint behavior per component, container query strategy, touch target requirements, and fluid typography. Triggers on: loaded alongside /lp-shape-section, /lp-define-design, /lp-pnf."
+user-invocable: false
 ---
 
 # Responsive Design — Spec Layer Skill

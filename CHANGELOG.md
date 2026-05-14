@@ -8,6 +8,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 Tracked in [ROADMAP.md](ROADMAP.md). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` (BL-251 through BL-254) for v2.2-deferred items captured during v2.1 ship.
 
+## [v2.1.3]
+
+Polish release: documentation refresh + skill metadata correction + obsolete skill removal. No code-path changes. One intentional behavior change for users who previously relied on natural-language phrases to trigger `/lp-commit` — see the lp-commit skill retirement note below; it is by design (two-path commit workflow: `/lp-commit` for the full quality-gated path, natural-language commit phrases for a deliberate quick-bypass path that skips the gates). v2.1.3 is the version Anthropic Marketplace points at for the initial directory submission.
+
+### For LaunchPad users (downstream behavior changes)
+
+- **Skill discovery surface narrows.** Fourteen process skills (loaded by workflow commands; not directly user-invokable through any documented path) gain a `user-invocable: false` frontmatter field: `lp-brainstorming`, `lp-compound-docs`, `lp-creating-skills`, `lp-document-review`, `lp-frontend-design`, `lp-imgup`, `lp-prd`, `lp-rclone`, `lp-react-best-practices`, `lp-responsive-design`, `lp-step-zero`, `lp-stripe-best-practices`, `lp-tasks`, `lp-web-design-guidelines`. Claude Code uses this field to decide which skills are shown in user-facing skill lists. Net effect: cleaner skill autocomplete; users see only the skills they can directly trigger. Two skills are intentionally NOT given the field — `lp-creating-agents` (documented in the catalog as loaded by both `/lp-create-agent` AND natural language) and `lp-verification-before-completion` (documented as auto-triggering on completion-claim phrasing across commands). Adding the field to either would risk silently disabling a documented activation path under whatever Claude Code's `user-invocable` semantics resolves to.
+- **`lp-commit` skill removed.** The `/lp-commit` slash command is unaffected — only the redundant `SKILL.md` sidecar (which duplicated the command's content) is gone. **Behavior change for natural-language users**: the deleted SKILL.md previously routed phrases like "commit changes", "commit this", "commit my work", and "ready to commit" to `/lp-commit` automatically. Those natural-language triggers no longer fire — to commit, invoke `/lp-commit` explicitly. The slash command itself is functionally identical. Anyone scripting against `plugins/launchpad/skills/lp-commit/SKILL.md` directly should switch to `plugins/launchpad/commands/lp-commit.md`.
+- **Skills catalog count.** `docs/skills-catalog/skills-index.md` and `docs/skills-catalog/README.md` updated from 17 → 16 installed skills.
+
+### For LaunchPad maintainers (developer-facing changes)
+
+- **README major rewrite.** Top-level `README.md` replaces the terse one-line tagline with a structured pitch: "The cold-session tax" framing of the problem, a 7-row competitive landscape table (status quo / methodology plugins / first-party platform features / spec-driven IDEs / context-engineering systems / autonomous-engineer products / loop-and-orchestration toolkits), and a sharper distillation of LaunchPad's specific kernel surface. The competitive table positions LaunchPad against Compound Engineering, Superpowers, BMAD-METHOD, Anthropic Code Review, GitHub SpecKit, AWS Kiro, Tessl, HumanLayer CRISPY, Agent OS, Continue.dev, Devin, OpenHands, Factory.ai, Ralph Loop, Claude Flow, and Goose. Net delta: +259 lines.
+- **Methodology-attribution guidance added.** `plugins/launchpad/commands/lp-create-agent.md`, `lp-create-skill.md`, `lp-port-skill.md`, `plugins/launchpad/skills/lp-creating-agents/SKILL.md`, and `plugins/launchpad/skills/lp-creating-skills/SKILL.md` gain a "Methodology attribution" section instructing agent/skill creators to use framework-citation form ("Based on [author]'s [framework]", "Operationalizes [author]'s methodology") rather than ingestion form ("faithful reading", "book-faithful", "ingested", "preserves exact terminology"). Verification grep recipe included. Prevents attribution drift in future agent/skill generation.
+- **`docs/growth/` folder added with allowlist gitignore.** A new top-level docs folder (`docs/growth/`) lands with a nested `.gitignore` that allowlist-tracks only `README.md` + `.gitignore` itself; everything else (positioning.md, sales-pitch-storyboard.md, prepositioning-readme.md, and any future strategy work) is gitignored. The tracked `README.md` is the public-facing pointer to the paid Growth Toolkit plugin; the rest is internal strategy work that lives in the repo but stays out of git.
+
+### Backlog hygiene
+
+- **v2.1.3 → v2.1.4 retargets.** The originally-planned v2.1.3 hardening bundle (~22 items surfaced during v2.1.1 sweeps + Phase 4 deferrals) shifts to v2.1.4 to keep v2.1.3 narrowly scoped as a polish release. BL-297 (corpus-trained reviewer), 9 "defer to v2.1.3" decision lines, and 7 "At v2.1.3 design time" headings retargeted in `docs/tasks/BACKLOG.md`.
+- **BL-325 seeded (v2.1.4).** New entry for `xargs -r` portability defense-in-depth: Codex flagged on PR #65 commit `0818c16` that `xargs -r` is GNU-specific; empirically disproven on macOS BSD xargs (silently accepts the flag), but worth fixing in v2.1.4 as defense-in-depth for exotic Unix variants. Fix recipe documented: `| xargs -0 sh -c '[ "$#" -eq 0 ] && exit 0; exec TOOL [args] -- "$@"' _` across 12 hook entries.
+
+### Verification
+
+- 1457 tests pass (4 skipped); manifest-version-contract test (BL-319) confirms `plugin.json.version` (2.1.3) matches the latest non-placeholder CHANGELOG heading.
+- All lefthook pre-commit hooks pass on the new content (prettier, structure-check, large-file-guard, trailing-whitespace, end-of-file-newline, workflow-action-sha-pin).
+
 ## [v2.1.2]
 
 Consumer-side Python lefthook propagation (BL-316). Projects scaffolded with the `nextjs_fastapi` stack now get bandit + ruff-check + ruff-format-check (pre-commit) and pyright + pytest (pre-push) in their generated `lefthook.yml`, propagated from the v2.1.1 self-host gates via a shared `_partials/_python_gates.j2.fragment` partial. Two ride-along fixes (BL-317 dead-code, BL-321 sibling-doc sync) and one new release-engineering invariant test (BL-319) round out the lane.
@@ -252,7 +278,8 @@ Carried forward into v1.1:
 
 Full v1.1 scope in [ROADMAP.md](ROADMAP.md).
 
-[Unreleased]: https://github.com/builtform/launchpad/compare/v2.1.2...HEAD
+[Unreleased]: https://github.com/builtform/launchpad/compare/v2.1.3...HEAD
+[v2.1.3]: https://github.com/builtform/launchpad/compare/v2.1.2...v2.1.3
 [v2.1.2]: https://github.com/builtform/launchpad/compare/v2.1.1...v2.1.2
 [v2.1.1]: https://github.com/builtform/launchpad/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/builtform/launchpad/compare/v2.0.0...v2.1.0

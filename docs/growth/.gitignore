@@ -1,0 +1,6 @@
+# docs/growth/ is internal strategy work — gitignore all contents
+# except this folder's own README.md, which is the public-facing
+# pointer to the paid Growth Toolkit plugin.
+*
+!.gitignore
+!README.md

@@ -1,6 +1,7 @@
 ---
 name: lp-tasks
 description: "Convert a PRD markdown file to prd.json for execution. Triggers on: convert prd, create tasks, prd to json, generate tasks from prd."
+user-invocable: false
 ---
 
 # Tasks - Convert PRD to JSON Format

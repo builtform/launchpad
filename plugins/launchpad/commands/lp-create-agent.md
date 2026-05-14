@@ -98,3 +98,7 @@ Examples:
 - For creating skills (multi-phase workflows), use `/lp-create-skill` instead
 - For updating existing agents, edit the agent file directly
 - The creating-agents skill is located at `${CLAUDE_PLUGIN_ROOT}/skills/lp-creating-agents/SKILL.md`
+
+## Methodology attribution
+
+When the new agent is built around a named author's published work (book, course, article), the underlying `lp-creating-agents` skill writes attribution in **framework-citation form** during Phase 4 — never in ingestion form. Acceptable: "Based on [author]'s [framework]", "Operationalizes [author]'s methodology", "Frameworks taught by [author]", author + book title in a recommended-reading list, framework-naming with attribution. Avoided: "faithful reading", "book-faithful", "ingested" / "books to ingest", "derived from a reading of the book", "preserves [author]'s exact terminology/phrasing/wording", block-quote epigraphs attributed to authors, "[Author] writes / notes / explicitly states", section-level book references like "Part 5 of [Book]" or "Chapter 3", author-attributed phrase quotes.
