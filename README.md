@@ -216,7 +216,7 @@ LaunchPad ships as a Claude Code plugin with:
 
 | Component       | Count     | What it covers                                                                          |
 | --------------- | --------- | --------------------------------------------------------------------------------------- |
-| Slash commands  | 38        | The brainstorm, define, plan, build, review, resolve, ship, and learn lifecycle         |
+| Slash commands  | 42        | The brainstorm, define, plan, build, review, resolve, ship, and learn lifecycle         |
 | Sub-agents      | 36        | 6 namespaces: research, review, resolve, design, skills, document-review                |
 | Skills          | 16        | Reusable instruction sets for design, planning, review, compound docs                   |
 | Runtime scripts | several   | Stack detector, polyglot adapter, Jinja2 doc generator, install scripts                 |

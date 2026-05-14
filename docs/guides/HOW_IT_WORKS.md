@@ -415,11 +415,11 @@ Autonomous shipping pipeline. Stages tracked files, runs quality gates (parallel
 
 ### `/lp-commit`
 
-Interactive commit workflow with optional code review chain:
+Interactive commit workflow with **mandatory dual-pass code review** (v2.1.1 hardening):
 
 1. Branch guard (refuses to commit on main/master, suggests branch name)
 2. Stage and review (user selects files)
-3. Optional code review: `/lp-review --headless` → `/lp-triage` → `/lp-resolve-todo-parallel`
+3. Mandatory dual-pass review: specialist pass via `/lp-review --headless`, then blind pass via `/lp-review --headless --no-context`, then `/lp-triage` → `/lp-resolve-todo-parallel`. `--skip-review` is honored only on hotfix branches behind a TTY-guarded confirmation and audit-trail trailer (v2.1.1 contract).
 4. Skill staleness audit (non-blocking)
 5. Quality gates in parallel (test/typecheck/lint + pre-commit hooks)
 6. Commit message generation and user approval

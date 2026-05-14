@@ -10,7 +10,7 @@ Tracked in [ROADMAP.md](ROADMAP.md). v2.2 lands the 15 operational/security infr
 
 ## [v2.1.3]
 
-Polish release: documentation refresh + skill metadata correction + obsolete skill removal. No code-path changes; no behavior regression for existing consumers. v2.1.3 is the version Anthropic Marketplace points at for the initial directory submission.
+Polish release: documentation refresh + skill metadata correction + obsolete skill removal. No code-path changes. One intentional behavior change for users who previously relied on natural-language phrases to trigger `/lp-commit` — see the lp-commit skill retirement note below; it is by design (two-path commit workflow: `/lp-commit` for the full quality-gated path, natural-language commit phrases for a deliberate quick-bypass path that skips the gates). v2.1.3 is the version Anthropic Marketplace points at for the initial directory submission.
 
 ### For LaunchPad users (downstream behavior changes)
 
