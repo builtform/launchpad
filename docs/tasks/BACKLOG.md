@@ -2079,11 +2079,11 @@ Additionally, `lp-test-browser.md:103` is a SECOND writer of `.harness/todos/*.m
 
 **Default decision**: defer to v2.1.x. Real migration work (~2-4h); not critical given Prisma 6.x is still supported.
 
-#### BL-323 - v2.1.3: lefthook.yml multi-stack last-key-wins drop in outer renderer
+#### BL-323 - v2.1.4: lefthook.yml multi-stack last-key-wins drop in outer renderer
 
 **Status (2026-05-10)**: SUBSUMED by v2.1.2 Slice 4c.4 production wiring (PR #65). The runtime regression for multi-stack consumer scaffolds is closed natively because `lp_bootstrap.stack_lefthook.enrich_lefthook_with_stacks` routes through `merge_keys_additive` (additive map-merge, first-declared-wins on duplicate command names) rather than the test-only outer template's text concatenation — last-key-wins YAML drop is impossible by construction. Multi-stack `[nextjs_fastapi, astro]` parsed-YAML assertion added in `tests/test_lp_bootstrap_stack_lefthook.py::test_multi_stack_composition_runtime_yaml_keeps_all_gates` (both orderings). The outer template `lefthook.yml.j2.outer` remains test-only at v2.1.2 and is unused in production; v2.1.4 may delete it as dead code or refactor it to use the same merge helper.
 
-**Status (2026-05-10)**: NEW — surfaced by Codex P1-B on PR #65 (v2.1.2). Real regression risk for multi-stack scaffolds that include `nextjs_fastapi`; deferred to v2.1.3 per locked v2.1.2 scope.
+_Previous status (superseded by SUBSUMED above, retained for audit trail):_ NEW — surfaced by Codex P1-B on PR #65 (v2.1.2). Real regression risk for multi-stack scaffolds that include `nextjs_fastapi`; deferred to v2.1.3 per locked v2.1.2 scope.
 
 **Source**: PR #65 Codex re-review (2026-05-10; v2.1.4 candidate)
 

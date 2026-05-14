@@ -168,7 +168,7 @@ Write all 8 sections in this exact order. For simpler agents, sections are short
 - **Methodology attribution in framework-citation form.** When the agent operationalizes a named author's published work (book, course, article), write attribution in framework-citation form — never ingestion form.
   - **Use:** "Based on [author]'s [framework]", "Operationalizes [author]'s methodology", "Frameworks taught by [author]", author + book title in a recommended-reading list, framework-naming with attribution (e.g., "Hormozi's $100M Offers methodology", "Dunford's 5-component framework").
   - **Avoid:** "faithful reading", "book-faithful", "ingested" / "books to ingest", "derived from a reading/study/pass of the book", "preserves [author]'s exact terminology/phrasing/wording", block-quote epigraphs attributed to authors (`> "..." — Author`), "[Author] writes / notes / explicitly states", section-level book references like "Part 5 of [Book]" or "Chapter 3", author-attributed phrase quotes (`Author's "exact phrase here"`).
-  - After writing, verify clean with: `grep -rn -iE "faithful (reading|end-to-end|pass)|book-?faithful|ingest|preserve.*exact|(Author1|Author2|...) (notes|writes|explicitly)|Part [0-9]+ of" --include="*.md" .claude/agents/<agent-name>.md`
+  - After writing, verify clean with the following grep recipe. The `<author-names>` token below is a literal placeholder — before running, replace it with the actual author surnames from the methodology the agent operationalizes (e.g., `Hormozi|Dunford|Veloso`), pipe-separated. Recipe: `grep -rn -iE "faithful (reading|end-to-end|pass)|book-?faithful|ingest|preserve.*exact|(<author-names>) (notes|writes|explicitly)|Part [0-9]+ of" --include="*.md" .claude/agents/<agent-name>.md`
 
 ### File Placement
 

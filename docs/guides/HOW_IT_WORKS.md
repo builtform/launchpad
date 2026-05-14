@@ -72,7 +72,7 @@ Don't `npm init`, don't drop in a `pyproject.toml`, don't open the folder in Fin
 
 ### Verifying installation
 
-After restart, type `/lp-` and Claude Code should autocomplete with LaunchPad commands. You can also confirm via `claude plugin list` in your terminal: LaunchPad should appear with the version from `plugins/launchpad/.claude-plugin/plugin.json` (`2.1.0` at the time of writing) and marketplace `builtform`.
+After restart, type `/lp-` and Claude Code should autocomplete with LaunchPad commands. You can also confirm via `claude plugin list` in your terminal: LaunchPad should appear with the version from `plugins/launchpad/.claude-plugin/plugin.json` and marketplace `builtform`.
 
 ### Install scopes
 
@@ -929,4 +929,4 @@ For the canonical post-tag verification flow and the rollback procedure if `veri
 - [README](../../README.md)
 - [Methodology](METHODOLOGY.md), architecture, design principles, credits
 - [Repository Structure](../architecture/REPOSITORY_STRUCTURE.md), file-placement decision tree
-- [Release notes](../releases/v2.1.0.md)
+- [Release notes](../releases/v2.1.3.md)
