@@ -25,9 +25,15 @@ jobs:
     # token on/off via `gh pr edit <number> --title "<new title>"`;
     # remove the token before merge if you want Codex to fire on the
     # final state.
+    # Check the PR author (`pull_request.user.login`) rather than
+    # `github.actor`. On `pull_request.edited` events, `github.actor` is
+    # whoever edited the title/body — for a maintainer-edited Dependabot
+    # PR that would be the maintainer, not Dependabot, and the skip
+    # would no longer apply. The PR author is stable across all event
+    # types.
     if: |
       !github.event.pull_request.draft &&
-      github.actor != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
       !contains(github.event.pull_request.title, '[skip codex]')
 
     steps:
