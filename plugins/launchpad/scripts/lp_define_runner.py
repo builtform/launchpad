@@ -695,14 +695,21 @@ def _kernel_fallback_render(repo_root: Path) -> None:
         renderer.render_all(repo_root, identity, only_paths=missing)
     except SecretScannerViolation as exc:
         # v2.1.5 round-3 review fix A6: DO NOT swallow the scanner gate.
-        # A hostile identity value reaching the fallback render must NOT
-        # be allowed to fall through to `/lp-define`'s main pipeline; the
-        # user has to clear the finding before re-running.
+        # Surface as `error:` so the user sees the gate fired AND no
+        # kernel files were written. The fallback aborts here; /lp-define's
+        # main pipeline still runs against its own templates (which have
+        # their own secret-scan gate). v2.1.5 round-4 fix arch-F3 clarifies:
+        # we do NOT propagate / sys.exit to halt /lp-define entirely —
+        # that would be a behavior change deferred to v2.1.6. The current
+        # contract: scanner-refused kernel fallback = kernel files not
+        # written, user must clear scaffold-decision.json identity block
+        # and re-run for a successful kernel-fallback render.
         print(
             f"error: BL-341 kernel-fallback REFUSED — secret scanner "
             f"found {exc.refused_count} match(es). NO kernel files were "
             f"written. Clear the finding in scaffold-decision.json "
-            f"identity block and re-run.",
+            f"identity block and re-run `/lp-update-identity` or "
+            f"`/lp-scaffold-stack` to recover.",
             file=sys.stderr,
         )
         return
