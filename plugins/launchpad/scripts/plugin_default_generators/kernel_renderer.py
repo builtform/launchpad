@@ -89,10 +89,19 @@ class KernelRenderer(RendererBase):
     def render_targets(self, context: Mapping[str, Any]) -> Iterator[tuple[Path, str]]:
         """Yield `(absolute_target_path, rendered_text)` for each kernel
         template. Context must carry `cwd: Path` and `identity: Mapping`.
+
+        Optional `only_paths` in the context narrows iteration to the
+        given subset of `KERNEL_FILES` output relpaths (mirrors the
+        InfrastructureRenderer shape; lets BL-341 fallback render ONLY
+        the missing kernel files instead of clobbering everything).
         """
         cwd: Path = context["cwd"]
         identity: Mapping[str, Any] = context["identity"]
+        only_paths = context.get("only_paths")
+        allowed = set(only_paths) if only_paths is not None else None
         for template_name, output_relpath in KERNEL_FILES:
+            if allowed is not None and output_relpath not in allowed:
+                continue
             text = self.render_to_string(template_name, identity)
             yield cwd / output_relpath, text
 
@@ -154,6 +163,7 @@ class KernelRenderer(RendererBase):
         self,
         cwd: Path,
         identity: Mapping[str, Any],
+        only_paths: Sequence[str] | None = None,
     ) -> tuple[list[tuple[Path, str]], list[dict]]:
         """Render all 7 kernel files into `cwd` via the buffered-batch flow.
 
@@ -172,14 +182,30 @@ class KernelRenderer(RendererBase):
             lp_pick_stack.decision_writer.
 
         Phase 8.5 plan section 3.11: secret-scanner gate fires on the full
-        7-file batch before any single file lands on disk.
+        rendered batch before any single file lands on disk.
+
+        v2.1.5 BL-341 round-3 review fix (A1): `only_paths` narrows the
+        write to the given subset of `KERNEL_FILES` output relpaths.
+        Lets the `_kernel_fallback_render` path render ONLY the missing
+        kernel files instead of overwriting user-edited ones. Unknown
+        paths raise ValueError. None (default) preserves prior behavior:
+        render the entire 7-file batch.
 
         `cwd` is the project root, NOT a layer subpath.
         """
+        if only_paths is not None:
+            known = {output_relpath for _t, output_relpath in KERNEL_FILES}
+            unknown = [p for p in only_paths if p not in known]
+            if unknown:
+                raise ValueError(
+                    f"unknown kernel render path(s): {unknown!r}; "
+                    f"must be one of {sorted(known)}"
+                )
+
         patterns_file = cwd / ".launchpad" / "secret-patterns.txt"
         allowlist_path = cwd / ".launchpad" / "secret-allowlist.txt"
         batch = self.render_batch(
-            [{"cwd": cwd, "identity": identity}],
+            [{"cwd": cwd, "identity": identity, "only_paths": only_paths}],
         )
         self.write_batch(
             batch,
@@ -192,7 +218,10 @@ class KernelRenderer(RendererBase):
         ]
 
         kernel_render_state: list[dict] = []
+        allowed = set(only_paths) if only_paths is not None else None
         for template_name, output_relpath in KERNEL_FILES:
+            if allowed is not None and output_relpath not in allowed:
+                continue
             target = cwd / output_relpath
             if not target.is_file():
                 continue

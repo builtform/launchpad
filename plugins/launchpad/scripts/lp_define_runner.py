@@ -639,21 +639,20 @@ def _kernel_fallback_render(repo_root: Path) -> None:
     if not missing:
         return  # all kernel files present; nothing to fall back on
 
-    # Read identity from scaffold-decision.json.
+    # Read identity from scaffold-decision.json. v2.1.5 round-3 review fix
+    # C6: collapse the two malformed-input paths (unparseable JSON,
+    # missing identity block) into one warning — both indicate a corrupt
+    # scaffold-decision, both have the same recovery.
     try:
         decision = json.loads(decision_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        identity = decision.get("identity") if isinstance(decision, dict) else None
+        if not isinstance(identity, dict) or not identity.get("project_name"):
+            raise ValueError("missing or invalid `identity` block")
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
         print(
-            f"warning: BL-341 kernel-fallback skipped — could not read "
-            f"scaffold-decision.json ({exc})",
-            file=sys.stderr,
-        )
-        return
-    identity = decision.get("identity")
-    if not isinstance(identity, dict) or not identity.get("project_name"):
-        print(
-            "warning: BL-341 kernel-fallback skipped — scaffold-decision.json "
-            "lacks an `identity` block",
+            f"warning: BL-341 kernel-fallback skipped — scaffold-decision.json "
+            f"malformed ({exc}); re-run `/lp-scaffold-stack` or "
+            f"`/lp-update-identity` to recover.",
             file=sys.stderr,
         )
         return
@@ -663,9 +662,38 @@ def _kernel_fallback_render(repo_root: Path) -> None:
         f"({', '.join(missing)}); rendering via KernelRenderer.",
         file=sys.stderr,
     )
+    # v2.1.5 round-3 review fix A1: pass `only_paths=missing` so user-edited
+    # kernel files (README.md, AGENTS.md, …) are NOT overwritten when
+    # only one or two are absent. Without this, render_all clobbered all 7.
     try:
         renderer = KernelRenderer()
-        renderer.render_all(repo_root, identity)
+        renderer.render_all(repo_root, identity, only_paths=missing)
+    except SecretScannerViolation as exc:
+        # v2.1.5 round-3 review fix A6: DO NOT swallow the scanner gate.
+        # A hostile identity value reaching the fallback render must NOT
+        # be allowed to fall through to `/lp-define`'s main pipeline; the
+        # user has to clear the finding before re-running.
+        print(
+            f"error: BL-341 kernel-fallback REFUSED — secret scanner "
+            f"found {exc.refused_count} match(es). NO kernel files were "
+            f"written. Clear the finding in scaffold-decision.json "
+            f"identity block and re-run.",
+            file=sys.stderr,
+        )
+        return
+    except OSError as exc:
+        # v2.1.5 round-3 review fix A6 (architecture-strategist note):
+        # atomic-write OSError mid-batch leaves partial disk state. Refuse
+        # to proceed — the user must inspect and recover before /lp-define
+        # writes additional files on top.
+        print(
+            f"error: BL-341 kernel-fallback aborted — atomic write failed "
+            f"({exc}); partial disk state may remain. Inspect kernel files "
+            f"and re-run `/lp-scaffold-stack` or `/lp-update-identity` to "
+            f"recover.",
+            file=sys.stderr,
+        )
+        return
     except Exception as exc:  # noqa: BLE001 — defense-in-depth swallows
         print(
             f"warning: BL-341 kernel-fallback render failed ({exc}); "
