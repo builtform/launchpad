@@ -1071,7 +1071,7 @@ These are the polish/hardening items the agent surfaced; ruff itself catches a s
 
 If neither is present, exits with: `"this project doesn't ship versioned releases; /lp-release isn't applicable here. If you intend to start shipping releases, see HOW_IT_WORKS.md §Releasing a versioned artifact."`
 
-The command is **NOT a fit for branch-triggered automation projects** (e.g., `ulcspec/ULC` uses `release/vX.Y.Z` branch + auto-tag-on-merge via goreleaser). Detection: if `release/*` branches exist in the project's recent history AND the project has a `release.yml` workflow that runs on `push: branches: [main]` with goreleaser invocation, surface a hint: `"this project appears to use the branch-triggered release pattern (release/vX.Y.Z branch → workflow auto-tags). /lp-release targets the manual ceremony pattern; you don't need it here."`
+The command is **NOT a fit for branch-triggered automation projects** (e.g., projects that use a `release/vX.Y.Z` branch + auto-tag-on-merge via goreleaser). Detection: if `release/*` branches exist in the project's recent history AND the project has a `release.yml` workflow that runs on `push: branches: [main]` with goreleaser invocation, surface a hint: `"this project appears to use the branch-triggered release pattern (release/vX.Y.Z branch → workflow auto-tags). /lp-release targets the manual ceremony pattern; you don't need it here."`
 
 **Why v2.1 (not v2.2)**: post-v2.0 ship rebalance (2026-05-02) expanded v2.1 scope from "BL-236 + BL-237 contributor-experience pair" to include this maintainer-experience entry. Rationale: v2.0.1 ships in days; v2.1 ships within ~1 month after v2.0.0+24h soak; v2.2 is months out. Shipping `/lp-release` in v2.1 means LaunchPad benefits from the automation on every v2.x release after v2.1 lands (v2.2, v2.3, etc.). The command is bounded scope (~3-4h impl + ~2h tests + ~1h docs) and shares the v2.1 ergonomics theme alongside BL-236/BL-237.
 
@@ -2079,7 +2079,9 @@ Additionally, `lp-test-browser.md:103` is a SECOND writer of `.harness/todos/*.m
 
 **Default decision**: defer to v2.1.x. Real migration work (~2-4h); not critical given Prisma 6.x is still supported.
 
-#### BL-323 - v2.1.4: lefthook.yml multi-stack last-key-wins drop in outer renderer
+#### BL-323 - v2.1.5: lefthook.yml multi-stack last-key-wins drop in outer renderer
+
+**Status (2026-05-15)**: RE-TARGETED v2.1.4 → v2.1.5. v2.1.4 ship lane was repurposed for the three ship-blockers surfaced in the 2026-05-14 first-user greenfield dogfood test (BL-327 P0 install-layout catalog path + BL-328 Astro symlink walk_scope + BL-331 generic-as-primary). The originally-planned v2.1.4 hardening bundle (BL-323 + BL-324 + BL-325 + BL-326) moves to v2.1.5 to keep v2.1.4 narrowly scoped. The SUBSUMED-by-v2.1.2 closure remains accurate; the v2.1.4 → v2.1.5 retag is for the optional outer-template dead-code cleanup.
 
 **Status (2026-05-10)**: SUBSUMED by v2.1.2 Slice 4c.4 production wiring (PR #65). The runtime regression for multi-stack consumer scaffolds is closed natively because `lp_bootstrap.stack_lefthook.enrich_lefthook_with_stacks` routes through `merge_keys_additive` (additive map-merge, first-declared-wins on duplicate command names) rather than the test-only outer template's text concatenation — last-key-wins YAML drop is impossible by construction. Multi-stack `[nextjs_fastapi, astro]` parsed-YAML assertion added in `tests/test_lp_bootstrap_stack_lefthook.py::test_multi_stack_composition_runtime_yaml_keeps_all_gates` (both orderings). The outer template `lefthook.yml.j2.outer` remains test-only at v2.1.2 and is unused in production; v2.1.4 may delete it as dead code or refactor it to use the same merge helper.
 
@@ -2099,7 +2101,9 @@ _Previous status (superseded by SUBSUMED above, retained for audit trail):_ NEW 
 
 **Default decision**: defer to v2.1.4. Real but narrow regression (only multi-stack scaffolds involving `nextjs_fastapi` with the unlucky stack ordering); single-stack consumers (the dominant case at v2.1.x) unaffected. Fix is architectural (~1.5–2h with tests) and warrants its own dedicated commit cycle outside v2.1.2's locked scope.
 
-#### BL-324 - v2.1.4: Layer-aware Python workspace probe in shared `_python_gates` partial
+#### BL-324 - v2.1.5: Layer-aware Python workspace probe in shared `_python_gates` partial
+
+**Status (2026-05-15)**: RE-TARGETED v2.1.4 → v2.1.5. See BL-323 for full re-targeting rationale (v2.1.4 lane repurposed for dogfood-test ship-blockers BL-327 + BL-328 + BL-331).
 
 **Status (2026-05-10)**: NEW — surfaced by Codex P2 on PR #65 (v2.1.2). Edge case at v2.1 (no layer overrides yet shipped); deferred to v2.1.4 to ride along with broader stack-adapter layer-override work.
 
@@ -2115,7 +2119,9 @@ _Previous status (superseded by SUBSUMED above, retained for audit trail):_ NEW 
 
 **Default decision**: defer to v2.1.4. v2.1 doesn't ship layer overrides yet, so the regression is theoretical at v2.1.x; v2.1.4 is the natural window when layer-override work lands.
 
-#### BL-325 - v2.1.4: `xargs -r` portability defense-in-depth (POSIX-strict)
+#### BL-325 - v2.1.5: `xargs -r` portability defense-in-depth (POSIX-strict)
+
+**Status (2026-05-15)**: RE-TARGETED v2.1.4 → v2.1.5. See BL-323 for full re-targeting rationale (v2.1.4 lane repurposed for dogfood-test ship-blockers BL-327 + BL-328 + BL-331).
 
 **Status (2026-05-11)**: NEW — surfaced by Codex P1 on PR #65 commit `0818c16` (v2.1.2 Slice 4c.6). Codex claimed `xargs -r` is GNU-specific and would fail on macOS BSD xargs with "illegal option". Empirically DISPROVEN on the maintainer's macOS 25.3.0 native `/usr/bin/xargs`: `-r` is silently accepted (no error, behavior matches GNU's no-run-on-empty). The flag is undocumented in the BSD man page but implemented for GNU-compat. v2.1.2 ships with `xargs -0 -r` across 12 hook entries and works correctly on every platform the project targets (macOS + Linux + Alpine BusyBox 1.20+). Defense-in-depth concern only: a hypothetical exotic/ancient Unix variant without `-r` support would fail.
 
@@ -2127,7 +2133,9 @@ _Previous status (superseded by SUBSUMED above, retained for audit trail):_ NEW 
 
 **Default decision**: defer to v2.1.4. Real risk is theoretical for LaunchPad's target audience (modern macOS + Linux + Alpine). Fix is mechanical and pairs naturally with v2.1.4's broader hardening lane.
 
-#### BL-326 - v2.1.4: v2.1.3 PR #66 deferred polish items bundle
+#### BL-326 - v2.1.5: v2.1.3 PR #66 deferred polish items bundle
+
+**Status (2026-05-15)**: RE-TARGETED v2.1.4 → v2.1.5. See BL-323 for full re-targeting rationale. Per the v2.1.4 fix handoff hard-rule "DO NOT touch v2.1.4's existing BL-326 polish bundle", BL-326 was explicitly excluded from v2.1.4's scope; the natural retag target is v2.1.5.
 
 **Status (2026-05-14)**: NEW — surfaced across 7 review cycles on PR #66 (v2.1.3 polish release). Seven small polish items deferred from v2.1.3 to keep the polish release tightly scoped; bundled here as a v2.1.4 cleanup. All are documentation/metadata hygiene or low-urgency hardening with no runtime impact on the v2.1.3 surface.
 
@@ -2162,3 +2170,76 @@ _Previous status (superseded by SUBSUMED above, retained for audit trail):_ NEW 
 - CHANGELOG v2.1.1 historical block retains "Deferred to v2.1.3" lines for BL-298..BL-307 — Keep-a-Changelog convention says published version blocks are historically immutable.
 - CHANGELOG `[v2.1.3]` entry doesn't cite "PR #66" parallel to v2.1.2 citing "PR #65" — cosmetic parallelism, opt-in.
 - `docs/growth/` internal strategy files (positioning.md, sales-pitch-storyboard.md, prepositioning-readme.md) referencing v2.1.2 in their text — gitignored; never ship to public surface; impossible to "fix".
+
+#### BL-327 - v2.1.4: `/lp-scaffold-stack` catalog path unresolvable under installed-plugin layout (P0; blocks all manual-override scaffolds)
+
+**Status (2026-05-14)**: P0 — observed during a 2026-05-14 first-user greenfield dogfood test. Every `/lp-scaffold-stack` invocation routed through manual-override raised `catalog_load_failed` because the engine's default catalog paths assumed the source-repo layout (`<repo>/plugins/launchpad/scaffolders.yml`) and computed `~/.claude/plugins/cache/builtform/plugins/launchpad/scaffolders.yml` against the install-time layout — which has no `plugins/` segment after `builtform/` and IS version-suffixed. File does not exist; the loader surfaced `[Errno 2] No such file or directory`.
+
+**Source**: `lp_scaffold_stack/engine.py:103-116` (DEFAULT_SCAFFOLDERS_YML / DEFAULT_CATEGORY_PATTERNS_YML / DEFAULT_PLUGINS_ROOT). Path arithmetic used `parents[4]` of the engine module's `__file__` and joined `plugins/launchpad/...` onto it. In source-repo dev `parents[4]` is the repo root, so the join produces `<repo>/plugins/launchpad/scaffolders.yml` (correct). In the Claude Code marketplace cache layout `~/.claude/plugins/cache/builtform/launchpad/<VERSION>/scripts/lp_scaffold_stack/engine.py`, `parents[4]` is `~/.claude/plugins/cache/builtform/`, and the same join yields the broken `~/.claude/plugins/cache/builtform/plugins/launchpad/scaffolders.yml`. The PR #41 cycle 4 #1 fix corrected the source-repo arithmetic but did not anticipate the install-time layout — same failure shape, different layout.
+
+**Driver**: every `/lp-scaffold-stack` invocation a real (installed-plugin) user makes that routes through the manual-override branch fails before any layer is materialized. Affected workflows: `/lp-pick-stack` → `/lp-scaffold-stack` happy path (every greenfield user); BYOF flows that rely on `manual-override`. Observed first in the surfacing dogfood test on the v2.1.2 install; would surface for every v2.1.0/v2.1.1/v2.1.2/v2.1.3 user the moment they tried scaffold-stack against their local install. Blocks v2.1's whole greenfield pipeline for installed-plugin consumers.
+
+**At v2.1.4 design time**: re-root the defaults at `parents[2]` of the engine module — that resolves to the LaunchPad ROOT (the dir holding `scaffolders.yml` + `scripts/`) in BOTH layouts (`<repo>/plugins/launchpad/` in source; `~/.claude/plugins/cache/builtform/launchpad/<VERSION>/` in install). Drop the hardcoded `plugins/launchpad/` infix. Add `tests/test_install_layout_catalog_paths_v214.py` with three tests: (1) source-tree default-paths sanity, (2) `parents[2]` arithmetic against a synthetic install-layout path, (3) full `/lp-pick-stack` (manual-override `generic`) → `/lp-scaffold-stack` E2E against a tempdir-built simulated install tree. The `--scaffolders-yml` / `--category-patterns-yml` CLI overrides remain as the per-test escape hatch.
+
+**Default decision**: ship in v2.1.4. P0 user-blocker. Fix is mechanical (path-arithmetic re-rooting) + 3 regression tests; no schema or behavior change beyond unbreaking the install-layout path.
+
+#### BL-328 - v2.1.4: `template_cache.fetch()` D9.1 walk over-rejects sub-template upstreams; AstroAdapter blog/marketing fail at user runtime
+
+**Status (2026-05-14)**: P1 — surfaced during code-review of a 2026-05-14 first-user greenfield dogfood test. The v2.1 D9.1 hardening (PR #50 P0; `template_cache/_store.py:107-150`'s `_walk_for_disallowed_entries`) walks the entire fetched upstream tree at `handle.tmp_dir` rejecting symlinks / block / char / fifo / socket. AstroAdapter's `blog` + `marketing` sub-templates fetch withastro/astro@3f67b84b which contains test-fixture symlinks at `packages/astro/test/fixtures/content-collections/src/content/with-symlinked-{data,content}` (verified 2026-05-14 against the pinned SHA). Those symlinks live OUTSIDE `examples/blog` and `examples/portfolio` — the only paths AstroAdapter actually copies — but the cache's whole-tree walk rejects them anyway, raising `TemplateCacheError(reason="disallowed_entry_in_fetched_template", entry_kind="symlink")` which `AstroAdapter.scaffold_into` re-raises as `AdapterScaffoldError(reason="template_cache_fetch_failed")`.
+
+**Source**: `template_cache/_store.py:540` (the `_walk_for_disallowed_entries(handle.tmp_dir)` call) + `plugin_stack_adapters/astro.py:269-307` (`AstroAdapter.scaffold_into` calls `template_cache.fetch` without scope information). Pre-fix scaffolders that consume the WHOLE upstream tree (Starlight `astro/docs`, vinta `nextjs_fastapi`, next-forge `nextjs_standalone`) saw the cache walk rightly applied to the whole tree they then copy; sub-template scaffolders (`astro/blog`, `astro/marketing`) saw the walk applied to a SUPERSET of the subtree they actually copy. Demoted from P0 in the original handoff to P1 after the actual P0 (BL-327 catalog-path lookup) was discovered in the user-observed rejection log. Still ship-blocking once BL-327 unblocks the manual-override flow.
+
+**Driver**: any user picking Astro `blog` or `marketing` from `/lp-pick-stack` — the canonical content-Astro use cases. v2.1 ships both as the supported sub-template set; both fail post-BL-327 fix until BL-328 ships. Polyglot `(astro/blog, frontend) + (X, backend)` compositions also blocked.
+
+**At v2.1.4 design time**: thread an optional `walk_scope: str | None` kwarg through `template_cache.fetch()` + `verify()` + `_entry_files_match_manifest()`. `walk_scope` is a relative POSIX subpath inside the fetched tree; when provided the disallowed-entry walk is invoked against `handle.tmp_dir / walk_scope` only (the manifest comparison stays whole-tree to keep cache contract single-writer-safe across sub-template adapters sharing one SHA). `AstroAdapter.scaffold_into` passes `walk_scope=_SUB_PATHS[self.sub_template_id]` (None for `docs` since `_SUB_PATHS["docs"] = ""` is whole-tree). Add a defensive `_validate_walk_scope` (relative path, no traversal, no leading `/`, no NUL, ≤256 chars) at the cache boundary. Add `tests/test_astro_walk_scope_v214.py` with three regression scenarios: (1) `marketing` end-to-end against the real pinned SHA (network-gated), (2) synthetic outside-subtree symlink (must succeed), (3) synthetic inside-subtree symlink (must still reject). The "no symlinks reach user project" invariant is preserved at the same boundary, but scoped to the actual copy path. Co-ship `plugin-upstream-pin-walk-scope-parity.py` (CI parity check that walks every pinned upstream's sub-template subtree at PR time + fails on any disallowed entry); wire into `.github/workflows/v2-handshake-lint.yml`. Document the gate at `docs/maintainers/upstream-pin-rotations.md` so future pin rotations cannot reintroduce the failure.
+
+**Default decision**: ship in v2.1.4. Same-PR with BL-327 because both surfaced in the same dogfood test and both are install-layout user-blockers (BL-327 blocks getting INTO scaffold-stack at all; BL-328 blocks the Astro sub-template paths once you do).
+
+#### BL-329 - v2.1.5/v2.2: nextjs_fastapi pin (vintasoftware/nextjs-fastapi-template@62b67456) ships symlinks; CI parity gate waives
+
+**Status (2026-05-14)**: NEW — exposed by the BL-328 CI parity gate. Pin `vintasoftware/nextjs-fastapi-template@62b67456e8f01760970455282282ecaa393fbd38` contains `docs/CHANGELOG.md` and `docs/README.md` as symlinks. The `nextjs_fastapi` adapter consumes the WHOLE tree (no sub-template subtree to scope to), so the BL-328 walk_scope mechanism does NOT help; the runtime cache will reject the fetch the moment a real user picks the `nextjs_fastapi` stack. Currently waived in the BL-328 parity script's `KNOWN_BAD_PINS` allowlist so v2.1.4 can ship without blocking; rotation to a clean SHA is the v2.1.5 / v2.2 work.
+
+**Source**: `plugins/launchpad/scripts/plugin_stack_adapters/pin_registry.py:37` (the vinta pin entry). Verified 2026-05-14 by cloning the pinned SHA and running `find . -type l`. Two symlinks confirmed at `docs/CHANGELOG.md` + `docs/README.md`.
+
+**Driver**: every user picking `nextjs_fastapi` from `/lp-pick-stack` will hit `template_cache.fetch()`'s D9.1 rejection on the runtime side, even after BL-328 ships — the walk_scope is `None` for non-sub-template adapters. Workaround until BL-329 ships: pick `nextjs_standalone` (no symlinks per CI parity gate) and wire FastAPI manually under it; or pick `(generic, backend)` (BL-331) for the BYOF path.
+
+**At v2.1.5 / v2.2 design time**: dual-resolve a more-recent vinta SHA (or an alternative upstream — e.g., a fork that drops the `docs/` symlinks). Record the rotation in `docs/maintainers/upstream-pin-rotations.md`. Once landed, drop the (`nextjs_fastapi`, `None`) tuple from `plugin-upstream-pin-walk-scope-parity.py`'s `KNOWN_BAD_PINS` so the gate enforces strict for that pin going forward.
+
+**Default decision**: defer to v2.1.5 / v2.2. Out-of-scope for v2.1.4 because pin rotation requires upstream-state research (find a clean SHA or alternative upstream, dual-resolve it, audit-log the rotation). Tracked here so the CI parity gate's allowlist entry is grounded in a concrete follow-up.
+
+#### BL-330 - v2.1.5/v2.2: astro/docs Starlight pin (withastro/starlight@2c530192) ships root README.md symlink; CI parity gate waives
+
+**Status (2026-05-14)**: NEW — exposed by the BL-328 CI parity gate. Pin `withastro/starlight@2c530192705d569a7f6f29a33cd34b61932f786e` contains `README.md` at root as a symlink → `packages/starlight/README.md`. AstroAdapter's `docs` sub-template uses `_SUB_PATHS["docs"] = ""` (whole-tree copy from the cache root because Starlight's repo layout differs from withastro/astro), so the BL-328 walk_scope mechanism does NOT help — the symlink is at the root of the consumed subtree. Waived in BL-328's `KNOWN_BAD_PINS` allowlist so v2.1.4 can ship; rotation work is v2.1.5 / v2.2.
+
+**Source**: `plugin_stack_adapters/pin_registry.py:43` (the starlight `docs` pin entry). Verified 2026-05-14 by cloning the pinned SHA and inspecting `README.md` (-> `packages/starlight/README.md`).
+
+**Driver**: every user picking `astro/docs` (the dedicated docs-site sub-template) hits the runtime D9.1 rejection. Workaround: pick `astro/blog` or `astro/marketing` (BL-328's walk_scope fix unblocks both); use `astro/blog` if the docs-site shape is acceptable as a blog-styled doc site.
+
+**At v2.1.5 / v2.2 design time**: dual-resolve a more-recent starlight SHA where the root `README.md` is not a symlink, OR rework `_SUB_PATHS["docs"]` to point at the `packages/starlight/` subtree (which avoids the root symlink entirely but changes the workspace layout the user sees). Record the rotation in `docs/maintainers/upstream-pin-rotations.md`. Drop the (`astro`, `docs`) tuple from `KNOWN_BAD_PINS` once shipped.
+
+**Default decision**: defer to v2.1.5 / v2.2. Same scoping rationale as BL-329; tracked here as the second known-bad pin under v2.1.4's BL-328 parity gate.
+
+#### BL-331 - v2.1.4: `/lp-pick-stack` manual-override cannot select `generic` as primary stack (bring-your-own-framework path unreachable at v2.1)
+
+**Status (2026-05-14)**: P1 — surfaced during a 2026-05-14 first-user greenfield dogfood test (same session as BL-327 + BL-328). The `generic` adapter is wired into `plugin_stack_adapters/_ADAPTER_REGISTRY` and reachable via the v2.2-candidate fallback path (`accept_v22_fallback=True` against a candidate id like `python_generic`), but the `(stack, role)` matrix in `lp_pick_stack.VALID_COMBINATIONS` has no `('generic', <role>)` entry. Users wanting "give me the LaunchPad workspace shell + cross-cutting wiring; I'll bring my own framework" have no clean path: pick a pinned template + strip; hand-craft scaffold-decision.json (risky); bypass LaunchPad entirely. None of these is the right answer.
+
+**Source**: `lp_pick_stack/__init__.py:132` (VALID_COMBINATIONS frozenset, pre-fix 21 tuples) + `plugins/launchpad/commands/lp-pick-stack.md:247-249` (Step 4 menu lists 10 stacks with no `generic` row) + `plugins/launchpad/scaffolders.yml` (no `generic:` entry, so the per-layer scaffolder loader rejects with `unknown_stack_id` even after the manual-override gate is bypassed).
+
+**Driver**: third-party Astro themes / custom starters / frameworks not yet supported by a stack-aware adapter (SvelteKit, Remix, Solid, Phoenix-LiveView, custom internal scaffolds). Power-user "pin everything yourself" workflows where LaunchPad's role is the cross-cutting wiring layer only.
+
+**At v2.1.4 design time**: (1) Add 5 `(generic, role)` tuples to VALID*COMBINATIONS (frontend / frontend-main / frontend-dashboard / backend / fullstack). (2) Add a `generic:` entry to `scaffolders.yml` (type=curate, no scaffolder command, knowledge_anchor=`plugins/launchpad/scaffolders/generic-pattern.md`). (3) Create the new `generic-pattern.md` knowledge anchor. (4) Update `/lp-pick-stack.md` Step 4 menu to surface `generic` as the 11th option with description "barebones workspace shell — bring your own framework. Choose this if you want the LaunchPad pipeline (lefthook, agents.yml, config.yml, CI) but don't want LaunchPad to fetch a template." (5) Bump v2-handshake-lint's "exactly 10 stacks" assertion to 11. (6) Bump `tests/test_valid_combinations.py::test_valid_combinations_count*\*`to 26 (was 21). (7) Add`tests/test_pick_stack_generic_as_primary_v214.py`covering: 5 generic role parametrizations end-to-end, full`/lp-pick-stack`→`/lp-scaffold-stack` polyglot (`astro`+`generic`), v2.2-candidate fallback unchanged regression, invalid-role rejection (mobile / backend-managed / desktop NOT permitted on generic). Disclosure language in the manual-override step distinguishes `generic`-as-primary (positive intent) from the v2.2-candidate fallback path (signals "stack-aware adapter not ready").
+
+**Default decision**: ship in v2.1.4 alongside BL-327 + BL-328. Mechanical addition + 26 new tests; no behavioral change beyond opening the bring-your-own-framework path. Co-ships with BL-327 because both block the same first-user greenfield dogfood scenario (catalog path + BYOF route); co-ships with BL-328 because the symlink fix unblocks the Astro pieces that compose with `generic` in polyglot scaffolds.
+
+#### BL-332 - v2.1.4: workflow timeout-minutes for Codex review + parity gate (long-running-step hang protection)
+
+**Status (2026-05-15)**: SHIPPED in v2.1.4. Pulled forward from the originally-deferred v2.1.5 target after a Codex round-5 review (P2) flagged the parallel parity-gate issue (5 pins × 600s/pin = 50min worst-case stall under continuous network failure) — same class of bug as the codex-review hang, both fixed in one commit. Also belt-and-suspenders pattern applied (job-level + step-level caps) per the original BL-332 design notes.
+
+**Surfacing event**: 2026-05-15T06:55:23Z. The Codex Code Review job (`.github/workflows/codex-review.yml`) had no explicit `timeout-minutes:` and inherited GitHub Actions' 360-minute default. The `Run Codex Review` step (`openai/codex-action@e0fdf01...`) hung — same workflow + same prompt had completed 4× successfully on the same PR earlier the same day (last success at 06:05Z, all under 4 minutes). Hung run consumed ~6 hours of runner time before manual cancel (`gh run cancel 25904829199`). The workflow's `continue-on-error: true` meant the hang did NOT block merge, but the runner-time waste was real.
+
+**Fix shipped in v2.1.4**:
+
+1. `.github/workflows/codex-review.yml` `codex-review` job: `timeout-minutes: 20` at job level + `timeout-minutes: 18` on the inner `Run Codex Review` step (belt-and-suspenders — the per-step cap MUST stay lower than the job-level cap so the action's own exit handler runs before the job-level kill). Historical max ~3-4 minutes; 20/18 is a generous ceiling that won't false-positive on legitimately-long reviews (large-diff PRs, prompt complexity).
+2. `.github/workflows/v2-handshake-lint.yml` `Upstream pin walk-scope parity check` step: `timeout-minutes: 10`. Caps the same class of long-running-step hang on the parity gate (5 pins × 600s = 50min worst case under continuous network failure). `--offline-skip` converts the timeout-failure exit code into a clean SKIP at the next runner run.
+
+`continue-on-error: true` on the codex-review job means a 10-minute timeout failure still doesn't block merge; same flag is NOT set on the parity step (real findings should still fail CI), so the parity timeout is a hard ceiling — the script's own behavior is to surface infra failures distinctly so a network outage at the GitHub Actions runner level becomes a clean fail rather than a 50-minute wait.

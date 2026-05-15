@@ -18,6 +18,19 @@ jobs:
     name: Codex Code Review
     runs-on: ubuntu-latest
     continue-on-error: true
+    # v2.1.4 BL-332: cap the whole job at 20 minutes. Historical max for
+    # the `Run Codex Review` step on this repo is ~3-4 minutes; 20
+    # minutes is a generous ceiling that fails fast on OpenAI-side
+    # hangs without false-positives on legitimately-long reviews
+    # (large-diff PRs, prompt complexity). Surfaced 2026-05-15 when
+    # the codex-action hung for ~6 hours on PR #67 before manual
+    # cancel; without this cap, GitHub's 360-minute job default would
+    # re-burn 6h on every future Codex outage. The belt-and-suspenders
+    # inner-step `timeout-minutes: 18` below provides a cleaner cancel
+    # signal (the action's exit handler runs) before this job-level
+    # kill fires; the per-step cap MUST be lower than this job-level
+    # cap.
+    timeout-minutes: 20
     # Skip draft PRs, dependabot, AND PRs whose title contains the
     # `[skip codex]` token. The token lets maintainers opt out of Codex
     # review (which is paid per-run via OPENAI_API_KEY) for small
@@ -103,6 +116,13 @@ jobs:
       - name: Run Codex Review
         id: codex-review
         if: steps.changed-files.outputs.any_changed == 'true'
+        # v2.1.4 BL-332 belt-and-suspenders: cap the action itself at
+        # 18 minutes so the action's own exit handler runs before the
+        # job-level 20-minute kill. Per-step cap MUST stay lower than
+        # the job-level cap or it has no effect. Pair with
+        # `continue-on-error: true` on the job means a timeout failure
+        # never blocks merge.
+        timeout-minutes: 18
         uses: openai/codex-action@e0fdf01220eb9a88167c4898839d273e3f2609d1 # v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}

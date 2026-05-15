@@ -1,7 +1,15 @@
-"""generic adapter (typed-fallback, hidden from pick-stack menu) tests.
+"""generic adapter tests.
 
 Phase 4 plan section 2.2 row + section 3.12 v2.2-candidate INFO log.
+
+v2.1.4 BL-331 + Codex PR #67 P3-A: `HIDDEN_FROM_PICK_STACK_MENU`
+constant deleted from `plugin_stack_adapters.generic` because BL-331
+makes `generic` an explicit primary-stack option in the
+/lp-pick-stack manual-override menu. The menu surface is owned by
+`/lp-pick-stack.md` Step 4 + `lp_pick_stack.VALID_COMBINATIONS`, not
+by adapter-side flags.
 """
+
 from __future__ import annotations
 
 import logging
@@ -11,7 +19,6 @@ from plugin_stack_adapters.contracts import Adapter
 from plugin_stack_adapters.generic import (
     ADAPTER,
     GenericAdapter,
-    HIDDEN_FROM_PICK_STACK_MENU,
     log_v22_candidate_routing,
     run,
 )
@@ -33,8 +40,14 @@ def test_workspace_name_is_extra():
     assert ADAPTER.workspace_name == "extra"
 
 
-def test_hidden_from_pick_stack_menu_constant_is_true():
-    assert HIDDEN_FROM_PICK_STACK_MENU is True
+def test_hidden_from_pick_stack_menu_constant_removed():
+    """v2.1.4 BL-331 + Codex PR #67 P3-A: the stale HIDDEN_FROM_PICK_STACK_MENU
+    flag is gone because BL-331 makes generic a documented primary-stack
+    option. Importing it must raise ImportError so any future code that
+    rediscovers the flag and starts depending on it fails loud."""
+    import plugin_stack_adapters.generic as generic_mod
+
+    assert not hasattr(generic_mod, "HIDDEN_FROM_PICK_STACK_MENU")
 
 
 def test_v22_candidate_routing_emits_verbatim_info_log(caplog):

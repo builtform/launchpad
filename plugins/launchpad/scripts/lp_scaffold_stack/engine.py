@@ -94,26 +94,55 @@ RunInvoker = Any
 
 COMMAND_NAME = "/lp-scaffold-stack"
 
-# Default catalog/pattern paths (may be overridden in tests). Path arithmetic:
-# this file is at plugins/launchpad/scripts/lp_scaffold_stack/engine.py, so
-# parents[0..4] are lp_scaffold_stack / scripts / launchpad / plugins / repo
-# root. The repo root is parents[4]; previous parents[3] resolved to plugins/
-# which produced `plugins/plugins/launchpad/...` for the catalog defaults
-# (PR #41 cycle 4 #1 — silent default-args ship-blocker since fc5b3da).
-_REPO_ROOT_DEFAULT = Path(__file__).resolve().parents[4]
-DEFAULT_SCAFFOLDERS_YML = (
-    _REPO_ROOT_DEFAULT / "plugins" / "launchpad" / "scaffolders.yml"
-)
+# Default catalog/pattern paths. v2.1.4 BL-327 path-arithmetic rewrite.
+#
+# Why parents[2], not parents[4]: this engine.py runs in TWO layouts.
+#
+#  1. Source-repo (development / CI):
+#       <repo>/plugins/launchpad/scripts/lp_scaffold_stack/engine.py
+#       parents[0]=lp_scaffold_stack/  parents[1]=scripts/
+#       parents[2]=launchpad/  ←  contains scaffolders.yml + scripts/
+#       parents[3]=plugins/   parents[4]=<repo>
+#
+#  2. Installed plugin (Claude Code marketplace cache):
+#       ~/.claude/plugins/cache/builtform/launchpad/<VERSION>/scripts/lp_scaffold_stack/engine.py
+#       parents[0]=lp_scaffold_stack/  parents[1]=scripts/
+#       parents[2]=<VERSION>/  ←  contains scaffolders.yml + scripts/
+#       parents[3]=launchpad/   parents[4]=builtform/
+#
+# Pre-v2.1.4 the defaults were `parents[4] / "plugins" / "launchpad" /
+# scaffolders.yml`. That resolved correctly in (1) (because parents[4]
+# is the source repo root) but in (2) it computed
+# `~/.claude/plugins/cache/builtform/plugins/launchpad/scaffolders.yml`
+# which does not exist — the cache layout has no `plugins/` segment
+# and is version-suffixed. Result: every `/lp-scaffold-stack` invocation
+# routed through manual-override raised `catalog_load_failed` for
+# every installed-plugin user (surfaced 2026-05-14 in a first-user
+# greenfield dogfood test). The PR #41 cycle 4 #1 fix corrected the
+# source-repo path arithmetic but did not anticipate the install-time
+# layout.
+#
+# parents[2] is the LAUNCHPAD ROOT in BOTH layouts (the dir holding
+# scaffolders.yml + scripts/). The defaults below stop assuming a
+# `plugins/launchpad/` infix and just root off parents[2]. The same
+# `--scaffolders-yml` / `--category-patterns-yml` CLI flags continue
+# to override per-test as before.
+_LAUNCHPAD_ROOT_DEFAULT = Path(__file__).resolve().parents[2]
+DEFAULT_SCAFFOLDERS_YML = _LAUNCHPAD_ROOT_DEFAULT / "scaffolders.yml"
 DEFAULT_CATEGORY_PATTERNS_YML = (
-    _REPO_ROOT_DEFAULT
-    / "plugins"
-    / "launchpad"
+    _LAUNCHPAD_ROOT_DEFAULT
     / "scripts"
     / "lp_pick_stack"
     / "data"
     / "category-patterns.yml"
 )
-DEFAULT_PLUGINS_ROOT = _REPO_ROOT_DEFAULT
+# DEFAULT_PLUGINS_ROOT is forwarded to run_pipeline() but no consumer
+# currently dereferences it (kept on the surface for forward-compat
+# with knowledge-anchor reads). Point it at parents[2] to mirror the
+# install-aware default; consumers that need the source-repo root
+# during in-tree dev still get the right path because parents[2] IS
+# the LaunchPad root in both layouts.
+DEFAULT_PLUGINS_ROOT = _LAUNCHPAD_ROOT_DEFAULT
 
 
 class Outcome:

@@ -178,3 +178,23 @@ stacks:
     options_schema:
       template: "string"
     last_validated: "2026-04-30"
+
+  # v2.1.4 BL-331: `generic` selectable as a primary stack — barebones
+  # workspace shell, bring-your-own-framework path. No scaffolder command
+  # (type=curate) — the user wires their own framework over the
+  # cross-cutting wiring LaunchPad provides (lefthook, agents.yml,
+  # config.yml, CI). Distinct from the v2.2-candidate fallback path
+  # which signals "stack-aware adapter not yet ready"; picking generic
+  # directly is positive intent. The generic adapter (already wired in
+  # v2.1's _ADAPTER_REGISTRY) handles dispatch as a no-op scaffold_into.
+  generic:
+    pillar: "Bring-your-own-framework"
+    type: "curate"
+    flavor: "n/a"
+    knowledge_anchor: "plugins/launchpad/scaffolders/generic-pattern.md"
+    knowledge_anchor_sha256: "8d8e82a552319f361d7c54e438ed7ebdd6a40727822ad9532849adf88bfbf0df"
+    # No options at v2.1.4 — the user brings the framework, so per-stack
+    # options would be meaningless (whatever the user picks gets its own
+    # config, not LaunchPad's).
+    options_schema: {}
+    last_validated: "2026-05-14"

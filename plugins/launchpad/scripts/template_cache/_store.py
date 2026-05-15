@@ -218,6 +218,59 @@ def _validate_inputs(repo_url: str, sha: str) -> None:
     _slug_from_repo(repo_url)  # raises if malformed
 
 
+# v2.1.4 BL-328: bounded relative POSIX path, no traversal, no leading
+# slash, no NUL bytes. Defense-in-depth — adapter callers should only
+# ever pass curated values from `_SUB_PATHS`, but the cache is the
+# trust boundary.
+_WALK_SCOPE_MAX_LEN = 256
+_WALK_SCOPE_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
+
+
+def _validate_walk_scope(walk_scope: str) -> None:
+    if not walk_scope:
+        raise TemplateCacheError(
+            reason="invalid_walk_scope",
+            path=None,
+            remediation=(
+                "walk_scope must be a non-empty relative POSIX subpath or "
+                "None; pass None for whole-tree walks"
+            ),
+        )
+    if len(walk_scope) > _WALK_SCOPE_MAX_LEN:
+        raise TemplateCacheError(
+            reason="invalid_walk_scope",
+            path=None,
+            remediation=(
+                f"walk_scope length {len(walk_scope)} exceeds "
+                f"{_WALK_SCOPE_MAX_LEN} chars"
+            ),
+        )
+    if not _WALK_SCOPE_RE.match(walk_scope):
+        raise TemplateCacheError(
+            reason="invalid_walk_scope",
+            path=None,
+            remediation=(
+                f"walk_scope {walk_scope!r} contains characters outside [A-Za-z0-9._/-]"
+            ),
+        )
+    if walk_scope.startswith("/"):
+        raise TemplateCacheError(
+            reason="invalid_walk_scope",
+            path=None,
+            remediation=f"walk_scope {walk_scope!r} must be relative",
+        )
+    parts = walk_scope.split("/")
+    if any(p in ("", "..", ".") for p in parts):
+        raise TemplateCacheError(
+            reason="invalid_walk_scope",
+            path=None,
+            remediation=(
+                f"walk_scope {walk_scope!r} contains empty / parent / "
+                f"current-dir segments"
+            ),
+        )
+
+
 def _preflight_cache_root(root: Path) -> None:
     """Phase 4 §3.7 rule #5(b) + #9: lstat + mode 0o700 + owner check + symlink reject."""
     root.parent.mkdir(parents=True, exist_ok=True)
@@ -324,7 +377,11 @@ def _entry_is_ready(entry_dir: Path) -> bool:
     return True
 
 
-def _entry_files_match_manifest(entry_dir: Path) -> bool:
+def _entry_files_match_manifest(
+    entry_dir: Path,
+    *,
+    walk_scope: str | None = None,
+) -> bool:
     """Phase 4 §3.7 rule #8: missing-files OR extra-files invalidates.
 
     v2.1 Codex PR #50 P0 (D9.1) read-side mirror: also invalidate when
@@ -338,6 +395,15 @@ def _entry_files_match_manifest(entry_dir: Path) -> bool:
     is closed by always building `actual` and comparing to
     `expected_files` (an empty expected set requires an empty actual
     set, sentinel files excluded).
+
+    v2.1.4 BL-328: `walk_scope` (relative POSIX subpath inside `entry_dir`,
+    or None for whole-tree) restricts the disallowed-entry walk to the
+    subtree the caller actually intends to copy out. The manifest
+    comparison stays whole-tree (multiple sub-template adapters share a
+    cache entry SHA but differ in `walk_scope`; whole-tree manifest
+    keeps the cache contract single-writer-safe). When `walk_scope`
+    points at a path that is not a directory (e.g., a future bad pin),
+    the entry is invalidated.
     """
     expected_path = entry_dir / EXPECTED_FILES_FILE
     try:
@@ -346,7 +412,10 @@ def _entry_files_match_manifest(entry_dir: Path) -> bool:
         return False
     expected_files = set(manifest.get("files", []))
 
-    if _walk_for_disallowed_entries(entry_dir) is not None:
+    walk_root = entry_dir if not walk_scope else entry_dir / walk_scope
+    if walk_scope and not walk_root.is_dir():
+        return False
+    if _walk_for_disallowed_entries(walk_root) is not None:
         return False
 
     actual: set[str] = set()
@@ -373,13 +442,27 @@ def _entry_age_days(entry_dir: Path) -> float:
     return (now - when).total_seconds() / 86400.0
 
 
-def verify(repo_url: str, sha: str) -> bool:
-    """Phase 4 §3.7 rule #2 + #8: re-run cache-hit verification."""
+def verify(repo_url: str, sha: str, *, walk_scope: str | None = None) -> bool:
+    """Phase 4 §3.7 rule #2 + #8: re-run cache-hit verification.
+
+    v2.1.4 BL-328: `walk_scope` is forwarded to
+    `_entry_files_match_manifest`; see that docstring for semantics.
+
+    v2.1.4 Codex PR #67 P2-A: `_validate_walk_scope` is called here
+    before forwarding, mirroring the input-validation contract `fetch()`
+    enforces at the cache boundary. Without this call, traversal-shaped
+    scopes (e.g. `../escape`) would be joined onto `entry_dir` inside
+    `_entry_files_match_manifest` and could walk outside the cache root.
+    The read-side is read-only today, but the public-API consistency
+    matters for future callers.
+    """
     _validate_inputs(repo_url, sha)
+    if walk_scope is not None:
+        _validate_walk_scope(walk_scope)
     entry = _entry_handle(repo_url, sha).entry_dir
     if not _entry_is_ready(entry):
         return False
-    if not _entry_files_match_manifest(entry):
+    if not _entry_files_match_manifest(entry, walk_scope=walk_scope):
         return False
     if _entry_age_days(entry) > CACHE_TTL_DAYS:
         return False
@@ -479,6 +562,7 @@ def fetch(
     sha: str,
     *,
     fetcher: Callable[[Path], None] | None = None,
+    walk_scope: str | None = None,
 ) -> Path:
     """Public API: fetch upstream tree at (repo_url, sha) into cache + return path.
 
@@ -491,8 +575,21 @@ def fetch(
       - Atomic tempdir-then-rename (§3.7 #3)
       - LRU + extra-files purge (§3.7 #6 + #8)
       - `MAX_CONCURRENT_FETCHES=3` semaphore (§3.7 #4)
+
+    v2.1.4 BL-328: `walk_scope` (relative POSIX subpath inside the
+    fetched tree, or None for whole-tree) restricts the D9.1
+    disallowed-entry walk to the subtree the caller actually intends to
+    copy out. The "no symlinks reach user project" invariant is
+    preserved at the same boundary (the cache never returns a path the
+    adapter is about to copy from with disallowed entries inside it),
+    while tolerating disallowed entries elsewhere in upstream trees we
+    do not consume (e.g., test fixtures under `packages/` in
+    withastro/astro that are not part of `examples/portfolio` or
+    `examples/blog`).
     """
     _validate_inputs(repo_url, sha)
+    if walk_scope is not None:
+        _validate_walk_scope(walk_scope)
     root = cache_root()
     _preflight_cache_root(root)
 
@@ -500,7 +597,7 @@ def fetch(
 
     if (
         _entry_is_ready(handle.entry_dir)
-        and _entry_files_match_manifest(handle.entry_dir)
+        and _entry_files_match_manifest(handle.entry_dir, walk_scope=walk_scope)
         and _entry_age_days(handle.entry_dir) <= CACHE_TTL_DAYS
     ):
         return handle.entry_dir
@@ -515,7 +612,7 @@ def fetch(
         with _flock(handle.lock_file):
             if (
                 _entry_is_ready(handle.entry_dir)
-                and _entry_files_match_manifest(handle.entry_dir)
+                and _entry_files_match_manifest(handle.entry_dir, walk_scope=walk_scope)
                 and _entry_age_days(handle.entry_dir) <= CACHE_TTL_DAYS
             ):
                 return handle.entry_dir
@@ -537,7 +634,24 @@ def fetch(
                 # MUST run AFTER fetcher and BEFORE _write_manifest_and_ready
                 # so the rejection is observed before any sentinel artifacts
                 # are written. Detection rmtrees the tmp_dir and raises.
-                rejection = _walk_for_disallowed_entries(handle.tmp_dir)
+                # v2.1.4 BL-328: scoped to `walk_scope` when provided.
+                walk_root = (
+                    handle.tmp_dir if not walk_scope else handle.tmp_dir / walk_scope
+                )
+                if walk_scope and not walk_root.is_dir():
+                    with contextlib.suppress(OSError):
+                        shutil.rmtree(handle.tmp_dir)
+                    raise TemplateCacheError(
+                        reason="walk_scope_path_missing",
+                        path=walk_root,
+                        remediation=(
+                            f"upstream template at {repo_url}@{sha[:8]} does "
+                            f"not contain the requested walk_scope subpath "
+                            f"{walk_scope!r}; pin may have rotated to a SHA "
+                            f"that drops the subtree"
+                        ),
+                    )
+                rejection = _walk_for_disallowed_entries(walk_root)
                 if rejection is not None:
                     entry_path, kind, target_safe, target_b64 = rejection
                     extra_target = ""
@@ -547,6 +661,7 @@ def fetch(
                         )
                     with contextlib.suppress(OSError):
                         shutil.rmtree(handle.tmp_dir)
+                    scope_label = walk_scope if walk_scope else "<whole-tree>"
                     raise TemplateCacheError(
                         reason="disallowed_entry_in_fetched_template",
                         path=entry_path,
@@ -554,6 +669,7 @@ def fetch(
                             f"upstream template at {repo_url}@{sha[:8]} "
                             f"contains disallowed filesystem entry "
                             f"({kind}) at {entry_path.relative_to(handle.tmp_dir).as_posix() if entry_path != handle.tmp_dir else '<root>'}"
+                            f" within walk_scope={scope_label}"
                             f"{extra_target}; v2.1 forbids non-regular "
                             f"non-directory entries (defense against "
                             f"attacker-controlled path traversal)"

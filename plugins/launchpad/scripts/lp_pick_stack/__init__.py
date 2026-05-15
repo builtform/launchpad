@@ -123,12 +123,25 @@ IDENTITY_PLACEHOLDERS = {
 LICENSE_OTHER_MAX_BYTES = 10 * 1024  # 10KB cap
 LICENSE_OTHER_FORBIDDEN_SUBSTRINGS = ("{{", "{%", "{#", "<", ">")  # Jinja + HTML guard
 
-# 13 (stack, role) tuples — manual-override catalog. Covers all 10 stacks
+# 26 (stack, role) tuples — manual-override catalog. Covers all 10 stacks
 # from the v2.0 catalog (HANDSHAKE §11) at their canonical default role,
 # plus dual-role variations for stacks that ship both fullstack and
 # backend-only personas (next, django, rails). Single-purpose stacks
 # (astro, eleventy, hugo, hono, fastapi, supabase, expo) are pinned to
 # their one valid role; cross-role tuples remain default-deny.
+#
+# v2.1.4 BL-331: `generic` is selectable as a primary stack across all
+# 5 framework-shape roles. The generic adapter is a no-op scaffolder
+# (already wired into _ADAPTER_REGISTRY at v2.1) — choosing it produces
+# a barebones LaunchPad workspace shell with the cross-cutting wiring
+# (lefthook, agents.yml, config.yml, CI) but no upstream template
+# fetch. Use case: third-party Astro themes / custom starters /
+# frameworks not yet supported by a stack-aware adapter, where the user
+# wants the LaunchPad pipeline benefits without LaunchPad fetching a
+# template they will throw away. Prior to v2.1.4 the only path to
+# `generic` was through the v2.2-candidate fallback (passing
+# --accept-v22-fallback against a v2.2-candidate id like `python_generic`),
+# which surfaced an unrelated WARN and obscured the actual intent.
 VALID_COMBINATIONS = frozenset(
     {
         # Frontend (single-purpose) — base role
@@ -162,6 +175,17 @@ VALID_COMBINATIONS = frozenset(
         ("rails", "fullstack"),
         # Mobile (single-purpose)
         ("expo", "mobile"),
+        # v2.1.4 BL-331: `generic` selectable as a primary stack — barebones
+        # workspace shell, bring-your-own-framework. Five role-shape
+        # variations because the user picks `generic` to indicate the
+        # FRAMEWORK is unspecified, not the role; the role still drives
+        # cross-layer pairing semantics (e.g., generic-as-backend can
+        # pair with astro-as-frontend in a polyglot scaffold).
+        ("generic", "frontend"),
+        ("generic", "frontend-main"),
+        ("generic", "frontend-dashboard"),
+        ("generic", "backend"),
+        ("generic", "fullstack"),
     }
 )
 
