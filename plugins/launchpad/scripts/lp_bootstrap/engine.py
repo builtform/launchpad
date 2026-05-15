@@ -69,6 +69,7 @@ from plugin_default_generators._renderer_base import (  # noqa: E402
 from plugin_default_generators.infrastructure_renderer import (  # noqa: E402
     InfrastructureRenderer,
     InfrastructureRenderError,
+    assert_workflow_self_consistency,
 )
 from telemetry_writer import write_telemetry_entry  # noqa: E402
 
@@ -1197,10 +1198,8 @@ def _render_loop(
     # that handler tuple.
     # C7 (simplicity-reviewer P3): use the shared helper so the renderer
     # and engine call sites share one raise contract.
-    from plugin_default_generators.infrastructure_renderer import (
-        assert_workflow_self_consistency,
-    )
-
+    # v2.1.5 round-4 fix arch-F5: `assert_workflow_self_consistency` is
+    # imported at module top (engine.py:69-73) — not a late inline import.
     assert_workflow_self_consistency(
         rendered_batch, cwd, error_cls=InfrastructureRenderError
     )

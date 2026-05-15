@@ -25,10 +25,12 @@ lp_define orchestrator) share:
     via an ALLOWLIST-based rule restricted to
     `_renderer_base.py + lp_bootstrap/policy.py + atomic_io.py`.
   * `sha256_file()` / `sha256_bytes()` utilities for manifest tracking.
-  * `identity_inject()` helper that takes the sealed identity dict from
+  * `template_context()` (v2.1.5+; previously `identity_inject`, retained
+    as a back-compat alias) helper that takes the sealed identity dict from
     scaffold-decision.json and produces the Jinja context every kernel
     template can rely on (project_name, copyright_holder, email, repo_url,
-    license, license_other_body, plus a derived current_year).
+    license, license_other_body, plus a derived current_year + the
+    `default_pnpm_version` / `default_node_version` tool-version pins).
   * Filters: `shell_quote` (shlex.quote for bash contexts), `tojson` and
     `to_yaml_safe` (already part of Jinja stdlib for `tojson`; we add
     `to_yaml_safe` via PyYAML's safe_dump for YAML value injection).

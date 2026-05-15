@@ -517,6 +517,11 @@ __all__ = [
     "INFRASTRUCTURE_TARGETS",
     "InfrastructureRenderError",
     "InfrastructureRenderer",
+    # v2.1.5 round-4 fix arch-F1: public cross-module helper. The
+    # underscore-prefixed `_validate_workflow_self_consistency` stays in
+    # __all__ for test access; consumers (lp_bootstrap engine) MUST use
+    # `assert_workflow_self_consistency` for the unified raise contract.
+    "assert_workflow_self_consistency",
     "_validate_gitignore_content",
     "_validate_workflow_self_consistency",
 ]
