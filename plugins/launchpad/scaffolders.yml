@@ -192,7 +192,7 @@ stacks:
     type: "curate"
     flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/generic-pattern.md"
-    knowledge_anchor_sha256: "5386b67c429a6d1715b5fb09ca0f651955881bf3ab85334a605bf04448c2a3e7"
+    knowledge_anchor_sha256: "8d8e82a552319f361d7c54e438ed7ebdd6a40727822ad9532849adf88bfbf0df"
     # No options at v2.1.4 — the user brings the framework, so per-stack
     # options would be meaningless (whatever the user picks gets its own
     # config, not LaunchPad's).

@@ -45,9 +45,15 @@ from .contracts import (
 LOG = logging.getLogger("plugin_stack_adapters.generic")
 
 
-# Generic is HIDDEN from the user-facing pick-stack menu. lp_pick_stack must
-# read this constant to filter generic out of the rendered options.
-HIDDEN_FROM_PICK_STACK_MENU: bool = True
+# v2.1.4 BL-331: `generic` is now an explicit primary-stack option in
+# the /lp-pick-stack manual-override menu (5 (generic, role) tuples in
+# lp_pick_stack.VALID_COMBINATIONS). Pre-v2.1.4 a HIDDEN_FROM_PICK_STACK_MENU
+# flag here documented the inverse — generic was reachable only via the
+# v2.2-candidate fallback path. Codex PR #67 P3-A flagged the stale
+# flag as misleading after BL-331; removed entirely (zero consumers
+# verified via repo-wide grep). The user-facing menu surface is owned
+# by /lp-pick-stack.md Step 4 + lp_pick_stack.VALID_COMBINATIONS, not
+# by adapter-side flags.
 
 
 def log_v22_candidate_routing(detected_stack_id: str) -> None:

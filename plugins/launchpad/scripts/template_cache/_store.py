@@ -447,8 +447,18 @@ def verify(repo_url: str, sha: str, *, walk_scope: str | None = None) -> bool:
 
     v2.1.4 BL-328: `walk_scope` is forwarded to
     `_entry_files_match_manifest`; see that docstring for semantics.
+
+    v2.1.4 Codex PR #67 P2-A: `_validate_walk_scope` is called here
+    before forwarding, mirroring the input-validation contract `fetch()`
+    enforces at the cache boundary. Without this call, traversal-shaped
+    scopes (e.g. `../escape`) would be joined onto `entry_dir` inside
+    `_entry_files_match_manifest` and could walk outside the cache root.
+    The read-side is read-only today, but the public-API consistency
+    matters for future callers.
     """
     _validate_inputs(repo_url, sha)
+    if walk_scope is not None:
+        _validate_walk_scope(walk_scope)
     entry = _entry_handle(repo_url, sha).entry_dir
     if not _entry_is_ready(entry):
         return False

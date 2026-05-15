@@ -28,9 +28,23 @@ Usage::
     plugin-upstream-pin-walk-scope-parity.py --verbose
     plugin-upstream-pin-walk-scope-parity.py --offline-skip   # used in CI
 
-Exit 0 on pass, 1 on any disallowed entry found within a sub-template
-subtree, 2 on infrastructure failures (git missing / network down) when
-`--offline-skip` is NOT set.
+Exit codes:
+
+  0  — PASS. All pinned subtrees clean (or only `KNOWN_BAD_PINS`-waived
+       findings, optionally with infra failures suppressed under
+       `--offline-skip`).
+  1  — FAIL: real parity finding (disallowed entry or missing
+       sub-template subpath). NOT suppressed by `--offline-skip` —
+       these are pin-shape problems, not network problems.
+  2  — INFRA FAIL: git missing OR git fetch CalledProcessError /
+       TimeoutExpired without `--offline-skip`. Pass `--offline-skip`
+       to downgrade these to exit 0 (used in CI per the workflow
+       contract that GitHub-unreachable runners must not fail the
+       build).
+
+Distinguishing infra from findings matters because `KNOWN_BAD_PINS`
+should only waive REAL findings — a transient `git fetch` flake on an
+allowlisted pin is still infra, not a waiver. See `PinCheckResult`.
 """
 
 from __future__ import annotations
@@ -44,6 +58,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -146,6 +161,24 @@ def _shallow_fetch(repo_url: str, sha: str, target: Path) -> None:
         shutil.rmtree(target / ".git")
 
 
+@dataclass(frozen=True)
+class PinCheckResult:
+    """Outcome of `_check_pin`. Distinguishes the two failure categories so
+    `--offline-skip` can ignore network/timeout flakes without ignoring
+    real disallowed-entry findings or stale-pin missing-subpath findings.
+
+    - `findings`: real parity violations (disallowed entry or
+      missing-subpath); always fails CI absent a `KNOWN_BAD_PINS` waiver.
+    - `infra_errors`: transient infrastructure failures (git fetch
+      CalledProcessError or TimeoutExpired) that say nothing about pin
+      shape; suppressed under `--offline-skip` to honor the workflow
+      contract that GitHub-unreachable runners do not fail the build.
+    """
+
+    findings: tuple[str, ...] = ()
+    infra_errors: tuple[str, ...] = ()
+
+
 def _check_pin(
     adapter_id: str,
     sub_template_id: str | None,
@@ -153,8 +186,7 @@ def _check_pin(
     sha: str,
     *,
     verbose: bool,
-) -> list[str]:
-    errors: list[str] = []
+) -> PinCheckResult:
     sub_path = _sub_path_for(adapter_id, sub_template_id)
     label = (
         f"{adapter_id}/{sub_template_id}" if sub_template_id is not None else adapter_id
@@ -168,19 +200,24 @@ def _check_pin(
             _shallow_fetch(repo_url, sha, target)
         except subprocess.CalledProcessError as exc:
             stderr = (exc.stderr or b"").decode("utf-8", errors="replace")[:512]
-            errors.append(f"[{label}] fetch failed for {repo_url}@{sha[:8]}: {stderr}")
-            return errors
+            return PinCheckResult(
+                infra_errors=(
+                    f"[{label}] fetch failed for {repo_url}@{sha[:8]}: {stderr}",
+                )
+            )
         except subprocess.TimeoutExpired:
-            errors.append(f"[{label}] fetch timed out for {repo_url}@{sha[:8]}")
-            return errors
+            return PinCheckResult(
+                infra_errors=(f"[{label}] fetch timed out for {repo_url}@{sha[:8]}",)
+            )
 
         walk_root = target if not sub_path else target / sub_path
         if sub_path and not walk_root.is_dir():
-            errors.append(
-                f"[{label}] sub-template subpath {sub_path!r} does not "
-                f"exist in {repo_url}@{sha[:8]} — pin may be stale"
+            return PinCheckResult(
+                findings=(
+                    f"[{label}] sub-template subpath {sub_path!r} does not "
+                    f"exist in {repo_url}@{sha[:8]} — pin may be stale",
+                )
             )
-            return errors
         finding = _walk_for_disallowed(walk_root)
         if finding is not None:
             entry, kind = finding
@@ -189,12 +226,14 @@ def _check_pin(
             except ValueError:
                 rel = "<root>"
             scope_label = sub_path if sub_path else "<whole-tree>"
-            errors.append(
-                f"[{label}] DISALLOWED ENTRY ({kind}) in {repo_url}@{sha[:8]} "
-                f"at walk_scope={scope_label} :: {rel} — runtime "
-                f"`template_cache.fetch()` will reject this pin for users"
+            return PinCheckResult(
+                findings=(
+                    f"[{label}] DISALLOWED ENTRY ({kind}) in {repo_url}@{sha[:8]} "
+                    f"at walk_scope={scope_label} :: {rel} — runtime "
+                    f"`template_cache.fetch()` will reject this pin for users",
+                )
             )
-    return errors
+    return PinCheckResult()
 
 
 def _git_available() -> bool:
@@ -212,9 +251,13 @@ def main(argv: Iterable[str] | None = None) -> int:
         "--offline-skip",
         action="store_true",
         help=(
-            "Exit 0 if git is missing or network is unavailable, instead "
-            "of exit 2. Used by CI to keep the gate non-blocking when "
-            "ephemeral runners can't reach github.com."
+            "Suppress infrastructure failures (git missing OR git fetch "
+            "CalledProcessError / TimeoutExpired) and exit 0 instead of "
+            "failing the build. Used by CI to keep the gate non-blocking "
+            "when ephemeral runners can't reach github.com. REAL parity "
+            "findings (disallowed-entry, missing sub-template subpath) "
+            "still fail the build under --offline-skip; only the network "
+            "/ tooling layer is suppressed."
         ),
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
@@ -230,21 +273,27 @@ def main(argv: Iterable[str] | None = None) -> int:
     known_bad = {(a, s): bl for (a, s, bl) in KNOWN_BAD_PINS}
     all_errors: list[str] = []
     waived: list[str] = []
+    infra_errors: list[str] = []
     for adapter_id, sub_template_id, pin in all_pins():
-        findings = _check_pin(
+        result = _check_pin(
             adapter_id,
             sub_template_id,
             pin["repo_url"],
             pin["sha"],
             verbose=args.verbose,
         )
-        if not findings:
+        # Infrastructure failures (network / timeout) are tracked
+        # separately from real parity findings. KNOWN_BAD_PINS only
+        # waives REAL findings — a fetch failure on an allowlisted pin
+        # is still an infra error, not a waiver.
+        infra_errors.extend(result.infra_errors)
+        if not result.findings:
             continue
         bl_ref = known_bad.get((adapter_id, sub_template_id))
         if bl_ref is not None:
-            waived.extend(f"{f}  [WAIVED: {bl_ref}]" for f in findings)
+            waived.extend(f"{f}  [WAIVED: {bl_ref}]" for f in result.findings)
         else:
-            all_errors.extend(findings)
+            all_errors.extend(result.findings)
 
     if waived:
         print(
@@ -254,6 +303,20 @@ def main(argv: Iterable[str] | None = None) -> int:
         )
         for w in waived:
             print(f"  - {w}", file=sys.stderr)
+
+    if infra_errors:
+        # Always SURFACE infra errors so the operator sees them, but
+        # under --offline-skip do not let them fail the build (the
+        # workflow contract at v2-handshake-lint.yml says
+        # GitHub-unreachable runners must not fail CI).
+        label = "SKIP (--offline-skip)" if args.offline_skip else "INFRA"
+        print(
+            f"upstream-pin-walk-scope-parity: {len(infra_errors)} "
+            f"infrastructure error(s) [{label}]:",
+            file=sys.stderr,
+        )
+        for err in infra_errors:
+            print(f"  - {err}", file=sys.stderr)
 
     if all_errors:
         print(
@@ -281,10 +344,25 @@ def main(argv: Iterable[str] | None = None) -> int:
         )
         return 1
 
+    if infra_errors and not args.offline_skip:
+        # Without --offline-skip, infrastructure failures still fail
+        # the build (operators running locally want to see them).
+        print(
+            "upstream-pin-walk-scope-parity: INFRA FAIL — pass "
+            "--offline-skip to ignore network/timeout flakes",
+            file=sys.stderr,
+        )
+        return 2
+
+    pin_count = sum(1 for _ in all_pins())
+    skipped_label = (
+        f", {len(infra_errors)} skipped (--offline-skip)"
+        if infra_errors and args.offline_skip
+        else ""
+    )
     print(
         f"upstream-pin-walk-scope-parity: PASS "
-        f"({sum(1 for _ in all_pins())} pin(s) checked, "
-        f"{len(waived)} waived)"
+        f"({pin_count} pin(s) checked, {len(waived)} waived{skipped_label})"
     )
     return 0
 

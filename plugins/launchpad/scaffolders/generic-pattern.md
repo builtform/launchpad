@@ -38,22 +38,27 @@ which signals "you asked for X but X isn't ready yet." Picking
 ## Idiomatic 2026 pattern
 
 There is no idiomatic "generic" framework — the user picks any tooling
-they want. LaunchPad provides the shell:
+they want. LaunchPad provides the shell across two pipeline stages:
 
-- `lefthook.yml` with the v2.1.1 hardened pre-commit + pre-push hook
-  set (lint / typecheck / test / secret-scan / format-check).
-- `.launchpad/config.yml` with the project's identity sealed (project
-  name, license, repo URL, copyright holder, email) per the
-  `/lp-pick-stack` Step 1.5 capture.
-- `.harness/agents.yml` populated with the project-default review-agent
-  roster.
-- `.github/workflows/ci.yml` with the universal Python + JS gates
-  matching the local lefthook configuration.
+- **At `/lp-scaffold-stack` time** the cross-cutting wirer
+  (`lp_scaffold_stack/cross_cutting_wirer.py`) emits `lefthook.yml`
+  with the universal v2.1 pre-commit + pre-push hooks (secret-scan,
+  test, typecheck, lint, format-check, structure-check). For
+  multi-layer monorepo scaffolds it also emits `pnpm-workspace.yaml`
+  and `turbo.json`. That is the entire scaffold-stack-time surface
+  for `generic`.
+- **At `/lp-define` + `/lp-bootstrap` time** the kernel renderer
+  emits `.launchpad/config.yml` (with the identity sealed at
+  `/lp-pick-stack` Step 1.5 — project name, license, repo URL,
+  copyright holder, email) and `.harness/agents.yml` (populated with
+  the project-default review-agent roster). CI workflows under
+  `.github/workflows/` land here as well, NOT at scaffold-stack time.
 
-The user's own scaffolder (whichever they pick) goes in OVER this shell,
-either before invoking `/lp-scaffold-stack` (manual prep) or after (then
-running `/lp-define` to register the new stack with the harness). Either
-ordering works; LaunchPad does not assume one.
+The user's own scaffolder (whichever they pick) goes in OVER the
+scaffold-stack-time `lefthook.yml`, either before invoking
+`/lp-scaffold-stack` (manual prep) or after (then running `/lp-define`
+to register the new stack with the harness). Either ordering works;
+LaunchPad does not assume one.
 
 ## When to choose `generic` vs a stack-aware adapter
 
@@ -97,15 +102,17 @@ manual-override branch produces this shape.
   No `npm create`. The adapter's `scaffold_into(tempdir)` is a one-line
   no-op that just creates the empty tempdir.
 - **No `apply_overlay`.** The generic adapter has no overlay map.
-- **Cross-cutting wiring still runs.** `lefthook.yml`, `agents.yml`,
-  `config.yml`, and the CI workflows are written into the workspace
-  per the universal v2.1 pipeline. This is the entire value proposition
-  of choosing `generic`.
+- **Cross-cutting wiring still runs.** `lefthook.yml` is always
+  emitted; for multi-layer scaffolds `pnpm-workspace.yaml` and
+  `turbo.json` are also emitted. This is the value proposition of
+  choosing `generic` at the scaffold-stack stage. `.launchpad/config.yml`,
+  `.harness/agents.yml`, and `.github/workflows/` are NOT written here
+  — those land later via `/lp-define` + `/lp-bootstrap`.
 - **Receipt records the dispatch normally.** `scaffold-receipt.json`
   has `layers_materialized` populated with the `generic` entry, but
   with empty `materialized_files` for the layer (since the generic
-  adapter never wrote any). The cross-cutting files (lefthook.yml,
-  agents.yml, config.yml, etc.) appear in the receipt's separate
+  adapter never wrote any). The cross-cutting files (`lefthook.yml`
+  and the optional monorepo pair) appear in the receipt's separate
   `cross_cutting_files` array.
 - **No `adapter_dispatch_meta.fallback_ids`.** That field is reserved
   for v2.2-candidate routing; picking `generic` directly does not

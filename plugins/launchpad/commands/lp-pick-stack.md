@@ -292,7 +292,7 @@ Per pick-stack plan §3.4 + `SCAFFOLD_HANDSHAKE.md` §4 rule 4:
 
 3. Pass the layer specs to `manual_override_resolver.resolve_manual()`:
    - Per-layer: validates against `lp_pick_stack.VALID_COMBINATIONS`
-     frozenset (18-tuple base catalog as of v2.1.4 BL-331 from
+     frozenset (26-tuple base catalog as of v2.1.4 BL-331 from
      `plugins/launchpad/scripts/lp_pick_stack/__init__.py`).
    - Per-layer: validates path via
      `path_validator.validate_relative_path()` (HANDSHAKE §6 — string-

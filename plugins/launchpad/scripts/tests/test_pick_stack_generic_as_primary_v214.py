@@ -154,11 +154,26 @@ def test_v22_candidate_fallback_unchanged():
     assert ids_for_generic == []
 
 
-def test_generic_primary_polyglot_with_astro_frontend(tmp_path: Path):
-    """BL-331: polyglot scaffold with `generic` (backend) + `astro` (frontend-main)
-    composes cleanly. Demonstrates the canonical bring-your-own-backend
-    use case (LaunchPad provides Astro frontend; user wires their own
-    backend behind the generic shell)."""
+def test_generic_primary_polyglot_decision_accepts_astro_frontend_pair(
+    tmp_path: Path,
+):
+    """BL-331: /lp-pick-stack ACCEPTS a polyglot decision pairing
+    `generic` (backend) with `astro` (frontend-main).
+
+    Scope (Codex PR #67 P2-B): this asserts the manual-override resolver
+    accepts the (stack, role) pair-set + writes a clean
+    scaffold-decision.json — i.e., the BL-331 catalog widening did not
+    accidentally break polyglot pair acceptance for the canonical
+    bring-your-own-backend use case (LaunchPad provides Astro frontend;
+    user wires their own backend behind the generic shell).
+
+    This test does NOT exercise `/lp-scaffold-stack` composition — that
+    surface is covered by `tests/test_composition_*.py` (synthetic
+    fetcher pair matrix + n=2 cap + apps/ wrapping invariants), which
+    runs against the v2.1 adapter dispatch with an injectable Astro
+    fetcher. Adding scaffold composition here would duplicate that
+    coverage without exercising anything BL-331 specifically introduced.
+    """
     (tmp_path / "apps").mkdir()
     (tmp_path / "services").mkdir()
     result = run_pick_stack_pipeline(

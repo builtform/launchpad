@@ -238,6 +238,55 @@ def test_template_cache_walk_scope_path_missing_in_pin(
     assert excinfo.value.reason == "walk_scope_path_missing"
 
 
+@pytest.mark.parametrize(
+    "bad_scope",
+    [
+        "",
+        "/abs/path",
+        "../escape",
+        "examples/../etc",
+        "a/./b",
+        "examples//portfolio",
+        "examples/portfolio\x00",
+        "examples/portfolio with space",
+        "x" * 257,
+    ],
+)
+def test_template_cache_verify_rejects_bad_walk_scope(bad_scope: str):
+    """v2.1.4 Codex PR #67 P2-A regression: `verify(walk_scope=...)` must
+    apply the same `_validate_walk_scope` rejection that `fetch()` does
+    at the cache boundary. Pre-fix, traversal-shaped scopes were silently
+    forwarded to `_entry_files_match_manifest` which would join them onto
+    `entry_dir` directly. Post-fix, the validator fires before the join."""
+    from template_cache import TemplateCacheError, verify
+
+    with pytest.raises(TemplateCacheError) as excinfo:
+        verify(
+            "https://github.com/example/repo",
+            "0" * 40,
+            walk_scope=bad_scope,
+        )
+    assert excinfo.value.reason == "invalid_walk_scope"
+
+
+def test_template_cache_verify_accepts_good_walk_scope(
+    tmp_path: Path, cache_root_tmp: Path
+):
+    """Sanity: a well-formed `walk_scope` reaches the manifest check and
+    returns False (entry not present in the tempdir cache root) — i.e.,
+    no validation rejection, just a normal cache miss."""
+    from template_cache import verify
+
+    assert (
+        verify(
+            "https://github.com/example/repo",
+            "0" * 40,
+            walk_scope="examples/portfolio",
+        )
+        is False
+    )
+
+
 @pytest.mark.slow
 @pytest.mark.skipif(not _git_available(), reason="git not available")
 @pytest.mark.skipif(not _can_reach_github(), reason="github.com unreachable")
