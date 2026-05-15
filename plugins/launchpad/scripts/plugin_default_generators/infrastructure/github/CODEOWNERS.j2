@@ -7,15 +7,30 @@
 
 # Default owners apply to every file unless overridden by a more specific rule below.
 # Replace the placeholder below with a GitHub team or username (e.g. @your-team).
-{# v2.1.5 BL-334: when PII opt-out leaves `copyright_holder` as the literal
-   `<copyright-holder>` placeholder, emit a TODO instead of a broken owner
-   line that routes review requests to a non-existent user. The user can
-   resolve via `/lp-update-identity --copyright-holder <handle>`. #}
-{%- set _holder = identity.copyright_holder -%}
-{%- if _holder and _holder != "<copyright-holder>" -%}
+{# v2.1.5 round-3 review fix A4+B1+C1+B11:
+   - A4: previously referenced a nonexistent `--copyright-holder` CLI flag;
+     `/lp-update-identity` accepts it only via interactive prompt #3.
+   - B1: validate the value LOOKS like a GitHub owner token (`@user` or
+     `@org/team`) before emitting an owner line. A bare display name like
+     "Foad Shafighi" passes the placeholder gate but fails CODEOWNERS
+     parsing — emit the TODO branch instead.
+   - C1: `| trim` so trailing whitespace doesn't bypass the placeholder gate.
+   - B11: wrap the LaunchPad-managed owner line in clearly-named sentinels
+     so a brownfield append (apply_append_only) is visually distinct from
+     a user-authored `* @real-team` line; the user can delete the
+     LaunchPad block if they want to take over manually. #}
+{%- set _holder = (identity.copyright_holder or "")|trim -%}
+{%- set _is_owner_token = _holder.startswith("@") -%}
+{%- if _holder and _holder != "<copyright-holder>" and _is_owner_token %}
+# --- LaunchPad-managed default owner (delete this block to take over manually) ---
 * {{ _holder }}
+# --- end LaunchPad-managed default owner ---
 {%- else %}
-# TODO: set primary owner via `/lp-update-identity --copyright-holder <handle>`.
+# TODO: set primary owner via `/lp-update-identity` (interactive prompt #3:
+# `copyright_holder`). Use the GitHub owner-token shape: `@your-username`
+# or `@your-org/your-team`. Display names ("Jane Doe") are not valid
+# CODEOWNERS tokens and will be ignored by GitHub.
+#
 # A default owner is required for GitHub branch-protection "Require code owner
 # review" to work; without one, every PR routes to nobody and the rule is moot.
 {%- endif %}

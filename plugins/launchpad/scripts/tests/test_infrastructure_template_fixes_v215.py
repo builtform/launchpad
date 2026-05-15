@@ -26,10 +26,23 @@ _IDENTITY = {
     "email": "owner@example.com",
     "repo_url": "https://github.com/test-org/test-proj",
     "license": "MIT",
-    "copyright_holder": "Real Owner",
+    # v2.1.5 round-3 review fix B1: valid CODEOWNERS owner-token shape
+    # (`@user` or `@org/team`), not a bare display name.
+    "copyright_holder": "@real-org/real-team",
 }
 
 _IDENTITY_PII_OPT_OUT = {**_IDENTITY, "copyright_holder": "<copyright-holder>"}
+
+# v2.1.5 round-3 review fix B1: a bare display name passes the placeholder
+# gate but is NOT a valid GitHub CODEOWNERS token.
+_IDENTITY_BARE_NAME = {**_IDENTITY, "copyright_holder": "Foad Shafighi"}
+
+# v2.1.5 round-3 review fix C1: trailing-whitespace must not bypass the
+# placeholder gate.
+_IDENTITY_PLACEHOLDER_TRAILING_WS = {
+    **_IDENTITY,
+    "copyright_holder": "<copyright-holder>  ",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -38,23 +51,64 @@ _IDENTITY_PII_OPT_OUT = {**_IDENTITY, "copyright_holder": "<copyright-holder>"}
 
 
 def test_bl334_codeowners_emits_owner_when_set() -> None:
-    """When copyright_holder is a real value, render `* <holder>`."""
+    """When copyright_holder is a real GitHub owner-token (`@user` or
+    `@org/team`), render `* <holder>` wrapped in LaunchPad-managed
+    sentinels per B11."""
     renderer = InfrastructureRenderer()
     out = renderer.render_to_string("github/CODEOWNERS.j2", _IDENTITY)
-    assert "* Real Owner" in out
+    assert "* @real-org/real-team" in out
     assert "TODO:" not in out
+    # B11: LaunchPad-managed sentinel comments wrap the owner line so
+    # apply_append_only on a brownfield project is visually distinct.
+    assert "LaunchPad-managed default owner" in out
+    assert "end LaunchPad-managed default owner" in out
 
 
 def test_bl334_codeowners_emits_todo_on_pii_opt_out() -> None:
     """When copyright_holder is the literal placeholder, emit a TODO
-    line instead of a broken owner that routes review to nobody."""
+    line that references the interactive `/lp-update-identity` prompt
+    (NOT a fake `--copyright-holder` CLI flag — A4 fix)."""
     renderer = InfrastructureRenderer()
     out = renderer.render_to_string("github/CODEOWNERS.j2", _IDENTITY_PII_OPT_OUT)
     assert "<copyright-holder>" not in out, (
         "BL-334: rendered CODEOWNERS must not ship the literal placeholder"
     )
     assert "TODO" in out
-    assert "/lp-update-identity --copyright-holder" in out
+    # A4: TODO references the real recovery path (interactive prompt #3),
+    # NOT the nonexistent `--copyright-holder` CLI flag.
+    assert "/lp-update-identity" in out
+    assert "interactive prompt" in out
+    assert "copyright_holder" in out
+    assert "--copyright-holder" not in out, (
+        "A4: `--copyright-holder` is not a real CLI flag of /lp-update-identity"
+    )
+
+
+def test_b1_codeowners_rejects_bare_display_name() -> None:
+    """B1 regression: a copyright_holder like `Foad Shafighi` passes the
+    placeholder gate but is NOT a valid GitHub CODEOWNERS owner token.
+    Emit TODO branch instead of a broken `* Foad Shafighi` line that
+    GitHub would silently ignore."""
+    renderer = InfrastructureRenderer()
+    out = renderer.render_to_string("github/CODEOWNERS.j2", _IDENTITY_BARE_NAME)
+    # No broken owner line.
+    assert "* Foad Shafighi" not in out
+    # TODO branch fires.
+    assert "TODO" in out
+    assert "interactive prompt" in out
+
+
+def test_c1_codeowners_trailing_whitespace_does_not_bypass_gate() -> None:
+    """C1 regression: `<copyright-holder>  ` (trailing whitespace) must
+    NOT slip past the placeholder gate. `|trim` filter is the fix."""
+    renderer = InfrastructureRenderer()
+    out = renderer.render_to_string(
+        "github/CODEOWNERS.j2", _IDENTITY_PLACEHOLDER_TRAILING_WS
+    )
+    # Placeholder string must be detected even with trailing whitespace
+    # — TODO branch fires, no owner line emitted.
+    assert "* <copyright-holder>" not in out
+    assert "TODO" in out
 
 
 # ---------------------------------------------------------------------------
