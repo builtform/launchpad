@@ -42,37 +42,15 @@ import importlib.util
 import re
 from pathlib import Path
 
+from ._enricher_common import read_stacks_safe
+
 _SCRIPTS_ROOT = Path(__file__).resolve().parent.parent
-_CONFIG_LOADER_PATH = _SCRIPTS_ROOT / "plugin-config-loader.py"
 _PKG_MGRS_PATH = _SCRIPTS_ROOT / "plugin_stack_adapters" / "_package_managers.py"
 
 
-def _read_stacks(cwd: Path) -> list[str]:
-    if not _CONFIG_LOADER_PATH.is_file():
-        return []
-    spec = importlib.util.spec_from_file_location(
-        "plugin_config_loader_stack_pkg",
-        _CONFIG_LOADER_PATH,
-    )
-    if spec is None or spec.loader is None:
-        return []
-    mod = importlib.util.module_from_spec(spec)
-    try:
-        spec.loader.exec_module(mod)
-    except Exception:
-        return []
-    try:
-        result = mod.read_stacks(cwd)
-    except Exception:
-        return []
-    if not isinstance(result, list):
-        return []
-    return [str(s) for s in result]
-
-
 def _load_pkg_data():  # type: ignore[no-untyped-def]
-    """Return the (primary_family_for_stacks, lefthook_hooks_for_family,
-    setup_actions_for_family) callables from the data module.
+    """Return the `_package_managers` module (carrying
+    `primary_family_for_stacks` + `lefthook_hooks_for_family`) on success.
 
     Returns None on import failure (caller defaults to no-op enrichment).
     """
@@ -100,7 +78,7 @@ def _primary_family(cwd: Path) -> str:
     the v2.1.5 kernel templates, so the default is also the
     no-op-enrichment path.
     """
-    stacks = _read_stacks(cwd)
+    stacks = read_stacks_safe(cwd, module_spec_name="plugin_config_loader_stack_pkg")
     data = _load_pkg_data()
     if data is None:
         return "ts"

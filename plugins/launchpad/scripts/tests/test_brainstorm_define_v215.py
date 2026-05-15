@@ -388,13 +388,31 @@ def test_backend_structure_renders_brainstorm_content(tmp_path: Path) -> None:
     """A8 regression: BACKEND_STRUCTURE.md.j2 received brainstorm-injection
     blocks for routes + error_handling + observability but had zero
     render-tests. Cover the routes + (implicit error_handling/observability)
-    pathways."""
+    pathways.
+
+    v2.1.6 BL-349 update: the generic adapter now sets static_capable=True,
+    which routes through the new "static site — no backend" framing that
+    omits the Routes section entirely. Override the backend dict here to
+    `static_capable=False` so the route-injection path is exercised.
+    """
     (tmp_path / ".launchpad").mkdir()
     (tmp_path / ".launchpad" / "brainstorm-summary.md").write_text(
         _BRAINSTORM_FIXTURE, encoding="utf-8"
     )
     rendered = _render_doc(
-        tmp_path, "BACKEND_STRUCTURE.md.j2", "BACKEND_STRUCTURE.md"
+        tmp_path,
+        "BACKEND_STRUCTURE.md.j2",
+        "BACKEND_STRUCTURE.md",
+        ctx_overrides={
+            "backend": {
+                "framework": "TestBackend",
+                "api_style": "REST",
+                "routes_dir": "src/routes/",
+                "models_dir": "src/models/",
+                "auth_pattern": "session",
+                "static_capable": False,
+            }
+        },
     )
 
     # `## Routes` from fixture → brainstorm.routes section in BACKEND_STRUCTURE.
@@ -409,15 +427,70 @@ def test_backend_structure_falls_back_to_placeholder_when_no_brainstorm(
     tmp_path: Path,
 ) -> None:
     """No brainstorm-summary.md → BACKEND_STRUCTURE.md placeholder
-    text for all 3 brainstorm-eligible sections."""
+    text for all 3 brainstorm-eligible sections.
+
+    v2.1.6 BL-349 update: override backend.static_capable=False so the
+    Routes / Data models / Authentication sections render (otherwise
+    the static-site framing replaces them entirely).
+    """
     rendered = _render_doc(
-        tmp_path, "BACKEND_STRUCTURE.md.j2", "BACKEND_STRUCTURE.md"
+        tmp_path,
+        "BACKEND_STRUCTURE.md.j2",
+        "BACKEND_STRUCTURE.md",
+        ctx_overrides={
+            "backend": {
+                "framework": "TestBackend",
+                "api_style": "REST",
+                "routes_dir": "src/routes/",
+                "models_dir": "src/models/",
+                "auth_pattern": "session",
+                "static_capable": False,
+            }
+        },
     )
     # Each brainstorm-eligible section falls back to placeholder.
     assert "Document the error-response contract" in rendered
     assert "Logging destination, metrics provider" in rendered
     # No marker comments.
     assert "BL-333" not in rendered
+
+
+def test_backend_structure_static_site_framing_when_static_capable_true(
+    tmp_path: Path,
+) -> None:
+    """BL-349 v2.1.6: when backend.static_capable=True, BACKEND_STRUCTURE.md
+    emits "Static site — no backend" framing and omits the Routes / Data
+    models / Authentication sections.
+
+    Verifies the renderer actually consumes the static_capable field that
+    BL-349 added to the BackendInfo contract — closes the testing-reviewer
+    P1-B finding from the v2.1.6 /lp-review pass.
+    """
+    rendered = _render_doc(
+        tmp_path,
+        "BACKEND_STRUCTURE.md.j2",
+        "BACKEND_STRUCTURE.md",
+        ctx_overrides={
+            "backend": {
+                "framework": "Astro static",
+                "api_style": "",
+                "routes_dir": "src/pages/",
+                "models_dir": None,
+                "auth_pattern": None,
+                "static_capable": True,
+            }
+        },
+    )
+    assert "Static site — no backend" in rendered, (
+        "BACKEND_STRUCTURE.md must render the static-site framing when "
+        "backend.static_capable is True (BL-349)."
+    )
+    # Server-side sections must be omitted.
+    assert "## Routes" not in rendered, (
+        "Routes section should be omitted under static_capable=True."
+    )
+    assert "## Data models" not in rendered
+    assert "## Authentication" not in rendered
 
 
 def test_canonical_overview_wins_over_aliased_problem(tmp_path: Path) -> None:

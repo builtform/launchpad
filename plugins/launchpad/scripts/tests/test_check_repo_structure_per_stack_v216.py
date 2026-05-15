@@ -65,12 +65,8 @@ _spec_a.loader.exec_module(_allow)
 STACK_ALLOWED_DIRS = _allow.STACK_ALLOWED_DIRS
 STACK_ALLOWED_CONFIGS = _allow.STACK_ALLOWED_CONFIGS
 
-_ENRICHER_PATH = _SCRIPT_DIR / "lp_bootstrap" / "stack_structure_check.py"
-_spec_b = importlib.util.spec_from_file_location("stack_structure_check", _ENRICHER_PATH)
-assert _spec_b is not None and _spec_b.loader is not None
-_enricher = importlib.util.module_from_spec(_spec_b)
-_spec_b.loader.exec_module(_enricher)
-enrich_structure_check_with_stacks = _enricher.enrich_structure_check_with_stacks
+# stack_structure_check uses relative imports — load via package path.
+from lp_bootstrap.stack_structure_check import enrich_structure_check_with_stacks  # noqa: E402
 
 _KERNEL_TEMPLATE = (
     _SCRIPT_DIR
