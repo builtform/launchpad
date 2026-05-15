@@ -276,3 +276,115 @@ def test_identity_inject_surfaces_default_versions() -> None:
     ctx = identity_inject(_TEST_IDENTITY)
     assert ctx["default_pnpm_version"] == DEFAULT_PNPM_VERSION
     assert ctx["default_node_version"] == DEFAULT_NODE_VERSION
+
+
+# ---------------------------------------------------------------------------
+# v2.1.5 round-4 fix testing-P2-1: B2 path-traversal defense-in-depth coverage
+# ---------------------------------------------------------------------------
+
+
+def test_b2_refuses_parent_traversal_in_version_file(tmp_path: Path) -> None:
+    """B2 regression (Codex P2 + security-auditor P3): a workflow whose
+    `node-version-file:` value escapes `cwd` via `..` must NOT pass the
+    on-disk fallback even when a real file exists at the resolved
+    location. The resolve+relative_to guard refuses adversarial paths."""
+    # Plant a real .nvmrc OUTSIDE tmp_path (in its parent).
+    parent_nvmrc = tmp_path.parent / f"escape-{tmp_path.name}.nvmrc"
+    parent_nvmrc.write_text("22.12.0\n")
+    try:
+        workflow = f"""\
+name: Build
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ../{parent_nvmrc.name}
+"""
+        batch = {
+            tmp_path / ".github" / "workflows" / "ci.yml": workflow.encode("utf-8"),
+        }
+        errors = _validate_workflow_self_consistency(batch, tmp_path)
+        # B2 guard refuses the resolved-outside-cwd path.
+        assert len(errors) == 1, (
+            f"B2 regression: parent-traversal must be refused even when a "
+            f"real file exists at the resolved location. Got: {errors!r}"
+        )
+        assert f"../{parent_nvmrc.name}" in errors[0]
+    finally:
+        parent_nvmrc.unlink(missing_ok=True)
+
+
+def test_b2_refuses_absolute_path_in_version_file(tmp_path: Path) -> None:
+    """B2 regression: an absolute `node-version-file:` (e.g. `/tmp/.nvmrc`)
+    must NOT pass the on-disk fallback. Path.is_absolute() short-circuits
+    the resolve+relative_to check before the candidate is ever resolved."""
+    # Plant a real file at an absolute path (also under tmp).
+    absolute_file = tmp_path / "absolute-target.txt"
+    absolute_file.write_text("22.12.0\n")
+    abs_path = str(absolute_file)
+    workflow = f"""\
+name: Build
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: {abs_path}
+"""
+    batch = {
+        tmp_path / ".github" / "workflows" / "ci.yml": workflow.encode("utf-8"),
+    }
+    errors = _validate_workflow_self_consistency(batch, tmp_path)
+    assert len(errors) == 1, (
+        f"B2 regression: absolute path must be refused even when the file "
+        f"exists. Got: {errors!r}"
+    )
+    assert abs_path in errors[0]
+
+
+# ---------------------------------------------------------------------------
+# v2.1.5 round-4 fix testing-P2-3: malformed-YAML tolerance branch coverage
+# ---------------------------------------------------------------------------
+
+
+def test_malformed_yaml_workflow_skipped_not_failed(tmp_path: Path) -> None:
+    """`_validate_workflow_self_consistency` deliberately tolerates
+    `yaml.YAMLError` and continues (workflows may legitimately contain
+    unquoted `${{ }}` expressions or test fixtures may inject deliberate
+    Jinja markup). A future maintainer who turned the tolerant `continue`
+    into a hard error would break this contract.
+
+    The test feeds a workflow with unbalanced bracket syntax that
+    yaml.safe_load rejects with YAMLError. The function must return []
+    (or only errors from OTHER valid workflows), NOT raise."""
+    # `unclosed: [` is a reliable yaml.YAMLError trip.
+    malformed = "name: Build\non: push\njobs:\n  build:\n    unclosed: [\n"
+    # Pair with a valid workflow (so we exercise the "skip malformed, keep
+    # checking valid" path rather than the "all malformed" edge).
+    valid_clean = """\
+name: Lint
+on: push
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+"""
+    (tmp_path / ".nvmrc").write_text("22.12.0\n")
+    batch = {
+        tmp_path / ".github" / "workflows" / "ci.yml": malformed.encode("utf-8"),
+        tmp_path / ".github" / "workflows" / "lint.yml": valid_clean.encode("utf-8"),
+    }
+    # Must NOT raise; must NOT report errors from the malformed file.
+    errors = _validate_workflow_self_consistency(batch, tmp_path)
+    assert errors == [], (
+        f"Malformed-YAML tolerance regression: function must skip "
+        f"unparseable workflows and continue. Got errors: {errors!r}"
+    )

@@ -244,3 +244,51 @@ def test_os_error_is_surfaced_not_swallowed(
     err = capsys.readouterr().err
     assert "BL-341 kernel-fallback aborted" in err
     assert "synthetic-disk-full" in err
+
+
+# ---------------------------------------------------------------------------
+# v2.1.5 round-4 fix testing-P2-2: C6 OSError-on-read_text branch coverage
+# ---------------------------------------------------------------------------
+
+
+import sys as _sys  # noqa: E402  (sys already imported at top; re-import for clarity)
+import pytest  # noqa: E402
+
+
+@pytest.mark.skipif(
+    _sys.platform == "win32",
+    reason="chmod 0o000 does not reliably block reads on Windows NTFS",
+)
+def test_unreadable_scaffold_decision_warns_and_returns(
+    tmp_path: Path, capsys
+) -> None:
+    """C6 regression: the collapsed-warning catch tuple
+    `(OSError, JSONDecodeError, ValueError)` must also fire for an
+    unreadable scaffold-decision.json (permission denied).
+
+    Prior tests covered JSONDecodeError (malformed JSON) and ValueError
+    (missing identity / project_name) but NOT OSError from `read_text`.
+    That branch is reachable in real-world permission errors during
+    repo recovery."""
+    mod = _runner()
+    launchpad = tmp_path / ".launchpad"
+    launchpad.mkdir()
+    decision = launchpad / "scaffold-decision.json"
+    import json as _json
+
+    decision.write_text(
+        _json.dumps({"identity": _VALID_IDENTITY}), encoding="utf-8"
+    )
+    # Make read_text raise PermissionError (an OSError subclass).
+    decision.chmod(0o000)
+    try:
+        mod._kernel_fallback_render(tmp_path)
+    finally:
+        # Restore mode so pytest's tmp cleanup works.
+        decision.chmod(0o600)
+
+    err = capsys.readouterr().err
+    assert "BL-341 kernel-fallback skipped" in err
+    assert "scaffold-decision.json malformed" in err
+    # No kernel files written.
+    assert not (tmp_path / "LICENSE").exists()
