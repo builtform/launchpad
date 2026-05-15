@@ -37,11 +37,12 @@ import argparse
 import difflib
 import json
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 VENDOR = SCRIPT_DIR / "plugin_stack_adapters" / "_vendor"
@@ -80,6 +81,39 @@ TRUST_BANNER = (
     ".launchpad/secret-patterns.txt before any disk write; if any secret "
     "pattern matches, all writes are refused."
 )
+
+
+# v2.1.5 round-3 review fix C10 (ts-reviewer): hoist the brainstorm
+# alias / canonical-slug tables to module scope. Prior shape allocated a
+# fresh dict + set on every `read_brainstorm_summary` call. They are now
+# Final + frozenset for explicit immutability.
+#
+# v2.1.5 round-3 review fix C9 (simplicity-reviewer): the `data_models` /
+# `models` alias entries were dead — no template references
+# `brainstorm.data_models`. Dropped; v2.1.6 can re-add when
+# BACKEND_STRUCTURE.md.j2 gains a `data_models` brainstorm-section.
+_BRAINSTORM_ALIASES: Final[dict[str, str]] = {
+    "problem": "overview",
+    "vision": "overview",
+    "personas": "users",
+    "audience": "users",
+    "goals": "success_criteria",
+    "success": "success_criteria",
+    "out_of_scope": "non_goals",
+    "non-goals": "non_goals",  # already-correct fallthrough
+}
+_BRAINSTORM_CANONICAL_SLUGS: Final[frozenset[str]] = frozenset(
+    _BRAINSTORM_ALIASES.values()
+)
+
+
+# v2.1.5 round-3 review fix C10: `_slug_section_name` regex pre-compilation.
+# Compiled at module-import time; `re.compile` results are cached but the
+# functools.cache layer ALSO avoids the dict-lookup. Both `_SLUG_WS_RE` +
+# `_SLUG_NONALNUM_RE` + `_SLUG_COLLAPSE_RE` are pure expressions.
+_SLUG_WS_RE: Final[re.Pattern[str]] = re.compile(r"\s+")
+_SLUG_NONALNUM_RE: Final[re.Pattern[str]] = re.compile(r"[^a-z0-9_-]")
+_SLUG_COLLAPSE_RE: Final[re.Pattern[str]] = re.compile(r"_+")
 
 
 # Canonical doc inventory: (template, output_relpath, friendly, is_launchpad_yml)
@@ -253,25 +287,14 @@ def read_brainstorm_summary(repo_root: Path) -> dict[str, str]:
     # (1) populate aliased entries first, (2) then overwrite with any
     # canonical-named section so canonical always wins. Matches the
     # docstring claim ("canonical name takes precedence").
-    _ALIASES = {
-        "problem": "overview",
-        "vision": "overview",
-        "personas": "users",
-        "audience": "users",
-        "goals": "success_criteria",
-        "success": "success_criteria",
-        "out_of_scope": "non_goals",
-        "non-goals": "non_goals",  # already-correct fallthrough
-        "data_models": "data_models",
-        "models": "data_models",
-    }
-    canonical_slugs = set(_ALIASES.values())
-
+    #
+    # v2.1.5 round-3 review fix C10: tables hoisted to module scope
+    # (`_BRAINSTORM_ALIASES` + `_BRAINSTORM_CANONICAL_SLUGS`).
     aliased: dict[str, str] = {}
     # Pass 1: populate aliased-to-canonical entries first.
     for slug, body in sections.items():
-        if slug in _ALIASES:
-            canonical = _ALIASES[slug]
+        if slug in _BRAINSTORM_ALIASES:
+            canonical = _BRAINSTORM_ALIASES[slug]
             # First-write-wins WITHIN aliases (e.g., `vision` then `problem`
             # both alias to `overview` — first one wins). Canonical entries
             # overwrite either of these in pass 2.
@@ -279,12 +302,12 @@ def read_brainstorm_summary(repo_root: Path) -> dict[str, str]:
                 aliased[canonical] = body
     # Pass 2: canonical-named sections overwrite any aliased-canonical entry.
     for slug, body in sections.items():
-        if slug in canonical_slugs:
+        if slug in _BRAINSTORM_CANONICAL_SLUGS:
             aliased[slug] = body
     # Pass 3: anything else (non-alias, non-canonical sections like
     # `navigation`, `routes`, `error_handling`) lands verbatim.
     for slug, body in sections.items():
-        if slug not in aliased and slug not in _ALIASES:
+        if slug not in aliased and slug not in _BRAINSTORM_ALIASES:
             aliased[slug] = body
     return aliased
 
@@ -292,13 +315,15 @@ def read_brainstorm_summary(repo_root: Path) -> dict[str, str]:
 def _slug_section_name(heading: str) -> str:
     """Lowercase, replace whitespace with underscore, strip everything
     else, collapse repeated underscores. `Success Criteria` →
-    `success_criteria`; `Goals & Metrics!` → `goals_metrics`."""
-    import re
+    `success_criteria`; `Goals & Metrics!` → `goals_metrics`.
 
+    v2.1.5 round-3 review fix C10: regex patterns are compiled at module
+    scope (`_SLUG_WS_RE`, `_SLUG_NONALNUM_RE`, `_SLUG_COLLAPSE_RE`)
+    instead of re.sub'd against string literals on every call."""
     s = heading.strip().lower()
-    s = re.sub(r"\s+", "_", s)
-    s = re.sub(r"[^a-z0-9_-]", "", s)
-    s = re.sub(r"_+", "_", s)
+    s = _SLUG_WS_RE.sub("_", s)
+    s = _SLUG_NONALNUM_RE.sub("", s)
+    s = _SLUG_COLLAPSE_RE.sub("_", s)
     return s.strip("_")
 
 

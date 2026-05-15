@@ -286,3 +286,192 @@ def test_brainstorm_html_is_markdown_escaped(tmp_path: Path) -> None:
     # The `[link](...)` markdown shape must also be defused (parens
     # escaped) so it does not render as an active link.
     assert "[link](javascript" not in rendered
+
+
+# ---------------------------------------------------------------------------
+# v2.1.5 PR #68 round-3 review fixes (A8 + B7)
+# ---------------------------------------------------------------------------
+
+
+def _render_doc(
+    tmp_path: Path,
+    template_name: str,
+    output_relpath: str,
+    *,
+    ctx_overrides: dict | None = None,
+) -> str:
+    """Helper: render a single doc template against the brainstorm fixture
+    and return decoded UTF-8 content. Used by A8 APP_FLOW + BACKEND_STRUCTURE
+    coverage tests.
+
+    `ctx_overrides` lets a test inject ctx keys (e.g., `app_flow`) that the
+    generic adapter doesn't synthesize on its own."""
+    from collections.abc import Iterator, Mapping
+    from typing import Any
+
+    from plugin_default_generators._renderer_base import RendererBase
+
+    class _OneDoc(RendererBase):
+        TEMPLATE_SUBDIR = "."
+
+        def render_targets(
+            self, context: Mapping[str, Any]
+        ) -> Iterator[tuple[Path, str]]:
+            ctx: dict[str, Any] = context["jinja_context"]
+            tmpl = self.env.get_template(template_name)
+            yield tmp_path / output_relpath, tmpl.render(**ctx)
+
+    adapter_out = generic.run()
+    ctx = _build_jinja_context(
+        adapter_out, {"stacks": ["generic"]}, "TestProduct", tmp_path
+    )
+    if ctx_overrides:
+        ctx.update(ctx_overrides)
+    renderer = _OneDoc()
+    batch = renderer.render_batch([{"jinja_context": ctx}])
+    return batch[next(iter(batch))].decode("utf-8")
+
+
+# Minimal truthy `app_flow` block so the `{% if app_flow %}` branch of
+# APP_FLOW.md.j2 fires (otherwise the template short-circuits to a
+# backend-only placeholder and the brainstorm sections never render).
+_APP_FLOW_STUB = {
+    "entry_routes": ["/"],
+    "primary_journeys": ["primary-journey"],
+    "auth_flow": "",
+}
+
+
+def test_app_flow_renders_brainstorm_content(tmp_path: Path) -> None:
+    """A8 regression (testing-reviewer P1): APP_FLOW.md.j2 received
+    brainstorm-injection blocks in BL-333 but had ZERO render tests.
+    Mirror the PRD coverage with navigation + error_states sections."""
+    (tmp_path / ".launchpad").mkdir()
+    (tmp_path / ".launchpad" / "brainstorm-summary.md").write_text(
+        _BRAINSTORM_FIXTURE, encoding="utf-8"
+    )
+    rendered = _render_doc(
+        tmp_path,
+        "APP_FLOW.md.j2",
+        "APP_FLOW.md",
+        ctx_overrides={"app_flow": _APP_FLOW_STUB},
+    )
+
+    # Marker comment appears for the populated brainstorm section
+    # (`navigation` from the fixture).
+    assert "v2.1.5 BL-333: filled from" in rendered
+    # Brainstorm content from the fixture is present.
+    assert "onboarding flow" in rendered  # from `## Navigation`
+    # APP_FLOW-specific scaffolding is preserved (it wraps brainstorm
+    # injection inside the `{% if app_flow %}` block).
+    assert "Navigation structure" in rendered
+
+
+def test_app_flow_falls_back_to_placeholder_when_no_brainstorm(
+    tmp_path: Path,
+) -> None:
+    """No brainstorm-summary.md → APP_FLOW.md placeholder italics return
+    for the brainstorm-eligible sections within the `{% if app_flow %}`
+    branch."""
+    # NO brainstorm-summary.md present.
+    rendered = _render_doc(
+        tmp_path,
+        "APP_FLOW.md.j2",
+        "APP_FLOW.md",
+        ctx_overrides={"app_flow": _APP_FLOW_STUB},
+    )
+    assert "Describe how users move between" in rendered
+    assert "BL-333" not in rendered
+
+
+def test_backend_structure_renders_brainstorm_content(tmp_path: Path) -> None:
+    """A8 regression: BACKEND_STRUCTURE.md.j2 received brainstorm-injection
+    blocks for routes + error_handling + observability but had zero
+    render-tests. Cover the routes + (implicit error_handling/observability)
+    pathways."""
+    (tmp_path / ".launchpad").mkdir()
+    (tmp_path / ".launchpad" / "brainstorm-summary.md").write_text(
+        _BRAINSTORM_FIXTURE, encoding="utf-8"
+    )
+    rendered = _render_doc(
+        tmp_path, "BACKEND_STRUCTURE.md.j2", "BACKEND_STRUCTURE.md"
+    )
+
+    # `## Routes` from fixture → brainstorm.routes section in BACKEND_STRUCTURE.
+    assert "v2.1.5 BL-333: filled from" in rendered
+    assert "/sections" in rendered  # from `## Routes` fixture content
+    # No `error_handling` / `observability` in fixture → placeholder italics.
+    assert "Document the error-response contract" in rendered
+    assert "Logging destination, metrics provider" in rendered
+
+
+def test_backend_structure_falls_back_to_placeholder_when_no_brainstorm(
+    tmp_path: Path,
+) -> None:
+    """No brainstorm-summary.md → BACKEND_STRUCTURE.md placeholder
+    text for all 3 brainstorm-eligible sections."""
+    rendered = _render_doc(
+        tmp_path, "BACKEND_STRUCTURE.md.j2", "BACKEND_STRUCTURE.md"
+    )
+    # Each brainstorm-eligible section falls back to placeholder.
+    assert "Document the error-response contract" in rendered
+    assert "Logging destination, metrics provider" in rendered
+    # No marker comments.
+    assert "BL-333" not in rendered
+
+
+def test_canonical_overview_wins_over_aliased_problem(tmp_path: Path) -> None:
+    """B7 regression (testing-reviewer + ts-reviewer): the Codex round-2
+    alias-precedence flip had no regression test. Locks in the contract:
+    `## Overview` body ALWAYS wins over `## Problem` (aliased → overview)
+    regardless of document order.
+
+    The fixture below puts `## Vision` (aliased → overview) FIRST and
+    `## Overview` (canonical) SECOND. Pass-2 of `read_brainstorm_summary`
+    must overwrite the alias entry with the canonical body."""
+    (tmp_path / ".launchpad").mkdir()
+    (tmp_path / ".launchpad" / "brainstorm-summary.md").write_text(
+        "## Vision\n\nVISION-via-alias body.\n\n"
+        "## Overview\n\nCANONICAL-overview body.\n",
+        encoding="utf-8",
+    )
+    result = read_brainstorm_summary(tmp_path)
+    assert result.get("overview") == "CANONICAL-overview body.", (
+        "B7 regression: when both `## Vision` (alias) and `## Overview` "
+        "(canonical) are present, canonical must win regardless of order."
+    )
+
+
+def test_canonical_users_wins_over_aliased_personas(tmp_path: Path) -> None:
+    """B7 regression: same contract for `## Personas` (alias → users) +
+    `## Users` (canonical). Order: canonical first, alias second; alias
+    must NOT overwrite."""
+    (tmp_path / ".launchpad").mkdir()
+    (tmp_path / ".launchpad" / "brainstorm-summary.md").write_text(
+        "## Users\n\nCANONICAL-users body.\n\n"
+        "## Personas\n\nPERSONAS-via-alias body.\n",
+        encoding="utf-8",
+    )
+    result = read_brainstorm_summary(tmp_path)
+    assert result.get("users") == "CANONICAL-users body.", (
+        "B7 regression: `## Users` (canonical) appearing before "
+        "`## Personas` (alias) must still win at pass-2 overwrite."
+    )
+
+
+def test_data_models_alias_dropped_v215(tmp_path: Path) -> None:
+    """C9 regression: `## Models` no longer aliases to `data_models` (the
+    alias was dead — no template consumed `brainstorm.data_models`). The
+    section now lands verbatim as `models` per pass-3 fallthrough.
+    v2.1.6 can re-add the alias when BACKEND_STRUCTURE.md.j2 gains a
+    `data_models` brainstorm section."""
+    (tmp_path / ".launchpad").mkdir()
+    (tmp_path / ".launchpad" / "brainstorm-summary.md").write_text(
+        "## Models\n\nUser, Order, Invoice.\n",
+        encoding="utf-8",
+    )
+    result = read_brainstorm_summary(tmp_path)
+    # No `data_models` key — the alias is gone.
+    assert "data_models" not in result
+    # Verbatim slug from pass-3 fallthrough.
+    assert result.get("models") == "User, Order, Invoice."
