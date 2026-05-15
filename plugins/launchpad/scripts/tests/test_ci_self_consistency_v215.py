@@ -233,22 +233,35 @@ def test_bl355_render_all_refuses_inconsistent_batch(tmp_path: Path) -> None:
     assert ".nvmrc" in err_str
 
 
-def test_bl355_recognizes_all_setup_action_inputs() -> None:
-    """The closed enum of file-referencing inputs must include the four
-    canonical setup actions per the BL-355 spec."""
+def test_bl355_recognizes_setup_node_input() -> None:
+    """The closed enum of file-referencing inputs covers setup-node, the
+    only action referenced by v2.1 workflow templates.
+
+    v2.1.5 round-3 review fix B6 (ts-reviewer + simplicity-reviewer):
+    `setup-python` / `setup-go` / `setup-ruby` rows were YAGNI scaffolding
+    (forward-compat for v2.1.6 BL-345 stack-aware refactor) — no v2.1
+    template references them. They will be re-added in v2.1.6 when the
+    stack-aware workflows that name those inputs land. Pinned-size
+    assertion below guarantees the enum doesn't silently regrow."""
     from plugin_default_generators.infrastructure_renderer import (
         _WORKFLOW_FILE_REF_INPUTS,
     )
 
     inputs = dict(_WORKFLOW_FILE_REF_INPUTS)
+    # The only entry: setup-node + node-version-file.
     assert "actions/setup-node" in inputs
     assert inputs["actions/setup-node"] == "node-version-file"
-    assert "actions/setup-python" in inputs
-    assert inputs["actions/setup-python"] == "python-version-file"
-    assert "actions/setup-go" in inputs
-    assert inputs["actions/setup-go"] == "go-version-file"
-    assert "ruby/setup-ruby" in inputs
-    assert inputs["ruby/setup-ruby"] == "ruby-version-file"
+    # Pinned-size guard so the next person to touch this list updates the
+    # documentation/CHANGELOG when they grow it.
+    assert len(_WORKFLOW_FILE_REF_INPUTS) == 1, (
+        "BL-355 + round-3 B6: _WORKFLOW_FILE_REF_INPUTS is trimmed to "
+        "setup-node only at v2.1.5. v2.1.6 BL-345 re-adds rows when "
+        "stack-aware workflows reference setup-python/go/ruby."
+    )
+    # Negative: forward-compat rows must NOT be present at v2.1.
+    assert "actions/setup-python" not in inputs
+    assert "actions/setup-go" not in inputs
+    assert "ruby/setup-ruby" not in inputs
 
 
 # ---------------------------------------------------------------------------

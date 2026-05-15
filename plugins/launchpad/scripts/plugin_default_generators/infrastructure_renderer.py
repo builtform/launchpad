@@ -139,11 +139,15 @@ def _is_allowlisted_gitignore_entry(line: str) -> bool:
 # Each entry pairs the action's `uses:` prefix (matched as a substring of
 # the full `uses:` value so the sha-pinning suffix doesn't break matching)
 # with the input key that references a file.
+#
+# v2.1.5 round-3 review fix B6 (ts-reviewer + simplicity-reviewer): trimmed
+# to just the action actively used by v2.1.5 templates (setup-node).
+# `setup-python` / `setup-go` / `setup-ruby` are v2.1.6 BL-345 stack-aware
+# refactor territory — re-add the rows there when their workflows actually
+# reference the file-input. YAGNI: forward-compat enum rows are dead-code
+# in v2.1 (no workflow template names them).
 _WORKFLOW_FILE_REF_INPUTS: tuple[tuple[str, str], ...] = (
     ("actions/setup-node", "node-version-file"),
-    ("actions/setup-python", "python-version-file"),
-    ("actions/setup-go", "go-version-file"),
-    ("ruby/setup-ruby", "ruby-version-file"),
 )
 
 
@@ -228,18 +232,71 @@ def _validate_workflow_self_consistency(
                     # Strip a leading `./` if present (NOT `lstrip("./")` —
                     # that would strip a leading `.` from `.nvmrc`!).
                     normalized = file_ref.removeprefix("./") or file_ref
-                    if (
-                        normalized not in batch_relpaths
-                        and not (cwd / normalized).exists()
-                    ):
+
+                    # v2.1.5 round-3 review fix B2 (Codex P2 +
+                    # security-auditor P3): defense-in-depth against an
+                    # absolute / traversal path slipping through. A
+                    # `file_ref` of `../.nvmrc` would resolve outside cwd
+                    # and `(cwd / "../.nvmrc").exists()` would let it
+                    # silently pass. Mirror `ensure_sections_dir` pattern
+                    # from lp_define_runner: resolve + relative_to
+                    # check — adversarial paths skip the on-disk fallback
+                    # and trip the "neither in batch nor on disk" error.
+                    on_disk_ok = False
+                    if not Path(normalized).is_absolute():
+                        try:
+                            candidate = (cwd / normalized).resolve()
+                            candidate.relative_to(cwd.resolve())
+                            on_disk_ok = candidate.exists()
+                        except (ValueError, OSError):
+                            on_disk_ok = False
+
+                    if normalized not in batch_relpaths and not on_disk_ok:
                         errors.append(
                             f"{relpath}: step `uses: {uses}` references "
                             f"`{input_key}: {file_ref}` but {file_ref!r} is "
                             f"neither in the bootstrap render batch nor on "
-                            f"disk; CI will fail on first push. Add the file "
-                            f"to INFRASTRUCTURE_FILES or remove the input."
+                            f"disk under cwd; CI will fail on first push. "
+                            f"Add the file to INFRASTRUCTURE_FILES or remove "
+                            f"the input."
                         )
     return errors
+
+
+def assert_workflow_self_consistency(
+    batch: Mapping[Path, bytes],
+    cwd: Path,
+    *,
+    error_cls: type[Exception] = InfrastructureRenderError,
+) -> None:
+    """v2.1.5 round-3 review fix C7 (simplicity-reviewer) + B5
+    (architecture-strategist): the renderer + the bootstrap engine
+    previously hand-rolled the same `_validate_workflow_self_consistency`
+    → join lines → raise block. This helper centralizes the raise so
+    both call sites shrink to one line AND raise the SAME exception type
+    (B5: prior shape had engine raising `BootstrapEngineError` while
+    renderer raised `InfrastructureRenderError`, breaking the engine's
+    local exception-handler tuple).
+
+    `error_cls` defaults to `InfrastructureRenderError`; bootstrap
+    engine call site passes that explicitly so the unified contract
+    is documented at the call site.
+    """
+    consistency_errors = _validate_workflow_self_consistency(batch, cwd)
+    if not consistency_errors:
+        return
+    joined = "\n  - ".join(consistency_errors)
+    raise error_cls(
+        f"workflow self-consistency check failed:\n  - {joined}",
+        reason=BootstrapErrorCode.TEMPLATE_RENDER_FAILED,
+        path=cwd / ".github" / "workflows",
+        remediation=(
+            "every workflow `*-version-file:` input must reference a "
+            "file rendered by /lp-bootstrap. Add the file to "
+            "INFRASTRUCTURE_FILES (with a matching `.j2` template) "
+            "or drop the input from the workflow template."
+        ),
+    )
 
 
 def _validate_gitignore_content(rendered_text: str) -> list[str]:
@@ -415,20 +472,15 @@ class InfrastructureRenderer(RendererBase):
         # the batch (or cwd) doesn't provide. This catches the
         # BL-353/BL-354 class at write time — before the user pushes,
         # before CI runs, before any failure round-trip.
-        consistency_errors = _validate_workflow_self_consistency(batch, cwd)
-        if consistency_errors:
-            joined = "\n  - ".join(consistency_errors)
-            raise InfrastructureRenderError(
-                f"workflow self-consistency check failed:\n  - {joined}",
-                reason=BootstrapErrorCode.TEMPLATE_RENDER_FAILED,
-                path=cwd / ".github" / "workflows",
-                remediation=(
-                    "every workflow `*-version-file:` input must reference a "
-                    "file rendered by /lp-bootstrap. Add the file to "
-                    "INFRASTRUCTURE_FILES (with a matching `.j2` template) "
-                    "or drop the input from the workflow template."
-                ),
-            )
+        #
+        # v2.1.5 round-3 review fix C7 + B5: use the shared helper so the
+        # renderer + bootstrap engine call sites share one raise
+        # contract (`InfrastructureRenderError`). Engine passes the same
+        # `error_cls` explicitly to keep the contract documented at the
+        # call site.
+        assert_workflow_self_consistency(
+            batch, cwd, error_cls=InfrastructureRenderError
+        )
 
         # Atomic write-all-or-none after secret-scanner gate.
         patterns_file = cwd / ".launchpad" / "secret-patterns.txt"

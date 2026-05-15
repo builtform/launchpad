@@ -301,3 +301,84 @@ def test_render_loop_scanner_ioerror_fail_closed(tmp_path, monkeypatch):
     # Zero writes happened.
     for _tpl, target_relpath, _policy, _mode in _TARGETS_3:
         assert not (tmp_path / target_relpath).exists()
+
+
+# ---------------------------------------------------------------------------
+# v2.1.5 round-3 review fix B8 (testing-reviewer): BL-355 engine-path test
+# The validator function is unit-tested in test_ci_self_consistency_v215.py,
+# but the engine wrapping (B5 InfrastructureRenderError shape +
+# C7 helper-routed remediation string) had no coverage before this test.
+# ---------------------------------------------------------------------------
+def test_render_loop_workflow_self_consistency_raises_infra_render_error(
+    tmp_path, monkeypatch
+):
+    """B5 + C7 regression: when `_render_loop` includes a workflow that
+    names a `*-version-file:` input the batch doesn't provide, the engine
+    raises `InfrastructureRenderError` (NOT `BootstrapEngineError`) so the
+    engine's outer try-block at run_bootstrap:865-869 catches it cleanly.
+
+    Drive the check by passing only the `.github/workflows/ci.yml` target
+    — the rendered workflow names `.nvmrc` but `.nvmrc` is NOT in the
+    target subset, so the consistency assertion trips. The secret-scan
+    gate runs first (B3) and is clean; consistency check fires next."""
+    from plugin_default_generators.infrastructure_renderer import (
+        InfrastructureRenderError,
+    )
+
+    _T_CI_YAML = (
+        "github/workflows/ci.yml.j2",
+        ".github/workflows/ci.yml",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    )
+
+    with pytest.raises(InfrastructureRenderError) as excinfo:
+        _render_loop(
+            tmp_path,
+            identity=_identity(),
+            targets=(_T_CI_YAML,),
+            existing_manifest=None,
+            mode="greenfield",
+            backup_dir=None,
+        )
+
+    assert excinfo.value.reason == BootstrapErrorCode.TEMPLATE_RENDER_FAILED
+    msg = str(excinfo.value)
+    assert "self-consistency" in msg
+    assert ".nvmrc" in msg
+    # Remediation string flows through the helper.
+    assert "INFRASTRUCTURE_FILES" in (excinfo.value.remediation or "")
+    # Zero writes happened (refuse-all).
+    assert not (tmp_path / ".github" / "workflows" / "ci.yml").exists()
+
+
+def test_render_loop_workflow_self_consistency_passes_with_full_batch(
+    tmp_path,
+):
+    """The consistency check is opt-out for the full INFRASTRUCTURE_FILES
+    batch — when both ci.yml AND .nvmrc are in the target subset, the
+    check passes and writes proceed."""
+    _T_CI_YAML = (
+        "github/workflows/ci.yml.j2",
+        ".github/workflows/ci.yml",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    )
+    _T_NVMRC = (
+        "nvmrc.j2",
+        ".nvmrc",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    )
+
+    records = _render_loop(
+        tmp_path,
+        identity=_identity(),
+        targets=(_T_CI_YAML, _T_NVMRC),
+        existing_manifest=None,
+        mode="greenfield",
+        backup_dir=None,
+    )
+    assert len(records) == 2
+    assert (tmp_path / ".github" / "workflows" / "ci.yml").is_file()
+    assert (tmp_path / ".nvmrc").is_file()

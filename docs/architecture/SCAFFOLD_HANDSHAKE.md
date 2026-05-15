@@ -1266,7 +1266,7 @@ Tests for each module live in `plugins/launchpad/scripts/tests/`. Test discovery
 
 ## 14. Bootstrap manifest contract (v2.1 Phase 3)
 
-`/lp-bootstrap` (v2.1; 34-path overlay at v2.1.5+ — see §14.5 changelog) materializes the infrastructure overlay
+`/lp-bootstrap` (v2.1; 34-path overlay at v2.1.5+ — see §14.7 changelog) materializes the infrastructure overlay
 into a project root and writes `.launchpad/bootstrap-manifest.json` as
 the audit trail that makes idempotency, refresh, and tampering detection
 possible. This section pins the contract that every consumer of the
@@ -1345,7 +1345,7 @@ The original "re-run /lp-pick-stack" remediation is REMOVED; sealed identity pre
 
 Cross-references: §4 (envelope contract), §10 (atomic writes), Phase 3 implementation plan sections 3.1, 3.2, 3.5, 3.7, 3.8, 6.1, 6.2.
 
-### 14.5 Per-version overlay-count changelog
+### 14.7 Per-version overlay-count changelog
 
 The infrastructure overlay path count grows additively per the §14.1 contract ("a new entry in `files[]` plus extending `INFRASTRUCTURE_FILES`; no `manifest_schema_version` bump"). This subsection tracks the deltas so consumers can pin against the count at any given release.
 

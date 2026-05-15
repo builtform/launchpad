@@ -405,10 +405,18 @@ def _run_cmd_with_prompt_detection(cmd: str, repo_root: Path) -> tuple[int, str 
         text=True,
         bufsize=1,
     )
+    # v2.1.5 round-3 review fix B13 (ts-reviewer P2): `assert proc.stdout
+    # is not None` is stripped under `python -O`. Use a runtime check
+    # that survives optimization mode. Popen with stdout=PIPE guarantees
+    # a non-None stdout per the stdlib contract, so the early-return
+    # branch is defensive — never reached in practice.
+    stdout = proc.stdout
     detected: str | None = None
+    if stdout is None:  # defensive; Popen(stdout=PIPE) contract makes this unreachable
+        proc.wait()
+        return proc.returncode, None
     try:
-        assert proc.stdout is not None
-        for line in iter(proc.stdout.readline, ""):
+        for line in iter(stdout.readline, ""):
             # Tee to terminal so the user sees real-time output.
             sys.stdout.write(line)
             sys.stdout.flush()
@@ -422,8 +430,7 @@ def _run_cmd_with_prompt_detection(cmd: str, repo_root: Path) -> tuple[int, str 
         # `finally` so a stdout-write exception (e.g. broken pipe) doesn't
         # leave a zombie process. Prior shape called `proc.wait()` outside
         # the finally and would skip reaping on any exception in the loop.
-        if proc.stdout is not None:
-            proc.stdout.close()
+        stdout.close()
         proc.wait()
     return proc.returncode, detected
 
