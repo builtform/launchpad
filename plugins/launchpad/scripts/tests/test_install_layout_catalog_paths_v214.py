@@ -1,7 +1,7 @@
 """v2.1.4 BL-327 regression: catalog path arithmetic survives both the
 source-repo layout AND the installed-plugin cache layout.
 
-The bug surfaced 2026-05-14 during the ulcspec.org dogfood test: every
+The bug surfaced 2026-05-14 during a first-user greenfield dogfood test: every
 `/lp-scaffold-stack` invocation routed through manual-override raised
 `catalog_load_failed` because the engine computed
 `~/.claude/plugins/cache/builtform/plugins/launchpad/scaffolders.yml`

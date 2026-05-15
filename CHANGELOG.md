@@ -10,7 +10,7 @@ Tracked in [ROADMAP.md](ROADMAP.md). v2.2 lands the 15 operational/security infr
 
 ## [v2.1.4]
 
-Greenfield-pipeline P0 unblock + bring-your-own-framework path + sub-template walk-scope fix. Surfaced during the 2026-05-14 ulcspec.org dogfood test, which exposed three distinct ship-blockers (one P0 + two P1) for installed-plugin users running through `/lp-pick-stack` → `/lp-scaffold-stack`. Pre-v2.1.4 every manual-override scaffold-stack invocation against the marketplace-cached install layout failed at catalog load — making v2.1.0/v2.1.1/v2.1.2/v2.1.3 effectively non-functional for real users on the install path.
+Greenfield-pipeline P0 unblock + bring-your-own-framework path + sub-template walk-scope fix. Surfaced during a 2026-05-14 first-user greenfield dogfood test, which exposed three distinct ship-blockers (one P0 + two P1) for installed-plugin users running through `/lp-pick-stack` → `/lp-scaffold-stack`. Pre-v2.1.4 every manual-override scaffold-stack invocation against the marketplace-cached install layout failed at catalog load — making v2.1.0/v2.1.1/v2.1.2/v2.1.3 effectively non-functional for real users on the install path.
 
 ### For LaunchPad users (downstream behavior changes)
 
@@ -27,12 +27,12 @@ Greenfield-pipeline P0 unblock + bring-your-own-framework path + sub-template wa
 
 ### Backlog hygiene
 
-- **5 new BL entries appended.** BL-327 (catalog-path P0), BL-328 (Astro symlink walk_scope P1 + parity gate), BL-329 (vinta pin rotation, deferred to v2.1.5/v2.2), BL-330 (starlight pin rotation, deferred to v2.1.5/v2.2), BL-331 (generic-as-primary P1). All five surfaced from the same 2026-05-14 ulcspec.org dogfood test session.
+- **5 new BL entries appended.** BL-327 (catalog-path P0), BL-328 (Astro symlink walk_scope P1 + parity gate), BL-329 (vinta pin rotation, deferred to v2.1.5/v2.2), BL-330 (starlight pin rotation, deferred to v2.1.5/v2.2), BL-331 (generic-as-primary P1). All five surfaced from the same 2026-05-14 first-user greenfield dogfood test session.
 - **Latest BL is BL-331.** Sequential numbering preserved.
 
 ### Verification
 
-- 1402 tests pass (4 skipped) across the Python suite: existing tests + 3 new install-layout regression tests + 6 new generic-as-primary tests + 19 new walk_scope tests + 1 updated count assertion. Real-world install-layout reproduction at `/tmp/repro_install_layout.py` confirms the P0 fix unblocks the ulcspec.org dogfood scenario end-to-end (catalog resolves; pick-stack succeeds; scaffold-stack writes scaffold-receipt.json).
+- 1402 tests pass (4 skipped) across the Python suite: existing tests + 3 new install-layout regression tests + 6 new generic-as-primary tests + 19 new walk_scope tests + 1 updated count assertion. Real-world install-layout reproduction at `/tmp/repro_install_layout.py` confirms the P0 fix unblocks the surfacing dogfood scenario end-to-end (catalog resolves; pick-stack succeeds; scaffold-stack writes scaffold-receipt.json).
 - `plugin-v2-handshake-lint.py` clean.
 - `plugin-upstream-pin-walk-scope-parity.py` PASS (5 pins checked, 2 waived per `KNOWN_BAD_PINS`).
 

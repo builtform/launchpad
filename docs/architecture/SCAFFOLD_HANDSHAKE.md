@@ -1141,7 +1141,7 @@ Future additions require schema 1.x bump + HANDSHAKE update in same PR (CODEOWNE
 
 ### 10.v2.1.4 — v2.1.4 amendments (BL-327 + BL-328 + BL-331)
 
-Three additive amendments to the v2.1 schema contract land in v2.1.4 from the 2026-05-14 ulcspec.org dogfood test. None modify the on-disk envelope shape; all change the contract at the loader / validation layer.
+Three additive amendments to the v2.1 schema contract land in v2.1.4 from a 2026-05-14 first-user greenfield dogfood test. None modify the on-disk envelope shape; all change the contract at the loader / validation layer.
 
 - **BL-327: install-layout-aware default catalog paths.** `lp_scaffold_stack/engine.DEFAULT_SCAFFOLDERS_YML` and `DEFAULT_CATEGORY_PATTERNS_YML` now resolve via `Path(__file__).resolve().parents[2]` instead of `parents[4] / "plugins" / "launchpad"`. Path arithmetic is identical in both source-repo (`<repo>/plugins/launchpad/scripts/lp_scaffold_stack/engine.py`) and Claude Code marketplace cache (`~/.claude/plugins/cache/builtform/launchpad/<VERSION>/scripts/lp_scaffold_stack/engine.py`) layouts because in both cases `parents[2]` is the directory holding `scaffolders.yml` + `scripts/`. Pre-fix the install-layout default resolved to a non-existent path under a spurious `plugins/launchpad/` infix; every installed-plugin user hit `catalog_load_failed` on `/lp-scaffold-stack` manual-override invocations. The `--scaffolders-yml` / `--category-patterns-yml` CLI overrides are unchanged. `tests/test_install_layout_catalog_paths_v214.py` pins the path-arithmetic invariant against both layouts.
 

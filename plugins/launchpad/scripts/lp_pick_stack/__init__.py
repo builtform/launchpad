@@ -123,7 +123,7 @@ IDENTITY_PLACEHOLDERS = {
 LICENSE_OTHER_MAX_BYTES = 10 * 1024  # 10KB cap
 LICENSE_OTHER_FORBIDDEN_SUBSTRINGS = ("{{", "{%", "{#", "<", ">")  # Jinja + HTML guard
 
-# 18 (stack, role) tuples — manual-override catalog. Covers all 10 stacks
+# 26 (stack, role) tuples — manual-override catalog. Covers all 10 stacks
 # from the v2.0 catalog (HANDSHAKE §11) at their canonical default role,
 # plus dual-role variations for stacks that ship both fullstack and
 # backend-only personas (next, django, rails). Single-purpose stacks

@@ -117,9 +117,10 @@ COMMAND_NAME = "/lp-scaffold-stack"
 # which does not exist — the cache layout has no `plugins/` segment
 # and is version-suffixed. Result: every `/lp-scaffold-stack` invocation
 # routed through manual-override raised `catalog_load_failed` for
-# every installed-plugin user (surfaced 2026-05-14 in the ulcspec.org
-# dogfood test). The PR #41 cycle 4 #1 fix corrected the source-repo
-# path arithmetic but did not anticipate the install-time layout.
+# every installed-plugin user (surfaced 2026-05-14 in a first-user
+# greenfield dogfood test). The PR #41 cycle 4 #1 fix corrected the
+# source-repo path arithmetic but did not anticipate the install-time
+# layout.
 #
 # parents[2] is the LAUNCHPAD ROOT in BOTH layouts (the dir holding
 # scaffolders.yml + scripts/). The defaults below stop assuming a
@@ -142,10 +143,6 @@ DEFAULT_CATEGORY_PATTERNS_YML = (
 # during in-tree dev still get the right path because parents[2] IS
 # the LaunchPad root in both layouts.
 DEFAULT_PLUGINS_ROOT = _LAUNCHPAD_ROOT_DEFAULT
-# Source-repo back-compat alias retained for any downstream importer
-# that relied on the pre-v2.1.4 name. Marked private so new callers
-# use the public `_LAUNCHPAD_ROOT_DEFAULT` (or pass --plugins-root).
-_REPO_ROOT_DEFAULT = _LAUNCHPAD_ROOT_DEFAULT
 
 
 class Outcome:
