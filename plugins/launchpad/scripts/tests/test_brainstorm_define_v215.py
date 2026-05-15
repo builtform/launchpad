@@ -110,7 +110,9 @@ def test_jinja_context_includes_brainstorm(tmp_path: Path) -> None:
     (tmp_path / ".launchpad").mkdir()
     (tmp_path / ".launchpad" / "brainstorm-summary.md").write_text(_BRAINSTORM_FIXTURE)
     adapter_out = generic.run()
-    ctx = _build_jinja_context(adapter_out, {"stacks": ["generic"]}, "TestProduct", tmp_path)
+    ctx = _build_jinja_context(
+        adapter_out, {"stacks": ["generic"]}, "TestProduct", tmp_path
+    )
     assert "brainstorm" in ctx
     assert "overview" in ctx["brainstorm"]
     assert "deliberate test brainstorm body" in ctx["brainstorm"]["overview"]
@@ -128,7 +130,9 @@ def test_prd_renders_brainstorm_content(tmp_path: Path) -> None:
     class _PrdOnly(RendererBase):
         TEMPLATE_SUBDIR = "."
 
-        def render_targets(self, context: Mapping[str, Any]) -> Iterator[tuple[Path, str]]:
+        def render_targets(
+            self, context: Mapping[str, Any]
+        ) -> Iterator[tuple[Path, str]]:
             ctx: dict[str, Any] = context["jinja_context"]
             tmpl = self.env.get_template("PRD.md.j2")
             yield tmp_path / "PRD.md", tmpl.render(**ctx)
@@ -136,7 +140,9 @@ def test_prd_renders_brainstorm_content(tmp_path: Path) -> None:
     (tmp_path / ".launchpad").mkdir()
     (tmp_path / ".launchpad" / "brainstorm-summary.md").write_text(_BRAINSTORM_FIXTURE)
     adapter_out = generic.run()
-    ctx = _build_jinja_context(adapter_out, {"stacks": ["generic"]}, "TestProduct", tmp_path)
+    ctx = _build_jinja_context(
+        adapter_out, {"stacks": ["generic"]}, "TestProduct", tmp_path
+    )
 
     renderer = _PrdOnly()
     batch = renderer.render_batch([{"jinja_context": ctx}])
@@ -165,14 +171,18 @@ def test_prd_falls_back_to_placeholder_when_no_brainstorm(tmp_path: Path) -> Non
     class _PrdOnly(RendererBase):
         TEMPLATE_SUBDIR = "."
 
-        def render_targets(self, context: Mapping[str, Any]) -> Iterator[tuple[Path, str]]:
+        def render_targets(
+            self, context: Mapping[str, Any]
+        ) -> Iterator[tuple[Path, str]]:
             ctx: dict[str, Any] = context["jinja_context"]
             tmpl = self.env.get_template("PRD.md.j2")
             yield tmp_path / "PRD.md", tmpl.render(**ctx)
 
     # NO brainstorm-summary.md present
     adapter_out = generic.run()
-    ctx = _build_jinja_context(adapter_out, {"stacks": ["generic"]}, "TestProduct", tmp_path)
+    ctx = _build_jinja_context(
+        adapter_out, {"stacks": ["generic"]}, "TestProduct", tmp_path
+    )
 
     renderer = _PrdOnly()
     batch = renderer.render_batch([{"jinja_context": ctx}])
@@ -184,3 +194,95 @@ def test_prd_falls_back_to_placeholder_when_no_brainstorm(tmp_path: Path) -> Non
     assert "Who uses this?" in rendered
     # No brainstorm-marked comment
     assert "BL-333" not in rendered
+
+
+# ---------------------------------------------------------------------------
+# v2.1.5 PR #68 round-3 review fixes (A2 + B4)
+# ---------------------------------------------------------------------------
+
+
+def test_partial_brainstorm_does_not_crash(tmp_path: Path) -> None:
+    """A2 regression (Codex P1): a brainstorm-summary.md containing ONLY
+    `## Problem` (aliased to `overview`) without `## Users`, `## Success
+    Criteria`, etc. must NOT raise `jinja2.UndefinedError` at render time.
+
+    Prior shape used `{% if brainstorm and brainstorm.users %}` which
+    evaluated `brainstorm.users` under StrictUndefined → crash. The
+    hardened shape uses `brainstorm.get("users")` which never raises."""
+    from collections.abc import Iterator, Mapping
+    from typing import Any
+
+    from plugin_default_generators._renderer_base import RendererBase
+
+    class _PrdRenderer(RendererBase):
+        TEMPLATE_SUBDIR = "."
+
+        def render_targets(
+            self, context: Mapping[str, Any]
+        ) -> Iterator[tuple[Path, str]]:
+            ctx: dict[str, Any] = context["jinja_context"]
+            tmpl = self.env.get_template("PRD.md.j2")
+            yield tmp_path / "PRD.md", tmpl.render(**ctx)
+
+    # Brainstorm with ONLY `## Problem` (→ `overview` via alias). No
+    # `## Users`, no `## Success Criteria`, no `## Non-Goals`,
+    # no `## Constraints`. Under StrictUndefined this was the crash shape.
+    (tmp_path / ".launchpad").mkdir()
+    (tmp_path / ".launchpad" / "brainstorm-summary.md").write_text(
+        "## Problem\n\nOnly-the-overview body.\n", encoding="utf-8"
+    )
+
+    adapter_out = generic.run()
+    ctx = _build_jinja_context(
+        adapter_out, {"stacks": ["generic"]}, "TestProduct", tmp_path
+    )
+    renderer = _PrdRenderer()
+    # Must not raise.
+    batch = renderer.render_batch([{"jinja_context": ctx}])
+    rendered = batch[next(iter(batch))].decode("utf-8")
+    assert "Only-the-overview body." in rendered
+    # The non-populated sections fall back to placeholder text.
+    assert "Who uses this?" in rendered
+
+
+def test_brainstorm_html_is_markdown_escaped(tmp_path: Path) -> None:
+    """B4 regression (security-auditor P2): a hostile brainstorm-summary.md
+    that injects `<script>` / `javascript:` must render escaped, not raw.
+
+    The `| markdown_safe` filter (applied via the `brainstorm_section`
+    macro) escapes CommonMark active chars including `<` and `>`."""
+    from collections.abc import Iterator, Mapping
+    from typing import Any
+
+    from plugin_default_generators._renderer_base import RendererBase
+
+    class _PrdRenderer(RendererBase):
+        TEMPLATE_SUBDIR = "."
+
+        def render_targets(
+            self, context: Mapping[str, Any]
+        ) -> Iterator[tuple[Path, str]]:
+            ctx: dict[str, Any] = context["jinja_context"]
+            tmpl = self.env.get_template("PRD.md.j2")
+            yield tmp_path / "PRD.md", tmpl.render(**ctx)
+
+    hostile = "## Problem\n\n<script>alert(1)</script>\n[link](javascript:alert(1))\n"
+    (tmp_path / ".launchpad").mkdir()
+    (tmp_path / ".launchpad" / "brainstorm-summary.md").write_text(
+        hostile, encoding="utf-8"
+    )
+    adapter_out = generic.run()
+    ctx = _build_jinja_context(
+        adapter_out, {"stacks": ["generic"]}, "TestProduct", tmp_path
+    )
+    renderer = _PrdRenderer()
+    batch = renderer.render_batch([{"jinja_context": ctx}])
+    rendered = batch[next(iter(batch))].decode("utf-8")
+
+    # `<script>` must NOT appear as a raw HTML tag. With markdown_safe
+    # applied, `<` and `>` are backslash-escaped.
+    assert "<script>" not in rendered
+    assert "\\<script\\>" in rendered or r"\<script\>" in rendered
+    # The `[link](...)` markdown shape must also be defused (parens
+    # escaped) so it does not render as an active link.
+    assert "[link](javascript" not in rendered
