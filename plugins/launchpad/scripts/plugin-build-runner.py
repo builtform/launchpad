@@ -360,18 +360,23 @@ def run_stage(repo_root: Path, stage: str, *, check_only: bool = False) -> int:
 # alongside an exit-0, indicate the command bailed on a non-TTY interactive
 # prompt (e.g. `pnpm astro check` prompting to install @astrojs/check then
 # silently exiting when stdin isn't a TTY).
+#
+# Codex/Greptile review fix on PR #68: narrowed to anchored prompt-shaped
+# strings to avoid false-positives on legitimate tool output. Specifically
+# dropped `[Y/n]` / `[y/N]` / `(yes)` / `non-interactive` (all too broad —
+# `pnpm install --reporter=append-only` or any tool that logs "running in
+# non-interactive mode" while completing successfully would have been
+# mis-flagged). Kept the unambiguous "Continue? …" pnpm shape and tools
+# that state they're bailing because no TTY ("Not running in a TTY").
 _PROMPT_BAIL_PATTERNS: tuple[str, ...] = (
     "Continue? Yes / No",
     "Continue? (Y/n)",
     "Continue? (y/N)",
     "Continue? [Y/n]",
     "Continue? [y/N]",
-    "[Y/n]",
-    "[y/N]",
-    "(yes)",
     "Do you want to install",
     "Press y to install",
-    "non-interactive",  # some tools print "Not running in a TTY (non-interactive)"
+    "Not running in a TTY",
 )
 
 
@@ -413,8 +418,13 @@ def _run_cmd_with_prompt_detection(cmd: str, repo_root: Path) -> tuple[int, str 
                         detected = pattern
                         break
     finally:
-        proc.stdout.close() if proc.stdout else None
-    proc.wait()
+        # Codex/Greptile review fix on PR #68: reap the subprocess inside
+        # `finally` so a stdout-write exception (e.g. broken pipe) doesn't
+        # leave a zombie process. Prior shape called `proc.wait()` outside
+        # the finally and would skip reaping on any exception in the loop.
+        if proc.stdout is not None:
+            proc.stdout.close()
+        proc.wait()
     return proc.returncode, detected
 
 

@@ -50,9 +50,15 @@ HAS_HEAD=$(git rev-parse --verify HEAD 2>/dev/null && echo yes || echo no)
 
 ### Step 1.A: Initial-scaffold mode (v2.1.5 BL-338)
 
-If `HAS_HEAD == no` (the repo has no commits yet) OR `$ARGUMENTS` contains `--initial-scaffold`, the user is committing the initial scaffold output and the normal branch-guard / mandatory-review flow does not apply (there is no diff base to review against).
+Initial-scaffold mode applies ONLY when `HAS_HEAD == no` (the repo genuinely has no commits yet). The mode bypasses the protected-branch reject AND the Step 2.5 mandatory dual-pass review — the same gate `--skip-review` has to satisfy with TTY confirmation + hotfix branch + audit trailer. Allowing the bypass on existing-history repos would open a wider review-skip path than `--skip-review` itself.
 
-Auto-detect: when `HAS_HEAD == no` and the user did not pass `--initial-scaffold`, prompt: **"This looks like the first commit on a freshly-initialized repo. Commit on `main` as an initial-scaffold commit? (y/N)"** — if `y`, proceed in initial-scaffold mode. Otherwise abort and let the user create a feature branch first.
+Per Codex/Greptile review on PR #68: `--initial-scaffold` is NOT a user-passable flag in this hardened shape. The mode triggers AUTOMATICALLY on `HAS_HEAD == no`. If a user passes `--initial-scaffold` in `$ARGUMENTS` while `HAS_HEAD == yes`, REJECT with: `"--initial-scaffold rejected: repo already has commits (HEAD exists). Initial-scaffold mode only applies to the very first commit on a freshly-initialized repo. For subsequent commits use the normal feature-branch + dual-pass review workflow, or --skip-review for hotfix branches."` Exit non-zero.
+
+Auto-detect flow (when `HAS_HEAD == no`):
+
+1. Prompt: **"This looks like the first commit on a freshly-initialized repo. Commit on `main` as an initial-scaffold commit? (y/N)"**
+2. If `y`, proceed in initial-scaffold mode.
+3. If `n`, abort with: `"aborted — create a feature branch first, then re-run /lp-commit"`. Do NOT auto-create.
 
 In initial-scaffold mode:
 
@@ -290,7 +296,25 @@ EOF
 
 The trailer follows verb-noun convention. Value pinned to closed enum `{emergency-hotfix}` at v2.1.1; future enum extension requires schema-version bump.
 
-**Audit-log dual-write deferred to v2.1.2:** the trailer is the canonical audit record for v2.1.1. Reviewer-facing visibility comes from `git log --grep='Mandatory-Review-Skipped'` searches.
+**IF Step 1.A initial-scaffold mode was active (v2.1.5 BL-338):** append the `Initial-Scaffold: true` trailer instead of the `Mandatory-Review-Skipped` trailer, and include the initial-scaffold body line:
+
+```bash
+git commit -m "$(cat <<'EOF'
+type(scope): description
+
+- bullet points if applicable
+
+This is the initial-scaffold commit for the project. Subsequent commits
+MUST follow the feature-branch + dual-pass review workflow.
+
+Initial-Scaffold: true
+EOF
+)"
+```
+
+The two trailers are mutually exclusive — a single commit emits at most one of them, since their bypass paths are disjoint by construction (initial-scaffold requires `HAS_HEAD == no`; `--skip-review` requires `HAS_HEAD == yes` AND a hotfix branch).
+
+**Audit-log dual-write deferred to v2.1.2:** the trailer is the canonical audit record for v2.1.1. Reviewer-facing visibility comes from `git log --grep='Mandatory-Review-Skipped'` or `git log --grep='Initial-Scaffold'` searches.
 
 Do NOT add a `Co-Authored-By: Claude` (or any AI co-authorship) trailer. AI attribution in commit messages is intentionally omitted from this plugin's commit format.
 

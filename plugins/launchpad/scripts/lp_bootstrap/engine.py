@@ -1115,6 +1115,34 @@ def _render_loop(
             )
         )
 
+    # v2.1.5 BL-355 (Codex/Greptile review fix on PR #68): workflow
+    # self-consistency assertion. Refuse the whole batch if any rendered
+    # `.github/workflows/*.yml` names a `*-version-file:` input
+    # (node-version-file / python-version-file / etc.) that the batch
+    # (or cwd) doesn't provide. Catches the BL-353/BL-354 class at write
+    # time — before the user pushes, before CI runs, before any failure
+    # round-trip. The same check also fires inside
+    # `InfrastructureRenderer.render_all()` for the test/no-engine path;
+    # this engine-side wire is the production path the user actually hits.
+    from plugin_default_generators.infrastructure_renderer import (
+        _validate_workflow_self_consistency,
+    )
+
+    consistency_errors = _validate_workflow_self_consistency(rendered_batch, cwd)
+    if consistency_errors:
+        joined = "\n  - ".join(consistency_errors)
+        raise BootstrapEngineError(
+            f"workflow self-consistency check failed:\n  - {joined}",
+            reason=BootstrapErrorCode.TEMPLATE_RENDER_FAILED,
+            path=cwd / ".github" / "workflows",
+            remediation=(
+                "every workflow `*-version-file:` input must reference a "
+                "file rendered by /lp-bootstrap. Add the file to "
+                "INFRASTRUCTURE_FILES (with a matching `.j2` template) "
+                "or drop the input from the workflow template."
+            ),
+        )
+
     # Phase B — secret-scan gate. Refuse-all on finding; fail-closed on
     # scanner infra failure. `.is_file()` guards mirror lp_define_runner
     # scan_all:261-262 verbatim. `template_sources=None` matches the

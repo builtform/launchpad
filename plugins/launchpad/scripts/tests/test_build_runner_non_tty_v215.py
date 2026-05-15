@@ -57,9 +57,26 @@ def test_bl340_failed_command_reports_exit_code(tmp_path: Path) -> None:
 
 def test_bl340_prompt_patterns_set() -> None:
     """The closed enum of prompt-bail patterns covers the canonical
-    pnpm + npm prompt shapes."""
+    pnpm + npm prompt shapes.
+
+    Codex/Greptile review fix on PR #68: the bare `[Y/n]` / `[y/N]` /
+    `(yes)` / `non-interactive` patterns were dropped as too broad —
+    they false-positive on legitimate tool output. The hardened enum
+    requires the prompt to anchor on `Continue? ...` wording or an
+    explicit `Not running in a TTY` / `Do you want to install` phrase.
+    """
     mod = _load_build_runner()
     patterns = mod._PROMPT_BAIL_PATTERNS
     assert "Continue? Yes / No" in patterns
-    assert "[Y/n]" in patterns or "[y/N]" in patterns
+    # Anchored `Continue?` variants must be present.
+    assert any(p.startswith("Continue? ") for p in patterns)
+    # Install-prompt wording.
     assert any("install" in p.lower() for p in patterns)
+    # Hardening assertions — the dropped overly-broad patterns must NOT be present.
+    assert "[Y/n]" not in patterns, "BL-340 hardening: bare [Y/n] is too broad"
+    assert "[y/N]" not in patterns, "BL-340 hardening: bare [y/N] is too broad"
+    assert "(yes)" not in patterns, "BL-340 hardening: bare (yes) is too broad"
+    assert "non-interactive" not in patterns, (
+        "BL-340 hardening: bare 'non-interactive' false-positives on tools "
+        "that log 'running in non-interactive mode' while completing successfully"
+    )

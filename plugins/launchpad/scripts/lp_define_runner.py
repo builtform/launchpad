@@ -243,6 +243,16 @@ def read_brainstorm_summary(repo_root: Path) -> dict[str, str]:
     # Apply alias map so common brainstorm headings reach canonical
     # PRD/APP_FLOW/BACKEND_STRUCTURE section slugs without forcing the
     # user to match the doc's exact heading.
+    #
+    # Codex/Greptile review fix on PR #68: two-pass merge where CANONICAL
+    # headings overwrite aliases. Prior shape was first-write-wins by
+    # document order — if `## Vision` appeared before `## Overview` in
+    # the brainstorm, the `vision`-via-alias content landed at
+    # `aliased["overview"]` first, and the subsequent `## Overview` body
+    # was dropped because the key was already set. The hardened shape:
+    # (1) populate aliased entries first, (2) then overwrite with any
+    # canonical-named section so canonical always wins. Matches the
+    # docstring claim ("canonical name takes precedence").
     _ALIASES = {
         "problem": "overview",
         "vision": "overview",
@@ -255,17 +265,26 @@ def read_brainstorm_summary(repo_root: Path) -> dict[str, str]:
         "data_models": "data_models",
         "models": "data_models",
     }
+    canonical_slugs = set(_ALIASES.values())
+
     aliased: dict[str, str] = {}
+    # Pass 1: populate aliased-to-canonical entries first.
     for slug, body in sections.items():
-        canonical = _ALIASES.get(slug, slug)
-        # Last-write-wins; a brainstorm with both `vision` and `overview`
-        # gets the `overview` content (canonical name takes precedence).
-        if canonical not in aliased:
-            aliased[canonical] = body
-    # Also propagate any non-aliased canonical entries that may have
-    # been clobbered by the alias-merge.
+        if slug in _ALIASES:
+            canonical = _ALIASES[slug]
+            # First-write-wins WITHIN aliases (e.g., `vision` then `problem`
+            # both alias to `overview` — first one wins). Canonical entries
+            # overwrite either of these in pass 2.
+            if canonical not in aliased:
+                aliased[canonical] = body
+    # Pass 2: canonical-named sections overwrite any aliased-canonical entry.
     for slug, body in sections.items():
-        if slug not in aliased:
+        if slug in canonical_slugs:
+            aliased[slug] = body
+    # Pass 3: anything else (non-alias, non-canonical sections like
+    # `navigation`, `routes`, `error_handling`) lands verbatim.
+    for slug, body in sections.items():
+        if slug not in aliased and slug not in _ALIASES:
             aliased[slug] = body
     return aliased
 
