@@ -3,7 +3,7 @@
 Houses the v2.1 renderer split (V3 plan section 13.6):
   * `_renderer_base.RendererBase` — shared Jinja env + atomic-write primitives.
   * `kernel_renderer.KernelRenderer` — 7 stack-agnostic identity-bearing files.
-  * `infrastructure_renderer.InfrastructureRenderer` — Phase 3 30-path overlay.
+  * `infrastructure_renderer.InfrastructureRenderer` — Phase 3 34-path overlay (v2.1.5+).
 
 Importing this package as `plugin_default_generators` lets sibling scripts use
 plain `from plugin_default_generators.<module> import ...` instead of the

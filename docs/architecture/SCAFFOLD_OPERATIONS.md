@@ -685,7 +685,7 @@ When implementation reveals a contract bug or scope-evolution forces a change to
 
 ## 10. `/lp-bootstrap` operations matrix entry (v2.1 Phase 3)
 
-`/lp-bootstrap` is the v2.1 entry point for the 30-path infrastructure overlay. The command is invoked in three contexts:
+`/lp-bootstrap` is the v2.1 entry point for the 34-path infrastructure overlay (v2.1.5+; 30 paths at v2.1.0, +3 at v2.1.5 BL-353/354/343/344 + 1 at v2.1.x PR #50 P1.A restamp-history). The command is invoked in three contexts:
 
 - Greenfield: invoked AFTER `/lp-scaffold-stack` Step 4.5 kernel render, in-process (`lp_scaffold_stack/engine.py` Step 4.6 wiring) with `mode="greenfield"`. Failure routes through the existing `_record_partial_failure` envelope with `reason="bootstrap_failed"`.
 - Brownfield-auto: invoked from `/lp-define` (Step 1.5 in lp-define.md) after the doc generator returns, when `cwd_state.infrastructure_present(cwd)` returns one of: `PARTIAL_MISSING`, `PARTIAL_STALE`, `ABSENT`. A consent prompt MUST be surfaced before any write fires; `--accept-bootstrap` non-interactively satisfies the gate for CI / scripted contexts.
@@ -696,7 +696,7 @@ When implementation reveals a contract bug or scope-evolution forces a change to
 | Flag                            | Behavior                                                                                                                                                                                                                     |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | (none)                          | Full bootstrap. Per-file policy decides each file. Fast-path skips paths whose on-disk sha matches the manifest sha and the rendered sha.                                                                                    |
-| `--refresh <path>`              | Re-render a single infrastructure path with `overwrite-with-backup`. Repeatable. Path must be in the v2.1 30-path inventory; kernel paths rejected.                                                                          |
+| `--refresh <path>`              | Re-render a single infrastructure path with `overwrite-with-backup`. Repeatable. Path must be in the v2.1 34-path inventory (v2.1.5+); kernel paths rejected.                                                                |
 | `--refresh-all`                 | Re-render every infrastructure path with `overwrite-with-backup`. If no manifest exists, silently degrades to full bootstrap with INFO `no_manifest_to_refresh`.                                                             |
 | `--accept-plugin-version-drift` | Override the plugin-version pin abort. Records the drift in `scaffold-decision.json` `version_drift_log[]`. Auto-triggers `--refresh-all` to align manifest shas with the new plugin's templates. Sealed identity preserved. |
 | `--recover`                     | Inspect sentinel snapshot. Auto-completes an interrupted run if state is consistent; fails with structured guidance if state diverges.                                                                                       |

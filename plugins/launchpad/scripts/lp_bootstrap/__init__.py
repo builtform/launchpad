@@ -1,7 +1,7 @@
 """lp_bootstrap package (v2.1 Phase 3).
 
 Owns the `/lp-bootstrap` slash command + bootstrap-manifest mechanism + the
-30-path infrastructure overlay (V3 plan section 17.1 Phase 3, locked design
+34-path infrastructure overlay (v2.1.5+; V3 plan section 17.1 Phase 3, locked design
 in `docs/plans/launchpad_plans/2026-05-05-v2.1-phase3-implementation-plan.md`
 sections 1 to 8).
 
@@ -191,7 +191,7 @@ class BootstrapPolicy(StrEnum):
     OVERWRITE_WITH_BACKUP = "overwrite-with-backup"  # --refresh / --refresh-all only
 
 
-# --- 30-path infrastructure inventory (section 3.1) -----------------------
+# --- 34-path infrastructure inventory (v2.1.5+; section 3.1) --------------
 
 # Tuple shape: (template_relpath, target_relpath, policy, mode).
 #   * template_relpath is relative to plugin_default_generators/infrastructure/.
@@ -213,9 +213,19 @@ class BootstrapPolicy(StrEnum):
 # (Tier-1 typescript-monorepo defaults). Phase 4 adapter overlays
 # specialize via wrap-and-overlay.
 INFRASTRUCTURE_FILES: Final[tuple[tuple[str, str, BootstrapPolicy, int], ...]] = (
-    # 1. Gitignore renders FIRST (harden C2)
+    # Gitignore renders FIRST (harden C2)
+    # v2.1.5 round-3 review fix C3 (pattern-finder): integer ranges
+    # were dropped from these group headers (was "1.", "2-12.", "27-28.",
+    # etc.) because the count drifted in v2.1.5 when 3 new files landed.
+    # Future additions: extend the tuple; the group label survives.
     ("gitignore.j2", ".gitignore", BootstrapPolicy.APPEND_ONLY, 0o644),
-    # 2-12. scripts/compound/ (build pipeline + config)
+    # v2.1.5 BL-354: `.nvmrc` pins Node version consumed by
+    # `actions/setup-node`'s `node-version-file:` input. Without this
+    # file the Build job aborts at the setup step on every greenfield
+    # TS-stack first push. Value sourced from
+    # `plugin_stack_adapters._constants.DEFAULT_NODE_VERSION`.
+    ("nvmrc.j2", ".nvmrc", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o644),
+    # scripts/compound/ (build pipeline + config)
     (
         "scripts/compound/build.sh.j2",
         "scripts/compound/build.sh",
@@ -288,7 +298,7 @@ INFRASTRUCTURE_FILES: Final[tuple[tuple[str, str, BootstrapPolicy, int], ...]] =
         BootstrapPolicy.MERGE_KEYS,
         0o644,
     ),
-    # 14-15. scripts/hooks/ (lefthook helpers)
+    # scripts/hooks/ (lefthook helpers)
     (
         "scripts/hooks/audit-skills.sh.j2",
         "scripts/hooks/audit-skills.sh",
@@ -301,7 +311,7 @@ INFRASTRUCTURE_FILES: Final[tuple[tuple[str, str, BootstrapPolicy, int], ...]] =
         BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
         0o755,
     ),
-    # 15a. v2.1 Codex PR #50 P1.A (D1): restamp-history commit-msg hook
+    # v2.1 Codex PR #50 P1.A (D1): restamp-history commit-msg hook
     # (downstream-rendered template; introduces subject-line allowlist
     # accepting conventional-commit prefixes + `wip`).
     (
@@ -310,7 +320,7 @@ INFRASTRUCTURE_FILES: Final[tuple[tuple[str, str, BootstrapPolicy, int], ...]] =
         BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
         0o755,
     ),
-    # 16-17. scripts/maintenance/ (structure drift detection; Phase 4 stack-aware)
+    # scripts/maintenance/ (structure drift detection; Phase 4 stack-aware)
     (
         "scripts/maintenance/check-repo-structure.sh.j2",
         "scripts/maintenance/check-repo-structure.sh",
@@ -323,24 +333,38 @@ INFRASTRUCTURE_FILES: Final[tuple[tuple[str, str, BootstrapPolicy, int], ...]] =
         BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
         0o755,
     ),
-    # 18. scripts/agent_hydration/ (CLAUDE.md sub-agent enumeration)
+    # scripts/agent_hydration/ (CLAUDE.md sub-agent enumeration)
     (
         "scripts/agent_hydration/hydrate.sh.j2",
         "scripts/agent_hydration/hydrate.sh",
         BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
         0o755,
     ),
-    # 19. lefthook.yml (Phase 4 stack-aware; v2.1 ships ts-monorepo baseline)
+    # lefthook.yml (Phase 4 stack-aware; v2.1 ships ts-monorepo baseline)
     ("lefthook.yml.j2", "lefthook.yml", BootstrapPolicy.MERGE_KEYS, 0o644),
-    # 20. secret-patterns (sourced by lefthook secret-scan hook)
+    # secret-patterns (sourced by lefthook secret-scan hook)
     (
         "secret-patterns.txt.j2",
         ".launchpad/secret-patterns.txt",
         BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
         0o644,
     ),
-    # 21-26. .github/ (governance + CI)
+    # .github/ (governance + CI)
     ("github/CODEOWNERS.j2", ".github/CODEOWNERS", BootstrapPolicy.MERGE_KEYS, 0o644),
+    # v2.1.5 BL-343: weekly grouped dependabot PRs at flip-public time.
+    (
+        "github/dependabot.yml.j2",
+        ".github/dependabot.yml",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
+    # v2.1.5 BL-344: generic Summary / Changes / Test plan / Related template.
+    (
+        "github/pull_request_template.md.j2",
+        ".github/pull_request_template.md",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
     (
         "github/ISSUE_TEMPLATE/bug_report.yml.j2",
         ".github/ISSUE_TEMPLATE/bug_report.yml",
@@ -371,7 +395,7 @@ INFRASTRUCTURE_FILES: Final[tuple[tuple[str, str, BootstrapPolicy, int], ...]] =
         BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
         0o644,
     ),
-    # 27-28. .harness/ (review context + gitignore)
+    # .harness/ (review context + gitignore)
     (
         "harness/harness.local.md.j2",
         ".harness/harness.local.md",
@@ -384,7 +408,7 @@ INFRASTRUCTURE_FILES: Final[tuple[tuple[str, str, BootstrapPolicy, int], ...]] =
         BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
         0o644,
     ),
-    # 29-30. Review tooling configs
+    # Review tooling configs
     (
         "greptile.json.j2",
         ".greptile.json",

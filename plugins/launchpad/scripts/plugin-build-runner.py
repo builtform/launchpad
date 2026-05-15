@@ -332,17 +332,116 @@ def run_stage(repo_root: Path, stage: str, *, check_only: bool = False) -> int:
             return result.returncode
         return 0
 
+    # v2.1.5 round-4 fix (Codex P2-2): the BL-340 false-pass contract is
+    # "non-TTY stdin → tool prompts then bails silently → exit 0 with no
+    # actual work done". When stdin IS a TTY (interactive local run), the
+    # user can actually answer prompts, so an exit-0 + prompt-pattern is
+    # legitimate, NOT a false-pass. Computed once outside the loop.
+    stdin_is_tty = sys.stdin.isatty()
+
     for i, cmd in enumerate(cmds, start=1):
         prefix = f"[{stage} {i}/{len(cmds)}]"
         print(f"{prefix} {cmd}", file=sys.stderr)
-        result = subprocess.run(cmd, shell=True, cwd=repo_root)  # nosec B602 -- shell=True intentional for stage runner; user-cmd from commands.<stage> array. Security boundary is `LP_CONFIG_REVIEWED` upstream gate, NOT this call site (cf. BL-308 | HANDSHAKE §6 | Phase 3 §6 threat-model). Also allowlisted in plugin-v2-handshake-lint LINT_SHELL_TRUE_ALLOWLIST.
-        if result.returncode != 0:
+        rc, prompt_bail = _run_cmd_with_prompt_detection(cmd, repo_root)
+        # v2.1.5 BL-340 + round-4 Codex P2-2: false-pass detection fires
+        # ONLY when stdin is non-TTY (CI / piped / redirected). On an
+        # interactive TTY, the user may have intentionally typed `y`,
+        # `Enter`, or similar — exit-0 + prompt-pattern is the legitimate
+        # success path. Gate the failure on `not stdin_is_tty`.
+        if rc == 0 and prompt_bail and not stdin_is_tty:
             print(
-                f"{prefix} exited {result.returncode}; stopping stage", file=sys.stderr
+                f"{prefix} false-pass: exit 0 but interactive prompt detected "
+                f"on non-TTY stdin ({prompt_bail!r}). The command likely bailed "
+                f"silently on missing dev-deps. /lp-define should wire the deps "
+                f"as devDependencies, or the command should have a non-interactive "
+                f"flag (e.g., --yes / --no).",
+                file=sys.stderr,
             )
-            return result.returncode
+            return 2
+        if rc != 0:
+            print(f"{prefix} exited {rc}; stopping stage", file=sys.stderr)
+            return rc
 
     return 0
+
+
+# v2.1.5 BL-340: prompt-pattern strings that, when seen in command output
+# alongside an exit-0, indicate the command bailed on a non-TTY interactive
+# prompt (e.g. `pnpm astro check` prompting to install @astrojs/check then
+# silently exiting when stdin isn't a TTY).
+#
+# Codex/Greptile review fix on PR #68: narrowed to anchored prompt-shaped
+# strings to avoid false-positives on legitimate tool output. Specifically
+# dropped `[Y/n]` / `[y/N]` / `(yes)` / `non-interactive` (all too broad —
+# `pnpm install --reporter=append-only` or any tool that logs "running in
+# non-interactive mode" while completing successfully would have been
+# mis-flagged). Kept the unambiguous "Continue? …" pnpm shape and tools
+# that state they're bailing because no TTY ("Not running in a TTY").
+_PROMPT_BAIL_PATTERNS: tuple[str, ...] = (
+    "Continue? Yes / No",
+    "Continue? (Y/n)",
+    "Continue? (y/N)",
+    "Continue? [Y/n]",
+    "Continue? [y/N]",
+    "Do you want to install",
+    "Press y to install",
+    "Not running in a TTY",
+)
+
+
+def _run_cmd_with_prompt_detection(cmd: str, repo_root: Path) -> tuple[int, str | None]:
+    """Run `cmd` via shell, tee stdout/stderr to the terminal, and scan
+    each line for known interactive-prompt patterns.
+
+    Returns `(returncode, prompt_bail_pattern_or_None)`. When the command
+    exits 0 but a prompt pattern was seen, the caller treats the run as
+    a false-pass and returns a non-zero exit. v2.1.5 BL-340.
+
+    Subprocess invocation parity with the prior `subprocess.run(...,
+    shell=True, cwd=repo_root)` call site: same shell=True semantics
+    (commands.<stage> array is the LP_CONFIG_REVIEWED-gated boundary;
+    see BL-308 | HANDSHAKE §6 | Phase 3 §6 threat-model). Stdin is
+    NOT redirected — preserves prior behavior where non-TTY-detecting
+    tools see the runner's stdin (inherits from the parent process).
+    """
+
+    proc = subprocess.Popen(  # nosec B602 -- shell=True intentional, see run_stage call site comment
+        cmd,
+        shell=True,
+        cwd=repo_root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    # v2.1.5 round-3 review fix B13 (ts-reviewer P2): `assert proc.stdout
+    # is not None` is stripped under `python -O`. Use a runtime check
+    # that survives optimization mode. Popen with stdout=PIPE guarantees
+    # a non-None stdout per the stdlib contract, so the early-return
+    # branch is defensive — never reached in practice.
+    stdout = proc.stdout
+    detected: str | None = None
+    if stdout is None:  # defensive; Popen(stdout=PIPE) contract makes this unreachable
+        proc.wait()
+        return proc.returncode, None
+    try:
+        for line in iter(stdout.readline, ""):
+            # Tee to terminal so the user sees real-time output.
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            if detected is None:
+                for pattern in _PROMPT_BAIL_PATTERNS:
+                    if pattern in line:
+                        detected = pattern
+                        break
+    finally:
+        # Codex/Greptile review fix on PR #68: reap the subprocess inside
+        # `finally` so a stdout-write exception (e.g. broken pipe) doesn't
+        # leave a zombie process. Prior shape called `proc.wait()` outside
+        # the finally and would skip reaping on any exception in the loop.
+        stdout.close()
+        proc.wait()
+    return proc.returncode, detected
 
 
 def main() -> int:

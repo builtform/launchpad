@@ -1,6 +1,6 @@
 ---
 name: lp-bootstrap
-description: Materialize the v2.1 30-path infrastructure overlay from sealed identity. Greenfield + brownfield-auto + refresh modes; manifest-backed integrity contract.
+description: Materialize the v2.1 34-path infrastructure overlay (v2.1.5+) from sealed identity. Greenfield + brownfield-auto + refresh modes; manifest-backed integrity contract.
 ---
 
 # /lp-bootstrap
@@ -20,7 +20,7 @@ Materialize the v2.1 infrastructure overlay (`.gitignore`, lefthook,
 compound build pipeline, scripts/hooks, scripts/maintenance,
 scripts/agent_hydration, secret-patterns, `.github/CODEOWNERS`,
 ISSUE_TEMPLATEs, workflows, harness templates, greptile / gitleaks configs)
-into the project root. The 30-path inventory is canonical and pinned in
+into the project root. The 34-path inventory (v2.1.5+) is canonical and pinned in
 `lp_bootstrap.INFRASTRUCTURE_FILES` per locked Phase 3 plan section 3.1.
 
 The command writes `.launchpad/bootstrap-manifest.json` recording every
@@ -42,7 +42,7 @@ to `--refresh` is rejected with `unknown_refresh_path`.
 | Flag                            | Behavior                                                                                                                                                                                                                                                                                                     |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | (none)                          | Full bootstrap. Per-file policy from plan section 3.2 decides each file. Fast-path skips paths whose on-disk sha matches the manifest sha and the rendered sha.                                                                                                                                              |
-| `--refresh <path>`              | Re-render a single infrastructure path with `overwrite-with-backup`. Path must be in the v2.1 30-path inventory. Repeatable for batch refresh.                                                                                                                                                               |
+| `--refresh <path>`              | Re-render a single infrastructure path with `overwrite-with-backup`. Path must be in the v2.1 34-path inventory (v2.1.5+). Repeatable for batch refresh.                                                                                                                                                     |
 | `--refresh-all`                 | Re-render every infrastructure path with `overwrite-with-backup`. If no manifest exists, silently degrades to full bootstrap with INFO `no_manifest_to_refresh`.                                                                                                                                             |
 | `--accept-plugin-version-drift` | Override the plugin-version pin abort. Records the drift in `scaffold-decision.json` `version_drift_log[]`. Auto-triggers `--refresh-all` to align manifest shas with the new plugin's templates. Sealed identity preserved.                                                                                 |
 | `--recover`                     | v2.1 Codex PR #50 P1.D (D4): clears the bootstrap sentinel + unlinks a provably-stale manifest (when `manifest.created_at` predates `sentinel.acquired_at`). Returns `BootstrapStatus.RECOVERED_SENTINEL_CLEAR_ONLY`. Full reconciliation (auto-completing interrupted runs) is deferred to v2.1.1 (BL-262). |
@@ -55,7 +55,7 @@ paths only.
 
 | Policy                   | Behavior                                                                                                                                                                                                                                                                                          | Used by                                                              |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `overwrite-if-unchanged` | Compare on-disk sha to manifest's `rendered_content_sha256`. Match -> write new content. Mismatch -> skip with `kept-user-edits` action message.                                                                                                                                                  | 26 of 30 paths                                                       |
+| `overwrite-if-unchanged` | Compare on-disk sha to manifest's `rendered_content_sha256`. Match -> write new content. Mismatch -> skip with `kept-user-edits` action message.                                                                                                                                                  | 30 of 34 paths (v2.1.5+)                                             |
 | `merge-keys`             | YAML / JSON / CODEOWNERS only. Plugin can ADD top-level keys; CANNOT delete user keys. Conflict on duplicate-key value-type -> user wins, structured warning to `bootstrap-warnings.json`. Within an existing user-defined list, plugin appends new items but never deletes user-defined entries. | `lefthook.yml`, `scripts/compound/config.json`, `.github/CODEOWNERS` |
 | `append-only`            | Read existing content; append plugin-required entries that aren't already present. NEVER reorders, deduplicates, or removes user entries.                                                                                                                                                         | `.gitignore`                                                         |
 | `overwrite-with-backup`  | Reserved for `--refresh` and `--refresh-all`. Writes pre-edit content to `.launchpad/backups/<ts>-<PID>-<rand4>/<relpath>` before atomic-write. Backup contents must be byte-equal pre-edit; symlink rejected.                                                                                    | (refresh-only)                                                       |
@@ -87,7 +87,7 @@ next step:
   `.launchpad/backups/` entry failed. Fail-closed; aborts the entire
   bootstrap. Remediation: add the entry manually.
 - `unknown_refresh_path` -- `--refresh <path>` argument is not in the
-  30-path inventory. Often because a kernel file path was passed; use
+  34-path inventory (v2.1.5+). Often because a kernel file path was passed; use
   `/lp-update-identity` for kernel refresh.
 - `path_traversal_rejected` -- `--refresh` argument contained `..` or an
   absolute path. Defense-in-depth on top of the canonical path

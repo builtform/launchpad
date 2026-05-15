@@ -311,7 +311,8 @@ def verify_source_template_shas(
     manifest: BootstrapManifest,
     *,
     expected_shas: Mapping[str, str] | None = None,
-) -> None:
+    accept_plugin_version_drift: bool = False,
+) -> list[str]:
     """Validate manifest entries against the plugin-shipped template shas.
 
     `expected_shas` defaults to the cached `source_template_shas()`; tests
@@ -324,15 +325,39 @@ def verify_source_template_shas(
     (a)). On-disk content fidelity (section 3.8 (b)) is the policy
     dispatcher's job and is a snapshot for next-run comparison, not an
     integrity claim.
+
+    v2.1.5 round-4 fix (Codex P1-A): `accept_plugin_version_drift` tolerates
+    two cross-version compat scenarios that previously crashed the
+    integrity check before --accept-plugin-version-drift could even fire:
+      1. v2.1.4-bootstrapped project upgrading to v2.1.5 (or later) — the
+         older manifest is missing entries for paths the plugin newly
+         added (e.g., `.nvmrc`, `.github/dependabot.yml`,
+         `.github/pull_request_template.md` at v2.1.5).
+      2. /plugin update between bootstraps changed a
+         source_template_sha256 — sha-mismatch on existing entries.
+    Both cases now WARN + return the warnings list instead of raise when
+    drift is accepted; the caller's `--refresh-all` auto-trigger (section
+    3.4 + 6.1) then realigns the manifest. Returns an empty list when no
+    drift detected. v2.1.4 / v2.1.0 manifests can no longer brick after
+    a plugin update.
     """
     if expected_shas is None:
         expected_shas = source_template_shas()
 
     by_path: dict[str, BootstrapManifestEntry] = {e.path: e for e in manifest.files}
+    warnings: list[str] = []
 
     for target, expected in expected_shas.items():
         entry = by_path.get(target)
         if entry is None:
+            if accept_plugin_version_drift:
+                warnings.append(
+                    f"manifest missing entry for plugin-shipped target "
+                    f"{target!r} (likely added in a newer plugin version; "
+                    f"--accept-plugin-version-drift tolerated; --refresh-all "
+                    f"will materialize it)"
+                )
+                continue
             raise BootstrapManifestError(
                 f"manifest missing entry for plugin-shipped target {target!r}",
                 reason=BootstrapErrorCode.MANIFEST_TAMPERED,
@@ -340,10 +365,22 @@ def verify_source_template_shas(
                 remediation=(
                     "Re-run /lp-bootstrap to regenerate, or pass "
                     "--accept-plugin-version-drift if the missing entry is "
-                    "from a newer plugin version."
+                    "from a newer plugin version (e.g., v2.1.4 manifest "
+                    "upgrading to v2.1.5+ which added .nvmrc, "
+                    ".github/dependabot.yml, "
+                    ".github/pull_request_template.md)."
                 ),
             )
         if entry.source_template_sha256 != expected:
+            if accept_plugin_version_drift:
+                warnings.append(
+                    f"manifest source_template_sha256 drift for {target}: "
+                    f"manifest={entry.source_template_sha256!r}, "
+                    f"plugin={expected!r} "
+                    f"(--accept-plugin-version-drift tolerated; "
+                    f"--refresh-all will realign)"
+                )
+                continue
             raise BootstrapManifestError(
                 f"manifest source_template_sha256 mismatch for {target}: "
                 f"manifest={entry.source_template_sha256!r}, "
@@ -357,6 +394,8 @@ def verify_source_template_shas(
                     "to force a clean re-bootstrap)."
                 ),
             )
+
+    return warnings
 
 
 # --- Manifest write (section 3.8 + harden B16) ----------------------------

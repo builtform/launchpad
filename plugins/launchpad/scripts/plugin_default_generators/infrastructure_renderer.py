@@ -1,6 +1,6 @@
 """Infrastructure renderer (V3 plan section 17.1 Phase 3 / Slice B).
 
-Thin subclass of `RendererBase` that ships the 30-path infrastructure
+Thin subclass of `RendererBase` that ships the 34-path infrastructure (v2.1.5+)
 overlay rendered by `/lp-bootstrap` at greenfield scaffold time AND by
 brownfield `/lp-define` auto-invocation. Templates live at
 `plugin_default_generators/infrastructure/<name>.j2`; the inventory is
@@ -128,6 +128,198 @@ def _is_allowlisted_gitignore_entry(line: str) -> bool:
     return any(rx.match(line) for rx in _GITIGNORE_ALLOWLIST_REGEXES)
 
 
+# --- CI workflow self-consistency assertion (BL-355) ---------------------
+
+# Closed enum of GitHub Actions step inputs that name a file the action
+# expects to find at the project root. If a rendered workflow names one of
+# these inputs, the named file MUST also be rendered by /lp-bootstrap to
+# the same project root — otherwise the action aborts on the first push
+# and every downstream step is skipped.
+#
+# Each entry pairs the action's `uses:` prefix (matched as a substring of
+# the full `uses:` value so the sha-pinning suffix doesn't break matching)
+# with the input key that references a file.
+#
+# v2.1.5 round-3 review fix B6 (ts-reviewer + simplicity-reviewer): trimmed
+# to just the action actively used by v2.1.5 templates (setup-node).
+# `setup-python` / `setup-go` / `setup-ruby` are v2.1.6 BL-345 stack-aware
+# refactor territory — re-add the rows there when their workflows actually
+# reference the file-input. YAGNI: forward-compat enum rows are dead-code
+# in v2.1 (no workflow template names them).
+_WORKFLOW_FILE_REF_INPUTS: tuple[tuple[str, str], ...] = (
+    ("actions/setup-node", "node-version-file"),
+)
+
+
+def _validate_workflow_self_consistency(
+    batch: Mapping[Path, bytes],
+    cwd: Path,
+) -> list[str]:
+    """Walk every rendered `.github/workflows/*.yml` in `batch`; for each
+    step, assert any file-referencing input names a file that is also
+    in `batch`. Returns a list of human-readable error strings; empty
+    when self-consistent.
+
+    BL-355 v2.1.5 — catches the BL-353 + BL-354 class at /lp-bootstrap
+    write time: rendered workflow files referencing files /lp-bootstrap
+    doesn't render. Without this check, the next workflow-template
+    rotation that adds `python-version-file` / `go-version-file` /
+    `ruby-version-file` replays the same first-push-CI-red failure
+    pattern as BL-353 / BL-354.
+
+    Implementation notes:
+      * Uses yaml.safe_load (no construction of arbitrary Python objects)
+      * Tolerant of workflow shapes — `on:` triggers may be string / list
+        / dict; steps may live under `jobs.<id>.steps` only
+      * Substring match on `uses:` so the sha-pin suffix (e.g.,
+        `@<sha> # v4.0.0`) doesn't break the action-id match
+      * The named file is matched as POSIX path relative to `cwd`
+    """
+    import yaml  # local import; PyYAML is a hard dep but lazily loaded
+
+    batch_relpaths: set[str] = set()
+    for abs_path in batch:
+        try:
+            batch_relpaths.add(abs_path.relative_to(cwd).as_posix())
+        except ValueError:
+            continue
+
+    errors: list[str] = []
+    for abs_path, content in batch.items():
+        try:
+            relpath = abs_path.relative_to(cwd).as_posix()
+        except ValueError:
+            continue
+        if not relpath.startswith(".github/workflows/"):
+            continue
+        if not (relpath.endswith(".yml") or relpath.endswith(".yaml")):
+            continue
+        try:
+            doc = yaml.safe_load(content)
+        except yaml.YAMLError:
+            # Malformed YAML is not the BL-355 self-consistency concern;
+            # the workflow may legitimately contain unquoted `${{ }}`
+            # expressions or test fixtures may inject deliberate Jinja
+            # markup. The CI-config-lint job (separate gate) catches
+            # genuinely-broken workflows. Skip self-consistency here.
+            continue
+        if not isinstance(doc, dict):
+            continue
+        jobs = doc.get("jobs", {})
+        if not isinstance(jobs, dict):
+            continue
+        for _job_id, job in jobs.items():
+            if not isinstance(job, dict):
+                continue
+            steps = job.get("steps", [])
+            if not isinstance(steps, list):
+                continue
+            for step in steps:
+                if not isinstance(step, dict):
+                    continue
+                uses = step.get("uses", "")
+                if not isinstance(uses, str) or not uses:
+                    continue
+                with_block = step.get("with", {})
+                if not isinstance(with_block, dict):
+                    continue
+                for action_prefix, input_key in _WORKFLOW_FILE_REF_INPUTS:
+                    if action_prefix not in uses:
+                        continue
+                    file_ref = with_block.get(input_key)
+                    if not isinstance(file_ref, str) or not file_ref:
+                        continue
+                    # Strip a leading `./` if present (NOT `lstrip("./")` —
+                    # that would strip a leading `.` from `.nvmrc`!).
+                    normalized = file_ref.removeprefix("./") or file_ref
+
+                    # v2.1.5 round-3 review fix B2 (Codex P2 +
+                    # security-auditor P3): defense-in-depth against an
+                    # absolute / traversal path slipping through. A
+                    # `file_ref` of `../.nvmrc` would resolve outside cwd
+                    # and `(cwd / "../.nvmrc").exists()` would let it
+                    # silently pass. Mirror `ensure_sections_dir` pattern
+                    # from lp_define_runner: resolve + relative_to
+                    # check — adversarial paths skip the on-disk fallback
+                    # and trip the "neither in batch nor on disk" error.
+                    #
+                    # v2.1.5 round-5 fix (Codex P2): require `.is_file()`,
+                    # not just `.exists()`. A workflow with
+                    # `node-version-file: .` (cwd dir) or
+                    # `node-version-file: docs` (a directory) would have
+                    # passed the prior `.exists()` check but actions/
+                    # setup-node aborts because it expects a regular
+                    # file, not a directory. `.is_file()` returns False
+                    # for directories AND for non-existent paths, so
+                    # this also short-circuits the
+                    # "neither in batch nor on disk" branch correctly.
+                    on_disk_ok = False
+                    if not Path(normalized).is_absolute():
+                        try:
+                            candidate = (cwd / normalized).resolve()
+                            candidate.relative_to(cwd.resolve())
+                            on_disk_ok = candidate.is_file()
+                        except (ValueError, OSError):
+                            on_disk_ok = False
+
+                    if normalized not in batch_relpaths and not on_disk_ok:
+                        errors.append(
+                            f"{relpath}: step `uses: {uses}` references "
+                            f"`{input_key}: {file_ref}` but {file_ref!r} is "
+                            f"neither in the bootstrap render batch nor on "
+                            f"disk under cwd; CI will fail on first push. "
+                            f"Add the file to INFRASTRUCTURE_FILES or remove "
+                            f"the input."
+                        )
+    return errors
+
+
+def assert_workflow_self_consistency(
+    batch: Mapping[Path, bytes],
+    cwd: Path,
+    *,
+    error_cls: type[InfrastructureRenderError] = InfrastructureRenderError,
+) -> None:
+    """v2.1.5 round-3 review fix C7 (simplicity-reviewer) + B5
+    (architecture-strategist): the renderer + the bootstrap engine
+    previously hand-rolled the same `_validate_workflow_self_consistency`
+    → join lines → raise block. This helper centralizes the raise so
+    both call sites shrink to one line AND raise the SAME exception type
+    (B5: prior shape had engine raising `BootstrapEngineError` while
+    renderer raised `InfrastructureRenderError`, breaking the engine's
+    local exception-handler tuple).
+
+    `error_cls` defaults to `InfrastructureRenderError`; bootstrap
+    engine call site passes that explicitly so the unified contract
+    is documented at the call site.
+
+    v2.1.5 round-5 review fix (pre-push pyright): `error_cls` is typed
+    `type[InfrastructureRenderError]` (not the broader `type[Exception]`)
+    because the body of this helper unconditionally calls
+    `error_cls(msg, reason=..., path=..., remediation=...)` with the
+    `InfrastructureRenderError` constructor signature. Widening the
+    annotation to `Exception` would be lying to pyright AND to future
+    callers — a foreign Exception class passed at this position would
+    TypeError at the raise site, which is fail-closed but not what the
+    annotation should advertise.
+    """
+    consistency_errors = _validate_workflow_self_consistency(batch, cwd)
+    if not consistency_errors:
+        return
+    joined = "\n  - ".join(consistency_errors)
+    raise error_cls(
+        f"workflow self-consistency check failed:\n  - {joined}",
+        reason=BootstrapErrorCode.TEMPLATE_RENDER_FAILED,
+        path=cwd / ".github" / "workflows",
+        remediation=(
+            "every workflow `*-version-file:` input must reference a "
+            "file rendered by /lp-bootstrap. Add the file to "
+            "INFRASTRUCTURE_FILES (with a matching `.j2` template) "
+            "or drop the input from the workflow template."
+        ),
+    )
+
+
 def _validate_gitignore_content(rendered_text: str) -> list[str]:
     """Scan rendered `.gitignore` content; return descriptive warnings.
 
@@ -153,7 +345,8 @@ def _validate_gitignore_content(rendered_text: str) -> list[str]:
 
 
 class InfrastructureRenderer(RendererBase):
-    """Render the 30 infrastructure files for a project's identity block."""
+    """Render the v2.1 infrastructure files for a project's identity block.
+    Inventory size is pinned by `INFRASTRUCTURE_FILES` (34 paths at v2.1.5+)."""
 
     TEMPLATE_SUBDIR = "infrastructure"
 
@@ -194,7 +387,7 @@ class InfrastructureRenderer(RendererBase):
                 path=Path(template_name),
                 remediation=(
                     "reinstall the LaunchPad plugin; the v2.1 plugin ships "
-                    "all 30 infrastructure templates"
+                    f"all {len(INFRASTRUCTURE_TARGETS)} infrastructure templates"
                 ),
             ) from exc
         except Exception as exc:  # noqa: BLE001 -- map jinja errors uniformly
@@ -296,6 +489,21 @@ class InfrastructureRenderer(RendererBase):
                 batch[gitignore_target].decode("utf-8", errors="replace")
             )
 
+        # BL-355 v2.1.5: workflow self-consistency assertion. Refuse the
+        # whole batch if any rendered workflow names a `*-version-file`
+        # the batch (or cwd) doesn't provide. This catches the
+        # BL-353/BL-354 class at write time — before the user pushes,
+        # before CI runs, before any failure round-trip.
+        #
+        # v2.1.5 round-3 review fix C7 + B5: use the shared helper so the
+        # renderer + bootstrap engine call sites share one raise
+        # contract (`InfrastructureRenderError`). Engine passes the same
+        # `error_cls` explicitly to keep the contract documented at the
+        # call site.
+        assert_workflow_self_consistency(
+            batch, cwd, error_cls=InfrastructureRenderError
+        )
+
         # Atomic write-all-or-none after secret-scanner gate.
         patterns_file = cwd / ".launchpad" / "secret-patterns.txt"
         allowlist_path = cwd / ".launchpad" / "secret-allowlist.txt"
@@ -330,5 +538,11 @@ __all__ = [
     "INFRASTRUCTURE_TARGETS",
     "InfrastructureRenderError",
     "InfrastructureRenderer",
+    # v2.1.5 round-4 fix arch-F1: public cross-module helper. The
+    # underscore-prefixed `_validate_workflow_self_consistency` stays in
+    # __all__ for test access; consumers (lp_bootstrap engine) MUST use
+    # `assert_workflow_self_consistency` for the unified raise contract.
+    "assert_workflow_self_consistency",
     "_validate_gitignore_content",
+    "_validate_workflow_self_consistency",
 ]

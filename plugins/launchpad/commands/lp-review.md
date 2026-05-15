@@ -39,6 +39,40 @@ git diff --name-only origin/main...HEAD
 
 - Check for Prisma changes (files matching `packages/db/**`, `prisma/**`, `*.prisma`) → set `db_changes = true/false`
 
+### Step 1.A: Pre-first-commit fallback (v2.1.5 BL-337)
+
+If the diff-scope command fails because the repo has no HEAD (`git rev-parse HEAD` errors) OR no remote (`git rev-parse origin/main` errors), the project is in pre-first-commit state — a freshly-initialized greenfield where `/lp-review` was invoked before any commits exist. The default diff range is unusable.
+
+Detection (run BEFORE the diff command above):
+
+```bash
+HAS_HEAD=$(git rev-parse --verify HEAD >/dev/null 2>&1 && echo yes || echo no)
+HAS_REMOTE=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo yes || echo no)
+```
+
+**v2.1.5 round-5 fix (Codex P1-B):** The original BL-337 fix conflated `HAS_HEAD == no` and `HAS_REMOTE == no` into one branch with the same scope (untracked + staged-tracked). That's correct ONLY when there's no HEAD. For an existing-history repo missing only `origin/main` (e.g., a local-only repo, or a fork that hasn't fetched upstream yet), the conflated scope OMITS unstaged modifications to tracked files — which are exactly what the user wants reviewed locally. The two cases must branch separately:
+
+**Case 1: `HAS_HEAD == no` (true pre-first-commit; no diff base AT ALL):**
+
+- If `$ARGUMENTS` contains `--staged`: scope = `git diff --cached --name-only` (staged files only)
+- Otherwise: scope = `git ls-files --others --exclude-standard` plus tracked staged files (full working-tree + staged review)
+- The agent dispatch treats each scoped file as a new-file diff (no diff base, full-content review)
+- Banner: `[pre-first-commit] reviewing <N> staged/working-tree files as new-file diff`
+
+**Case 2: `HAS_HEAD == yes` AND `HAS_REMOTE == no` (existing-history, no remote base):**
+
+- Scope = union of three sources:
+  - `git diff --name-only HEAD` (unstaged modifications to tracked files — the case Codex P1-B flagged as missing)
+  - `git diff --cached --name-only` (staged tracked files)
+  - `git ls-files --others --exclude-standard` (untracked files)
+- The agent dispatch treats each scoped file as a normal diff vs `HEAD` (NOT a new-file diff) where the file is a tracked modification; new-file diff for untracked files. Mixed mode.
+- Banner: `[no-remote-base] reviewing <N> files vs HEAD + staged + untracked (origin/main absent)`
+
+**Both cases share the post-scoping handling:**
+
+- **Pre-first-commit secret scan (v2.1.5 round-3 review fix A3 + round-4 fix Codex P1-B):** there is no `origin/main..HEAD` diff to scan, but the scoped files CAN contain secrets the user filled in by hand (e.g., API keys pasted into `.env.example`). Run the same `.launchpad/secret-patterns.txt` patterns against the FULL CONTENT of every scoped file (treating each as an all-added-lines diff). On any match, HALT with the standard Step 2 warning. Skipping the scan entirely was the prior shape and shipped first-pass secret leaks.
+- Set `db_changes = false` (Case 1: no Prisma migration in a pre-first-commit scaffold; Case 2: best-effort, since we can't reliably diff against `origin/main`).
+
 ## Step 1.5: Read PR Intent Context (best-effort)
 
 **IF `--no-context` flag is set: skip this entire step. Set `intent_context = empty` and proceed to Step 2.**
@@ -51,11 +85,26 @@ git diff --name-only origin/main...HEAD
 
 ## Step 2: Pre-dispatch Secret Scan (best-effort)
 
-1. Read patterns from `.launchpad/secret-patterns.txt` (one pattern per line)
-2. Get diff: `git diff origin/main...HEAD`
-3. Scan only **added lines** (`+` prefix) for matches against each pattern
-4. IF matches found: **HALT** and warn user with specific matches
-5. Note: best-effort scan. For comprehensive detection, integrate gitleaks/trufflehog.
+**v2.1.5 round-4 fix (Codex P1-B):** when Step 1.A's pre-first-commit
+fallback fired (`HAS_HEAD == no` OR `HAS_REMOTE == no`), the
+`git diff origin/main...HEAD` command in step 2 below is exactly the
+command that triggered the fallback in the first place. The flow MUST
+branch:
+
+- **Pre-first-commit mode** (`HAS_HEAD == no` OR `HAS_REMOTE == no`):
+  Read patterns from `.launchpad/secret-patterns.txt`. For each file in
+  the scoped set from Step 1.A (`--staged` or working-tree mode), read
+  the FULL FILE CONTENT and scan it against the patterns (each line is
+  treated as an "added line" because there is no diff base). IF matches
+  found: **HALT** and warn user with the specific file:line + matched
+  pattern. This closes the A3 / Codex P1 first-pass secret-leak surface
+  that the original BL-337 fix left open.
+- **Normal mode** (HEAD + origin/main both resolve):
+  1. Read patterns from `.launchpad/secret-patterns.txt` (one pattern per line)
+  2. Get diff: `git diff origin/main...HEAD`
+  3. Scan only **added lines** (`+` prefix) for matches against each pattern
+  4. IF matches found: **HALT** and warn user with specific matches
+  5. Note: best-effort scan. For comprehensive detection, integrate gitleaks/trufflehog.
 
 ## Step 3: Dispatch Review Agents (parallel, all model: inherit)
 

@@ -37,11 +37,13 @@ import argparse
 import difflib
 import json
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Iterator, Mapping
+from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 VENDOR = SCRIPT_DIR / "plugin_stack_adapters" / "_vendor"
@@ -82,6 +84,39 @@ TRUST_BANNER = (
 )
 
 
+# v2.1.5 round-3 review fix C10 (ts-reviewer): hoist the brainstorm
+# alias / canonical-slug tables to module scope. Prior shape allocated a
+# fresh dict + set on every `read_brainstorm_summary` call. They are now
+# Final + frozenset for explicit immutability.
+#
+# v2.1.5 round-3 review fix C9 (simplicity-reviewer): the `data_models` /
+# `models` alias entries were dead — no template references
+# `brainstorm.data_models`. Dropped; v2.1.6 can re-add when
+# BACKEND_STRUCTURE.md.j2 gains a `data_models` brainstorm-section.
+_BRAINSTORM_ALIASES: Final[dict[str, str]] = {
+    "problem": "overview",
+    "vision": "overview",
+    "personas": "users",
+    "audience": "users",
+    "goals": "success_criteria",
+    "success": "success_criteria",
+    "out_of_scope": "non_goals",
+    "non-goals": "non_goals",  # already-correct fallthrough
+}
+_BRAINSTORM_CANONICAL_SLUGS: Final[frozenset[str]] = frozenset(
+    _BRAINSTORM_ALIASES.values()
+)
+
+
+# v2.1.5 round-3 review fix C10: `_slug_section_name` regex pre-compilation.
+# Compiled at module-import time; `re.compile` results are cached but the
+# functools.cache layer ALSO avoids the dict-lookup. Both `_SLUG_WS_RE` +
+# `_SLUG_NONALNUM_RE` + `_SLUG_COLLAPSE_RE` are pure expressions.
+_SLUG_WS_RE: Final[re.Pattern[str]] = re.compile(r"\s+")
+_SLUG_NONALNUM_RE: Final[re.Pattern[str]] = re.compile(r"[^a-z0-9_-]")
+_SLUG_COLLAPSE_RE: Final[re.Pattern[str]] = re.compile(r"_+")
+
+
 # Canonical doc inventory: (template, output_relpath, friendly, is_launchpad_yml)
 DOCS: tuple[tuple[str, str, str, bool], ...] = (
     ("PRD.md.j2", "docs/architecture/PRD.md", "PRD", False),
@@ -93,6 +128,16 @@ DOCS: tuple[tuple[str, str, str, bool], ...] = (
         False,
     ),
     ("APP_FLOW.md.j2", "docs/architecture/APP_FLOW.md", "APP_FLOW", False),
+    # v2.1.5 BL-336: REPOSITORY_STRUCTURE.md is referenced by
+    # scripts/maintenance/check-repo-structure.sh error messages —
+    # but was never rendered. Universal-shape v2.1.5 template; v2.1.6
+    # BL-347 lands the stack-aware version.
+    (
+        "REPOSITORY_STRUCTURE.md.j2",
+        "docs/architecture/REPOSITORY_STRUCTURE.md",
+        "REPOSITORY_STRUCTURE",
+        False,
+    ),
     (
         "SECTION_REGISTRY.md.j2",
         "docs/tasks/SECTION_REGISTRY.md",
@@ -186,6 +231,103 @@ class LpDefineRenderer(RendererBase):
             yield repo_root / out_relpath, tmpl.render(**ctx)
 
 
+def read_brainstorm_summary(repo_root: Path) -> dict[str, str]:
+    """v2.1.5 BL-333: parse `.launchpad/brainstorm-summary.md` into a
+    section-keyed dict for injection into the canonical docs.
+
+    Format: standard Markdown with `## Section Name` headers. The body
+    of each section (up to the next `## ` header) becomes the value.
+    Section names are slug-normalized: lowercase, spaces → underscores,
+    non-alphanumeric stripped. e.g. `## Success Criteria` → `success_criteria`.
+
+    Aliases applied so common brainstorm headings map to the PRD's
+    canonical section slugs:
+      `problem` / `vision` → `overview`
+      `personas` / `audience` → `users`
+      `goals` / `success` → `success_criteria`
+      `non-goals` / `out_of_scope` → `non_goals`
+
+    Returns `{}` when the file is absent, empty, or malformed —
+    callers handle the empty-dict case by falling through to the
+    placeholder rendering. Defensive: never raises on read.
+    """
+    summary_path = repo_root / ".launchpad" / "brainstorm-summary.md"
+    if not summary_path.is_file():
+        return {}
+    try:
+        text = summary_path.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    sections: dict[str, str] = {}
+    current_slug: str | None = None
+    current_lines: list[str] = []
+    for raw in text.splitlines():
+        # YAML frontmatter delimiters are ignored — we extract section
+        # bodies only. Frontmatter parsing is out of scope for v2.1.5.
+        if raw.startswith("## "):
+            if current_slug is not None:
+                sections[current_slug] = "\n".join(current_lines).strip()
+            heading = raw[3:].strip()
+            current_slug = _slug_section_name(heading)
+            current_lines = []
+        elif current_slug is not None:
+            current_lines.append(raw)
+    if current_slug is not None:
+        sections[current_slug] = "\n".join(current_lines).strip()
+
+    # Apply alias map so common brainstorm headings reach canonical
+    # PRD/APP_FLOW/BACKEND_STRUCTURE section slugs without forcing the
+    # user to match the doc's exact heading.
+    #
+    # Codex/Greptile review fix on PR #68: two-pass merge where CANONICAL
+    # headings overwrite aliases. Prior shape was first-write-wins by
+    # document order — if `## Vision` appeared before `## Overview` in
+    # the brainstorm, the `vision`-via-alias content landed at
+    # `aliased["overview"]` first, and the subsequent `## Overview` body
+    # was dropped because the key was already set. The hardened shape:
+    # (1) populate aliased entries first, (2) then overwrite with any
+    # canonical-named section so canonical always wins. Matches the
+    # docstring claim ("canonical name takes precedence").
+    #
+    # v2.1.5 round-3 review fix C10: tables hoisted to module scope
+    # (`_BRAINSTORM_ALIASES` + `_BRAINSTORM_CANONICAL_SLUGS`).
+    aliased: dict[str, str] = {}
+    # Pass 1: populate aliased-to-canonical entries first.
+    for slug, body in sections.items():
+        if slug in _BRAINSTORM_ALIASES:
+            canonical = _BRAINSTORM_ALIASES[slug]
+            # First-write-wins WITHIN aliases (e.g., `vision` then `problem`
+            # both alias to `overview` — first one wins). Canonical entries
+            # overwrite either of these in pass 2.
+            if canonical not in aliased:
+                aliased[canonical] = body
+    # Pass 2: canonical-named sections overwrite any aliased-canonical entry.
+    for slug, body in sections.items():
+        if slug in _BRAINSTORM_CANONICAL_SLUGS:
+            aliased[slug] = body
+    # Pass 3: anything else (non-alias, non-canonical sections like
+    # `navigation`, `routes`, `error_handling`) lands verbatim.
+    for slug, body in sections.items():
+        if slug not in aliased and slug not in _BRAINSTORM_ALIASES:
+            aliased[slug] = body
+    return aliased
+
+
+def _slug_section_name(heading: str) -> str:
+    """Lowercase, replace whitespace with underscore, strip everything
+    else, collapse repeated underscores. `Success Criteria` →
+    `success_criteria`; `Goals & Metrics!` → `goals_metrics`.
+
+    v2.1.5 round-3 review fix C10: regex patterns are compiled at module
+    scope (`_SLUG_WS_RE`, `_SLUG_NONALNUM_RE`, `_SLUG_COLLAPSE_RE`)
+    instead of re.sub'd against string literals on every call."""
+    s = heading.strip().lower()
+    s = _SLUG_WS_RE.sub("_", s)
+    s = _SLUG_NONALNUM_RE.sub("", s)
+    s = _SLUG_COLLAPSE_RE.sub("_", s)
+    return s.strip("_")
+
+
 def _build_jinja_context(
     adapter_out: AdapterOutput,
     detector_report: dict[str, Any],
@@ -201,6 +343,12 @@ def _build_jinja_context(
             )
         except (ValueError, OSError):
             relative_manifests.append(Path(m).name)
+
+    # v2.1.5 BL-333: surface brainstorm-summary content into the Jinja
+    # context so PRD / APP_FLOW / BACKEND_STRUCTURE templates can
+    # consume `brainstorm.<section_slug>` and replace placeholder text
+    # with user-authored content from `/lp-brainstorm`.
+    brainstorm = read_brainstorm_summary(repo_root)
 
     return {
         "product_name": product_name,
@@ -220,6 +368,7 @@ def _build_jinja_context(
         "pipeline_test_browser_enabled": adapter_out["pipeline_overrides"].get(
             "test_browser_enabled", True
         ),
+        "brainstorm": brainstorm,
     }
 
 
@@ -483,6 +632,154 @@ def ensure_audit_gitignore(repo_root: Path, summary: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
+# v2.1.5 round-5 review fix (Codex P1-A): the BL-341 fallback's
+# SecretScannerViolation + OSError branches must signal a HARD failure
+# to the caller so `/lp-define`'s main pipeline aborts before writing
+# additional files on top of the partial / refused kernel-render state.
+# Prior shape (returns None unconditionally) let Codex round-5 escalate
+# arch-F3 back to P1 — the "partial disk state may remain" warning in
+# the OSError branch contradicted the silent fall-through.
+#
+# Status enum surfaces:
+#   * OK_NOOP — no scaffold-decision OR all kernel files already present
+#   * OK_RENDERED — successful render of `only_paths=missing` subset
+#   * SOFT_FAIL — malformed scaffold-decision OR generic render-fail
+#       (warning logged; /lp-define still proceeds, since the user's
+#       canonical recovery is `/lp-scaffold-stack` / `/lp-update-identity`)
+#   * HARD_FAIL_SCANNER — SecretScannerViolation (hostile identity value);
+#       /lp-define MUST halt: continuing would scan the same identity
+#       value against its own templates (likely same finding) and could
+#       leak partial state into PRD.md / APP_FLOW.md / etc.
+#   * HARD_FAIL_DISK — OSError mid-batch (atomic-write failure); partial
+#       disk state may remain; /lp-define MUST halt so the user inspects
+#       before writing additional files on top.
+class KernelFallbackStatus(Enum):
+    """v2.1.5 round-5 (Codex P1-A): _kernel_fallback_render status code."""
+
+    OK_NOOP = "ok_noop"
+    OK_RENDERED = "ok_rendered"
+    SOFT_FAIL = "soft_fail"
+    HARD_FAIL_SCANNER = "hard_fail_scanner"
+    HARD_FAIL_DISK = "hard_fail_disk"
+
+
+def _kernel_fallback_render(repo_root: Path) -> KernelFallbackStatus:
+    """v2.1.5 BL-341: defense-in-depth fallback for kernel files when
+    `/lp-scaffold-stack` was bypassed (or its Phase 4.5 kernel render
+    failed). Reads identity from `.launchpad/scaffold-decision.json` and
+    invokes `KernelRenderer.render_all` for any missing kernel file.
+
+    BL-327 (v2.1.4) fixed the catalog_load_failed that was forcing the
+    bypass under installed-plugin layout, so this code path is mostly
+    historical now — but defense-in-depth catches the residual cases
+    (hand-crafted scaffold-receipt; partial pipeline runs; debugging).
+
+    v2.1.5 round-5 review fix (Codex P1-A): returns a `KernelFallbackStatus`
+    enum so `generate()` can branch on the failure mode. Hard failures
+    (SecretScannerViolation, OSError) MUST halt /lp-define's main
+    pipeline; soft failures (malformed scaffold-decision, generic
+    render-fail) let /lp-define continue with the prior shape.
+    """
+    decision_path = repo_root / ".launchpad" / "scaffold-decision.json"
+    if not decision_path.is_file():
+        return (
+            KernelFallbackStatus.OK_NOOP
+        )  # no scaffold-decision → not a scaffolded LaunchPad project
+
+    # Check whether any kernel files are missing.
+    from plugin_default_generators.kernel_renderer import (
+        KERNEL_FILES,
+        KernelRenderer,
+    )
+
+    missing = [
+        output_relpath
+        for _template, output_relpath in KERNEL_FILES
+        if not (repo_root / output_relpath).is_file()
+    ]
+    if not missing:
+        return (
+            KernelFallbackStatus.OK_NOOP
+        )  # all kernel files present; nothing to fall back on
+
+    # Read identity from scaffold-decision.json. v2.1.5 round-3 review fix
+    # C6: collapse the two malformed-input paths (unparseable JSON,
+    # missing identity block) into one warning — both indicate a corrupt
+    # scaffold-decision, both have the same recovery.
+    try:
+        decision = json.loads(decision_path.read_text(encoding="utf-8"))
+        identity = decision.get("identity") if isinstance(decision, dict) else None
+        if not isinstance(identity, dict) or not identity.get("project_name"):
+            raise ValueError("missing or invalid `identity` block")
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        print(
+            f"warning: BL-341 kernel-fallback skipped — scaffold-decision.json "
+            f"malformed ({exc}); re-run `/lp-scaffold-stack` or "
+            f"`/lp-update-identity` to recover.",
+            file=sys.stderr,
+        )
+        return KernelFallbackStatus.SOFT_FAIL
+
+    print(
+        f"[BL-341 kernel-fallback] {len(missing)} kernel file(s) missing "
+        f"({', '.join(missing)}); rendering via KernelRenderer.",
+        file=sys.stderr,
+    )
+    # v2.1.5 round-3 review fix A1: pass `only_paths=missing` so user-edited
+    # kernel files (README.md, AGENTS.md, …) are NOT overwritten when
+    # only one or two are absent. Without this, render_all clobbered all 7.
+    try:
+        renderer = KernelRenderer()
+        renderer.render_all(repo_root, identity, only_paths=missing)
+    except SecretScannerViolation as exc:
+        # v2.1.5 round-3 review fix A6 + round-5 fix Codex P1-A: DO NOT
+        # swallow the scanner gate. Surface as `error:` so the user sees
+        # the gate fired AND no kernel files were written. Return
+        # HARD_FAIL_SCANNER so `generate()` HALTS /lp-define's main
+        # pipeline — continuing would scan the same hostile identity
+        # value against PRD.md / APP_FLOW.md / BACKEND_STRUCTURE.md
+        # templates (likely same finding) and could surface partial
+        # state in user-visible docs.
+        print(
+            f"error: BL-341 kernel-fallback REFUSED — secret scanner "
+            f"found {exc.refused_count} match(es). NO kernel files were "
+            f"written. Clear the finding in scaffold-decision.json "
+            f"identity block and re-run `/lp-update-identity` or "
+            f"`/lp-scaffold-stack` to recover.",
+            file=sys.stderr,
+        )
+        return KernelFallbackStatus.HARD_FAIL_SCANNER
+    except OSError as exc:
+        # v2.1.5 round-3 review fix A6 (architecture-strategist note) +
+        # round-5 fix Codex P1-A: atomic-write OSError mid-batch leaves
+        # partial disk state. Return HARD_FAIL_DISK so `generate()` HALTS
+        # /lp-define's main pipeline — the user must inspect the partial
+        # state before writing additional files on top.
+        print(
+            f"error: BL-341 kernel-fallback aborted — atomic write failed "
+            f"({exc}); partial disk state may remain. Inspect kernel files "
+            f"and re-run `/lp-scaffold-stack` or `/lp-update-identity` to "
+            f"recover.",
+            file=sys.stderr,
+        )
+        return KernelFallbackStatus.HARD_FAIL_DISK
+    except Exception as exc:  # noqa: BLE001 — defense-in-depth swallows
+        # Generic render failure (template-not-found, jinja error, etc.).
+        # Distinct from the hard-fail paths above: there's no partial
+        # disk state and no scanner violation; the user's canonical
+        # recovery is to re-run /lp-scaffold-stack, but /lp-define can
+        # safely continue with the prior shape.
+        print(
+            f"warning: BL-341 kernel-fallback render failed ({exc}); "
+            f"proceeding with /lp-define. Re-run `/lp-scaffold-stack` or "
+            f"`/lp-update-identity` to recover.",
+            file=sys.stderr,
+        )
+        return KernelFallbackStatus.SOFT_FAIL
+
+    return KernelFallbackStatus.OK_RENDERED
+
+
 def generate(
     repo_root: Path,
     *,
@@ -497,6 +794,35 @@ def generate(
         # Phase 8.5 plan section 3.12: banner emits BEFORE the gate fires
         # so the user sees the gate being asserted.
         print(TRUST_BANNER, file=sys.stderr)
+
+    # v2.1.5 BL-341 + round-5 fix (Codex P1-A): defense-in-depth
+    # kernel-file fallback. If kernel files (LICENSE / SECURITY.md /
+    # etc.) are missing from a scaffolded project, render them via
+    # KernelRenderer before the main pipeline proceeds. No-op when
+    # files exist or no scaffold-decision.json.
+    #
+    # Hard-failure handling (round 5): SecretScannerViolation against
+    # the identity block, or OSError mid-batch (partial disk state),
+    # MUST halt /lp-define before the main pipeline runs. Continuing
+    # against a hostile identity value would scan it AGAIN against
+    # PRD/APP_FLOW/BACKEND_STRUCTURE templates (likely same finding,
+    # plus risk of leaked content in user-visible docs); continuing
+    # past partial disk state would write additional files on top of
+    # the corrupted state.
+    if not dry_run:
+        fallback_status = _kernel_fallback_render(repo_root)
+        if fallback_status in (
+            KernelFallbackStatus.HARD_FAIL_SCANNER,
+            KernelFallbackStatus.HARD_FAIL_DISK,
+        ):
+            print(
+                f"\nerror: /lp-define halted — kernel-fallback returned "
+                f"{fallback_status.value!r}. The error message above explains "
+                f"the cause and recovery path. /lp-define did NOT write any "
+                f"docs/architecture/* files.",
+                file=sys.stderr,
+            )
+            return 1
 
     # 1. Detect.
     report = run_detector(repo_root)
@@ -689,11 +1015,23 @@ def redetect_stack(repo_root: Path, *, force: bool) -> int:
     """
     import importlib.util
 
+    # v2.1.5 round-3 review fix C12 (ts-reviewer): guard spec/loader before
+    # use. Prior shape did `spec.loader.exec_module(...)` with a
+    # `type: ignore[union-attr]` and would AttributeError-crash at runtime
+    # if `spec_from_file_location` returned None (file missing / unreadable).
+    # Mirrors the sibling-loader pattern at lp_define_runner.py:771-777.
     spec = importlib.util.spec_from_file_location(
         "plugin_config_loader", SCRIPT_DIR / "plugin-config-loader.py"
     )
+    if spec is None or spec.loader is None:
+        print(
+            "error: redetect-stack — plugin-config-loader.py not found "
+            "or unreadable; reinstall the LaunchPad plugin to recover.",
+            file=sys.stderr,
+        )
+        return 1
     cfg_mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(cfg_mod)  # type: ignore[union-attr]
+    spec.loader.exec_module(cfg_mod)
 
     persisted = cfg_mod.read_stacks(repo_root)
     report = run_detector(repo_root)

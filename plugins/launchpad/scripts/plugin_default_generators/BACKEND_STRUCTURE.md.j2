@@ -1,3 +1,4 @@
+{%- from "_brainstorm_macro.j2" import brainstorm_section -%}
 # Backend Structure
 
 ## Framework & style
@@ -14,6 +15,9 @@ _Route handlers live under:_ `{{ backend.routes_dir }}`
 {% if backend.routes_dir %}
 Add new endpoints by creating files here and wiring them into the
 framework's router. Follow the existing naming conventions.
+{% endif %}
+{% if brainstorm.get("routes") %}
+{{ brainstorm_section(brainstorm.routes) }}
 {% endif %}
 
 ## Data models
@@ -35,11 +39,17 @@ _No authentication pattern detected. Document yours here once established._
 {% endif %}
 
 ## Error handling
-
+{% if brainstorm.get("error_handling") %}
+{{ brainstorm_section(brainstorm.error_handling) }}
+{% else %}
 _Document the error-response contract (shape, status codes, retry semantics).
 Apply it uniformly across handlers._
+{% endif %}
 
 ## Observability
-
+{% if brainstorm.get("observability") %}
+{{ brainstorm_section(brainstorm.observability) }}
+{% else %}
 _Logging destination, metrics provider, tracing approach. These are the
 lookups on-call will need at 3am — make them easy to find._
+{% endif %}

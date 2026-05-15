@@ -1,0 +1,48 @@
+# Repository Structure
+
+> {{ stack_summary }}
+
+This document captures the project's directory layout decisions. Edit as the
+project grows; the `scripts/maintenance/check-repo-structure.sh` hook validates
+that root-level entries stay within the allowlist documented here.
+
+## Top-level layout
+
+{% if stacks -%}
+**Detected stacks:** {{ stacks | join(", ") }}
+{% endif %}
+
+The default top-level entries land per the universal v2.1.5 baseline. v2.1.6
+BL-347 ships stack-aware `ALLOWED_DIRS` / `ALLOWED_CONFIGS` per detected stack —
+edit this file by hand until then if your project uses framework-specific
+directories the universal baseline doesn't anticipate.
+
+### Universal directories
+
+| Path | Purpose |
+| --- | --- |
+| `docs/` | Architecture, plans, tasks, reports, learnings |
+| `scripts/` | Maintenance, hooks, compound learning |
+| `.launchpad/` | Pipeline state (scaffold-decision, scaffold-receipt, config.yml, audit.log) |
+| `.harness/` | Per-session review context (gitignored except `harness.local.md`) |
+| `.github/` | GitHub governance: CODEOWNERS, ISSUE_TEMPLATE, workflows, dependabot |
+
+## Drift detection
+
+`scripts/maintenance/check-repo-structure.sh` runs in lefthook pre-commit and
+in CI. If you add a new top-level directory or config file, edit the script's
+`ALLOWED_DIRS` / `ALLOWED_CONFIGS` arrays so the check accepts it.
+
+## Workspaces (polyglot composition)
+
+{% if stacks and stacks|length > 1 -%}
+This project composes multiple stacks. Each top-level workspace below maps to
+one detected stack; layer paths come from `.launchpad/scaffold-receipt.json`.
+
+{% for s in stacks -%}
+- `{{ s }}`
+{% endfor %}
+{% else -%}
+_Single-stack project. Polyglot composition is the multi-stack pairing
+workflow — see `/lp-pick-stack` if you intend to add a second stack._
+{% endif %}

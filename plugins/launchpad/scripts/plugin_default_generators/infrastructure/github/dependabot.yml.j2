@@ -1,0 +1,42 @@
+# Dependabot config for {{ identity.project_name }}.
+#
+# v2.1.5 BL-343: rendered by /lp-bootstrap so greenfield public repos get
+# weekly grouped dependency PRs out of the box. Per the public-repo setup
+# guide (docs/reports/launchpad_reports/2026-04-25-github-public-repo-settings.md),
+# the absence of this file at flip-public time means Dependabot's first
+# scan immediately hits the default PR limit; pre-tuning here prevents
+# the PR-queue spike.
+#
+# `package-ecosystem: npm` is the v2.1.5 universal default (most LaunchPad
+# users ship TypeScript stacks). For non-npm stacks (Python / Ruby / Go),
+# adjust to `pip` / `bundler` / `gomod` post-render. v2.1.6 BL-345 + BL-352
+# replace this universal shape with stack-aware ecosystem selection.
+
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"

@@ -1,0 +1,17 @@
+{#-
+  v2.1.5 BL-333 / round-3 review fix C2: shared Jinja macro for brainstorm-content
+  injection across PRD.md.j2 / APP_FLOW.md.j2 / BACKEND_STRUCTURE.md.j2.
+
+  - Filename starts with `_` to signal a private partial (not iterated by
+    `LpDefineRenderer.render_targets`; not part of `DOCS` in lp_define_runner.py).
+  - Single source for the verify-and-edit marker comment that previously
+    repeated 10x across the 3 docs.
+  - Pipes content through `| markdown_safe` so a hostile
+    `.launchpad/brainstorm-summary.md` cannot inject raw HTML / script tags.
+    `_MARKDOWN_SAFE_CHARS` includes `<` and `>` so `<script>` renders as
+    `\<script\>`.
+-#}
+{%- macro brainstorm_section(content) -%}
+<!-- v2.1.5 BL-333: filled from .launchpad/brainstorm-summary.md — verify and edit. -->
+{{ content | markdown_safe }}
+{%- endmacro -%}

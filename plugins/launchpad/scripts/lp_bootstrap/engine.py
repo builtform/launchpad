@@ -69,6 +69,7 @@ from plugin_default_generators._renderer_base import (  # noqa: E402
 from plugin_default_generators.infrastructure_renderer import (  # noqa: E402
     InfrastructureRenderer,
     InfrastructureRenderError,
+    assert_workflow_self_consistency,
 )
 from telemetry_writer import write_telemetry_entry  # noqa: E402
 
@@ -514,6 +515,8 @@ def _sentinel_preflight(cwd: Path) -> tuple[SentinelSnapshot | None, list[str]]:
 
 def _verify_manifest_integrity(
     cwd: Path,
+    *,
+    accept_plugin_version_drift: bool = False,
 ) -> tuple[BootstrapManifest | None, list[str]]:
     """Read existing manifest (if any); verify plugin-shipped sha integrity.
 
@@ -522,6 +525,14 @@ def _verify_manifest_integrity(
     from the cached source-template shas (harden B3); raises
     `BootstrapEngineError(MANIFEST_CORRUPT)` for malformed JSON / wrong
     envelope shape.
+
+    v2.1.5 round-4 fix (Codex P1-A): `accept_plugin_version_drift` flows
+    through to `verify_source_template_shas`. When set, drift-induced
+    failures (missing entries from a newer plugin version, sha mismatches
+    from a /plugin update) become WARNINGS instead of raises, and the
+    caller's `--refresh-all` auto-trigger realigns the manifest. Fixes
+    the v2.1.4 → v2.1.5 upgrade path which previously bricked any
+    project that hadn't passed --accept-plugin-version-drift.
     """
     cfg = _plugin_config_loader()
     try:
@@ -589,7 +600,14 @@ def _verify_manifest_integrity(
 
     expected = source_template_shas()
     try:
-        verify_source_template_shas(manifest, expected_shas=expected)
+        # v2.1.5 round-4 fix (Codex P1-A): pass drift flag so cross-version
+        # bootstraps tolerate missing-newer-entries and sha mismatches as
+        # warnings (the caller auto-triggers --refresh-all to realign).
+        drift_warnings = verify_source_template_shas(
+            manifest,
+            expected_shas=expected,
+            accept_plugin_version_drift=accept_plugin_version_drift,
+        )
     except BootstrapManifestError as exc:
         raise BootstrapEngineError(
             str(exc),
@@ -597,7 +615,7 @@ def _verify_manifest_integrity(
             path=exc.path,
             remediation=exc.remediation,
         ) from exc
-    return manifest, []
+    return manifest, drift_warnings
 
 
 # --- Render loop helpers --------------------------------------------------
@@ -635,7 +653,8 @@ def _selected_targets(
 ) -> list[tuple[str, str, BootstrapPolicy, int]]:
     """Filter INFRASTRUCTURE_FILES to the active targets for this run.
 
-    `refresh_paths is None` means full bootstrap (all 30). Otherwise the
+    `refresh_paths is None` means full bootstrap (all `len(INFRASTRUCTURE_FILES)`
+    entries; 34 at v2.1.5+). Otherwise the
     iteration restricts to the explicitly requested targets, preserving
     INFRASTRUCTURE_FILES order so `.gitignore` still renders first when
     requested.
@@ -662,7 +681,8 @@ def _validate_refresh_paths(refresh_paths: Sequence[str]) -> None:
             ) from exc
         if normalized not in INFRASTRUCTURE_TARGETS:
             raise BootstrapEngineError(
-                f"--refresh path {raw!r} is not in the v2.1 30-path inventory",
+                f"--refresh path {raw!r} is not in the v2.1 "
+                f"{len(INFRASTRUCTURE_TARGETS)}-path inventory",
                 reason=BootstrapErrorCode.UNKNOWN_REFRESH_PATH,
                 path=Path(raw),
                 remediation=(
@@ -685,11 +705,11 @@ def run_bootstrap(
     accept_plugin_version_drift: bool = False,
     dry_run: bool = False,
 ) -> BootstrapResult:
-    """Materialize the v2.1 30-path infrastructure overlay under `cwd`.
+    """Materialize the v2.1 34-path infrastructure overlay (v2.1.5+) under `cwd`.
 
     `mode` selects the dispatch flow:
       * `greenfield`: full bootstrap; identity supplied by caller
-        (lp_scaffold_stack Step 4.6 wiring) -> always renders all 30 paths.
+        (lp_scaffold_stack Step 4.6 wiring) -> always renders all 34 paths.
       * `brownfield-auto`: full bootstrap from `/lp-define`; identity read
         from scaffold-decision; consent prompt (caller's responsibility);
         fast-path skips clean overlay paths.
@@ -779,7 +799,17 @@ def run_bootstrap(
                 warnings.extend(vinfos)
 
                 # Step 4: manifest tampering integrity check.
-                existing_manifest, mwarn = _verify_manifest_integrity(cwd)
+                # v2.1.5 round-4 fix (Codex P1-A): pass drift flag so a
+                # v2.1.4 → v2.1.5 upgrade does NOT brick on the new
+                # `.nvmrc` / `.github/dependabot.yml` /
+                # `.github/pull_request_template.md` entries being absent
+                # from the old manifest. Drift becomes a warning; the
+                # downstream `mode = "refresh-all"` flip (lines below)
+                # realigns the manifest in the same run.
+                existing_manifest, mwarn = _verify_manifest_integrity(
+                    cwd,
+                    accept_plugin_version_drift=accept_plugin_version_drift,
+                )
                 warnings.extend(mwarn)
 
                 if mode in ("refresh", "refresh-all") and existing_manifest is None:
@@ -1120,6 +1150,14 @@ def _render_loop(
     # scan_all:261-262 verbatim. `template_sources=None` matches the
     # /lp-define convention (Jinja-comment allowlists not used at the
     # bootstrap surface).
+    #
+    # v2.1.5 round-3 review fix B3 (security-auditor P2): the workflow
+    # self-consistency assertion runs AFTER the secret-scan gate.
+    # If a future workflow template ever pipes user content into a
+    # `*-version-file:` input, the consistency error's `{file_ref}`
+    # interpolation could surface that content. Running the scanner
+    # first means any leaked-content batch is refused before the
+    # consistency error message is built.
     patterns_file = cwd / ".launchpad" / "secret-patterns.txt"
     allowlist_path = cwd / ".launchpad" / "secret-allowlist.txt"
     try:
@@ -1174,6 +1212,24 @@ def _render_loop(
                 "configurable at .launchpad/secret-patterns.txt."
             ),
         )
+
+    # v2.1.5 BL-355 (round-3 review fixes B3 + B5 + C7): workflow
+    # self-consistency assertion. Refuse the whole batch if any rendered
+    # `.github/workflows/*.yml` names a `*-version-file:` input that the
+    # batch (or cwd) doesn't provide. Catches the BL-353/BL-354 class at
+    # write time — before the user pushes, before CI runs.
+    #
+    # B5 (architecture-strategist P2): raise InfrastructureRenderError
+    # so the engine's outer try-block at engine.py:865-869 catches it
+    # cleanly. Prior shape raised BootstrapEngineError which fell through
+    # that handler tuple.
+    # C7 (simplicity-reviewer P3): use the shared helper so the renderer
+    # and engine call sites share one raise contract.
+    # v2.1.5 round-4 fix arch-F5: `assert_workflow_self_consistency` is
+    # imported at module top (engine.py:69-73) — not a late inline import.
+    assert_workflow_self_consistency(
+        rendered_batch, cwd, error_cls=InfrastructureRenderError
+    )
 
     # Phase C — policy dispatch. Replays Phase A contexts; only place writes
     # happen.

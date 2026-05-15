@@ -1,3 +1,4 @@
+{%- from "_brainstorm_macro.j2" import brainstorm_section -%}
 {% if app_flow -%}
 # App Flow
 
@@ -21,14 +22,20 @@ here once established._
 {% endif %}
 
 ## Navigation structure
-
+{% if brainstorm.get("navigation") %}
+{{ brainstorm_section(brainstorm.navigation) }}
+{% else %}
 _Describe how users move between the entry routes and the primary journeys.
 A small ASCII diagram or Mermaid graph usually helps more than prose._
+{% endif %}
 
 ## Error & empty states
-
+{% if brainstorm.get("error_states") %}
+{{ brainstorm_section(brainstorm.error_states) }}
+{% else %}
 _What users see when things go wrong. Inventory errors + empty states across
 routes so no state is left unhandled._
+{% endif %}
 {% else %}
 # App Flow
 

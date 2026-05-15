@@ -25,10 +25,12 @@ lp_define orchestrator) share:
     via an ALLOWLIST-based rule restricted to
     `_renderer_base.py + lp_bootstrap/policy.py + atomic_io.py`.
   * `sha256_file()` / `sha256_bytes()` utilities for manifest tracking.
-  * `identity_inject()` helper that takes the sealed identity dict from
+  * `template_context()` (v2.1.5+; previously `identity_inject`, retained
+    as a back-compat alias) helper that takes the sealed identity dict from
     scaffold-decision.json and produces the Jinja context every kernel
     template can rely on (project_name, copyright_holder, email, repo_url,
-    license, license_other_body, plus a derived current_year).
+    license, license_other_body, plus a derived current_year + the
+    `default_pnpm_version` / `default_node_version` tool-version pins).
   * Filters: `shell_quote` (shlex.quote for bash contexts), `tojson` and
     `to_yaml_safe` (already part of Jinja stdlib for `tojson`; we add
     `to_yaml_safe` via PyYAML's safe_dump for YAML value injection).
@@ -46,6 +48,7 @@ from __future__ import annotations
 import datetime
 import hashlib
 import os
+import re
 import shlex
 import sys
 from collections.abc import Iterable, Iterator, Mapping
@@ -328,19 +331,93 @@ def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def identity_inject(identity: Mapping[str, Any]) -> dict[str, Any]:
-    """Build the Jinja context for kernel/infrastructure templates."""
+# v2.1.5 round-4 fix (Codex P2-3): GitHub CODEOWNERS owner-token shapes.
+# Reference: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners#codeowners-syntax
+#
+# Three legal shapes:
+#   * `@username` — letters + digits + hyphens; cannot start or end with `-`;
+#     cannot have consecutive `-`; max 39 chars (GitHub username spec).
+#   * `@org/team` — same name shape, separated by exactly one `/`.
+#   * email — local@domain with TLD; basic syntactic check (not RFC-5322).
+#
+# Prior round-3 check was `_holder.startswith("@")` which accepted
+# `@bad owner` (space), `@org/` (empty team), bare `@`, etc. Codex round 4
+# P2-3 flagged the over-permissive shape; this regex tightens it.
+_GH_NAME_RE = r"[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}"
+_CODEOWNER_TOKEN_RE: re.Pattern[str] = re.compile(
+    rf"^(?:@{_GH_NAME_RE}(?:/{_GH_NAME_RE})?|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{{2,}})$"
+)
+
+
+def _is_codeowner_token(value: str) -> bool:
+    """v2.1.5 round-4 fix (Codex P2-3): strict CODEOWNERS owner-token check.
+
+    Accepts `@user`, `@org/team`, or syntactic email shape. Rejects every
+    Codex round-4 P2-3 example:
+      * `@bad owner` (whitespace) → False
+      * `@org/` (empty team) → False
+      * bare `@` → False
+      * `Foad Shafighi` (display name) → False
+      * `@user--name` (consecutive hyphens) → False
+    """
+    return bool(_CODEOWNER_TOKEN_RE.match(value))
+
+
+def template_context(identity: Mapping[str, Any]) -> dict[str, Any]:
+    """Build the Jinja context for kernel/infrastructure templates.
+
+    v2.1.5 round-3 review fix C5 (architecture-strategist P3): renamed
+    from `identity_inject` because the function now mixes identity
+    surfacing with tool-version pins (`default_pnpm_version` +
+    `default_node_version`). `template_context` describes the function's
+    actual job: build the full Jinja context dict for any kernel /
+    infrastructure render. `identity_inject` is preserved below as a
+    back-compat alias so existing call sites + tests don't churn.
+
+    v2.1.5 BL-353 + BL-354: `default_pnpm_version` and `default_node_version`
+    are surfaced from `plugin_stack_adapters._constants` so the rendered
+    `.github/workflows/ci.yml` (pnpm/action-setup `version:` input) and
+    `.nvmrc` (Node version pin consumed by `actions/setup-node` via
+    `node-version-file:`) both resolve at render time. Single source of
+    truth — bumping a tool version touches one file.
+
+    v2.1.5 round-4 fix (Codex P2-3): `is_codeowner_token` is a derived
+    boolean surfacing whether `identity.copyright_holder` matches the
+    strict `@user` / `@org/team` / email shape that GitHub CODEOWNERS
+    actually parses. The CODEOWNERS.j2 template gates owner-line emission
+    on this boolean instead of the over-loose `startswith("@")` check.
+    """
+    from plugin_stack_adapters._constants import (
+        DEFAULT_NODE_VERSION,
+        DEFAULT_PNPM_VERSION,
+    )
+
     license_value = identity.get("license", "Other")
     license_url = (
         f"https://choosealicense.com/licenses/{license_value.lower()}/"
         if license_value != "Other"
         else None
     )
+    holder_raw = identity.get("copyright_holder") or ""
+    holder_trimmed = str(holder_raw).strip()
+    is_codeowner_token = bool(
+        holder_trimmed
+        and holder_trimmed != "<copyright-holder>"
+        and _is_codeowner_token(holder_trimmed)
+    )
     return {
         "identity": dict(identity),
         "current_year": datetime.datetime.now(datetime.UTC).year,
         "license_url": license_url,
+        "default_pnpm_version": DEFAULT_PNPM_VERSION,
+        "default_node_version": DEFAULT_NODE_VERSION,
+        "is_codeowner_token": is_codeowner_token,
     }
+
+
+# v2.1.5 round-3 review fix C5: back-compat alias for callers that still
+# reference the old name. New code should use `template_context`.
+identity_inject = template_context
 
 
 class RendererBase:
@@ -397,7 +474,7 @@ class RendererBase:
         extra_context: Mapping[str, Any] | None = None,
     ) -> str:
         """Render a template with the identity context plus optional extras."""
-        ctx = identity_inject(identity)
+        ctx = template_context(identity)
         if extra_context:
             ctx.update(extra_context)
         template = self.env.get_template(template_name)
@@ -597,8 +674,9 @@ __all__ = [
     "RendererBase",
     "SecretScannerViolation",
     "StackIdInvalidError",
-    "identity_inject",
+    "identity_inject",  # back-compat alias for `template_context` (v2.1.5+)
     "make_jinja_env",
+    "template_context",
     "make_sandboxed_jinja_env",
     "make_stack_aware_jinja_env",
     "sha256_bytes",

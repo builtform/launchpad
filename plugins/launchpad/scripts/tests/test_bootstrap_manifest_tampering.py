@@ -176,6 +176,48 @@ def test_missing_entry_for_plugin_shipped_target_raises_manifest_tampered(tmp_pa
     assert result.outcome == "manifest_tampered"
 
 
+def test_missing_entry_with_drift_accepted_warns_and_recovers(tmp_path):
+    """v2.1.5 round-4 fix (Codex P1-A): a v2.1.4 manifest missing entries
+    for v2.1.5-newly-added targets (`.nvmrc`, `.github/dependabot.yml`,
+    `.github/pull_request_template.md`) must NOT brick under
+    --accept-plugin-version-drift. The flag tolerates missing entries as
+    warnings; --refresh-all auto-trigger realigns the manifest in the
+    same run.
+
+    Simulates the v2.1.4 → v2.1.5 upgrade scenario: drop entries from
+    the manifest (mimicking v2.1.4's smaller inventory) then re-run
+    with `accept_plugin_version_drift=True`. Expected: success (NOT
+    manifest_tampered), the missing entries are written via the
+    auto-triggered --refresh-all, and the new manifest covers the full
+    current inventory."""
+    manifest_path = _bootstrap_clean(tmp_path)
+    payload = _read_manifest(manifest_path)
+    # Drop 3 entries to simulate a v2.1.4-bootstrapped project before
+    # v2.1.5's INFRASTRUCTURE_FILES additions landed.
+    full_entries = payload["files"]
+    payload["files"] = full_entries[:-3]
+    _write_manifest(manifest_path, payload)
+    # WITHOUT drift flag: tampered (the existing test above pins this).
+    # WITH drift flag: warn + auto-realign, run succeeds.
+    result = run_bootstrap(
+        tmp_path,
+        mode="greenfield",
+        identity=_identity(),
+        accept_plugin_version_drift=True,
+    )
+    assert result.outcome == "success", (
+        f"Codex P1-A regression: --accept-plugin-version-drift must "
+        f"tolerate missing-newer-entries on cross-version upgrade. "
+        f"Got outcome={result.outcome!r} errors={result.errors!r}"
+    )
+    # New manifest covers the full current inventory after realign.
+    new_payload = _read_manifest(manifest_path)
+    assert len(new_payload["files"]) == len(full_entries), (
+        "after --accept-plugin-version-drift + --refresh-all auto-trigger, "
+        "the manifest must list every current INFRASTRUCTURE_FILES entry"
+    )
+
+
 # --- Phase 11 DA3 augment: SymlinkSubstitution ----------------------------
 
 
