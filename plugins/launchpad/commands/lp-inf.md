@@ -11,6 +11,14 @@ Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=
 
 Verify-or-refuse only — the lite helper checks the required files exist and exits 1 with a pointer to `/lp-define` if not; it does NOT create missing files or run the full detect/classify/present/scaffold protocol (that's harness-level). Reads `config.yml` `pipeline.*` toggles so skipped stages short-circuit cleanly. Never modifies `config.yml`.
 
+## Step 0.5: Autonomous-mode acknowledgment (BL-356)
+
+`/lp-inf` writes code autonomously based on an approved plan. Even when invoked directly (without going through `/lp-build`), the same authorization signal applies — `.launchpad/autonomous-ack.md` MUST exist.
+
+Call `assert_autonomous_ack(repo_root)` from `${CLAUDE_PLUGIN_ROOT}/scripts/plugin_stack_adapters/autonomous_guard.py`. If it raises `AutonomousAckMissingError`, surface `str(exc)` verbatim to the user and exit. The canonical refuse-message (composed from `AUTONOMOUS_ACK_DESCRIPTION` + `AUTONOMOUS_ACK_TEMPLATE`) embeds a short description of what `.launchpad/autonomous-ack.md` is plus the copy-pasteable starter template beginning with `# Autonomous Execution Acknowledgment` so the user can author the file without leaving the terminal.
+
+BL-356 invariant: gate logic lives in exactly one module. Do NOT re-author the refuse-text in this command file, and do NOT inline a markdown-only absence check — the shared helper is the single source of truth. This gate is intentionally duplicated across `/lp-build`, `/lp-inf`, `/lp-resolve-todo-parallel`, and `/lp-ship` so any direct invocation enforces it; the helper itself is idempotent and cheap to call twice when `/lp-build` chains through to one of the wrapped commands.
+
 ---
 
 # Implement Next Feature

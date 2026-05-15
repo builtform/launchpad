@@ -40,11 +40,9 @@ Using `$ARGUMENTS`:
 
 ### 0.3 — Autonomous-build integrity check
 
-If the user is planning to auto-approve through to `/lp-build` (CASE A path ending at approval), run `section_added_with_ack(repo_root, section_name)` from `autonomous_guard.py`.
+If the user is planning to auto-approve through to `/lp-build` (CASE A path ending at approval), call `assert_ack_not_same_commit_as(repo_root, section_name)` from `${CLAUDE_PLUGIN_ROOT}/scripts/plugin_stack_adapters/autonomous_guard.py` (BL-356 raising-API surface over the v2.1.5 `section_added_with_ack` predicate).
 
-IF **True** (section spec and `.launchpad/autonomous-ack.md` were introduced in the same commit): refuse the auto-approval fast-path with:
-
-> "This section was added to the registry in the same commit that introduced `.launchpad/autonomous-ack.md`. That's the exact pattern a hostile PR would use to bypass review. Human plan approval is still available (Step 5) but auto-approval is blocked. Verify the section spec is legitimate before proceeding."
+If it raises `AutonomousAckSameCommitError`, refuse the auto-approval fast-path with `str(exc)` verbatim — and additionally remind the user that human plan approval is still available (Step 5). The canonical refuse-message names the same-commit attack pattern explicitly so a reviewer reading the refuse understands why the fast-path is blocked.
 
 Human plan approval in Step 5 is still the authoritative gate; this is belt-and-suspenders.
 
@@ -218,6 +216,7 @@ Ask: **"Approve and start build? (yes / revise design / revise plan / revise bot
 - Write `approved_at: <ISO-8601 timestamp>` to section spec frontmatter
 - Write `plan_hash: <short hash of plan file at approval time>` to section spec frontmatter
 - Print transition: "Plan approved. Run `/lp-build` to execute autonomously (requires `.launchpad/autonomous-ack.md`), or `/lp-implement-plan` for step-by-step execution."
+- BL-356 UX: if `.launchpad/autonomous-ack.md` does not yet exist on disk, append a one-paragraph explainer to the transition message — short description of what the file is (re-using `AUTONOMOUS_ACK_DESCRIPTION` from `${CLAUDE_PLUGIN_ROOT}/scripts/plugin_stack_adapters/autonomous_guard.py`) and the copy-pasteable starter template (`AUTONOMOUS_ACK_TEMPLATE`, beginning with `# Autonomous Execution Acknowledgment`). This lets the user author the file before they invoke `/lp-build`, instead of being told about it only when `/lp-build` refuses. Surface the constants by name; do not re-author the text inline.
 - Proceed to `/lp-build`
 
 ### IF revise design:

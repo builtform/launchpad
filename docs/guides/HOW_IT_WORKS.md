@@ -360,7 +360,7 @@ Presents plan summary with hardening notes and design status. Four options:
 
 ### Step 0: Preflight
 
-- **Autonomous-mode acknowledgment**: `.launchpad/autonomous-ack.md` must exist as a tracked file. It's a social/review signal, not a cryptographic gate, but having the file tracked in git blame makes autonomous-execution authorization visible.
+- **Autonomous-mode acknowledgment**: `.launchpad/autonomous-ack.md` must exist as a tracked file. It's a social/review signal, not a cryptographic gate, but having the file tracked in git blame makes autonomous-execution authorization visible. Enforced via `assert_autonomous_ack(repo_root)` from `plugin_stack_adapters/autonomous_guard.py` — the same helper is called by `/lp-inf`, `/lp-resolve-todo-parallel`, and `/lp-ship` so direct invocation cannot bypass the gate (BL-356, v2.1.6). Refuse-message embeds a copy-pasteable starter template beginning with `# Autonomous Execution Acknowledgment` so first-time users can author the file without leaving the terminal.
 - **Commands-hash check**: `LP_CONFIG_REVIEWED` env var must match either the full 64-char sha256 of the canonical `commands:` block or its 16-char prefix. The audit log records the 16-char prefix for readability; both forms validate.
 - **Integrity guard**: refuses to run if the section spec and `autonomous-ack.md` were introduced in the same commit (the exact pattern a hostile PR would use to bypass review).
 - **Audit entry**: appends one line to `.launchpad/audit.log` with ISO timestamp, git user, commit SHA, content-hash of commands, and the invoking command name.
@@ -673,7 +673,7 @@ Other CI-relevant env vars live in the [Environment variables](#environment-vari
 6. **Structure validation**, `check-repo-structure.sh` enforces file placement.
 7. **Secrets via `.env.local`**: all API keys load from gitignored `.env.local`. No secrets inline in commands.
 8. **Pre-dispatch secret scan**: `/lp-review` scans added lines against `.launchpad/secret-patterns.txt` (one regex per line, `sk-`, `ghp_`, `AKIA`, `-----BEGIN .* PRIVATE KEY-----`, etc.) before any review agents are dispatched. Findings block review.
-9. **Autonomous-execution acknowledgment**: `.launchpad/autonomous-ack.md` must exist as a tracked file; absence blocks `/lp-build`.
+9. **Autonomous-execution acknowledgment**: `.launchpad/autonomous-ack.md` must exist as a tracked file; absence blocks `/lp-build` AND its three wrapped autonomous-write commands when invoked directly — `/lp-inf`, `/lp-resolve-todo-parallel`, `/lp-ship` (BL-356, v2.1.6). The gate is enforced by a single shared helper (`assert_autonomous_ack`) so all four refuse-messages stay byte-identical.
 10. **Commands-hash audit**: `LP_CONFIG_REVIEWED` env var must match the canonical commands hash; mismatch blocks `/lp-build`.
 11. **Integrity guard**: `/lp-build` refuses if section spec and `autonomous-ack.md` were introduced in the same commit.
 12. **Audit log**: `.launchpad/audit.log` (gitignored by default; opt-in via `audit.committed: true`) records every command with timestamp, git user, commit SHA, and content hash.
@@ -914,7 +914,7 @@ For the canonical post-tag verification flow and the rollback procedure if `veri
 
 **`/lp-build` refuses: "LP_CONFIG_REVIEWED does not match current commands section."** Regenerate the canonical hash with `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-config-hash.py`, update the CI env var, re-run.
 
-**`/lp-build` refuses: "Autonomous execution requires `.launchpad/autonomous-ack.md`."** Create the file with a one-paragraph acknowledgment of autonomous-execution risks, commit it, then re-run.
+**`/lp-build`, `/lp-inf`, `/lp-resolve-todo-parallel`, or `/lp-ship` refuses: "Autonomous execution requires `.launchpad/autonomous-ack.md`."** All four autonomous-write commands enforce the same gate (BL-356, v2.1.6). The refuse-message embeds a starter template beginning with `# Autonomous Execution Acknowledgment` — copy it into `.launchpad/autonomous-ack.md`, edit name / email / date, commit, then re-run the command.
 
 **L2 commands (`/lp-commit`, `/lp-review`, `/lp-ship`, `/lp-harden-plan`) halt at Step 0 Lite with "run /lp-define."** `.launchpad/agents.yml` is missing, run `/lp-define` to seed it. `/lp-define` is the authoritative seeder for that file.
 

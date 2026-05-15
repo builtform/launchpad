@@ -19,9 +19,9 @@ Autonomous execution pipeline orchestrator. Resolves target from section registr
 
 `.launchpad/autonomous-ack.md` MUST exist. Its presence is a social / review signal, not a cryptographic gate — any contributor with commit access can add it — but the file being present in the repo makes autonomous-execution authorization visible in PR diffs and git blame.
 
-IF `.launchpad/autonomous-ack.md` does NOT exist: refuse with
+Call `assert_autonomous_ack(repo_root)` from `${CLAUDE_PLUGIN_ROOT}/scripts/plugin_stack_adapters/autonomous_guard.py`. If it raises `AutonomousAckMissingError`, surface `str(exc)` verbatim to the user and exit. The canonical refuse-message (composed from `AUTONOMOUS_ACK_DESCRIPTION` + `AUTONOMOUS_ACK_TEMPLATE` in `autonomous_guard.py`) embeds a short description of what `.launchpad/autonomous-ack.md` is plus the copy-pasteable starter template beginning with `# Autonomous Execution Acknowledgment` so the user can author the file without leaving the terminal (BL-356).
 
-> "Autonomous execution requires `.launchpad/autonomous-ack.md` to exist. This file is a visible signal that the team has acknowledged the risks of autonomous code execution. Create it with a one-paragraph acknowledgment and commit it, then re-run `/lp-build`."
+BL-356 invariant: gate logic lives in exactly one module. Do NOT re-author the refuse-text in this command file, and do NOT inline a markdown-only absence check — the shared helper is the single source of truth.
 
 Do not offer to auto-create this file. The user / team must author it consciously.
 
@@ -42,9 +42,7 @@ If the config itself is missing, refuse with
 
 ### 0.3 — Integrity check (section + ack same-commit)
 
-Using `${CLAUDE_PLUGIN_ROOT}/scripts/plugin_stack_adapters/autonomous_guard.py` (`section_added_with_ack`), verify that the target section was NOT introduced to `SECTION_REGISTRY.md` in the same commit as `.launchpad/autonomous-ack.md`. If it was, refuse with
-
-> "This section was added to the registry in the same commit that introduced `.launchpad/autonomous-ack.md`. That's the exact pattern a hostile PR would use to bypass review. Refusing autonomous build. Verify the section spec is legitimate and have the ack file predate the section, then retry."
+Call `assert_ack_not_same_commit_as(repo_root, section_name)` from `${CLAUDE_PLUGIN_ROOT}/scripts/plugin_stack_adapters/autonomous_guard.py` (BL-356 raising-API surface over the v2.1.5 `section_added_with_ack` predicate). If it raises `AutonomousAckSameCommitError`, surface `str(exc)` verbatim to the user and exit. The canonical refuse-text is preserved byte-for-byte from v2.1.5 — same-commit and cross-commit attack patterns trigger the same refuse-message.
 
 ### 0.4 — Audit log entry (opens the forensic trail)
 
