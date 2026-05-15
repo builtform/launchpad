@@ -635,7 +635,8 @@ def _selected_targets(
 ) -> list[tuple[str, str, BootstrapPolicy, int]]:
     """Filter INFRASTRUCTURE_FILES to the active targets for this run.
 
-    `refresh_paths is None` means full bootstrap (all 30). Otherwise the
+    `refresh_paths is None` means full bootstrap (all `len(INFRASTRUCTURE_FILES)`
+    entries; 34 at v2.1.5+). Otherwise the
     iteration restricts to the explicitly requested targets, preserving
     INFRASTRUCTURE_FILES order so `.gitignore` still renders first when
     requested.
