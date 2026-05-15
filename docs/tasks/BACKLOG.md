@@ -2079,7 +2079,9 @@ Additionally, `lp-test-browser.md:103` is a SECOND writer of `.harness/todos/*.m
 
 **Default decision**: defer to v2.1.x. Real migration work (~2-4h); not critical given Prisma 6.x is still supported.
 
-#### BL-323 - v2.1.4: lefthook.yml multi-stack last-key-wins drop in outer renderer
+#### BL-323 - v2.1.5: lefthook.yml multi-stack last-key-wins drop in outer renderer
+
+**Status (2026-05-15)**: RE-TARGETED v2.1.4 → v2.1.5. v2.1.4 ship lane was repurposed for the three ship-blockers surfaced in the 2026-05-14 ulcspec.org dogfood test (BL-327 P0 install-layout catalog path + BL-328 Astro symlink walk_scope + BL-331 generic-as-primary). The originally-planned v2.1.4 hardening bundle (BL-323 + BL-324 + BL-325 + BL-326) moves to v2.1.5 to keep v2.1.4 narrowly scoped. The SUBSUMED-by-v2.1.2 closure remains accurate; the v2.1.4 → v2.1.5 retag is for the optional outer-template dead-code cleanup.
 
 **Status (2026-05-10)**: SUBSUMED by v2.1.2 Slice 4c.4 production wiring (PR #65). The runtime regression for multi-stack consumer scaffolds is closed natively because `lp_bootstrap.stack_lefthook.enrich_lefthook_with_stacks` routes through `merge_keys_additive` (additive map-merge, first-declared-wins on duplicate command names) rather than the test-only outer template's text concatenation — last-key-wins YAML drop is impossible by construction. Multi-stack `[nextjs_fastapi, astro]` parsed-YAML assertion added in `tests/test_lp_bootstrap_stack_lefthook.py::test_multi_stack_composition_runtime_yaml_keeps_all_gates` (both orderings). The outer template `lefthook.yml.j2.outer` remains test-only at v2.1.2 and is unused in production; v2.1.4 may delete it as dead code or refactor it to use the same merge helper.
 
@@ -2099,7 +2101,9 @@ _Previous status (superseded by SUBSUMED above, retained for audit trail):_ NEW 
 
 **Default decision**: defer to v2.1.4. Real but narrow regression (only multi-stack scaffolds involving `nextjs_fastapi` with the unlucky stack ordering); single-stack consumers (the dominant case at v2.1.x) unaffected. Fix is architectural (~1.5–2h with tests) and warrants its own dedicated commit cycle outside v2.1.2's locked scope.
 
-#### BL-324 - v2.1.4: Layer-aware Python workspace probe in shared `_python_gates` partial
+#### BL-324 - v2.1.5: Layer-aware Python workspace probe in shared `_python_gates` partial
+
+**Status (2026-05-15)**: RE-TARGETED v2.1.4 → v2.1.5. See BL-323 for full re-targeting rationale (v2.1.4 lane repurposed for dogfood-test ship-blockers BL-327 + BL-328 + BL-331).
 
 **Status (2026-05-10)**: NEW — surfaced by Codex P2 on PR #65 (v2.1.2). Edge case at v2.1 (no layer overrides yet shipped); deferred to v2.1.4 to ride along with broader stack-adapter layer-override work.
 
@@ -2115,7 +2119,9 @@ _Previous status (superseded by SUBSUMED above, retained for audit trail):_ NEW 
 
 **Default decision**: defer to v2.1.4. v2.1 doesn't ship layer overrides yet, so the regression is theoretical at v2.1.x; v2.1.4 is the natural window when layer-override work lands.
 
-#### BL-325 - v2.1.4: `xargs -r` portability defense-in-depth (POSIX-strict)
+#### BL-325 - v2.1.5: `xargs -r` portability defense-in-depth (POSIX-strict)
+
+**Status (2026-05-15)**: RE-TARGETED v2.1.4 → v2.1.5. See BL-323 for full re-targeting rationale (v2.1.4 lane repurposed for dogfood-test ship-blockers BL-327 + BL-328 + BL-331).
 
 **Status (2026-05-11)**: NEW — surfaced by Codex P1 on PR #65 commit `0818c16` (v2.1.2 Slice 4c.6). Codex claimed `xargs -r` is GNU-specific and would fail on macOS BSD xargs with "illegal option". Empirically DISPROVEN on the maintainer's macOS 25.3.0 native `/usr/bin/xargs`: `-r` is silently accepted (no error, behavior matches GNU's no-run-on-empty). The flag is undocumented in the BSD man page but implemented for GNU-compat. v2.1.2 ships with `xargs -0 -r` across 12 hook entries and works correctly on every platform the project targets (macOS + Linux + Alpine BusyBox 1.20+). Defense-in-depth concern only: a hypothetical exotic/ancient Unix variant without `-r` support would fail.
 
@@ -2127,7 +2133,9 @@ _Previous status (superseded by SUBSUMED above, retained for audit trail):_ NEW 
 
 **Default decision**: defer to v2.1.4. Real risk is theoretical for LaunchPad's target audience (modern macOS + Linux + Alpine). Fix is mechanical and pairs naturally with v2.1.4's broader hardening lane.
 
-#### BL-326 - v2.1.4: v2.1.3 PR #66 deferred polish items bundle
+#### BL-326 - v2.1.5: v2.1.3 PR #66 deferred polish items bundle
+
+**Status (2026-05-15)**: RE-TARGETED v2.1.4 → v2.1.5. See BL-323 for full re-targeting rationale. Per the v2.1.4 fix handoff hard-rule "DO NOT touch v2.1.4's existing BL-326 polish bundle", BL-326 was explicitly excluded from v2.1.4's scope; the natural retag target is v2.1.5.
 
 **Status (2026-05-14)**: NEW — surfaced across 7 review cycles on PR #66 (v2.1.3 polish release). Seven small polish items deferred from v2.1.3 to keep the polish release tightly scoped; bundled here as a v2.1.4 cleanup. All are documentation/metadata hygiene or low-urgency hardening with no runtime impact on the v2.1.3 surface.
 
