@@ -112,6 +112,75 @@ def test_c1_codeowners_trailing_whitespace_does_not_bypass_gate() -> None:
 
 
 # ---------------------------------------------------------------------------
+# v2.1.5 round-4 fix (Codex P2-3): strict CODEOWNERS owner-token regex
+# ---------------------------------------------------------------------------
+
+
+def test_codex_p2_3_rejects_handle_with_whitespace() -> None:
+    """Codex P2-3: `@bad owner` (whitespace inside the handle) passed the
+    prior `_holder.startswith("@")` check. The new regex-backed
+    `is_codeowner_token` rejects it; TODO branch fires."""
+    identity = {**_IDENTITY, "copyright_holder": "@bad owner"}
+    renderer = InfrastructureRenderer()
+    out = renderer.render_to_string("github/CODEOWNERS.j2", identity)
+    assert "* @bad owner" not in out
+    assert "TODO" in out
+
+
+def test_codex_p2_3_rejects_org_slash_empty_team() -> None:
+    """Codex P2-3: `@org/` (trailing slash with empty team) is not a valid
+    GitHub team token. GitHub silently ignores it; the new regex catches
+    it locally."""
+    identity = {**_IDENTITY, "copyright_holder": "@org/"}
+    renderer = InfrastructureRenderer()
+    out = renderer.render_to_string("github/CODEOWNERS.j2", identity)
+    assert "* @org/" not in out
+    assert "TODO" in out
+
+
+def test_codex_p2_3_rejects_bare_at_symbol() -> None:
+    """Codex P2-3: bare `@` slipped past `startswith("@")` trivially.
+    Strict regex rejects empty username/email-local parts."""
+    identity = {**_IDENTITY, "copyright_holder": "@"}
+    renderer = InfrastructureRenderer()
+    out = renderer.render_to_string("github/CODEOWNERS.j2", identity)
+    assert "* @" not in out or "* @\n" not in out
+    assert "TODO" in out
+
+
+def test_codex_p2_3_rejects_consecutive_hyphens() -> None:
+    """Codex P2-3 additional hardening: GitHub usernames cannot have
+    consecutive hyphens. The strict regex uses a lookahead so `@user--name`
+    fails (each `-` must be followed by an alphanumeric)."""
+    identity = {**_IDENTITY, "copyright_holder": "@user--name"}
+    renderer = InfrastructureRenderer()
+    out = renderer.render_to_string("github/CODEOWNERS.j2", identity)
+    assert "* @user--name" not in out
+    assert "TODO" in out
+
+
+def test_codex_p2_3_accepts_email() -> None:
+    """Codex P2-3: emails are a third legal CODEOWNER shape per GitHub
+    spec. The new regex accepts them (the prior `startswith('@')` check
+    rejected emails entirely — a real-world false negative)."""
+    identity = {**_IDENTITY, "copyright_holder": "team@example.com"}
+    renderer = InfrastructureRenderer()
+    out = renderer.render_to_string("github/CODEOWNERS.j2", identity)
+    assert "* team@example.com" in out
+    assert "TODO" not in out
+
+
+def test_codex_p2_3_accepts_simple_user_handle() -> None:
+    """Codex P2-3: `@user` (no org/team) is a legal CODEOWNER shape. The
+    strict regex accepts it."""
+    identity = {**_IDENTITY, "copyright_holder": "@octocat"}
+    renderer = InfrastructureRenderer()
+    out = renderer.render_to_string("github/CODEOWNERS.j2", identity)
+    assert "* @octocat" in out
+    assert "TODO" not in out
+
+
+# ---------------------------------------------------------------------------
 # BL-335: compound-learning.sh tolerant of missing prd.json
 # ---------------------------------------------------------------------------
 

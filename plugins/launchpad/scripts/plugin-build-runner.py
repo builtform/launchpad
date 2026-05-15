@@ -332,14 +332,23 @@ def run_stage(repo_root: Path, stage: str, *, check_only: bool = False) -> int:
             return result.returncode
         return 0
 
+    # v2.1.5 round-4 fix (Codex P2-2): the BL-340 false-pass contract is
+    # "non-TTY stdin → tool prompts then bails silently → exit 0 with no
+    # actual work done". When stdin IS a TTY (interactive local run), the
+    # user can actually answer prompts, so an exit-0 + prompt-pattern is
+    # legitimate, NOT a false-pass. Computed once outside the loop.
+    stdin_is_tty = sys.stdin.isatty()
+
     for i, cmd in enumerate(cmds, start=1):
         prefix = f"[{stage} {i}/{len(cmds)}]"
         print(f"{prefix} {cmd}", file=sys.stderr)
         rc, prompt_bail = _run_cmd_with_prompt_detection(cmd, repo_root)
-        # v2.1.5 BL-340: if the command exited 0 but bailed silently on a
-        # non-TTY interactive prompt, treat as failure. Without this, e.g.
-        # `pnpm astro check` would auto-install-prompt → exit 0 → false-pass.
-        if rc == 0 and prompt_bail:
+        # v2.1.5 BL-340 + round-4 Codex P2-2: false-pass detection fires
+        # ONLY when stdin is non-TTY (CI / piped / redirected). On an
+        # interactive TTY, the user may have intentionally typed `y`,
+        # `Enter`, or similar — exit-0 + prompt-pattern is the legitimate
+        # success path. Gate the failure on `not stdin_is_tty`.
+        if rc == 0 and prompt_bail and not stdin_is_tty:
             print(
                 f"{prefix} false-pass: exit 0 but interactive prompt detected "
                 f"on non-TTY stdin ({prompt_bail!r}). The command likely bailed "

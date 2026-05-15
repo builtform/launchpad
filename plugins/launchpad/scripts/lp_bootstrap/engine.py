@@ -515,6 +515,8 @@ def _sentinel_preflight(cwd: Path) -> tuple[SentinelSnapshot | None, list[str]]:
 
 def _verify_manifest_integrity(
     cwd: Path,
+    *,
+    accept_plugin_version_drift: bool = False,
 ) -> tuple[BootstrapManifest | None, list[str]]:
     """Read existing manifest (if any); verify plugin-shipped sha integrity.
 
@@ -523,6 +525,14 @@ def _verify_manifest_integrity(
     from the cached source-template shas (harden B3); raises
     `BootstrapEngineError(MANIFEST_CORRUPT)` for malformed JSON / wrong
     envelope shape.
+
+    v2.1.5 round-4 fix (Codex P1-A): `accept_plugin_version_drift` flows
+    through to `verify_source_template_shas`. When set, drift-induced
+    failures (missing entries from a newer plugin version, sha mismatches
+    from a /plugin update) become WARNINGS instead of raises, and the
+    caller's `--refresh-all` auto-trigger realigns the manifest. Fixes
+    the v2.1.4 → v2.1.5 upgrade path which previously bricked any
+    project that hadn't passed --accept-plugin-version-drift.
     """
     cfg = _plugin_config_loader()
     try:
@@ -590,7 +600,14 @@ def _verify_manifest_integrity(
 
     expected = source_template_shas()
     try:
-        verify_source_template_shas(manifest, expected_shas=expected)
+        # v2.1.5 round-4 fix (Codex P1-A): pass drift flag so cross-version
+        # bootstraps tolerate missing-newer-entries and sha mismatches as
+        # warnings (the caller auto-triggers --refresh-all to realign).
+        drift_warnings = verify_source_template_shas(
+            manifest,
+            expected_shas=expected,
+            accept_plugin_version_drift=accept_plugin_version_drift,
+        )
     except BootstrapManifestError as exc:
         raise BootstrapEngineError(
             str(exc),
@@ -598,7 +615,7 @@ def _verify_manifest_integrity(
             path=exc.path,
             remediation=exc.remediation,
         ) from exc
-    return manifest, []
+    return manifest, drift_warnings
 
 
 # --- Render loop helpers --------------------------------------------------
@@ -782,7 +799,17 @@ def run_bootstrap(
                 warnings.extend(vinfos)
 
                 # Step 4: manifest tampering integrity check.
-                existing_manifest, mwarn = _verify_manifest_integrity(cwd)
+                # v2.1.5 round-4 fix (Codex P1-A): pass drift flag so a
+                # v2.1.4 → v2.1.5 upgrade does NOT brick on the new
+                # `.nvmrc` / `.github/dependabot.yml` /
+                # `.github/pull_request_template.md` entries being absent
+                # from the old manifest. Drift becomes a warning; the
+                # downstream `mode = "refresh-all"` flip (lines below)
+                # realigns the manifest in the same run.
+                existing_manifest, mwarn = _verify_manifest_integrity(
+                    cwd,
+                    accept_plugin_version_drift=accept_plugin_version_drift,
+                )
                 warnings.extend(mwarn)
 
                 if mode in ("refresh", "refresh-all") and existing_manifest is None:

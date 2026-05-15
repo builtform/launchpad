@@ -45,7 +45,7 @@ Both files are required: `agents.yml` defines the review-agent roster and protec
 
 ```bash
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
-HAS_HEAD=$(git rev-parse --verify HEAD 2>/dev/null && echo yes || echo no)
+HAS_HEAD=$(git rev-parse --verify HEAD >/dev/null 2>&1 && echo yes || echo no)
 ```
 
 ### Step 1.A: Initial-scaffold mode (v2.1.5 BL-338)

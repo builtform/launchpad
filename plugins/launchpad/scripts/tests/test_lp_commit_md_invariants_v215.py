@@ -34,13 +34,26 @@ def test_lp_commit_md_exists() -> None:
 def test_bl338_has_head_no_precondition() -> None:
     """The initial-scaffold mode MUST be gated on `HAS_HEAD == no`
     (NOT a flag-only bypass; the auto-detect IS the safety against
-    accidental scope expansion of `--initial-scaffold`)."""
+    accidental scope expansion of `--initial-scaffold`).
+
+    v2.1.5 round-4 fix (Codex P2-1): the HAS_HEAD assignment must use
+    `>/dev/null 2>&1` (redirect both streams) so the captured value is
+    `yes` or `no` only, NOT `<sha>\\nyes`. The broken `2>/dev/null` shape
+    would silently make the `== no` gate at Step 1.A always-false."""
     text = _md()
     assert "HAS_HEAD" in text, (
         "BL-338 invariant: lp-commit.md must reference the `HAS_HEAD` "
         "precondition variable. The auto-detection is the safety against "
         "`--initial-scaffold` being misused as a review-bypass."
     )
+    # Codex P2-1: correct shell shape (full redirection).
+    assert "git rev-parse --verify HEAD >/dev/null 2>&1" in text, (
+        "Codex P2-1 regression: HAS_HEAD assignment must redirect both "
+        "stdout (commit SHA) AND stderr (error msg) so the captured "
+        "value is exactly `yes` or `no`."
+    )
+    # Negative: broken shape must NOT be present.
+    assert "git rev-parse --verify HEAD 2>/dev/null && echo yes" not in text
 
 
 def test_bl338_initial_scaffold_trailer_literal() -> None:

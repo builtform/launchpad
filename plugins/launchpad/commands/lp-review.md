@@ -46,8 +46,8 @@ If the diff-scope command fails because the repo has no HEAD (`git rev-parse HEA
 Detection (run BEFORE the diff command above):
 
 ```bash
-HAS_HEAD=$(git rev-parse --verify HEAD 2>/dev/null && echo yes || echo no)
-HAS_REMOTE=$(git rev-parse --verify origin/main 2>/dev/null && echo yes || echo no)
+HAS_HEAD=$(git rev-parse --verify HEAD >/dev/null 2>&1 && echo yes || echo no)
+HAS_REMOTE=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo yes || echo no)
 ```
 
 When `HAS_HEAD == no` OR `HAS_REMOTE == no`:
@@ -72,11 +72,26 @@ Print a one-line banner so the user sees the mode is active: `[pre-first-commit]
 
 ## Step 2: Pre-dispatch Secret Scan (best-effort)
 
-1. Read patterns from `.launchpad/secret-patterns.txt` (one pattern per line)
-2. Get diff: `git diff origin/main...HEAD`
-3. Scan only **added lines** (`+` prefix) for matches against each pattern
-4. IF matches found: **HALT** and warn user with specific matches
-5. Note: best-effort scan. For comprehensive detection, integrate gitleaks/trufflehog.
+**v2.1.5 round-4 fix (Codex P1-B):** when Step 1.A's pre-first-commit
+fallback fired (`HAS_HEAD == no` OR `HAS_REMOTE == no`), the
+`git diff origin/main...HEAD` command in step 2 below is exactly the
+command that triggered the fallback in the first place. The flow MUST
+branch:
+
+- **Pre-first-commit mode** (`HAS_HEAD == no` OR `HAS_REMOTE == no`):
+  Read patterns from `.launchpad/secret-patterns.txt`. For each file in
+  the scoped set from Step 1.A (`--staged` or working-tree mode), read
+  the FULL FILE CONTENT and scan it against the patterns (each line is
+  treated as an "added line" because there is no diff base). IF matches
+  found: **HALT** and warn user with the specific file:line + matched
+  pattern. This closes the A3 / Codex P1 first-pass secret-leak surface
+  that the original BL-337 fix left open.
+- **Normal mode** (HEAD + origin/main both resolve):
+  1. Read patterns from `.launchpad/secret-patterns.txt` (one pattern per line)
+  2. Get diff: `git diff origin/main...HEAD`
+  3. Scan only **added lines** (`+` prefix) for matches against each pattern
+  4. IF matches found: **HALT** and warn user with specific matches
+  5. Note: best-effort scan. For comprehensive detection, integrate gitleaks/trufflehog.
 
 ## Step 3: Dispatch Review Agents (parallel, all model: inherit)
 
