@@ -21,14 +21,22 @@ here once established._
 {% endif %}
 
 ## Navigation structure
-
+{% if brainstorm and brainstorm.navigation %}
+<!-- v2.1.5 BL-333: filled from .launchpad/brainstorm-summary.md — verify and edit. -->
+{{ brainstorm.navigation }}
+{% else %}
 _Describe how users move between the entry routes and the primary journeys.
 A small ASCII diagram or Mermaid graph usually helps more than prose._
+{% endif %}
 
 ## Error & empty states
-
+{% if brainstorm and brainstorm.error_states %}
+<!-- v2.1.5 BL-333: filled from .launchpad/brainstorm-summary.md — verify and edit. -->
+{{ brainstorm.error_states }}
+{% else %}
 _What users see when things go wrong. Inventory errors + empty states across
 routes so no state is left unhandled._
+{% endif %}
 {% else %}
 # App Flow
 

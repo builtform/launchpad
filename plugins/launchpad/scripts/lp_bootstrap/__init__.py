@@ -215,6 +215,12 @@ class BootstrapPolicy(StrEnum):
 INFRASTRUCTURE_FILES: Final[tuple[tuple[str, str, BootstrapPolicy, int], ...]] = (
     # 1. Gitignore renders FIRST (harden C2)
     ("gitignore.j2", ".gitignore", BootstrapPolicy.APPEND_ONLY, 0o644),
+    # 1a. v2.1.5 BL-354: `.nvmrc` pins Node version consumed by
+    # `actions/setup-node`'s `node-version-file:` input. Without this
+    # file the Build job aborts at the setup step on every greenfield
+    # TS-stack first push. Value sourced from
+    # `plugin_stack_adapters._constants.DEFAULT_NODE_VERSION`.
+    ("nvmrc.j2", ".nvmrc", BootstrapPolicy.OVERWRITE_IF_UNCHANGED, 0o644),
     # 2-12. scripts/compound/ (build pipeline + config)
     (
         "scripts/compound/build.sh.j2",
@@ -341,6 +347,20 @@ INFRASTRUCTURE_FILES: Final[tuple[tuple[str, str, BootstrapPolicy, int], ...]] =
     ),
     # 21-26. .github/ (governance + CI)
     ("github/CODEOWNERS.j2", ".github/CODEOWNERS", BootstrapPolicy.MERGE_KEYS, 0o644),
+    # v2.1.5 BL-343: weekly grouped dependabot PRs at flip-public time.
+    (
+        "github/dependabot.yml.j2",
+        ".github/dependabot.yml",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
+    # v2.1.5 BL-344: generic Summary / Changes / Test plan / Related template.
+    (
+        "github/pull_request_template.md.j2",
+        ".github/pull_request_template.md",
+        BootstrapPolicy.OVERWRITE_IF_UNCHANGED,
+        0o644,
+    ),
     (
         "github/ISSUE_TEMPLATE/bug_report.yml.j2",
         ".github/ISSUE_TEMPLATE/bug_report.yml",

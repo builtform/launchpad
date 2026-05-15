@@ -7,4 +7,15 @@
 
 # Default owners apply to every file unless overridden by a more specific rule below.
 # Replace the placeholder below with a GitHub team or username (e.g. @your-team).
-* {{ identity.copyright_holder }}
+{# v2.1.5 BL-334: when PII opt-out leaves `copyright_holder` as the literal
+   `<copyright-holder>` placeholder, emit a TODO instead of a broken owner
+   line that routes review requests to a non-existent user. The user can
+   resolve via `/lp-update-identity --copyright-holder <handle>`. #}
+{%- set _holder = identity.copyright_holder -%}
+{%- if _holder and _holder != "<copyright-holder>" -%}
+* {{ _holder }}
+{%- else %}
+# TODO: set primary owner via `/lp-update-identity --copyright-holder <handle>`.
+# A default owner is required for GitHub branch-protection "Require code owner
+# review" to work; without one, every PR routes to nobody and the rule is moot.
+{%- endif %}

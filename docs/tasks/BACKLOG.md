@@ -2197,6 +2197,8 @@ _Previous status (superseded by SUBSUMED above, retained for audit trail):_ NEW 
 
 #### BL-329 - v2.1.5/v2.2: nextjs_fastapi pin (vintasoftware/nextjs-fastapi-template@62b67456) ships symlinks; CI parity gate waives
 
+**Status (2026-05-15)**: RE-TARGETED v2.1.5 → v2.2. Pin-rotation work requires upstream SHA research + dual-resolve audit (find clean SHA, log to docs/maintainers/upstream-pin-rotations.md, drop from KNOWN_BAD_PINS). Out-of-scope for v2.1.5 Tier 1 universal fixes; tracked for v2.2 where the broader stack-aware adapter work lands.
+
 **Status (2026-05-14)**: NEW — exposed by the BL-328 CI parity gate. Pin `vintasoftware/nextjs-fastapi-template@62b67456e8f01760970455282282ecaa393fbd38` contains `docs/CHANGELOG.md` and `docs/README.md` as symlinks. The `nextjs_fastapi` adapter consumes the WHOLE tree (no sub-template subtree to scope to), so the BL-328 walk_scope mechanism does NOT help; the runtime cache will reject the fetch the moment a real user picks the `nextjs_fastapi` stack. Currently waived in the BL-328 parity script's `KNOWN_BAD_PINS` allowlist so v2.1.4 can ship without blocking; rotation to a clean SHA is the v2.1.5 / v2.2 work.
 
 **Source**: `plugins/launchpad/scripts/plugin_stack_adapters/pin_registry.py:37` (the vinta pin entry). Verified 2026-05-14 by cloning the pinned SHA and running `find . -type l`. Two symlinks confirmed at `docs/CHANGELOG.md` + `docs/README.md`.
@@ -2208,6 +2210,8 @@ _Previous status (superseded by SUBSUMED above, retained for audit trail):_ NEW 
 **Default decision**: defer to v2.1.5 / v2.2. Out-of-scope for v2.1.4 because pin rotation requires upstream-state research (find a clean SHA or alternative upstream, dual-resolve it, audit-log the rotation). Tracked here so the CI parity gate's allowlist entry is grounded in a concrete follow-up.
 
 #### BL-330 - v2.1.5/v2.2: astro/docs Starlight pin (withastro/starlight@2c530192) ships root README.md symlink; CI parity gate waives
+
+**Status (2026-05-15)**: RE-TARGETED v2.1.5 → v2.2. Pin-rotation work requires upstream SHA research + dual-resolve audit (find clean SHA, log to docs/maintainers/upstream-pin-rotations.md, drop from KNOWN_BAD_PINS). Out-of-scope for v2.1.5 Tier 1 universal fixes; tracked for v2.2 where the broader stack-aware adapter work lands.
 
 **Status (2026-05-14)**: NEW — exposed by the BL-328 CI parity gate. Pin `withastro/starlight@2c530192705d569a7f6f29a33cd34b61932f786e` contains `README.md` at root as a symlink → `packages/starlight/README.md`. AstroAdapter's `docs` sub-template uses `_SUB_PATHS["docs"] = ""` (whole-tree copy from the cache root because Starlight's repo layout differs from withastro/astro), so the BL-328 walk_scope mechanism does NOT help — the symlink is at the root of the consumed subtree. Waived in BL-328's `KNOWN_BAD_PINS` allowlist so v2.1.4 can ship; rotation work is v2.1.5 / v2.2.
 
@@ -2243,3 +2247,365 @@ _Previous status (superseded by SUBSUMED above, retained for audit trail):_ NEW 
 2. `.github/workflows/v2-handshake-lint.yml` `Upstream pin walk-scope parity check` step: `timeout-minutes: 10`. Caps the same class of long-running-step hang on the parity gate (5 pins × 600s = 50min worst case under continuous network failure). `--offline-skip` converts the timeout-failure exit code into a clean SKIP at the next runner run.
 
 `continue-on-error: true` on the codex-review job means a 10-minute timeout failure still doesn't block merge; same flag is NOT set on the parity step (real findings should still fail CI), so the parity timeout is a hard ceiling — the script's own behavior is to surface infra failures distinctly so a network outage at the GitHub Actions runner level becomes a clean fail rather than a 50-minute wait.
+
+#### BL-333 - v2.1.5: `/lp-define` produces empty canonical docs even when brainstorm artifacts exist (P0)
+
+**Status (2026-05-15)**: NEW — surfaced during a post-v2.1.4 scope review of the real-world installed-plugin pipeline. The `/lp-brainstorm` → `/lp-kickoff` flow writes `.launchpad/brainstorm-summary.md` + `docs/brainstorms/*.md` containing rich design content. `/lp-define` renders `PRD.md`, `APP_FLOW.md`, `BACKEND_STRUCTURE.md` as empty placeholder docs regardless — the entire brainstorm investment is silently discarded at the define boundary.
+
+**Source**: `plugins/launchpad/scripts/lp_define_runner.py` (render path); brainstorm consumer is unwired. No call site reads `.launchpad/brainstorm-summary.md` or `docs/brainstorms/`.
+
+**Driver**: every user following the documented `/lp-brainstorm` → `/lp-kickoff` → `/lp-define` happy path. Result: empty canonical docs after spending 30+ minutes on brainstorm content, requiring manual back-fill.
+
+**At v2.1.5 design time**: extend `lp_define_runner.py` to detect `.launchpad/brainstorm-summary.md` and consume its frontmatter + body into the canonical doc rendering. Map brainstorm sections to PRD sections where the mapping is unambiguous (Problem → PRD §1 Problem; Solution → PRD §2 Solution; Personas → PRD §3 Users; etc.). For sections where the mapping is unclear, surface the brainstorm content inside a `<!-- filled from brainstorm-summary.md — verify and edit -->` comment block in the rendered doc so users can verify rather than miss it. APP_FLOW.md consumes brainstorm Flows / User Journeys sections; BACKEND_STRUCTURE.md consumes Architecture / API sections.
+
+**Test**: `tests/test_define_consumes_brainstorm_v215.py` — fixture with `.launchpad/brainstorm-summary.md` + `docs/brainstorms/*.md` containing populated Problem / Solution / Flows / API sections; assert rendered PRD.md / APP_FLOW.md / BACKEND_STRUCTURE.md contain the expected content (not placeholder TBDs).
+
+**Default decision**: ship in v2.1.5 as the highest-priority Tier 1 fix. P0 user-facing data-loss-feeling bug.
+
+#### BL-334 - v2.1.5: rendered `.github/CODEOWNERS` ships literal `<copyright-holder>` placeholder when PII opt-out (P1)
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. When a user opts out of PII at `/lp-pick-stack` Step 1.5, the rendered `.github/CODEOWNERS` contains the literal placeholder string `* <copyright-holder>` because no identity-substitution mechanism fires on the unfilled token.
+
+**Source**: bootstrap-manifest CODEOWNERS template + KernelRenderer identity-substitution flow. The PII-opt-out branch never populates the `copyright_holder` field, so the template renders the placeholder verbatim.
+
+**Driver**: every user who picks "no PII" at the privacy gate. Their rendered repo ships with a broken CODEOWNERS file that would route every PR review request to a non-existent owner.
+
+**At v2.1.5 design time**: in the CODEOWNERS template, when `copyright_holder` is unset, substitute the project_name from scaffold-decision.json identity (works for org-style and personal-style projects) AND append an inline `# TODO: set primary owner via /lp-update-identity --copyright-holder <handle>` comment so users see the action. Test the rendered output contains no literal `<copyright-holder>` substring.
+
+**Test**: `tests/test_codeowners_no_unresolved_placeholder_v215.py` — render KernelRenderer.render_all with PII-opt-out identity; assert rendered CODEOWNERS contains neither `<copyright-holder>` nor `<` `>` placeholder pairs.
+
+**Default decision**: ship in v2.1.5.
+
+#### BL-335 - v2.1.5: `scripts/compound/compound-learning.sh` references prd.json that LaunchPad never produces (P2)
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. The rendered `scripts/compound/compound-learning.sh` reads `$OUTPUT_DIR/progress.txt` and expects `prd.json`. LaunchPad produces only `PRD.md` (markdown), never `prd.json`. This is dead-code residue from the original CE plugin port that survived through v2.1.x.
+
+**Source**: bootstrap-manifest entry for `scripts/compound/compound-learning.sh` and the script template body. Greenfield projects render the script but it cannot meaningfully execute.
+
+**Driver**: any user who invokes the compound-learning workflow — the script either fails on missing prd.json or runs but produces no useful output.
+
+**At v2.1.5 design time**: rewrite `scripts/compound/compound-learning.sh` to consume `docs/architecture/PRD.md` directly + the `.launchpad/scaffold-receipt.json` (which IS produced by every greenfield project) instead of prd.json. Maintain backwards-compat for any consumer that has a hand-authored prd.json (read it if present, fall through to PRD.md if not).
+
+**Test**: `tests/test_compound_learning_consumes_prd_md_v215.py` — invoke the rendered script against a tempdir containing only `PRD.md` + `scaffold-receipt.json`; assert exit 0 and non-empty stdout.
+
+**Default decision**: ship in v2.1.5.
+
+#### BL-336 - v2.1.5: `REPOSITORY_STRUCTURE.md` referenced by check scripts but not generated by `/lp-define` (P2)
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. `/lp-define` produces 4 architecture docs (PRD, TECH_STACK, BACKEND_STRUCTURE, APP_FLOW) but not `REPOSITORY_STRUCTURE.md`. `scripts/maintenance/check-repo-structure.sh` references `docs/architecture/REPOSITORY_STRUCTURE.md` in its error messages — pointing at a doc that doesn't exist on greenfield projects.
+
+**Source**: `lp_define_runner.py` canonical-doc render list (4 docs); `scripts/maintenance/check-repo-structure.sh` error messages.
+
+**Driver**: every user when the structure check fails — the error message instructs them to consult a doc that was never rendered.
+
+**At v2.1.5 design time**: add REPOSITORY_STRUCTURE.md to `/lp-define`'s canonical-doc render list. Template describes the project's actual layout based on the detected stack adapter's `ALLOWED_DIRS` / `ALLOWED_CONFIGS` (per BL-347 stack-aware allowlist). Cross-references the check-repo-structure.sh script as the runtime enforcer.
+
+**Test**: `tests/test_define_renders_repository_structure_v215.py` — invoke `/lp-define` against each active stack; assert `docs/architecture/REPOSITORY_STRUCTURE.md` exists and references the stack's directories.
+
+**Default decision**: ship in v2.1.5. Depends on BL-347 stack-aware allowlist for content; implement BL-347 first then this.
+
+#### BL-337 - v2.1.5: `/lp-review` cannot review a greenfield repo before its first commit (P2)
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. `/lp-review` Step 1 diff-scope command is hard-coded to `git diff --name-only origin/main...HEAD`. On a fresh `git init` with no commits AND no remote, both endpoints fail. The skill has no fallback mode. This blocks the very first review on every greenfield project — exactly where review is most valuable.
+
+**Source**: `plugins/launchpad/commands/lp-review.md` Step 1 diff-scope shell snippet.
+
+**Driver**: every user attempting to review their initial scaffold output before the first commit. The command exits with `fatal: ambiguous argument 'origin/main...HEAD'`.
+
+**At v2.1.5 design time**: detect the no-HEAD case (`git rev-parse HEAD` fails) and the no-remote case (`git rev-parse origin/main` fails) at Step 1. When either fails, offer two fallback modes: `--working-tree` (review all working-tree files) or `--staged` (review staged files only). Agent dispatch treats the file list as a new-file diff (no diff base; full-content review). Document the modes in the skill body.
+
+**Test**: `tests/test_review_pre_first_commit_v215.py` — initialize a fresh git repo, scaffold a minimal file, stage it; invoke `/lp-review --staged` (subprocess); assert exit 0 and non-empty agent-dispatch list.
+
+**Default decision**: ship in v2.1.5.
+
+#### BL-338 - v2.1.5: `/lp-commit` has no first-commit mode; `--skip-review` trailer is misleading (P2)
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. `/lp-commit` Step 1 branch-guard refuses commits on `main` (forces feature-branch). Step 2.5 mandatory review needs a diff base. The `--skip-review` escape emits a `Mandatory-Review-Skipped: emergency-hotfix` trailer that mislabels an initial-scaffold commit as an emergency hotfix.
+
+**Source**: `plugins/launchpad/commands/lp-commit.md` Step 1 branch-guard + Step 2.5 review-gate + `--skip-review` trailer generator.
+
+**Driver**: every user shipping their first commit on a greenfield project. The branch-guard forces them to either bypass (with misleading trailer) or work around the harness.
+
+**At v2.1.5 design time**: add an `--initial-scaffold` mode (auto-detected when `git rev-parse HEAD` fails) that: (1) allows committing directly on main; (2) skips Step 2.5 review (no diff to review against); (3) emits `Initial-Scaffold: true` trailer instead of the `Mandatory-Review-Skipped` value; (4) documents the rationale in the commit body. Branch-guard exempts initial-scaffold path.
+
+**Test**: `tests/test_commit_initial_scaffold_v215.py` — fresh git init + staged files; invoke `/lp-commit --initial-scaffold`; assert commit lands on main with `Initial-Scaffold: true` trailer (NOT `Mandatory-Review-Skipped:`).
+
+**Default decision**: ship in v2.1.5.
+
+#### BL-339 - v2.1.5: lefthook `end-of-file-newline` hook rejects LaunchPad's own canonical envelopes (P1)
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. `/lp-pick-stack` and `/lp-scaffold-stack` write `scaffold-decision.json` and `scaffold-receipt.json` as canonical JSON (sort_keys + tight separators + ensure_ascii) with NO trailing newline — the embedded sha256 seal is computed over canonicalized bytes, so trailing-byte changes don't invalidate the seal in-memory but the canonical-byte convention is intentional for cross-writer/reader integrity. The bootstrap-rendered `lefthook.yml`'s `end-of-file-newline` hook rejects these files. LaunchPad's own infrastructure refuses LaunchPad's own output on every commit that touches a sealed envelope.
+
+**Source**: bootstrap-manifest `lefthook.yml` template's `end-of-file-newline` hook. No exclude pattern for `.launchpad/scaffold-*.json`.
+
+**Driver**: every user committing after a `/lp-pick-stack` or `/lp-scaffold-stack` re-run (e.g., post-`--redetect-stack`). Forces `--no-verify` bypass or manual hook-disable.
+
+**At v2.1.5 design time**: add an `exclude:` pattern to the rendered `lefthook.yml` `end-of-file-newline` hook for `\.launchpad/(scaffold-decision|scaffold-receipt)\.json$`. Document inline why: canonical JSON envelopes intentionally omit trailing newline for byte-deterministic sha256 sealing.
+
+**Test**: `tests/test_lefthook_excludes_canonical_envelopes_v215.py` — render bootstrap `lefthook.yml`; create scaffold-decision.json + scaffold-receipt.json with no trailing newline; invoke `lefthook run pre-commit` against staged envelopes; assert hook does not reject them.
+
+**Default decision**: ship in v2.1.5.
+
+#### BL-340 - v2.1.5: `plugin-build-runner.py` false-passes on commands that bail silently on non-TTY interactive prompts (P1)
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. `plugin-build-runner.py` invokes commands from `.launchpad/config.yml`. When `pnpm astro check` finds `@astrojs/check` + `typescript` not installed, it prompts "Continue? Yes/No" to auto-install. On non-TTY stdin (build-runner's standard invocation mode), it bails silently with exit 0. build-runner reads exit 0 as success — but zero typechecking actually ran. False-pass green build.
+
+**Source**: `plugins/launchpad/scripts/plugin-build-runner.py` — exit-code-only success detection. Astro stack default_commands invokes `pnpm astro check` without pre-installing the typechecker.
+
+**Driver**: every Astro stack user running CI or local typecheck — silent false-pass. Same class of issue for any stack whose default_commands depend on auto-install prompts.
+
+**At v2.1.5 design time**: fix at TWO layers. (1) build-runner: scan stdout/stderr for `Continue?` / `Yes/No` / `non-TTY` / `please install` patterns and treat exit-0 with those markers as failure (with a clear error message naming the prompt). (2) Per-adapter: each stack's `default_commands()` typecheck must not depend on auto-install prompts. For Astro, `/lp-define` installs `@astrojs/check` + `typescript` as devDeps when wiring `pnpm astro check`. Equivalent for other stacks.
+
+**Test**: `tests/test_build_runner_non_tty_prompt_v215.py` — runner invokes a stage command that prints "Continue? (y/N)" then exits 0; assert runner reports failure with reason `interactive_prompt_non_tty_bail`.
+
+**Default decision**: ship in v2.1.5.
+
+#### BL-341 - v2.1.5: KernelRenderer kernel files missing when `/lp-scaffold-stack` bypassed (P2)
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. Per v2.1 architecture, `/lp-scaffold-stack` Phase 4.5 invokes `KernelRenderer.render_all(cwd, identity)` to render LICENSE / CONTRIBUTING.md / CODE_OF_CONDUCT.md / README.md. If `/lp-scaffold-stack` is bypassed (hand-crafted scaffold-receipt; partial pipeline run), kernel files are absent. BL-327 (v2.1.4) fixed the catalog_load_failed that was forcing bypass under installed-plugin layout — this BL is defense-in-depth for the residual bypass paths.
+
+**Source**: `lp_scaffold_stack/engine.py` Phase 4.5 (kernel render invocation). No fallback if Phase 4.5 is skipped.
+
+**Driver**: any user whose pipeline diverged from the documented happy path — hand-crafted receipt, partial runs, debugging. Their public-repo prerequisites (LICENSE etc.) are missing.
+
+**At v2.1.5 design time**: `/lp-define` (and optionally `/lp-bootstrap`) check whether kernel files exist; if any are missing AND scaffold-receipt's `kernel_render_state` field is missing or != "completed", invoke `KernelRenderer.render_all` as a fallback. Document the trigger condition in HANDSHAKE §10 or similar.
+
+**Test**: `tests/test_kernel_render_fallback_v215.py` — scaffolded project with `kernel_render_state: pending`; invoke `/lp-define`; assert kernel files are rendered as a fallback.
+
+**Default decision**: ship in v2.1.5.
+
+#### BL-342 - v2.1.5: `SECURITY.md` not rendered by any LaunchPad pipeline (P1)
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. The public-repo setup guide at `docs/reports/launchpad_reports/2026-04-25-github-public-repo-settings.md` §5 explicitly lists SECURITY.md as a pre-flip-public requirement. Neither `/lp-bootstrap` nor KernelRenderer renders it. LaunchPad's own repo has SECURITY.md but the plugin doesn't propagate it to consumers.
+
+**Source**: KernelRenderer kernel-file list (4 files: LICENSE / CONTRIBUTING / COC / README). SECURITY.md absent.
+
+**Driver**: every greenfield project flipped public — they miss the Private vulnerability reporting reference that GitHub's security UI surfaces, and they have no security-disclosure policy.
+
+**At v2.1.5 design time**: add SECURITY.md to KernelRenderer's kernel-file list. Render with a generic security-disclosure template that points at the project's own `/security/advisories/new` flow. Reference LaunchPad's own SECURITY.md for the shape.
+
+**Test**: `tests/test_kernel_renders_security_md_v215.py` — invoke `KernelRenderer.render_all` against a tempdir; assert SECURITY.md is among the rendered files and references the project's advisories endpoint.
+
+**Default decision**: ship in v2.1.5.
+
+#### BL-343 - v2.1.5: `.github/dependabot.yml` not rendered by `/lp-bootstrap` (P1)
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. Same as BL-342 — public-repo setup guide §5 lists `.github/dependabot.yml` as required, `/lp-bootstrap` doesn't render it.
+
+**Source**: bootstrap-manifest entries for `.github/`. dependabot.yml absent.
+
+**Driver**: every greenfield project flipped public — Dependabot's first scan runs immediately and queues PRs against the default PR limit; without `.github/dependabot.yml` users can't pre-tune limits or grouping.
+
+**At v2.1.5 design time**: add `.github/dependabot.yml` to bootstrap-manifest. Default config: weekly Monday cadence + grouped minor-and-patch + PR limit 5 (per the guide's recommendation). `package-ecosystem` selected from detected stack (npm / pip / bundler / cargo / etc.) — stack-aware selection is Tier 2 work but the shape is universal; implement here with per-stack ecosystem mapping.
+
+**Test**: `tests/test_dependabot_renders_per_stack_v215.py` — render dependabot.yml for each major stack family (TS, Python, Ruby, Go); assert `package-ecosystem` matches stack.
+
+**Default decision**: ship in v2.1.5.
+
+#### BL-344 - v2.1.5: `.github/pull_request_template.md` not rendered by `/lp-bootstrap` (P2)
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. Same family as BL-342/BL-343.
+
+**Source**: bootstrap-manifest. pull_request_template.md absent.
+
+**Driver**: every greenfield project — PRs lack a template scaffold (Summary / Changes / Test plan / Related).
+
+**At v2.1.5 design time**: add `.github/pull_request_template.md` to bootstrap-manifest with a generic template (Summary / Changes / Test plan / Related). Project-specific PR checklists are downstream concern (LaunchPad's own template is heavier; the bootstrap-rendered one stays minimal).
+
+**Test**: `tests/test_pr_template_renders_v215.py` — invoke `/lp-bootstrap`; assert `.github/pull_request_template.md` exists with expected sections.
+
+**Default decision**: ship in v2.1.5.
+
+#### BL-345 - v2.1.6: stack detector inconsistency between `plugin-stack-detector.py` standalone and `lp_define_runner.py` in-process logic (P2)
+
+**Status (2026-05-15)**: RE-TARGETED v2.1.5 → v2.1.6. Tier 2 stack-aware refactors split into a dedicated v2.1.6 PR so v2.1.5 ships universal Tier 1 fixes cleanly. The 11-stack matrix (~50+ per-stack template variants + per-stack regression fixtures) is too large to land cleanly in the same PR as the universal fixes; reviewer signal-to-noise on a combined PR is poor. Original NEW status retained below.
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. `plugins/launchpad/scripts/plugin-stack-detector.py` only knows next.js, hono, react, express, prisma, django, fastapi, flask, go, rust. `lp_define_runner.py` has different (more capable) detection logic that knows additional stacks. Two implementations of stack detection live in the same codebase with different signature sets.
+
+**Source**: `plugins/launchpad/scripts/plugin-stack-detector.py` (standalone) + `plugins/launchpad/scripts/lp_define_runner.py` (in-process). No shared module.
+
+**Driver**: developers and external tooling — same project can return different stack ids depending on which detector is invoked. Risk of silent dispatch errors when `/lp-review` (which calls the standalone) and `/lp-define` disagree on stack.
+
+**At v2.1.5 design time**: unify on a single detection module at `plugins/launchpad/scripts/stack_detection/__init__.py`. Standalone script and runner share signatures. Add per-stack signature for every v2.1 active stack: astro (`astro` dep OR `astro.config.{js,mjs,ts}`); eleventy (`@11ty/eleventy` dep OR `.eleventy.{js,cjs,ts}`); hugo (`hugo.toml`/`config.toml`, no package.json required); hono (`hono` dep); rails (Gemfile + `Rails.application`); supabase (`supabase/config.toml` + npm deps); expo (`expo` dep + `app.json`/`expo.json`).
+
+**Test**: `tests/test_stack_detection_unified_v215.py` — fixture projects for each stack; assert standalone script AND runner return identical stack ids.
+
+**Default decision**: ship in v2.1.5 as a foundation for Tier 2 BL-346/BL-347/BL-348/BL-349 stack-aware rendering.
+
+#### BL-346 - v2.1.6: stack-aware `default_commands()` across 11 adapters; lefthook + CI + config.yml hardcoded to pnpm (P1)
+
+**Status (2026-05-15)**: RE-TARGETED v2.1.5 → v2.1.6. Tier 2 stack-aware refactors split into a dedicated v2.1.6 PR so v2.1.5 ships universal Tier 1 fixes cleanly. The 11-stack matrix (~50+ per-stack template variants + per-stack regression fixtures) is too large to land cleanly in the same PR as the universal fixes; reviewer signal-to-noise on a combined PR is poor. Original NEW status retained below.
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. `/lp-bootstrap` renders `lefthook.yml`, `.github/workflows/ci.yml`, and `.launchpad/config.yml` with hardcoded `pnpm typecheck`, `pnpm eslint --fix`, `pnpm prettier --write`, `pnpm test` assumptions. For non-pnpm stacks (Python, Ruby, Go), these fail catastrophically: pnpm isn't installed, the scripts don't exist, the CI workflow can't run.
+
+**Source**: bootstrap-manifest templates for lefthook.yml, ci.yml, config.yml. Hardcoded `pnpm <cmd>` strings throughout. Adapter `default_commands()` only partially populated (Astro at `astro.py:194-201`; others missing).
+
+**Driver**: every Python / Ruby / Go user — pipeline rendering is non-functional out of the box. Astro users hit BL-340 (non-TTY false-pass on missing typecheck deps); other TS users avoid this by accident.
+
+**At v2.1.5 design time**: each adapter in `plugin_stack_adapters/` declares `default_commands()` returning `{test, typecheck, lint, format, build}` realistic per-stack: astro (`pnpm test`, `pnpm astro check`, `pnpm eslint .`, `pnpm prettier --write .`, `pnpm build`); next / nextjs_standalone (`pnpm test`, `pnpm tsc --noEmit`, `pnpm next lint`, `pnpm prettier --write .`, `pnpm build`); eleventy (similar TS); hugo (none, none, none, none, `hugo --gc --minify`); hono (similar TS); ts_monorepo (`pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm format`, `pnpm build` via turbo); supabase (similar TS, no build); expo (similar TS, `expo prebuild`); django + fastapi (`pytest`, `pyright .`, `ruff check .`, `ruff format .`, none); rails (`bundle exec rspec`, `bundle exec srb tc` or none, `bundle exec rubocop`, `bundle exec rubocop -a`, none); generic ([], [], [], [], []). Bootstrap renderers read from adapter's `default_commands()`; no hardcoded `pnpm` strings remain.
+
+**Test**: `tests/test_stack_aware_commands_v215.py` (parametrized across all 11 stacks) — render bootstrap files for that stack; assert commands match expected stack-specific values.
+
+**Default decision**: ship in v2.1.5 as the central Tier 2 fix that BL-352 (CI workflow setup) and BL-340 (build-runner fix) depend on.
+
+#### BL-347 - v2.1.6: `scripts/maintenance/check-repo-structure.sh` allowlist hard-coded to LaunchPad-monorepo shape (P0)
+
+**Status (2026-05-15)**: RE-TARGETED v2.1.5 → v2.1.6. Tier 2 stack-aware refactors split into a dedicated v2.1.6 PR so v2.1.5 ships universal Tier 1 fixes cleanly. The 11-stack matrix (~50+ per-stack template variants + per-stack regression fixtures) is too large to land cleanly in the same PR as the universal fixes; reviewer signal-to-noise on a combined PR is poor. Original NEW status retained below.
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. The rendered script's `ALLOWED_DIRS` allowlist contains `apps/`, `packages/`, etc. — LaunchPad-monorepo-shape. `ALLOWED_CONFIGS` misses `astro.config.mjs`, `next.config.{js,ts}`, `nuxt.config.{js,ts}`, etc. This blocks commits on every single-app project: brand-new Astro / Next / etc. projects have `public/`, `src/`, `astro.config.mjs` at root which all get flagged as "unauthorized files".
+
+**Source**: bootstrap-manifest template for `scripts/maintenance/check-repo-structure.sh`. Hardcoded ALLOWED_DIRS / ALLOWED_CONFIGS lists.
+
+**Driver**: every single-app greenfield user — first commit fails because the rendered structure check flags legitimate framework files as drift. P0 blocker on every commit until they manually edit the check.
+
+**At v2.1.5 design time**: render `scripts/maintenance/check-repo-structure.sh` from a template that injects stack-aware ALLOWED_DIRS + ALLOWED_CONFIGS from each adapter. Per-stack allowlist: astro (DIRS += [public, src]; CFG += [astro.config.{mjs,ts}]); next / nextjs_standalone (DIRS += [app, src, public, pages]; CFG += [next.config.{js,mjs,ts}, next-env.d.ts]); eleventy (DIRS += [src, _site]; CFG += [.eleventy.{js,cjs,ts}]); hugo (DIRS += [content, layouts, themes, archetypes, data, static]; CFG += [hugo.{toml,yaml,json}, config.{toml,yaml,json}]); hono (DIRS += [src]; CFG += [tsconfig.json, vite.config.{ts,js}]); ts_monorepo (preserve current [apps, packages]); supabase (DIRS += [src, supabase]; CFG += [supabase/config.toml]); expo (DIRS += [app, src, assets]; CFG += [app.json, expo.json, eas.json]); django (DIRS += [<project_name>, apps]; CFG += [manage.py, requirements.txt, pyproject.toml]); fastapi (DIRS += [app, src]; CFG += [pyproject.toml, requirements.txt]); rails (DIRS += [app, config, db, lib, public, test, spec, vendor]; CFG += [Gemfile, Rakefile, config.ru]); generic (minimal — user customizes). Same data feeds BL-336 REPOSITORY_STRUCTURE.md rendering.
+
+**Test**: `tests/test_check_repo_structure_per_stack_v215.py` (parametrized) — render the script for each stack; simulate stack-typical project layout; assert clean run with no false-positive flags.
+
+**Default decision**: ship in v2.1.5 as a P0 first-commit blocker. Foundation for BL-336 REPOSITORY_STRUCTURE.md.
+
+#### BL-348 - v2.1.6: APP_FLOW.md routes hard-coded per adapter; ignore project state (P1)
+
+**Status (2026-05-15)**: RE-TARGETED v2.1.5 → v2.1.6. Tier 2 stack-aware refactors split into a dedicated v2.1.6 PR so v2.1.5 ships universal Tier 1 fixes cleanly. The 11-stack matrix (~50+ per-stack template variants + per-stack regression fixtures) is too large to land cleanly in the same PR as the universal fixes; reviewer signal-to-noise on a combined PR is poor. Original NEW status retained below.
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. Each adapter's `describe_app_flow()` returns hardcoded `AppFlowInfo` (e.g., `astro.py:179-184` returns `entry_routes=["/", "/about", "/blog"]`). The renderer writes these as concrete routes in APP_FLOW.md even when they don't match the actual project's pages. Users see authoritative-looking but fictional routes.
+
+**Source**: each `plugin_stack_adapters/<stack>.py` `describe_app_flow()` method. Returns concrete-looking `entry_routes` arrays.
+
+**Driver**: every user who reads APP_FLOW.md after `/lp-define` — sees routes that look authoritative but are placeholder fiction. Misleads downstream consumers (`/lp-shape-section`, `/lp-pnf`) that read APP_FLOW.md.
+
+**At v2.1.5 design time**: each adapter's `AppFlowInfo` provides MINIMAL placeholder hints + explicit "replace as routes are shaped via /lp-shape-section" language. Stack-typical pattern: astro (["/"] + placeholder "Add routes as you create pages under src/pages/"); next (["/"] + placeholder for app/ or pages/ router); hugo (["/"] + placeholder for content/ markdown files); django (["/"] + placeholder for urls.py patterns); rails (["/"] + placeholder for routes.rb); etc. No concrete fake routes; explicit shape-via-section guidance.
+
+**Test**: `tests/test_app_flow_placeholder_hints_v215.py` (parametrized) — verify `describe_app_flow()` returns minimal placeholder + explicit "shape via /lp-shape-section" guidance, not concrete fake routes.
+
+**Default decision**: ship in v2.1.5.
+
+#### BL-349 - v2.1.6: BACKEND_STRUCTURE.md wrong for static-output stacks (P1)
+
+**Status (2026-05-15)**: RE-TARGETED v2.1.5 → v2.1.6. Tier 2 stack-aware refactors split into a dedicated v2.1.6 PR so v2.1.5 ships universal Tier 1 fixes cleanly. The 11-stack matrix (~50+ per-stack template variants + per-stack regression fixtures) is too large to land cleanly in the same PR as the universal fixes; reviewer signal-to-noise on a combined PR is poor. Original NEW status retained below.
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. Each adapter's `describe_backend()` returns a `BackendInfo` struct assuming "Astro endpoints (built-in)" with `api_style="REST"`. For static-output Astro projects (the default), there are no endpoints — the framing is wrong.
+
+**Source**: each adapter's `describe_backend()` method. No detection of static-vs-server output mode.
+
+**Driver**: every static-output user (Astro static, Next static export, Hugo, Eleventy) — BACKEND_STRUCTURE.md describes a non-existent backend. Misleads downstream consumers.
+
+**At v2.1.5 design time**: `BackendInfo` gains a `static_capable: bool` field + runtime detector. For Astro: detect `output: 'static'` vs `'hybrid'`/`'server'` from `astro.config.{js,mjs,ts}` (text-grep is sufficient — full parse not required). For Next.js: detect `output: 'export'`. For Hugo / Eleventy: always static — BACKEND_STRUCTURE says "static site, no backend". For Django / Rails / FastAPI / Hono: always have a backend — current framing applies. Supabase: "backend-managed by Supabase" — no app-side backend code. Expo: mobile, no backend in this repo. Render BackendInfo accordingly with correct framing per output mode.
+
+**Test**: `tests/test_backend_info_static_vs_server_v215.py` (parametrized per adapter) — verify `describe_backend()` produces correct framing for static vs server output where applicable.
+
+**Default decision**: ship in v2.1.5.
+
+#### BL-350 - v2.1.6: `.gitignore` / `.gitleaks.toml` / `.greptile.json` ship Next.js + Turborepo + pnpm cruft on non-TS stacks (P3)
+
+**Status (2026-05-15)**: RE-TARGETED v2.1.5 → v2.1.6. Tier 2 stack-aware refactors split into a dedicated v2.1.6 PR so v2.1.5 ships universal Tier 1 fixes cleanly. The 11-stack matrix (~50+ per-stack template variants + per-stack regression fixtures) is too large to land cleanly in the same PR as the universal fixes; reviewer signal-to-noise on a combined PR is poor. Original NEW status retained below.
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. The bootstrap-rendered `.gitignore` includes `.next/`, `.turbo/`, `pnpm-lock.yaml` entries — irrelevant for non-Next, non-Turborepo, non-pnpm stacks. Similar cruft in `.gitleaks.toml` allowlist + `.greptile.json` exclude patterns.
+
+**Source**: bootstrap-manifest templates for `.gitignore` / `.gitleaks.toml` / `.greptile.json`. Hardcoded TS-monorepo-shape entries.
+
+**Driver**: every Python / Ruby / Hugo / Go user — cosmetic but signals "this template wasn't built for me". Polluted `.gitignore` adds noise to `git status`.
+
+**At v2.1.5 design time**: render each of these files with stack-aware entries. Reuse per-stack ALLOWED_DIRS / package-manager data from BL-347 + BL-343. Per-stack ignore patterns: astro (`dist/`, `.astro/`); next (`.next/`, `out/`); hugo (`public/`, `resources/`); eleventy (`_site/`); django (`__pycache__/`, `*.pyc`, `.venv/`, `db.sqlite3`); rails (`tmp/`, `log/`, `db/*.sqlite3`, `.bundle/`); generic (minimal).
+
+**Test**: `tests/test_gitignore_per_stack_v215.py` (parametrized) — render `.gitignore` for each stack; assert correct ignore patterns present, no cross-stack cruft.
+
+**Default decision**: ship in v2.1.5.
+
+#### BL-351 - v2.1.6: `astro-noop` placeholder hook `run: 'true'` ships in rendered lefthook.yml (P3)
+
+**Status (2026-05-15)**: RE-TARGETED v2.1.5 → v2.1.6. Tier 2 stack-aware refactors split into a dedicated v2.1.6 PR so v2.1.5 ships universal Tier 1 fixes cleanly. The 11-stack matrix (~50+ per-stack template variants + per-stack regression fixtures) is too large to land cleanly in the same PR as the universal fixes; reviewer signal-to-noise on a combined PR is poor. Original NEW status retained below.
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. A literal `run: 'true'` placeholder hook ships in the Astro-rendered `lefthook.yml`. Cosmetic but ugly. Other stacks may have similar dead-placeholder hooks.
+
+**Source**: bootstrap-manifest `lefthook.yml` template + AstroAdapter hook contributions. No-op placeholder slot for the "astro-noop" hook.
+
+**Driver**: every Astro user reviewing their rendered lefthook.yml — sees a `run: 'true'` hook with no documented purpose.
+
+**At v2.1.5 design time**: each adapter declares which hook slots it actually needs in lefthook.yml (via a new `default_pre_commit_hooks()` method or similar). Renderer only emits hooks the stack actually uses. No no-op placeholders.
+
+**Test**: `tests/test_lefthook_no_placeholder_hooks_v215.py` (parametrized) — render `lefthook.yml` for each stack; assert no `run: 'true'` hooks present.
+
+**Default decision**: ship in v2.1.5.
+
+#### BL-352 - v2.1.6: CI workflow + lefthook assume pnpm even when adapter declares non-pnpm commands (P1)
+
+**Status (2026-05-15)**: RE-TARGETED v2.1.5 → v2.1.6. Tier 2 stack-aware refactors split into a dedicated v2.1.6 PR so v2.1.5 ships universal Tier 1 fixes cleanly. The 11-stack matrix (~50+ per-stack template variants + per-stack regression fixtures) is too large to land cleanly in the same PR as the universal fixes; reviewer signal-to-noise on a combined PR is poor. Original NEW status retained below.
+
+**Status (2026-05-15)**: NEW — post-v2.1.4 scope review. Even when an adapter declares pnpm-specific commands (BL-346), the rendered CI workflow uses `pnpm/action-setup` and `pnpm install --frozen-lockfile`, and the rendered lefthook expects pnpm. For Python stacks the setup should be `actions/setup-python` + `pip install`. For Ruby, `ruby/setup-ruby` + bundler. For Hugo, `actions/setup-go` for tooling (Hugo binary itself is downloaded).
+
+**Source**: bootstrap-manifest `.github/workflows/ci.yml` template. Hardcoded `pnpm/action-setup` + `pnpm install --frozen-lockfile` regardless of stack.
+
+**Driver**: every Python / Ruby / Hugo / Go user — CI workflow fails at setup step because pnpm isn't installed. Tier 2 BL-346 addresses the commands; this BL addresses the additional setup-step surfaces.
+
+**At v2.1.5 design time**: per-stack package-manager mapping: TS family (astro / next / eleventy / hono / ts_monorepo / supabase / expo) → pnpm, `pnpm/action-setup`, pnpm-lock.yaml; Python (django / fastapi) → pip, `actions/setup-python` + `pip install`, requirements.txt or pyproject.toml; Ruby (rails) → bundler, `ruby/setup-ruby`, Gemfile.lock; Hugo (Go modules for tools only) → `actions/setup-go`, go.sum; generic → none, user customizes. CI workflow template branches on detected stack family.
+
+**Test**: `tests/test_ci_workflow_per_stack_v215.py` (parametrized) — render `.github/workflows/ci.yml` for each stack; assert package-manager setup steps + lockfile references match the stack.
+
+**Default decision**: ship in v2.1.5. Depends on BL-346 stack-aware commands; implement BL-346 first.
+
+#### BL-353 - v2.1.5: bootstrap-rendered ci.yml fails CI on first push for every pnpm-based stack (P0)
+
+**Status (2026-05-15)**: NEW — surfaced during a post-v2.1.4 real-world installed-plugin reproduction. `.github/workflows/ci.yml` as rendered by `/lp-bootstrap` uses `pnpm/action-setup@<sha>` without a `version:` input. The rendered `package.json` (from each pnpm-stack adapter) has no `packageManager:` field. pnpm/action-setup requires one of those to resolve which pnpm to install. Result: every greenfield pnpm-stack user hits this on first push to GitHub:
+
+```
+Error: No pnpm version is specified.
+Please specify it by one of the following ways:
+  - in the GitHub Action config with the key "version"
+  - in the package.json with the key "packageManager"
+```
+
+The Build job aborts at the `pnpm/action-setup` step. All downstream steps (setup-node, Install, Type Check, Lint, Test, Build) are skipped. CI fails red on the very first push of a freshly-scaffolded LaunchPad project.
+
+**Source**: bootstrap-manifest `.github/workflows/ci.yml.j2` template (uses `pnpm/action-setup@<sha>` with no `version:`) + each pnpm-using adapter's `package.json` render path (no `packageManager` field). Affected stacks: astro, next, nextjs_standalone, nextjs_fastapi, eleventy, hono, ts_monorepo, supabase, expo. Non-pnpm stacks (django, fastapi, rails, hugo, generic) render different CI setup actions and are unaffected.
+
+**Driver**: every greenfield pnpm-stack user — CI is broken on first push. P0 ship-blocker for the dominant majority of LaunchPad's user base (TS family is the largest stack cohort).
+
+**At v2.1.5 design time**: narrow Tier-1 fix that doesn't require the full Tier 2 stack-aware CI refactor (BL-345). Introduce a `DEFAULT_PNPM_VERSION` constant centrally (e.g., `plugin_stack_adapters/contracts.py` or a new `plugin_stack_adapters/_constants.py`), single source of truth. Each pnpm-using adapter renders `package.json` with `"packageManager": "pnpm@<DEFAULT_PNPM_VERSION>"`. The `pnpm/action-setup` step in `.github/workflows/ci.yml` reads this via Corepack convention; no `version:` input needed. When BL-345 lands in v2.1.6 with the full stack-aware CI refactor, the BL-353 field rendering becomes part of that broader refactor without rework. DO NOT hardcode the pnpm version in multiple adapter files — that creates pin-drift bugs at the next pnpm upgrade.
+
+**Test**: `tests/test_pnpm_package_manager_pin_v215.py` — (1) parametrized per pnpm-using adapter, assert `package.json` render contains `packageManager` field with value `pnpm@<DEFAULT_PNPM_VERSION>`; (2) assert the constant has a single source of truth (no duplicate string literals); (3) negative test — render `package.json` for django/fastapi/rails, assert `packageManager` field absent.
+
+**Default decision**: ship in v2.1.5 as a P0 first-push CI-red blocker. Narrow scope; BL-345 (v2.1.6) subsumes and extends to all stacks.
+
+#### BL-354 - v2.1.5: bootstrap-rendered ci.yml references `.nvmrc` but `/lp-bootstrap` doesn't render the file (P0)
+
+**Status (2026-05-15)**: NEW — surfaced during a post-v2.1.4 real-world installed-plugin reproduction, immediately after the BL-353 pnpm-version-pin fix. `.github/workflows/ci.yml` as rendered by `/lp-bootstrap` configures `actions/setup-node` with `node-version-file: .nvmrc`. `/lp-bootstrap` does not render `.nvmrc` to project root. Result: every greenfield TS-stack push fails with:
+
+```
+Error: The specified node version file at: /.../.nvmrc does not exist
+```
+
+`setup-node` aborts at step 4 of the rendered Build job; all 5 downstream steps (Install / Type Check / Lint / Test / Build) are skipped. Same effective failure mode as BL-353 but at a different rendering layer in the same workflow.
+
+**Source**: bootstrap-manifest `.github/workflows/ci.yml.j2` template references `node-version-file: .nvmrc`. No `.nvmrc.j2` entry in `INFRASTRUCTURE_FILES`. No TS-stack adapter renders `.nvmrc`.
+
+**Driver**: every greenfield TS-stack user — second-round CI-red after the BL-353 fix lands. Affects: astro, next, nextjs_standalone, nextjs_fastapi, eleventy, hono, ts_monorepo, supabase, expo. Non-TS stacks (django, fastapi, rails, hugo, generic) use different setup actions and are unaffected.
+
+**At v2.1.5 design time**: narrow Tier-1 fix that composes naturally with BL-353. Introduce a `DEFAULT_NODE_VERSION` constant alongside `DEFAULT_PNPM_VERSION` (same centralized location — `plugin_stack_adapters/_constants.py` or `contracts.py`), single source of truth. Each TS-stack adapter renders `.nvmrc` at repo root containing the constant value (e.g., `22.12.0\n`). The `package.json` `engines.node` minimum MUST be satisfied by the `.nvmrc` value (self-consistency between the two render targets). Reference: a real-world fix PR exists at https://github.com/ulcspec/ulcspec.org/pull/2 — Astro project with `.nvmrc: 22.12.0` passes all 13 CI steps in 23s. The fix shape is exactly what v2.1.5 should upstream into LaunchPad's bootstrap pipeline.
+
+**Test**: `tests/test_nvmrc_render_v215.py` — (1) parametrized per TS-stack adapter, assert `.nvmrc` is rendered to repo root with value matching `DEFAULT_NODE_VERSION`; (2) negative test for non-TS stacks (django/fastapi/rails/hugo/generic) — assert `.nvmrc` absent; (3) self-consistency test — for each TS-stack adapter, render `package.json` + `.nvmrc`; assert `engines.node` minimum (e.g., `>=22.0.0`) is satisfied by `.nvmrc` value.
+
+**Default decision**: ship in v2.1.5 as a P0 first-push CI-red blocker. Composes with BL-353 in the same code path (centralized DEFAULT\_\*\_VERSION constants).
+
+#### BL-355 - v2.1.5: `/lp-bootstrap` lacks a CI self-consistency assertion (catches BL-353/BL-354-class regressions at write time) (P1)
+
+**Status (2026-05-15)**: NEW — pattern observed during the v2.1.4 → v2.1.5 reproduction work. BL-353 (pnpm/action-setup missing version source) and BL-354 (setup-node missing `.nvmrc`) are the same bug class — rendered workflow files reference files `/lp-bootstrap` doesn't render. They surfaced in sequence (BL-353 → user pushes → fails → fix → push → BL-354 surfaces → fix → push → all-green). A third instance would have caused a third round-trip. Defense-in-depth needed.
+
+**Source**: `/lp-bootstrap` render pipeline has no structural check that workflow YAML file-references resolve against what gets rendered to disk. No closed-enum of action-input → file-dependency pairs is consulted.
+
+**Driver**: future LaunchPad maintainers + workflow-template rotation work. Without this check, the next `actions/setup-X` integration that references a file (e.g., `python-version-file`, `go-version-file`, `ruby-version-file`, `cache-dependency-path`) will replay the BL-353/BL-354 round-trip pattern.
+
+**At v2.1.5 design time**: add a structural check at `/lp-bootstrap` render time. For every rendered workflow YAML, parse the workflow (yaml.safe_load) and walk every action step. For known file-referencing inputs, assert the referenced file is also rendered by `/lp-bootstrap` to the same project root. Closed enumeration of inputs to check:
+
+- `actions/setup-node`: `node-version-file` → must exist (e.g., `.nvmrc`)
+- `actions/setup-python`: `python-version-file` → must exist (e.g., `.python-version`, `pyproject.toml`)
+- `actions/setup-go`: `go-version-file` → must exist (e.g., `go.mod`)
+- `ruby/setup-ruby`: `ruby-version-file` → must exist (e.g., `.ruby-version`, `Gemfile`)
+- `actions/cache`: `path` references → must exist or be a build-output path
+- Any step's `working-directory` → must exist as a directory in the rendered tree
+
+On failure: `/lp-bootstrap` refuses to write (atomic-batch refuse-all per existing convention) with a clear error naming the offending workflow + missing file. This catches the BL-353/354 class at `/lp-bootstrap` write time — before the user pushes, before CI runs, before any failure round-trip.
+
+**Test**: `tests/test_bootstrap_ci_self_consistency_v215.py` — (1) deliberately-broken bootstrap state (workflow references a file the manifest doesn't include): assert `/lp-bootstrap` refuses to write and surfaces the specific missing file; (2) current correct state (after BL-353/BL-354 land): assert `/lp-bootstrap` writes cleanly with no false positives; (3) per-active-stack: render bootstrap for each stack, assert all workflow-referenced files are present.
+
+**Default decision**: ship in v2.1.5 alongside BL-353 + BL-354. Narrow fixes solve today; structural assertion prevents tomorrow.

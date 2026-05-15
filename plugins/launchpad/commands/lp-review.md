@@ -39,6 +39,27 @@ git diff --name-only origin/main...HEAD
 
 - Check for Prisma changes (files matching `packages/db/**`, `prisma/**`, `*.prisma`) → set `db_changes = true/false`
 
+### Step 1.A: Pre-first-commit fallback (v2.1.5 BL-337)
+
+If the diff-scope command fails because the repo has no HEAD (`git rev-parse HEAD` errors) OR no remote (`git rev-parse origin/main` errors), the project is in pre-first-commit state — a freshly-initialized greenfield where `/lp-review` was invoked before any commits exist. The default diff range is unusable.
+
+Detection (run BEFORE the diff command above):
+
+```bash
+HAS_HEAD=$(git rev-parse --verify HEAD 2>/dev/null && echo yes || echo no)
+HAS_REMOTE=$(git rev-parse --verify origin/main 2>/dev/null && echo yes || echo no)
+```
+
+When `HAS_HEAD == no` OR `HAS_REMOTE == no`:
+
+- If `$ARGUMENTS` contains `--staged`: scope = `git diff --cached --name-only` (staged files only)
+- Otherwise: scope = `git ls-files --others --exclude-standard` plus tracked staged files (full working-tree + staged review)
+- The agent dispatch treats each scoped file as a new-file diff (no diff base, full-content review)
+- Skip Step 2 secret scan (no diff to scan; review will surface secrets in agent passes if present)
+- Set `db_changes = false` (no Prisma migration in a pre-first-commit scaffold)
+
+Print a one-line banner so the user sees the mode is active: `[pre-first-commit] reviewing <N> staged/working-tree files as new-file diff`.
+
 ## Step 1.5: Read PR Intent Context (best-effort)
 
 **IF `--no-context` flag is set: skip this entire step. Set `intent_context = empty` and proceed to Step 2.**

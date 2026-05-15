@@ -45,7 +45,27 @@ Both files are required: `agents.yml` defines the review-agent roster and protec
 
 ```bash
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
+HAS_HEAD=$(git rev-parse --verify HEAD 2>/dev/null && echo yes || echo no)
 ```
+
+### Step 1.A: Initial-scaffold mode (v2.1.5 BL-338)
+
+If `HAS_HEAD == no` (the repo has no commits yet) OR `$ARGUMENTS` contains `--initial-scaffold`, the user is committing the initial scaffold output and the normal branch-guard / mandatory-review flow does not apply (there is no diff base to review against).
+
+Auto-detect: when `HAS_HEAD == no` and the user did not pass `--initial-scaffold`, prompt: **"This looks like the first commit on a freshly-initialized repo. Commit on `main` as an initial-scaffold commit? (y/N)"** — if `y`, proceed in initial-scaffold mode. Otherwise abort and let the user create a feature branch first.
+
+In initial-scaffold mode:
+
+- Skip Step 2.5 mandatory review (no diff base; nothing to review against)
+- Allow commit on `main` (override the protected-branch reject)
+- Emit a Step 7 trailer of `Initial-Scaffold: true` instead of `Mandatory-Review-Skipped: emergency-hotfix` — the latter is reserved for emergency hotfixes and would mislabel an initial-scaffold commit in the audit-trail
+- Include in the commit body: `This is the initial-scaffold commit for the project. Subsequent commits MUST follow the feature-branch + dual-pass review workflow.`
+
+After auto-detection, proceed to Step 2 directly. Skip the rest of Step 1 (branch suggestion) since the commit is intentionally landing on `main`.
+
+### Step 1.B: Normal branch guard
+
+(skipped if Step 1.A's initial-scaffold mode is active)
 
 1. Read `protected_branches` from `.launchpad/agents.yml` (default: `[main, master]`)
 2. IF `BRANCH` is in `protected_branches`: **Do NOT commit on a protected branch.** Instead:

@@ -10,7 +10,15 @@ source "$(dirname "$0")/lib.sh"
 cd "$PROJECT_ROOT"
 
 PROGRESS_FILE="$OUTPUT_DIR/progress.txt"
-PRD_FILE="$OUTPUT_DIR/prd.json"
+# v2.1.5 BL-335: LaunchPad never produces `prd.json` — it produces
+# `docs/architecture/PRD.md` via /lp-define. The legacy CE-port assumed
+# `prd.json` (the CE plugin's artifact). Consume the canonical sources
+# the LaunchPad pipeline actually ships: PRD.md + scaffold-receipt.json.
+# Hand-authored `prd.json` files (CE-format legacy) are still honored as
+# an optional override when present at $OUTPUT_DIR/prd.json.
+PRD_JSON_FILE="$OUTPUT_DIR/prd.json"
+PRD_MD_FILE="$PROJECT_ROOT/docs/architecture/PRD.md"
+RECEIPT_FILE="$PROJECT_ROOT/.launchpad/scaffold-receipt.json"
 TEMPLATE_FILE="$PROJECT_ROOT/docs/solutions/compound-product/_template.md"
 
 if [ ! -f "$PROGRESS_FILE" ]; then
@@ -18,11 +26,15 @@ if [ ! -f "$PROGRESS_FILE" ]; then
   exit 0
 fi
 
-# Derive feature slug from prd.json branch name or current branch
-if [ -f "$PRD_FILE" ]; then
-  BRANCH_NAME=$(jq -r '.branchName // empty' "$PRD_FILE" 2>/dev/null || echo "")
+# Derive feature slug. Precedence: (1) hand-authored prd.json's branchName,
+# (2) current git branch.
+if [ -f "$PRD_JSON_FILE" ]; then
+  BRANCH_NAME=$(jq -r '.branchName // empty' "$PRD_JSON_FILE" 2>/dev/null || echo "")
 else
-  BRANCH_NAME=$(git branch --show-current)
+  BRANCH_NAME=""
+fi
+if [ -z "$BRANCH_NAME" ]; then
+  BRANCH_NAME=$(git branch --show-current 2>/dev/null || echo "")
 fi
 
 FEATURE_SLUG=$(echo "$BRANCH_NAME" | sed "s|^${BRANCH_PREFIX}||" | sed 's|^compound/||')
@@ -33,14 +45,15 @@ fi
 LEARNINGS_DIR="$PROJECT_ROOT/docs/solutions/compound-product/$FEATURE_SLUG"
 LEARNINGS_FILE="$LEARNINGS_DIR/${FEATURE_SLUG}-$(date +%Y-%m-%d).md"
 
-# Count task stats from prd.json
+# Count task stats. Precedence: hand-authored prd.json (CE-format legacy);
+# otherwise derive zero counts and rely on the progress log for context.
 TASKS_TOTAL=0
 TASKS_COMPLETED=0
 ITERATION_COUNT=0
 
-if [ -f "$PRD_FILE" ]; then
-  TASKS_TOTAL=$(jq '.tasks | length' "$PRD_FILE" 2>/dev/null || echo 0)
-  TASKS_COMPLETED=$(jq '[.tasks[] | select(.passes == true)] | length' "$PRD_FILE" 2>/dev/null || echo 0)
+if [ -f "$PRD_JSON_FILE" ]; then
+  TASKS_TOTAL=$(jq '.tasks | length' "$PRD_JSON_FILE" 2>/dev/null || echo 0)
+  TASKS_COMPLETED=$(jq '[.tasks[] | select(.passes == true)] | length' "$PRD_JSON_FILE" 2>/dev/null || echo 0)
 fi
 ITERATION_COUNT=$(grep -c "^## " "$PROGRESS_FILE" 2>/dev/null || echo 0)
 

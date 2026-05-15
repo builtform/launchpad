@@ -73,6 +73,14 @@ pre-commit:
 
     end-of-file-newline:
       glob: "*.{js,jsx,ts,tsx,json,css,md,yml,yaml,html,sh}"
+      # v2.1.5 BL-339: `.launchpad/scaffold-decision.json` and
+      # `.launchpad/scaffold-receipt.json` are canonical-byte envelopes
+      # written by `/lp-pick-stack` and `/lp-scaffold-stack` with
+      # sort_keys + tight separators + ensure_ascii and NO trailing
+      # newline. The embedded sha256 seal is computed over canonicalized
+      # bytes — trailing-byte changes would break cross-writer/reader
+      # integrity. Exclude them from the EOF-newline hook.
+      exclude: "^\\.launchpad/(scaffold-decision|scaffold-receipt)\\.json$"
       run: |
         failed=""
         while IFS= read -r file; do

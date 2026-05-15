@@ -101,12 +101,18 @@ def test_only_paths_unknown_rejected(tmp_path):
 # --- File mode allowlist (harden B8) --------------------------------------
 
 def test_file_modes_inventory_split():
-    """v2.1 Codex PR #50 P1.A (D1): 12 paths 0o755 (was 11; restamp-history-hook
-    added) + 19 paths 0o644 per harden B8."""
+    """v2.1 Codex PR #50 P1.A (D1): 12 paths 0o755 (restamp-history-hook
+    added) + 0o644 non-exe count.
+
+    v2.1.5 BL-343 + BL-344 + BL-354: three new 0o644 paths land in
+    INFRASTRUCTURE_FILES (.github/dependabot.yml, .github/pull_request_template.md,
+    .nvmrc). The 12 0o755 count is unchanged; the 0o644 count moves from
+    19 → 22.
+    """
     exe = sum(1 for m in FILE_MODES.values() if m == 0o755)
     non_exe = sum(1 for m in FILE_MODES.values() if m == 0o644)
     assert exe == 12
-    assert non_exe == 19
+    assert non_exe == 22
 
 
 def test_file_modes_set_post_atomic_write(tmp_path):

@@ -93,6 +93,16 @@ DOCS: tuple[tuple[str, str, str, bool], ...] = (
         False,
     ),
     ("APP_FLOW.md.j2", "docs/architecture/APP_FLOW.md", "APP_FLOW", False),
+    # v2.1.5 BL-336: REPOSITORY_STRUCTURE.md is referenced by
+    # scripts/maintenance/check-repo-structure.sh error messages —
+    # but was never rendered. Universal-shape v2.1.5 template; v2.1.6
+    # BL-347 lands the stack-aware version.
+    (
+        "REPOSITORY_STRUCTURE.md.j2",
+        "docs/architecture/REPOSITORY_STRUCTURE.md",
+        "REPOSITORY_STRUCTURE",
+        False,
+    ),
     (
         "SECTION_REGISTRY.md.j2",
         "docs/tasks/SECTION_REGISTRY.md",
@@ -186,6 +196,93 @@ class LpDefineRenderer(RendererBase):
             yield repo_root / out_relpath, tmpl.render(**ctx)
 
 
+def read_brainstorm_summary(repo_root: Path) -> dict[str, str]:
+    """v2.1.5 BL-333: parse `.launchpad/brainstorm-summary.md` into a
+    section-keyed dict for injection into the canonical docs.
+
+    Format: standard Markdown with `## Section Name` headers. The body
+    of each section (up to the next `## ` header) becomes the value.
+    Section names are slug-normalized: lowercase, spaces → underscores,
+    non-alphanumeric stripped. e.g. `## Success Criteria` → `success_criteria`.
+
+    Aliases applied so common brainstorm headings map to the PRD's
+    canonical section slugs:
+      `problem` / `vision` → `overview`
+      `personas` / `audience` → `users`
+      `goals` / `success` → `success_criteria`
+      `non-goals` / `out_of_scope` → `non_goals`
+
+    Returns `{}` when the file is absent, empty, or malformed —
+    callers handle the empty-dict case by falling through to the
+    placeholder rendering. Defensive: never raises on read.
+    """
+    summary_path = repo_root / ".launchpad" / "brainstorm-summary.md"
+    if not summary_path.is_file():
+        return {}
+    try:
+        text = summary_path.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    sections: dict[str, str] = {}
+    current_slug: str | None = None
+    current_lines: list[str] = []
+    for raw in text.splitlines():
+        # YAML frontmatter delimiters are ignored — we extract section
+        # bodies only. Frontmatter parsing is out of scope for v2.1.5.
+        if raw.startswith("## "):
+            if current_slug is not None:
+                sections[current_slug] = "\n".join(current_lines).strip()
+            heading = raw[3:].strip()
+            current_slug = _slug_section_name(heading)
+            current_lines = []
+        elif current_slug is not None:
+            current_lines.append(raw)
+    if current_slug is not None:
+        sections[current_slug] = "\n".join(current_lines).strip()
+
+    # Apply alias map so common brainstorm headings reach canonical
+    # PRD/APP_FLOW/BACKEND_STRUCTURE section slugs without forcing the
+    # user to match the doc's exact heading.
+    _ALIASES = {
+        "problem": "overview",
+        "vision": "overview",
+        "personas": "users",
+        "audience": "users",
+        "goals": "success_criteria",
+        "success": "success_criteria",
+        "out_of_scope": "non_goals",
+        "non-goals": "non_goals",  # already-correct fallthrough
+        "data_models": "data_models",
+        "models": "data_models",
+    }
+    aliased: dict[str, str] = {}
+    for slug, body in sections.items():
+        canonical = _ALIASES.get(slug, slug)
+        # Last-write-wins; a brainstorm with both `vision` and `overview`
+        # gets the `overview` content (canonical name takes precedence).
+        if canonical not in aliased:
+            aliased[canonical] = body
+    # Also propagate any non-aliased canonical entries that may have
+    # been clobbered by the alias-merge.
+    for slug, body in sections.items():
+        if slug not in aliased:
+            aliased[slug] = body
+    return aliased
+
+
+def _slug_section_name(heading: str) -> str:
+    """Lowercase, replace whitespace with underscore, strip everything
+    else, collapse repeated underscores. `Success Criteria` →
+    `success_criteria`; `Goals & Metrics!` → `goals_metrics`."""
+    import re
+
+    s = heading.strip().lower()
+    s = re.sub(r"\s+", "_", s)
+    s = re.sub(r"[^a-z0-9_-]", "", s)
+    s = re.sub(r"_+", "_", s)
+    return s.strip("_")
+
+
 def _build_jinja_context(
     adapter_out: AdapterOutput,
     detector_report: dict[str, Any],
@@ -201,6 +298,12 @@ def _build_jinja_context(
             )
         except (ValueError, OSError):
             relative_manifests.append(Path(m).name)
+
+    # v2.1.5 BL-333: surface brainstorm-summary content into the Jinja
+    # context so PRD / APP_FLOW / BACKEND_STRUCTURE templates can
+    # consume `brainstorm.<section_slug>` and replace placeholder text
+    # with user-authored content from `/lp-brainstorm`.
+    brainstorm = read_brainstorm_summary(repo_root)
 
     return {
         "product_name": product_name,
@@ -220,6 +323,7 @@ def _build_jinja_context(
         "pipeline_test_browser_enabled": adapter_out["pipeline_overrides"].get(
             "test_browser_enabled", True
         ),
+        "brainstorm": brainstorm,
     }
 
 
@@ -483,6 +587,75 @@ def ensure_audit_gitignore(repo_root: Path, summary: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _kernel_fallback_render(repo_root: Path) -> None:
+    """v2.1.5 BL-341: defense-in-depth fallback for kernel files when
+    `/lp-scaffold-stack` was bypassed (or its Phase 4.5 kernel render
+    failed). Reads identity from `.launchpad/scaffold-decision.json` and
+    invokes `KernelRenderer.render_all` for any missing kernel file.
+
+    BL-327 (v2.1.4) fixed the catalog_load_failed that was forcing the
+    bypass under installed-plugin layout, so this code path is mostly
+    historical now — but defense-in-depth catches the residual cases
+    (hand-crafted scaffold-receipt; partial pipeline runs; debugging).
+
+    Defensive: any read/render error is logged as a warning and silently
+    continues so `/lp-define` itself never breaks due to a fallback
+    edge case.
+    """
+    decision_path = repo_root / ".launchpad" / "scaffold-decision.json"
+    if not decision_path.is_file():
+        return  # no scaffold-decision → not a scaffolded LaunchPad project
+
+    # Check whether any kernel files are missing.
+    from plugin_default_generators.kernel_renderer import (
+        KERNEL_FILES,
+        KernelRenderer,
+    )
+
+    missing = [
+        output_relpath
+        for _template, output_relpath in KERNEL_FILES
+        if not (repo_root / output_relpath).is_file()
+    ]
+    if not missing:
+        return  # all kernel files present; nothing to fall back on
+
+    # Read identity from scaffold-decision.json.
+    try:
+        decision = json.loads(decision_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(
+            f"warning: BL-341 kernel-fallback skipped — could not read "
+            f"scaffold-decision.json ({exc})",
+            file=sys.stderr,
+        )
+        return
+    identity = decision.get("identity")
+    if not isinstance(identity, dict) or not identity.get("project_name"):
+        print(
+            "warning: BL-341 kernel-fallback skipped — scaffold-decision.json "
+            "lacks an `identity` block",
+            file=sys.stderr,
+        )
+        return
+
+    print(
+        f"[BL-341 kernel-fallback] {len(missing)} kernel file(s) missing "
+        f"({', '.join(missing)}); rendering via KernelRenderer.",
+        file=sys.stderr,
+    )
+    try:
+        renderer = KernelRenderer()
+        renderer.render_all(repo_root, identity)
+    except Exception as exc:  # noqa: BLE001 — defense-in-depth swallows
+        print(
+            f"warning: BL-341 kernel-fallback render failed ({exc}); "
+            f"proceeding with /lp-define. Re-run `/lp-scaffold-stack` or "
+            f"`/lp-update-identity` to recover.",
+            file=sys.stderr,
+        )
+
+
 def generate(
     repo_root: Path,
     *,
@@ -497,6 +670,13 @@ def generate(
         # Phase 8.5 plan section 3.12: banner emits BEFORE the gate fires
         # so the user sees the gate being asserted.
         print(TRUST_BANNER, file=sys.stderr)
+
+    # v2.1.5 BL-341: defense-in-depth kernel-file fallback. If kernel
+    # files (LICENSE / SECURITY.md / etc.) are missing from a scaffolded
+    # project, render them via KernelRenderer before the main pipeline
+    # proceeds. No-op when files exist or no scaffold-decision.json.
+    if not dry_run:
+        _kernel_fallback_render(repo_root)
 
     # 1. Detect.
     report = run_detector(repo_root)

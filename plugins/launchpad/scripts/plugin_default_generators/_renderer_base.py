@@ -329,7 +329,20 @@ def sha256_bytes(data: bytes) -> str:
 
 
 def identity_inject(identity: Mapping[str, Any]) -> dict[str, Any]:
-    """Build the Jinja context for kernel/infrastructure templates."""
+    """Build the Jinja context for kernel/infrastructure templates.
+
+    v2.1.5 BL-353 + BL-354: `default_pnpm_version` and `default_node_version`
+    are surfaced from `plugin_stack_adapters._constants` so the rendered
+    `.github/workflows/ci.yml` (pnpm/action-setup `version:` input) and
+    `.nvmrc` (Node version pin consumed by `actions/setup-node` via
+    `node-version-file:`) both resolve at render time. Single source of
+    truth — bumping a tool version touches one file.
+    """
+    from plugin_stack_adapters._constants import (
+        DEFAULT_NODE_VERSION,
+        DEFAULT_PNPM_VERSION,
+    )
+
     license_value = identity.get("license", "Other")
     license_url = (
         f"https://choosealicense.com/licenses/{license_value.lower()}/"
@@ -340,6 +353,8 @@ def identity_inject(identity: Mapping[str, Any]) -> dict[str, Any]:
         "identity": dict(identity),
         "current_year": datetime.datetime.now(datetime.UTC).year,
         "license_url": license_url,
+        "default_pnpm_version": DEFAULT_PNPM_VERSION,
+        "default_node_version": DEFAULT_NODE_VERSION,
     }
 
 

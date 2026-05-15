@@ -6,7 +6,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Tracked in [ROADMAP.md](ROADMAP.md). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` (BL-251 through BL-254) for v2.2-deferred items captured during v2.1 ship.
+Tracked in [ROADMAP.md](ROADMAP.md). v2.1.6 lands the 8 Tier 2 stack-aware refactors deferred from v2.1.5 (`BACKLOG.md` BL-345 through BL-352); v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` (BL-251 through BL-254) for v2.2-deferred items captured during v2.1 ship.
+
+## [v2.1.5]
+
+Tier 1 universal scope-review fixes — 15 BLs surfaced during a post-v2.1.4 real-world installed-plugin reproduction. v2.1.5 lands the universal fixes (template renders, bootstrap manifest additions, slash-command fallback modes); v2.1.6 ships the 8 Tier 2 stack-aware refactors as a separate PR per scope decision. Pre-v2.1.5, every greenfield TS-stack first push fails CI red at the pnpm/action-setup or actions/setup-node step (missing version source / `.nvmrc`); brainstorm content is discarded by `/lp-define`; CODEOWNERS ships a literal placeholder under PII opt-out; the lefthook EOF gate refuses LaunchPad's own canonical envelopes; `pnpm astro check`-style commands silently false-pass the build runner on non-TTY stdin.
+
+### For LaunchPad users (downstream behavior changes)
+
+- **Greenfield TS-stack CI is green on first push (BL-353 + BL-354, both P0).** The rendered `.github/workflows/ci.yml` now declares `version: '<DEFAULT_PNPM_VERSION>'` on the `pnpm/action-setup` step (BL-353), and `/lp-bootstrap` renders `.nvmrc` containing `<DEFAULT_NODE_VERSION>` at project root so `actions/setup-node`'s `node-version-file:` input resolves (BL-354). Both pnpm and Node versions are sourced from `plugin_stack_adapters/_constants.py` — single source of truth. Pre-fix the Build job aborted at the setup step on every greenfield TS-stack first push; all 5 downstream steps (Install / Type Check / Lint / Test / Build) were skipped.
+- **`/lp-bootstrap` refuses to write inconsistent workflow + file-reference state (BL-355, P1).** Structural assertion at render time: every rendered `.github/workflows/*.yml` is parsed; for every step's `node-version-file` / `python-version-file` / `go-version-file` / `ruby-version-file` input, the referenced file MUST also be in the bootstrap render batch (or already on disk). On mismatch, `/lp-bootstrap` raises with a clear error naming the offending workflow + missing file before any disk write. Catches the BL-353/BL-354 class at write time — before the user pushes, before CI runs, before any failure round-trip.
+- **`/lp-define` consumes `.launchpad/brainstorm-summary.md` into the canonical docs (BL-333, P0).** Pre-fix the `/lp-brainstorm` → `/lp-kickoff` → `/lp-define` happy path produced empty PRD/APP_FLOW/BACKEND_STRUCTURE placeholders regardless of what content the brainstorm phase captured. `/lp-define` now parses brainstorm-summary.md by `## ` section heading, slug-normalizes (`Success Criteria` → `success_criteria`), applies a small alias map (`Problem` → `overview`, `Personas` → `users`, `Goals` → `success_criteria`, etc.), and injects each section as `brainstorm.<slug>` into the Jinja context. PRD/APP_FLOW/BACKEND_STRUCTURE templates consume `brainstorm.*` when present, wrapped in a `<!-- v2.1.5 BL-333: filled from .launchpad/brainstorm-summary.md — verify and edit. -->` comment block so users see what came from the brainstorm phase and what's still placeholder.
+- **`SECURITY.md`, `.github/dependabot.yml`, `.github/pull_request_template.md`, `docs/architecture/REPOSITORY_STRUCTURE.md` all render on greenfield scaffold (BL-336, BL-342, BL-343, BL-344).** Public-repo flip-public prerequisites that previously had no automated render path. `SECURITY.md` was already in `KernelRenderer.KERNEL_FILES` from a prior v2.1.x release — locked down with a regression test that prevents silent removal. `REPOSITORY_STRUCTURE.md` ships a universal-shape baseline; v2.1.6 BL-347 lands the stack-aware ALLOWED_DIRS/ALLOWED_CONFIGS variant.
+- **CODEOWNERS no longer ships a broken owner line under PII opt-out (BL-334).** Pre-fix the rendered `.github/CODEOWNERS` contained the literal placeholder `* <copyright-holder>` when the user opted out of PII at `/lp-pick-stack` Step 1.5 — routing PR review requests to a non-existent user. CODEOWNERS now emits a `# TODO: set primary owner via /lp-update-identity --copyright-holder <handle>` comment in the PII-opt-out path instead of a broken owner line.
+- **`/lp-commit` after `/lp-pick-stack` no longer triggers lefthook EOF-newline rejection (BL-339).** The rendered `lefthook.yml`'s `end-of-file-newline` pre-commit hook now excludes `.launchpad/(scaffold-decision|scaffold-receipt)\.json$` so the hook doesn't reject LaunchPad's own canonical byte-deterministic JSON envelopes (sha256 seal computed over canonicalized bytes — trailing-byte changes would break cross-writer/reader integrity).
+- **`plugin-build-runner.py` no longer false-passes on non-TTY interactive prompts (BL-340).** Pre-fix `pnpm astro check` (and similar tools that prompt to auto-install missing dev-deps then bail silently on non-TTY stdin) returned exit 0 even when zero typechecking actually ran. The runner now tees stdout/stderr to the terminal AND scans each line for known prompt patterns (`Continue? Yes / No`, `[Y/n]`, `Do you want to install`, etc.). Exit 0 + prompt pattern detected = failure, with a clear error naming the pattern.
+- **`/lp-review` works on freshly-initialized greenfield repos before first commit (BL-337).** Pre-fix the Step 1 diff-scope command (`git diff --name-only origin/main...HEAD`) failed on no-HEAD or no-remote with `fatal: ambiguous argument`. `/lp-review` now detects the pre-first-commit case and offers `--staged` or working-tree review modes; the agent dispatch treats each file as a new-file diff (no diff base, full-content review).
+- **`/lp-commit` accepts an initial-scaffold commit on `main` (BL-338).** Pre-fix the Step 1 branch-guard refused commits on `main` (forcing feature-branch creation) — wrong shape for the very first commit on a freshly-initialized repo where there's no diff base for mandatory review. `/lp-commit` now auto-detects no-HEAD state (or accepts an explicit `--initial-scaffold` flag), prompts to confirm the initial-scaffold commit, skips Step 2.5 mandatory review (nothing to diff against), and emits an `Initial-Scaffold: true` trailer instead of the misleading `Mandatory-Review-Skipped: emergency-hotfix` value.
+- **`scripts/compound/compound-learning.sh` no longer hard-deps on `prd.json` (BL-335).** LaunchPad never produces `prd.json` (it produces `docs/architecture/PRD.md` via `/lp-define`); the legacy CE-port assumed `prd.json` and exited early with "No prd.json found" on every LaunchPad project. Script now consumes the canonical LaunchPad artifacts (PRD.md + scaffold-receipt.json) while keeping hand-authored `prd.json` as an optional override.
+- **Defense-in-depth kernel-file fallback for `/lp-define` (BL-341).** When kernel files (LICENSE / SECURITY.md / CONTRIBUTING.md / etc.) are missing from a scaffolded project (e.g., partial pipeline run, hand-crafted scaffold-receipt), `/lp-define` invokes `KernelRenderer.render_all` as a fallback using the identity from `.launchpad/scaffold-decision.json`. Defensive: failure of the fallback path emits a warning and continues so `/lp-define` itself never breaks due to a fallback edge case. BL-327 (v2.1.4) fixed the primary bug that would have triggered this; BL-341 covers the residual cases.
+
+### Tier 2 scope-split rationale
+
+Tier 2 stack-aware refactors (BL-345 through BL-352) deferred to v2.1.6. The 11-stack matrix means each stack-aware bug fans out to ~50+ per-stack template variants + 11 regression fixtures. Combining Tier 1 + Tier 2 into a single PR would have ~80 modified files; reviewer signal-to-noise on a PR that big is poor. Splitting:
+
+- Tier 1 ships in <20 files with a high-precision review pass
+- Tier 2 ships in a focused 50-80 file PR with its own review cycle
+- Tier 1 users get universal fixes 2-3 weeks sooner
+- If Tier 2 surfaces a per-stack regression post-merge, v2.1.5 stays clean as a recoverable baseline
+
+### Plugin-internal changes
+
+- New module: `plugin_stack_adapters/_constants.py` (`DEFAULT_PNPM_VERSION`, `DEFAULT_NODE_VERSION` — single source of truth for tool-version pins consumed by rendered CI workflow + `.nvmrc`).
+- New template: `plugin_default_generators/infrastructure/nvmrc.j2`.
+- New template: `plugin_default_generators/infrastructure/github/dependabot.yml.j2`.
+- New template: `plugin_default_generators/infrastructure/github/pull_request_template.md.j2`.
+- New template: `plugin_default_generators/REPOSITORY_STRUCTURE.md.j2`.
+- New helper: `lp_define_runner.read_brainstorm_summary(repo_root)` + `_slug_section_name(heading)`.
+- New helper: `lp_define_runner._kernel_fallback_render(repo_root)`.
+- New helper: `plugin-build-runner._run_cmd_with_prompt_detection(cmd, repo_root)` + `_PROMPT_BAIL_PATTERNS` closed-enum.
+- New helper: `plugin_default_generators.infrastructure_renderer._validate_workflow_self_consistency(batch, cwd)` + `_WORKFLOW_FILE_REF_INPUTS` closed-enum.
+- `identity_inject` extended with `default_pnpm_version` + `default_node_version` keys.
+- `INFRASTRUCTURE_FILES` count moves 31 → 34 (added `.nvmrc`, `.github/dependabot.yml`, `.github/pull_request_template.md`). `FILE_MODES` 0o644 count moves 19 → 22.
+- New tests: `test_ci_self_consistency_v215.py` (12), `test_kernel_security_md_v215.py` (3), `test_infrastructure_template_fixes_v215.py` (8), `test_brainstorm_define_v215.py` (7), `test_build_runner_non_tty_v215.py` (4). +34 new tests; full suite 1440 → 1474 passing.
 
 ## [v2.1.4]
 

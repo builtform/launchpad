@@ -128,6 +128,120 @@ def _is_allowlisted_gitignore_entry(line: str) -> bool:
     return any(rx.match(line) for rx in _GITIGNORE_ALLOWLIST_REGEXES)
 
 
+# --- CI workflow self-consistency assertion (BL-355) ---------------------
+
+# Closed enum of GitHub Actions step inputs that name a file the action
+# expects to find at the project root. If a rendered workflow names one of
+# these inputs, the named file MUST also be rendered by /lp-bootstrap to
+# the same project root — otherwise the action aborts on the first push
+# and every downstream step is skipped.
+#
+# Each entry pairs the action's `uses:` prefix (matched as a substring of
+# the full `uses:` value so the sha-pinning suffix doesn't break matching)
+# with the input key that references a file.
+_WORKFLOW_FILE_REF_INPUTS: tuple[tuple[str, str], ...] = (
+    ("actions/setup-node", "node-version-file"),
+    ("actions/setup-python", "python-version-file"),
+    ("actions/setup-go", "go-version-file"),
+    ("ruby/setup-ruby", "ruby-version-file"),
+)
+
+
+def _validate_workflow_self_consistency(
+    batch: Mapping[Path, bytes],
+    cwd: Path,
+) -> list[str]:
+    """Walk every rendered `.github/workflows/*.yml` in `batch`; for each
+    step, assert any file-referencing input names a file that is also
+    in `batch`. Returns a list of human-readable error strings; empty
+    when self-consistent.
+
+    BL-355 v2.1.5 — catches the BL-353 + BL-354 class at /lp-bootstrap
+    write time: rendered workflow files referencing files /lp-bootstrap
+    doesn't render. Without this check, the next workflow-template
+    rotation that adds `python-version-file` / `go-version-file` /
+    `ruby-version-file` replays the same first-push-CI-red failure
+    pattern as BL-353 / BL-354.
+
+    Implementation notes:
+      * Uses yaml.safe_load (no construction of arbitrary Python objects)
+      * Tolerant of workflow shapes — `on:` triggers may be string / list
+        / dict; steps may live under `jobs.<id>.steps` only
+      * Substring match on `uses:` so the sha-pin suffix (e.g.,
+        `@<sha> # v4.0.0`) doesn't break the action-id match
+      * The named file is matched as POSIX path relative to `cwd`
+    """
+    import yaml  # local import; PyYAML is a hard dep but lazily loaded
+
+    batch_relpaths: set[str] = set()
+    for abs_path in batch:
+        try:
+            batch_relpaths.add(abs_path.relative_to(cwd).as_posix())
+        except ValueError:
+            continue
+
+    errors: list[str] = []
+    for abs_path, content in batch.items():
+        try:
+            relpath = abs_path.relative_to(cwd).as_posix()
+        except ValueError:
+            continue
+        if not relpath.startswith(".github/workflows/"):
+            continue
+        if not (relpath.endswith(".yml") or relpath.endswith(".yaml")):
+            continue
+        try:
+            doc = yaml.safe_load(content)
+        except yaml.YAMLError:
+            # Malformed YAML is not the BL-355 self-consistency concern;
+            # the workflow may legitimately contain unquoted `${{ }}`
+            # expressions or test fixtures may inject deliberate Jinja
+            # markup. The CI-config-lint job (separate gate) catches
+            # genuinely-broken workflows. Skip self-consistency here.
+            continue
+        if not isinstance(doc, dict):
+            continue
+        jobs = doc.get("jobs", {})
+        if not isinstance(jobs, dict):
+            continue
+        for _job_id, job in jobs.items():
+            if not isinstance(job, dict):
+                continue
+            steps = job.get("steps", [])
+            if not isinstance(steps, list):
+                continue
+            for step in steps:
+                if not isinstance(step, dict):
+                    continue
+                uses = step.get("uses", "")
+                if not isinstance(uses, str) or not uses:
+                    continue
+                with_block = step.get("with", {})
+                if not isinstance(with_block, dict):
+                    continue
+                for action_prefix, input_key in _WORKFLOW_FILE_REF_INPUTS:
+                    if action_prefix not in uses:
+                        continue
+                    file_ref = with_block.get(input_key)
+                    if not isinstance(file_ref, str) or not file_ref:
+                        continue
+                    # Strip a leading `./` if present (NOT `lstrip("./")` —
+                    # that would strip a leading `.` from `.nvmrc`!).
+                    normalized = file_ref.removeprefix("./") or file_ref
+                    if (
+                        normalized not in batch_relpaths
+                        and not (cwd / normalized).exists()
+                    ):
+                        errors.append(
+                            f"{relpath}: step `uses: {uses}` references "
+                            f"`{input_key}: {file_ref}` but {file_ref!r} is "
+                            f"neither in the bootstrap render batch nor on "
+                            f"disk; CI will fail on first push. Add the file "
+                            f"to INFRASTRUCTURE_FILES or remove the input."
+                        )
+    return errors
+
+
 def _validate_gitignore_content(rendered_text: str) -> list[str]:
     """Scan rendered `.gitignore` content; return descriptive warnings.
 
@@ -296,6 +410,26 @@ class InfrastructureRenderer(RendererBase):
                 batch[gitignore_target].decode("utf-8", errors="replace")
             )
 
+        # BL-355 v2.1.5: workflow self-consistency assertion. Refuse the
+        # whole batch if any rendered workflow names a `*-version-file`
+        # the batch (or cwd) doesn't provide. This catches the
+        # BL-353/BL-354 class at write time — before the user pushes,
+        # before CI runs, before any failure round-trip.
+        consistency_errors = _validate_workflow_self_consistency(batch, cwd)
+        if consistency_errors:
+            joined = "\n  - ".join(consistency_errors)
+            raise InfrastructureRenderError(
+                f"workflow self-consistency check failed:\n  - {joined}",
+                reason=BootstrapErrorCode.TEMPLATE_RENDER_FAILED,
+                path=cwd / ".github" / "workflows",
+                remediation=(
+                    "every workflow `*-version-file:` input must reference a "
+                    "file rendered by /lp-bootstrap. Add the file to "
+                    "INFRASTRUCTURE_FILES (with a matching `.j2` template) "
+                    "or drop the input from the workflow template."
+                ),
+            )
+
         # Atomic write-all-or-none after secret-scanner gate.
         patterns_file = cwd / ".launchpad" / "secret-patterns.txt"
         allowlist_path = cwd / ".launchpad" / "secret-allowlist.txt"
@@ -331,4 +465,5 @@ __all__ = [
     "InfrastructureRenderError",
     "InfrastructureRenderer",
     "_validate_gitignore_content",
+    "_validate_workflow_self_consistency",
 ]

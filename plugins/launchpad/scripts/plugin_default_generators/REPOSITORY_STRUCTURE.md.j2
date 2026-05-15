@@ -1,0 +1,64 @@
+# Repository Structure
+
+> {{ stack_summary }}
+
+This document captures the project's directory layout decisions. Edit as the
+project grows; the `scripts/maintenance/check-repo-structure.sh` hook validates
+that root-level entries stay within the allowlist documented here.
+
+## Top-level layout
+
+{% if stacks -%}
+**Detected stacks:** {{ stacks | join(", ") }}
+{% endif %}
+
+The default top-level entries land per the universal v2.1.5 baseline. v2.1.6
+ships stack-aware allowlists (BL-347) that customize this list per detected
+stack — until then, edit this file by hand if your project uses framework-
+specific directories the universal baseline doesn't anticipate.
+
+### Universal directories
+
+| Path | Purpose |
+| --- | --- |
+| `docs/` | Architecture, plans, tasks, reports, learnings |
+| `scripts/` | Maintenance, hooks, compound learning |
+| `.launchpad/` | Pipeline state (scaffold-decision, scaffold-receipt, config.yml, audit.log) |
+| `.harness/` | Per-session review context (gitignored except `harness.local.md`) |
+| `.github/` | GitHub governance: CODEOWNERS, ISSUE_TEMPLATE, workflows, dependabot |
+
+### Stack-specific directories
+
+These vary by stack. Add the entries your detected stack uses:
+
+- **Astro:** `public/`, `src/`, `astro.config.{mjs,ts}`
+- **Next.js:** `app/`, `src/`, `public/`, `pages/`, `next.config.{js,mjs,ts}`
+- **Eleventy:** `src/`, `_site/`, `.eleventy.{js,cjs,ts}`
+- **Hugo:** `content/`, `layouts/`, `themes/`, `archetypes/`, `data/`, `static/`, `hugo.{toml,yaml,json}`
+- **Hono:** `src/`, `tsconfig.json`, `vite.config.{ts,js}`
+- **TypeScript monorepo:** `apps/`, `packages/`
+- **Supabase:** `src/`, `supabase/`, `supabase/config.toml`
+- **Expo:** `app/`, `src/`, `assets/`, `app.json`, `expo.json`, `eas.json`
+- **Django:** `<project_name>/`, `apps/`, `manage.py`, `requirements.txt`, `pyproject.toml`
+- **FastAPI:** `app/`, `src/`, `pyproject.toml`, `requirements.txt`
+- **Rails:** `app/`, `config/`, `db/`, `lib/`, `public/`, `test/`, `spec/`, `vendor/`, `Gemfile`, `Rakefile`, `config.ru`
+
+## Drift detection
+
+`scripts/maintenance/check-repo-structure.sh` runs in lefthook pre-commit and
+in CI. If you add a new top-level directory or config file, edit the script's
+`ALLOWED_DIRS` / `ALLOWED_CONFIGS` arrays so the check accepts it.
+
+## Workspaces (polyglot composition)
+
+{% if stacks and stacks|length > 1 -%}
+This project composes multiple stacks. Each top-level workspace below maps to
+one detected stack; layer paths come from `.launchpad/scaffold-receipt.json`.
+
+{% for s in stacks -%}
+- `{{ s }}`
+{% endfor %}
+{% else -%}
+_Single-stack project. Polyglot composition is the multi-stack pairing
+workflow — see `/lp-pick-stack` if you intend to add a second stack._
+{% endif %}

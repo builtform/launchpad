@@ -5,33 +5,52 @@
 ---
 
 ## Overview
-
+{% if brainstorm and brainstorm.overview %}
+<!-- v2.1.5 BL-333: filled from .launchpad/brainstorm-summary.md — verify and edit. -->
+{{ brainstorm.overview }}
+{% else %}
 _Describe the product's purpose, target users, and core value proposition. This
 section is the one the LLM and human readers return to most often — keep it
 specific enough to anchor scope decisions._
-
+{% endif %}
 {% if deployment_target -%}
 **Deployment target:** {{ deployment_target }}
 {% endif %}
 
 ## Users
-
+{% if brainstorm and brainstorm.users %}
+<!-- v2.1.5 BL-333: filled from .launchpad/brainstorm-summary.md — verify and edit. -->
+{{ brainstorm.users }}
+{% else %}
 _Who uses this? One paragraph per distinct user type; include their primary
 goal and the constraint they care most about._
+{% endif %}
 
 ## Success criteria
-
+{% if brainstorm and brainstorm.success_criteria %}
+<!-- v2.1.5 BL-333: filled from .launchpad/brainstorm-summary.md — verify and edit. -->
+{{ brainstorm.success_criteria }}
+{% else %}
 _What "shipped and working" looks like. Measurable where possible; qualitative
 where necessary._
+{% endif %}
 
 ## Non-goals
-
+{% if brainstorm and brainstorm.non_goals %}
+<!-- v2.1.5 BL-333: filled from .launchpad/brainstorm-summary.md — verify and edit. -->
+{{ brainstorm.non_goals }}
+{% else %}
 _What this product explicitly does NOT do. Guards against scope creep._
+{% endif %}
 
 ## Constraints
-
+{% if brainstorm and brainstorm.constraints %}
+<!-- v2.1.5 BL-333: filled from .launchpad/brainstorm-summary.md — verify and edit. -->
+{{ brainstorm.constraints }}
+{% else %}
 _Compliance, performance, accessibility, budget, deadlines. The things that
 bound the solution space._
+{% endif %}
 
 ---
 

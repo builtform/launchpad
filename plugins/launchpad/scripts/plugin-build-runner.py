@@ -335,14 +335,87 @@ def run_stage(repo_root: Path, stage: str, *, check_only: bool = False) -> int:
     for i, cmd in enumerate(cmds, start=1):
         prefix = f"[{stage} {i}/{len(cmds)}]"
         print(f"{prefix} {cmd}", file=sys.stderr)
-        result = subprocess.run(cmd, shell=True, cwd=repo_root)  # nosec B602 -- shell=True intentional for stage runner; user-cmd from commands.<stage> array. Security boundary is `LP_CONFIG_REVIEWED` upstream gate, NOT this call site (cf. BL-308 | HANDSHAKE §6 | Phase 3 §6 threat-model). Also allowlisted in plugin-v2-handshake-lint LINT_SHELL_TRUE_ALLOWLIST.
-        if result.returncode != 0:
+        rc, prompt_bail = _run_cmd_with_prompt_detection(cmd, repo_root)
+        # v2.1.5 BL-340: if the command exited 0 but bailed silently on a
+        # non-TTY interactive prompt, treat as failure. Without this, e.g.
+        # `pnpm astro check` would auto-install-prompt → exit 0 → false-pass.
+        if rc == 0 and prompt_bail:
             print(
-                f"{prefix} exited {result.returncode}; stopping stage", file=sys.stderr
+                f"{prefix} false-pass: exit 0 but interactive prompt detected "
+                f"on non-TTY stdin ({prompt_bail!r}). The command likely bailed "
+                f"silently on missing dev-deps. /lp-define should wire the deps "
+                f"as devDependencies, or the command should have a non-interactive "
+                f"flag (e.g., --yes / --no).",
+                file=sys.stderr,
             )
-            return result.returncode
+            return 2
+        if rc != 0:
+            print(f"{prefix} exited {rc}; stopping stage", file=sys.stderr)
+            return rc
 
     return 0
+
+
+# v2.1.5 BL-340: prompt-pattern strings that, when seen in command output
+# alongside an exit-0, indicate the command bailed on a non-TTY interactive
+# prompt (e.g. `pnpm astro check` prompting to install @astrojs/check then
+# silently exiting when stdin isn't a TTY).
+_PROMPT_BAIL_PATTERNS: tuple[str, ...] = (
+    "Continue? Yes / No",
+    "Continue? (Y/n)",
+    "Continue? (y/N)",
+    "Continue? [Y/n]",
+    "Continue? [y/N]",
+    "[Y/n]",
+    "[y/N]",
+    "(yes)",
+    "Do you want to install",
+    "Press y to install",
+    "non-interactive",  # some tools print "Not running in a TTY (non-interactive)"
+)
+
+
+def _run_cmd_with_prompt_detection(cmd: str, repo_root: Path) -> tuple[int, str | None]:
+    """Run `cmd` via shell, tee stdout/stderr to the terminal, and scan
+    each line for known interactive-prompt patterns.
+
+    Returns `(returncode, prompt_bail_pattern_or_None)`. When the command
+    exits 0 but a prompt pattern was seen, the caller treats the run as
+    a false-pass and returns a non-zero exit. v2.1.5 BL-340.
+
+    Subprocess invocation parity with the prior `subprocess.run(...,
+    shell=True, cwd=repo_root)` call site: same shell=True semantics
+    (commands.<stage> array is the LP_CONFIG_REVIEWED-gated boundary;
+    see BL-308 | HANDSHAKE §6 | Phase 3 §6 threat-model). Stdin is
+    NOT redirected — preserves prior behavior where non-TTY-detecting
+    tools see the runner's stdin (inherits from the parent process).
+    """
+
+    proc = subprocess.Popen(  # nosec B602 -- shell=True intentional, see run_stage call site comment
+        cmd,
+        shell=True,
+        cwd=repo_root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    detected: str | None = None
+    try:
+        assert proc.stdout is not None
+        for line in iter(proc.stdout.readline, ""):
+            # Tee to terminal so the user sees real-time output.
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            if detected is None:
+                for pattern in _PROMPT_BAIL_PATTERNS:
+                    if pattern in line:
+                        detected = pattern
+                        break
+    finally:
+        proc.stdout.close() if proc.stdout else None
+    proc.wait()
+    return proc.returncode, detected
 
 
 def main() -> int:
