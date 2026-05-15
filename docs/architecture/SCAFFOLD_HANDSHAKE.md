@@ -1266,7 +1266,7 @@ Tests for each module live in `plugins/launchpad/scripts/tests/`. Test discovery
 
 ## 14. Bootstrap manifest contract (v2.1 Phase 3)
 
-`/lp-bootstrap` (v2.1) materializes the 30-path infrastructure overlay
+`/lp-bootstrap` (v2.1; 34-path overlay at v2.1.5+ — see §14.5 changelog) materializes the infrastructure overlay
 into a project root and writes `.launchpad/bootstrap-manifest.json` as
 the audit trail that makes idempotency, refresh, and tampering detection
 possible. This section pins the contract that every consumer of the
@@ -1310,7 +1310,7 @@ v2.1 ships three active policies plus one `--refresh`-mode variant. The two poli
 
 | Policy                   | Behavior                                                                                                                                                                                                                                                                                          | Used by                                                              |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `overwrite-if-unchanged` | Compare on-disk sha to manifest's `rendered_content_sha256`. Match -> write new content. Mismatch -> skip with `kept-user-edits` action message.                                                                                                                                                  | 26 of 30 paths                                                       |
+| `overwrite-if-unchanged` | Compare on-disk sha to manifest's `rendered_content_sha256`. Match -> write new content. Mismatch -> skip with `kept-user-edits` action message.                                                                                                                                                  | 29 of 34 paths (v2.1.5+)                                             |
 | `merge-keys`             | YAML / JSON / CODEOWNERS only. Plugin can ADD top-level keys; CANNOT delete user keys. Conflict on duplicate-key value-type -> user wins, structured warning to `bootstrap-warnings.json`. Within an existing user-defined list, plugin appends new items but never deletes user-defined entries. | `lefthook.yml`, `scripts/compound/config.json`, `.github/CODEOWNERS` |
 | `append-only`            | Read existing content; append plugin-required entries that aren't already present. NEVER reorders, deduplicates, or removes user entries. Symlink target rejected fail-closed.                                                                                                                    | `.gitignore`                                                         |
 | `overwrite-with-backup`  | Reserved for `--refresh` and `--refresh-all`. Writes pre-edit content to `.launchpad/backups/<ts>-<PID>-<rand4>/<relpath>` before atomic-write. Backup contents must be byte-equal pre-edit; symlink rejected.                                                                                    | (refresh-only)                                                       |
@@ -1344,6 +1344,20 @@ The original "re-run /lp-pick-stack" remediation is REMOVED; sealed identity pre
 - DOES NOT PROVE: the templates rendered were the templates the user expected. A `/plugin update` between bootstraps changes the `source_template_sha256` for every entry; the manifest catches this via `manifest_tampered` only when the next bootstrap runs (the user must explicitly accept via `--accept-plugin-version-drift`).
 
 Cross-references: §4 (envelope contract), §10 (atomic writes), Phase 3 implementation plan sections 3.1, 3.2, 3.5, 3.7, 3.8, 6.1, 6.2.
+
+### 14.5 Per-version overlay-count changelog
+
+The infrastructure overlay path count grows additively per the §14.1 contract ("a new entry in `files[]` plus extending `INFRASTRUCTURE_FILES`; no `manifest_schema_version` bump"). This subsection tracks the deltas so consumers can pin against the count at any given release.
+
+| Version | Total paths | Additions over prior                                                                                |
+| ------- | ----------- | --------------------------------------------------------------------------------------------------- |
+| v2.1.0  | 30          | initial v2.1 overlay                                                                                |
+| v2.1.x  | 31          | + `scripts/hooks/restamp-history-hook.py` (PR #50 P1.A D1)                                          |
+| v2.1.5  | 34          | + `.nvmrc` (BL-354), `.github/dependabot.yml` (BL-343), `.github/pull_request_template.md` (BL-344) |
+
+v2.1.5 also extends `identity_inject` with two new context keys consumed by kernel + infrastructure templates: `default_pnpm_version` and `default_node_version`. Both source from `plugin_stack_adapters/_constants.py` (single source of truth). Bumping a constant there propagates to every rendered file that consumes the variable — the rendered CI workflow's `pnpm/action-setup` `version:` input + `.nvmrc` content. v2.1.6 BL-345 stack-aware refactor builds on these constants.
+
+v2.1.5 also adds a structural assertion at render time: `_validate_workflow_self_consistency(batch, cwd)` in `infrastructure_renderer.py` walks every rendered `.github/workflows/*.yml`, parses YAML, and asserts that any `node-version-file` / `python-version-file` / `go-version-file` / `ruby-version-file` input names a file present in the render batch (or already on disk). Mismatch raises `InfrastructureRenderError` and refuses the whole batch — defense-in-depth against the BL-353/BL-354-class regression at the next workflow-template rotation.
 
 ---
 
