@@ -267,7 +267,7 @@ def assert_workflow_self_consistency(
     batch: Mapping[Path, bytes],
     cwd: Path,
     *,
-    error_cls: type[Exception] = InfrastructureRenderError,
+    error_cls: type[InfrastructureRenderError] = InfrastructureRenderError,
 ) -> None:
     """v2.1.5 round-3 review fix C7 (simplicity-reviewer) + B5
     (architecture-strategist): the renderer + the bootstrap engine
@@ -281,6 +281,16 @@ def assert_workflow_self_consistency(
     `error_cls` defaults to `InfrastructureRenderError`; bootstrap
     engine call site passes that explicitly so the unified contract
     is documented at the call site.
+
+    v2.1.5 round-5 review fix (pre-push pyright): `error_cls` is typed
+    `type[InfrastructureRenderError]` (not the broader `type[Exception]`)
+    because the body of this helper unconditionally calls
+    `error_cls(msg, reason=..., path=..., remediation=...)` with the
+    `InfrastructureRenderError` constructor signature. Widening the
+    annotation to `Exception` would be lying to pyright AND to future
+    callers — a foreign Exception class passed at this position would
+    TypeError at the raise site, which is fail-closed but not what the
+    annotation should advertise.
     """
     consistency_errors = _validate_workflow_self_consistency(batch, cwd)
     if not consistency_errors:
