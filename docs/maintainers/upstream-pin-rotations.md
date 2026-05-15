@@ -9,6 +9,31 @@ a corresponding row landing in the same commit.
 This file is committed (not gitignored). It lives at `docs/maintainers/` to
 match the `RELEASE_PROCESS.md` precedent.
 
+## Walk-scope parity gate (v2.1.4 BL-328)
+
+In addition to the rotation-detector + dual-resolution rules below, every
+pin rotation must pass the
+`plugins/launchpad/scripts/plugin-upstream-pin-walk-scope-parity.py`
+gate (wired into `.github/workflows/v2-handshake-lint.yml`). The gate
+clones each pinned SHA and walks the SUBTREE that the adapter actually
+copies (per `_SUB_PATHS` for sub-template adapters like Astro;
+whole-tree for the others), failing the build if any disallowed
+filesystem entry (symlink / block_device / char_device / fifo /
+socket) is found inside that subtree. Background: BL-328 — the v2.1
+D9.1 hardening (PR #50 P0) added strict full-tree symlink rejection
+inside `template_cache.fetch()`, which the v2.1.0 release surfaced
+only at user-runtime when withastro/astro's pinned SHA contained
+test-fixture symlinks under `packages/` outside `examples/portfolio`.
+The runtime fix scoped the walk to the sub-template subtree
+(`AstroAdapter` passes `walk_scope=_SUB_PATHS[sub_template_id]` to
+`fetch()`); this CI gate enforces the same scoping at PR time so
+future rotations are validated before they reach users.
+
+Two pre-existing pins are currently waived in the gate's
+`KNOWN_BAD_PINS` allowlist (BL-329 vinta + BL-330 starlight); rotating
+those to clean SHAs is tracked as separate v2.1.5 / v2.2 work. New
+pins MUST not add to the allowlist without an explicit BL ref.
+
 ## Resolution method
 
 Every recorded SHA must have been dual-resolved before landing:

@@ -201,6 +201,14 @@ LINT_RAW_SUBPROCESS_ALLOWLIST = frozenset(
         # git config user.email read (best-effort; fail-closed empty per
         # cycle-3 security P2-A). Migration BL-308.
         "plugins/launchpad/scripts/lp_update_identity/engine.py",
+        # v2.1.4 BL-328: pin-rotation parity check. Script-only (no
+        # runtime path). Calls fixed-argv `git init` / `git fetch` /
+        # `git checkout` against pinned SHAs from pin_registry.py. The
+        # subprocess layer here is the script's purpose (mirroring
+        # template_cache._resolver.git_clone_depth_one for CI-side
+        # pin-rotation validation). Migration to safe_run alongside the
+        # v2.x sweep tracked in BL-308.
+        "plugins/launchpad/scripts/plugin-upstream-pin-walk-scope-parity.py",
     }
 )
 
@@ -978,10 +986,16 @@ def check_scaffolders_catalog(
         failures.append(f"[{rule}] top-level `stacks:` must be a mapping")
         return set()
 
-    if len(stacks) != 10:
+    # v2.1.4 BL-331: catalog widens to 11 entries with `generic` added
+    # as a primary-stack option (bring-your-own-framework path). The
+    # original "exactly 10" assertion locked the v2.0 catalog shape;
+    # 11 is the v2.1.4 lock. Future widening past 11 should land
+    # alongside an explicit BL + a release-note callout (catalog
+    # additions are user-visible) rather than a silent drift.
+    if len(stacks) != 11:
         failures.append(
-            f"[{rule}] v2.0 catalog must ship exactly 10 stacks (HANDSHAKE §11); "
-            f"found {len(stacks)}"
+            f"[{rule}] v2.1.4 catalog must ship exactly 11 stacks "
+            f"(HANDSHAKE §11 + BL-331 generic addition); found {len(stacks)}"
         )
 
     found_ids: set[str] = set()

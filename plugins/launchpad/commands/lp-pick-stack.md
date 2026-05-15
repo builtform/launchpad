@@ -245,8 +245,22 @@ opted into manual selection.
 Per pick-stack plan §3.4 + `SCAFFOLD_HANDSHAKE.md` §4 rule 4:
 
 1. Present the v2.0 catalog (HANDSHAKE §11 — 10 stacks: astro, next,
-   eleventy, hugo, hono, fastapi, django, rails, supabase, expo) as a
-   menu. Per stack: one-line description, pillar tag, default role.
+   eleventy, hugo, hono, fastapi, django, rails, supabase, expo) plus
+   the v2.1.4 bring-your-own-framework option (`generic`) as a menu.
+   Per stack: one-line description, pillar tag, default role.
+
+   **`generic` (v2.1.4 BL-331):** offered as the 11th option in the
+   menu, intended for users who want the LaunchPad pipeline benefits
+   (lefthook, agents.yml, config.yml, CI) but plan to bring their own
+   framework (third-party Astro themes, custom starters, frameworks
+   not yet supported by a stack-aware adapter). Description: "barebones
+   workspace shell — bring your own framework. Choose this if you want
+   the LaunchPad pipeline (lefthook, agents.yml, config.yml, CI) but
+   don't want LaunchPad to fetch a template." Roles supported:
+   `frontend`, `frontend-main`, `frontend-dashboard`, `backend`,
+   `fullstack`. Note that `generic` is a STACK_ID_ACTIVE_ENUM member
+   (its adapter is wired and stable) — the v2.2-candidate disclosure
+   below does NOT apply to it.
 
    **v2.2-candidate disclosure.** When a layer-spec selection resolves
    to a member of `StackIdV22Candidate` at
@@ -258,7 +272,9 @@ Per pick-stack plan §3.4 + `SCAFFOLD_HANDSHAKE.md` §4 rule 4:
    still produces a working scaffold via the v2.0 manual-override
    catalog routing, but with generic defaults rather than stack-aware
    ones. Full stack-aware adapters for these five qualified ids land in
-   v2.2.
+   v2.2. **This disclosure is distinct from picking `generic` directly:**
+   `generic`-as-primary is an explicit user intent (BYOF), whereas the
+   v2.2-candidate fallback signals "you asked for X but X isn't ready."
 
    When presenting the menu, prefix a layer entry with a
    `[v2.2-candidate]` tag whenever its resolved kernel-adapter target
@@ -276,7 +292,7 @@ Per pick-stack plan §3.4 + `SCAFFOLD_HANDSHAKE.md` §4 rule 4:
 
 3. Pass the layer specs to `manual_override_resolver.resolve_manual()`:
    - Per-layer: validates against `lp_pick_stack.VALID_COMBINATIONS`
-     frozenset (the 7-tuple base catalog from
+     frozenset (18-tuple base catalog as of v2.1.4 BL-331 from
      `plugins/launchpad/scripts/lp_pick_stack/__init__.py`).
    - Per-layer: validates path via
      `path_validator.validate_relative_path()` (HANDSHAKE §6 — string-

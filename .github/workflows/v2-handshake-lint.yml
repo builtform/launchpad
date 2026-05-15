@@ -150,3 +150,16 @@ jobs:
           else
             echo "backlog-orphan-check: skipped (no [$version] or [v$version] block in CHANGELOG.md yet)"
           fi
+
+      - name: Upstream pin walk-scope parity check (v2.1.4 BL-328)
+        # Pin-rotation-time symlink/disallowed-entry parity check.
+        # Catches the BL-328 class of bug at PR time (Astro/marketing
+        # pin shipped with test-fixture symlinks under packages/) by
+        # cloning each pinned upstream SHA and walking the SUBTREE the
+        # adapter actually copies (per `_SUB_PATHS` for sub-template
+        # adapters; whole-tree for others). Uses `--offline-skip` so
+        # ephemeral runners that can't reach github.com don't fail
+        # the build (the local pre-push lefthook hook is the
+        # always-available fallback, configured separately).
+        run: |
+          python plugins/launchpad/scripts/plugin-upstream-pin-walk-scope-parity.py --offline-skip

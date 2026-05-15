@@ -3,15 +3,18 @@ per-entry locking, 500MB LRU, and 90-day TTL.
 
 Phase 4 plan §3.7. Public API:
 
-  - `fetch(repo_url, sha, *, fetcher=None) -> Path`: returns path to a cached
-    upstream tree at `sha`. If the entry is missing, calls `fetcher(target)`
-    to populate it (production default: depth-1 git clone via safe_run_long).
-    Cache hits verify the durable `.ready` sentinel + commit-object sha
-    integrity in <20ms before returning.
+  - `fetch(repo_url, sha, *, fetcher=None, walk_scope=None) -> Path`:
+    returns path to a cached upstream tree at `sha`. If the entry is
+    missing, calls `fetcher(target)` to populate it (production default:
+    depth-1 git clone via safe_run_long). Cache hits verify the durable
+    `.ready` sentinel + commit-object sha integrity in <20ms before
+    returning. `walk_scope` (relative POSIX subpath) restricts the
+    D9.1 disallowed-entry walk to the subtree the caller will copy
+    out (v2.1.4 BL-328); pass None for whole-tree walks.
 
-  - `verify(repo_url, sha) -> bool`: re-runs the cache-hit verification on an
-    already-resolved entry. Returns False for missing / stale / compromised
-    entries.
+  - `verify(repo_url, sha, *, walk_scope=None) -> bool`: re-runs the
+    cache-hit verification on an already-resolved entry. Returns False
+    for missing / stale / compromised entries.
 
 Cache root resolves to `~/.launchpad/template-cache/` by default. Tests +
 sandboxed environments override via the `LAUNCHPAD_CACHE_DIR` env var

@@ -270,8 +270,22 @@ class AstroAdapter:
         pin = self._resolve_pin()
         from template_cache import fetch
 
+        # v2.1.4 BL-328: scope D9.1 disallowed-entry walk to the
+        # subtree this adapter actually copies. withastro/astro pins
+        # contain test-fixture symlinks under packages/ that are
+        # outside examples/blog and examples/portfolio; scoping the
+        # walk to those subtrees fixes /lp-scaffold-stack failure for
+        # `blog` and `marketing` while preserving the security
+        # invariant for the path we copy from.
+        sub_path = _SUB_PATHS[self.sub_template_id]
+        walk_scope = sub_path if sub_path else None
         try:
-            cached = fetch(pin["repo_url"], pin["sha"], fetcher=self._fetcher_override)
+            cached = fetch(
+                pin["repo_url"],
+                pin["sha"],
+                fetcher=self._fetcher_override,
+                walk_scope=walk_scope,
+            )
         except Exception as exc:
             raise AdapterScaffoldError(
                 reason="template_cache_fetch_failed",
@@ -283,7 +297,6 @@ class AstroAdapter:
                 ),
             ) from exc
 
-        sub_path = _SUB_PATHS[self.sub_template_id]
         source_root = cached / sub_path if sub_path else cached
         if not source_root.is_dir():
             raise AdapterScaffoldError(
