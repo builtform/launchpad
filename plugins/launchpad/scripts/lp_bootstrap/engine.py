@@ -1125,6 +1125,13 @@ def _render_loop(
             from .stack_lefthook import enrich_lefthook_with_stacks
 
             rendered_bytes = enrich_lefthook_with_stacks(rendered_bytes, cwd)
+            # v2.1.6 BL-346: rewrite `pnpm <cmd>` hook bodies to
+            # family-appropriate equivalents for non-TS primary stacks.
+            # No-op for TS family (kernel hooks already correct) and
+            # for greenfield (no stacks => `ts` default).
+            from .stack_pkg_manager import enrich_lefthook_yml_pkg_commands
+
+            rendered_bytes = enrich_lefthook_yml_pkg_commands(rendered_bytes, cwd)
         # v2.1.6 BL-347: stack-aware structure-check allowlist injection.
         # The kernel template ships universal ALLOWED_DIRS / ALLOWED_CONFIGS
         # entries plus sentinel-comment placeholders. The enricher reads
@@ -1157,6 +1164,14 @@ def _render_loop(
             from .stack_ignore_patterns import enrich_greptile_with_stacks
 
             rendered_bytes = enrich_greptile_with_stacks(rendered_bytes, cwd)
+        # v2.1.6 BL-352: rewrite ci.yml `run: pnpm <cmd>` lines to
+        # family-appropriate commands. Setup-action steps remain TS-
+        # shape; non-TS users see a documented manual swap step (see
+        # docs/guides/HOW_IT_WORKS.md BL-352 entry).
+        if target_relpath == ".github/workflows/ci.yml":
+            from .stack_pkg_manager import enrich_ci_yml_pkg_setup
+
+            rendered_bytes = enrich_ci_yml_pkg_setup(rendered_bytes, cwd)
         rendered_batch[target_path] = rendered_bytes
         rendered_sha = sha256_bytes(rendered_bytes)
         manifest_sha = _entry_sha_for(existing_manifest, target_relpath)
