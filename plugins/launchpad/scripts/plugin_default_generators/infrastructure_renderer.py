@@ -242,12 +242,23 @@ def _validate_workflow_self_consistency(
                     # from lp_define_runner: resolve + relative_to
                     # check — adversarial paths skip the on-disk fallback
                     # and trip the "neither in batch nor on disk" error.
+                    #
+                    # v2.1.5 round-5 fix (Codex P2): require `.is_file()`,
+                    # not just `.exists()`. A workflow with
+                    # `node-version-file: .` (cwd dir) or
+                    # `node-version-file: docs` (a directory) would have
+                    # passed the prior `.exists()` check but actions/
+                    # setup-node aborts because it expects a regular
+                    # file, not a directory. `.is_file()` returns False
+                    # for directories AND for non-existent paths, so
+                    # this also short-circuits the
+                    # "neither in batch nor on disk" branch correctly.
                     on_disk_ok = False
                     if not Path(normalized).is_absolute():
                         try:
                             candidate = (cwd / normalized).resolve()
                             candidate.relative_to(cwd.resolve())
-                            on_disk_ok = candidate.exists()
+                            on_disk_ok = candidate.is_file()
                         except (ValueError, OSError):
                             on_disk_ok = False
 

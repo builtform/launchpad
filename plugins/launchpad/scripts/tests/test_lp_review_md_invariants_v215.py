@@ -142,3 +142,42 @@ def test_codex_p1_b_secret_scan_in_pre_first_commit_branch() -> None:
     assert ".launchpad/secret-patterns.txt" in step2_body
     # The pre-first-commit branch must reference HALT-on-match.
     assert "HALT" in step2_body or "halt" in step2_body
+
+
+def test_codex_round5_p1_b_no_remote_branch_split() -> None:
+    """v2.1.5 round-5 fix (Codex P1-B): Step 1.A originally conflated
+    `HAS_HEAD == no` with `HAS_REMOTE == no` and applied the same scope
+    (untracked + staged-tracked) to both. But for `HAS_HEAD == yes` AND
+    `HAS_REMOTE == no` (existing-history, local-only or unfetched fork),
+    that scope OMITS unstaged modifications to tracked files — exactly
+    what the user wants reviewed locally.
+
+    The fix splits Step 1.A into two explicit cases. This test pins
+    the split."""
+    text = _md()
+    step1a_idx = text.find("Step 1.A: Pre-first-commit fallback")
+    step1_5_idx = text.find("## Step 1.5")
+    assert step1a_idx > 0 and step1_5_idx > step1a_idx
+    step1a_body = text[step1a_idx:step1_5_idx]
+
+    # Both cases must be explicitly documented.
+    assert "Case 1: `HAS_HEAD == no`" in step1a_body, (
+        "Codex round-5 P1-B regression: Case 1 (no-HEAD) branch must "
+        "be explicitly distinguished from Case 2 (existing-history, "
+        "no-remote)."
+    )
+    assert "Case 2: `HAS_HEAD == yes` AND `HAS_REMOTE == no`" in step1a_body, (
+        "Codex round-5 P1-B regression: Case 2 (existing-history, "
+        "no-remote) must have its own scope description that includes "
+        "unstaged modifications via `git diff --name-only HEAD`."
+    )
+    # Case 2 MUST include `git diff --name-only HEAD` (the omitted shape).
+    assert "git diff --name-only HEAD" in step1a_body, (
+        "Codex round-5 P1-B: Case 2's scope must include "
+        "`git diff --name-only HEAD` so unstaged tracked-file edits "
+        "reach review."
+    )
+    # Distinct banners for each case (operator-visible signal that the
+    # right branch fired).
+    assert "[pre-first-commit]" in step1a_body
+    assert "[no-remote-base]" in step1a_body

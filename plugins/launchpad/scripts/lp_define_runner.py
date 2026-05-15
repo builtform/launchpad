@@ -41,6 +41,7 @@ import re
 import subprocess
 import sys
 from collections.abc import Iterator, Mapping
+from enum import Enum
 from pathlib import Path
 from typing import Any, Final
 
@@ -631,7 +632,38 @@ def ensure_audit_gitignore(repo_root: Path, summary: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _kernel_fallback_render(repo_root: Path) -> None:
+# v2.1.5 round-5 review fix (Codex P1-A): the BL-341 fallback's
+# SecretScannerViolation + OSError branches must signal a HARD failure
+# to the caller so `/lp-define`'s main pipeline aborts before writing
+# additional files on top of the partial / refused kernel-render state.
+# Prior shape (returns None unconditionally) let Codex round-5 escalate
+# arch-F3 back to P1 — the "partial disk state may remain" warning in
+# the OSError branch contradicted the silent fall-through.
+#
+# Status enum surfaces:
+#   * OK_NOOP — no scaffold-decision OR all kernel files already present
+#   * OK_RENDERED — successful render of `only_paths=missing` subset
+#   * SOFT_FAIL — malformed scaffold-decision OR generic render-fail
+#       (warning logged; /lp-define still proceeds, since the user's
+#       canonical recovery is `/lp-scaffold-stack` / `/lp-update-identity`)
+#   * HARD_FAIL_SCANNER — SecretScannerViolation (hostile identity value);
+#       /lp-define MUST halt: continuing would scan the same identity
+#       value against its own templates (likely same finding) and could
+#       leak partial state into PRD.md / APP_FLOW.md / etc.
+#   * HARD_FAIL_DISK — OSError mid-batch (atomic-write failure); partial
+#       disk state may remain; /lp-define MUST halt so the user inspects
+#       before writing additional files on top.
+class KernelFallbackStatus(Enum):
+    """v2.1.5 round-5 (Codex P1-A): _kernel_fallback_render status code."""
+
+    OK_NOOP = "ok_noop"
+    OK_RENDERED = "ok_rendered"
+    SOFT_FAIL = "soft_fail"
+    HARD_FAIL_SCANNER = "hard_fail_scanner"
+    HARD_FAIL_DISK = "hard_fail_disk"
+
+
+def _kernel_fallback_render(repo_root: Path) -> KernelFallbackStatus:
     """v2.1.5 BL-341: defense-in-depth fallback for kernel files when
     `/lp-scaffold-stack` was bypassed (or its Phase 4.5 kernel render
     failed). Reads identity from `.launchpad/scaffold-decision.json` and
@@ -642,13 +674,17 @@ def _kernel_fallback_render(repo_root: Path) -> None:
     historical now — but defense-in-depth catches the residual cases
     (hand-crafted scaffold-receipt; partial pipeline runs; debugging).
 
-    Defensive: any read/render error is logged as a warning and silently
-    continues so `/lp-define` itself never breaks due to a fallback
-    edge case.
+    v2.1.5 round-5 review fix (Codex P1-A): returns a `KernelFallbackStatus`
+    enum so `generate()` can branch on the failure mode. Hard failures
+    (SecretScannerViolation, OSError) MUST halt /lp-define's main
+    pipeline; soft failures (malformed scaffold-decision, generic
+    render-fail) let /lp-define continue with the prior shape.
     """
     decision_path = repo_root / ".launchpad" / "scaffold-decision.json"
     if not decision_path.is_file():
-        return  # no scaffold-decision → not a scaffolded LaunchPad project
+        return (
+            KernelFallbackStatus.OK_NOOP
+        )  # no scaffold-decision → not a scaffolded LaunchPad project
 
     # Check whether any kernel files are missing.
     from plugin_default_generators.kernel_renderer import (
@@ -662,7 +698,9 @@ def _kernel_fallback_render(repo_root: Path) -> None:
         if not (repo_root / output_relpath).is_file()
     ]
     if not missing:
-        return  # all kernel files present; nothing to fall back on
+        return (
+            KernelFallbackStatus.OK_NOOP
+        )  # all kernel files present; nothing to fall back on
 
     # Read identity from scaffold-decision.json. v2.1.5 round-3 review fix
     # C6: collapse the two malformed-input paths (unparseable JSON,
@@ -680,7 +718,7 @@ def _kernel_fallback_render(repo_root: Path) -> None:
             f"`/lp-update-identity` to recover.",
             file=sys.stderr,
         )
-        return
+        return KernelFallbackStatus.SOFT_FAIL
 
     print(
         f"[BL-341 kernel-fallback] {len(missing)} kernel file(s) missing "
@@ -694,16 +732,14 @@ def _kernel_fallback_render(repo_root: Path) -> None:
         renderer = KernelRenderer()
         renderer.render_all(repo_root, identity, only_paths=missing)
     except SecretScannerViolation as exc:
-        # v2.1.5 round-3 review fix A6: DO NOT swallow the scanner gate.
-        # Surface as `error:` so the user sees the gate fired AND no
-        # kernel files were written. The fallback aborts here; /lp-define's
-        # main pipeline still runs against its own templates (which have
-        # their own secret-scan gate). v2.1.5 round-4 fix arch-F3 clarifies:
-        # we do NOT propagate / sys.exit to halt /lp-define entirely —
-        # that would be a behavior change deferred to v2.1.6. The current
-        # contract: scanner-refused kernel fallback = kernel files not
-        # written, user must clear scaffold-decision.json identity block
-        # and re-run for a successful kernel-fallback render.
+        # v2.1.5 round-3 review fix A6 + round-5 fix Codex P1-A: DO NOT
+        # swallow the scanner gate. Surface as `error:` so the user sees
+        # the gate fired AND no kernel files were written. Return
+        # HARD_FAIL_SCANNER so `generate()` HALTS /lp-define's main
+        # pipeline — continuing would scan the same hostile identity
+        # value against PRD.md / APP_FLOW.md / BACKEND_STRUCTURE.md
+        # templates (likely same finding) and could surface partial
+        # state in user-visible docs.
         print(
             f"error: BL-341 kernel-fallback REFUSED — secret scanner "
             f"found {exc.refused_count} match(es). NO kernel files were "
@@ -712,12 +748,13 @@ def _kernel_fallback_render(repo_root: Path) -> None:
             f"`/lp-scaffold-stack` to recover.",
             file=sys.stderr,
         )
-        return
+        return KernelFallbackStatus.HARD_FAIL_SCANNER
     except OSError as exc:
-        # v2.1.5 round-3 review fix A6 (architecture-strategist note):
-        # atomic-write OSError mid-batch leaves partial disk state. Refuse
-        # to proceed — the user must inspect and recover before /lp-define
-        # writes additional files on top.
+        # v2.1.5 round-3 review fix A6 (architecture-strategist note) +
+        # round-5 fix Codex P1-A: atomic-write OSError mid-batch leaves
+        # partial disk state. Return HARD_FAIL_DISK so `generate()` HALTS
+        # /lp-define's main pipeline — the user must inspect the partial
+        # state before writing additional files on top.
         print(
             f"error: BL-341 kernel-fallback aborted — atomic write failed "
             f"({exc}); partial disk state may remain. Inspect kernel files "
@@ -725,14 +762,22 @@ def _kernel_fallback_render(repo_root: Path) -> None:
             f"recover.",
             file=sys.stderr,
         )
-        return
+        return KernelFallbackStatus.HARD_FAIL_DISK
     except Exception as exc:  # noqa: BLE001 — defense-in-depth swallows
+        # Generic render failure (template-not-found, jinja error, etc.).
+        # Distinct from the hard-fail paths above: there's no partial
+        # disk state and no scanner violation; the user's canonical
+        # recovery is to re-run /lp-scaffold-stack, but /lp-define can
+        # safely continue with the prior shape.
         print(
             f"warning: BL-341 kernel-fallback render failed ({exc}); "
             f"proceeding with /lp-define. Re-run `/lp-scaffold-stack` or "
             f"`/lp-update-identity` to recover.",
             file=sys.stderr,
         )
+        return KernelFallbackStatus.SOFT_FAIL
+
+    return KernelFallbackStatus.OK_RENDERED
 
 
 def generate(
@@ -750,12 +795,34 @@ def generate(
         # so the user sees the gate being asserted.
         print(TRUST_BANNER, file=sys.stderr)
 
-    # v2.1.5 BL-341: defense-in-depth kernel-file fallback. If kernel
-    # files (LICENSE / SECURITY.md / etc.) are missing from a scaffolded
-    # project, render them via KernelRenderer before the main pipeline
-    # proceeds. No-op when files exist or no scaffold-decision.json.
+    # v2.1.5 BL-341 + round-5 fix (Codex P1-A): defense-in-depth
+    # kernel-file fallback. If kernel files (LICENSE / SECURITY.md /
+    # etc.) are missing from a scaffolded project, render them via
+    # KernelRenderer before the main pipeline proceeds. No-op when
+    # files exist or no scaffold-decision.json.
+    #
+    # Hard-failure handling (round 5): SecretScannerViolation against
+    # the identity block, or OSError mid-batch (partial disk state),
+    # MUST halt /lp-define before the main pipeline runs. Continuing
+    # against a hostile identity value would scan it AGAIN against
+    # PRD/APP_FLOW/BACKEND_STRUCTURE templates (likely same finding,
+    # plus risk of leaked content in user-visible docs); continuing
+    # past partial disk state would write additional files on top of
+    # the corrupted state.
     if not dry_run:
-        _kernel_fallback_render(repo_root)
+        fallback_status = _kernel_fallback_render(repo_root)
+        if fallback_status in (
+            KernelFallbackStatus.HARD_FAIL_SCANNER,
+            KernelFallbackStatus.HARD_FAIL_DISK,
+        ):
+            print(
+                f"\nerror: /lp-define halted — kernel-fallback returned "
+                f"{fallback_status.value!r}. The error message above explains "
+                f"the cause and recovery path. /lp-define did NOT write any "
+                f"docs/architecture/* files.",
+                file=sys.stderr,
+            )
+            return 1
 
     # 1. Detect.
     report = run_detector(repo_root)

@@ -200,10 +200,9 @@ def test_render_exception_is_caught_and_logged(
 def test_secret_scanner_violation_is_not_swallowed(
     tmp_path: Path, capsys, monkeypatch
 ) -> None:
-    """A6 regression: a SecretScannerViolation during fallback render
-    must surface as an `error:` message and abort the fallback (NOT a
-    generic warning that lets /lp-define continue against partial state).
-    """
+    """A6 regression + v2.1.5 round-5 Codex P1-A: a SecretScannerViolation
+    during fallback render must surface as an `error:` message AND
+    return `HARD_FAIL_SCANNER` so /lp-define's main pipeline halts."""
     mod = _runner()
     _write_decision(tmp_path, _VALID_IDENTITY)
 
@@ -217,19 +216,22 @@ def test_secret_scanner_violation_is_not_swallowed(
         )
 
     monkeypatch.setattr(kernel_renderer.KernelRenderer, "render_all", boom)
-    mod._kernel_fallback_render(tmp_path)
+    status = mod._kernel_fallback_render(tmp_path)
 
     err = capsys.readouterr().err
     assert "BL-341 kernel-fallback REFUSED" in err
     assert "secret scanner" in err
     assert "2 match" in err
+    # Round-5 fix: hard-fail status surfaces to caller.
+    assert status == mod.KernelFallbackStatus.HARD_FAIL_SCANNER
 
 
 def test_os_error_is_surfaced_not_swallowed(
     tmp_path: Path, capsys, monkeypatch
 ) -> None:
-    """A6 regression: OSError during atomic-write means partial disk
-    state — surface as `error:` and abort (do NOT continue silently)."""
+    """A6 regression + v2.1.5 round-5 Codex P1-A: OSError during
+    atomic-write means partial disk state — surface as `error:` AND
+    return `HARD_FAIL_DISK` so /lp-define's main pipeline halts."""
     mod = _runner()
     _write_decision(tmp_path, _VALID_IDENTITY)
 
@@ -239,11 +241,100 @@ def test_os_error_is_surfaced_not_swallowed(
         raise OSError("synthetic-disk-full")
 
     monkeypatch.setattr(kernel_renderer.KernelRenderer, "render_all", boom)
-    mod._kernel_fallback_render(tmp_path)
+    status = mod._kernel_fallback_render(tmp_path)
 
     err = capsys.readouterr().err
     assert "BL-341 kernel-fallback aborted" in err
     assert "synthetic-disk-full" in err
+    # Round-5 fix: hard-fail status surfaces to caller.
+    assert status == mod.KernelFallbackStatus.HARD_FAIL_DISK
+
+
+def test_generate_halts_on_hard_fail_scanner(
+    tmp_path: Path, capsys, monkeypatch
+) -> None:
+    """v2.1.5 round-5 Codex P1-A integration test: when the fallback
+    returns HARD_FAIL_SCANNER, `generate()` MUST exit non-zero before
+    writing any `docs/architecture/*` files.
+
+    The Codex P1-A finding: prior shape returned None from the fallback
+    and let /lp-define continue against a hostile identity value. The
+    fix makes hard-fail status halt the caller."""
+    mod = _runner()
+    _write_decision(tmp_path, _VALID_IDENTITY)
+
+    from plugin_default_generators import _renderer_base, kernel_renderer
+
+    def boom(self, cwd, identity, only_paths=None):  # type: ignore[no-untyped-def]
+        raise _renderer_base.SecretScannerViolation(
+            findings=[],
+            refused_count=1,
+            message="synthetic",
+        )
+
+    monkeypatch.setattr(kernel_renderer.KernelRenderer, "render_all", boom)
+    exit_code = mod.generate(tmp_path, emit_trust_banner=False)
+
+    err = capsys.readouterr().err
+    assert exit_code == 1, "generate() must return non-zero on HARD_FAIL_SCANNER"
+    assert "/lp-define halted" in err
+    assert "hard_fail_scanner" in err
+    # NO docs/architecture/* files written.
+    assert not (tmp_path / "docs" / "architecture" / "PRD.md").exists()
+
+
+def test_generate_halts_on_hard_fail_disk(
+    tmp_path: Path, capsys, monkeypatch
+) -> None:
+    """v2.1.5 round-5 Codex P1-A integration test: HARD_FAIL_DISK
+    (atomic-write OSError mid-batch → partial disk state) must halt
+    /lp-define so the user inspects before writing more files on top."""
+    mod = _runner()
+    _write_decision(tmp_path, _VALID_IDENTITY)
+
+    from plugin_default_generators import kernel_renderer
+
+    def boom(self, cwd, identity, only_paths=None):  # type: ignore[no-untyped-def]
+        raise OSError("synthetic-disk-full")
+
+    monkeypatch.setattr(kernel_renderer.KernelRenderer, "render_all", boom)
+    exit_code = mod.generate(tmp_path, emit_trust_banner=False)
+
+    err = capsys.readouterr().err
+    assert exit_code == 1, "generate() must return non-zero on HARD_FAIL_DISK"
+    assert "/lp-define halted" in err
+    assert "hard_fail_disk" in err
+    assert not (tmp_path / "docs" / "architecture" / "PRD.md").exists()
+
+
+def test_generate_continues_on_soft_fail(
+    tmp_path: Path, capsys, monkeypatch
+) -> None:
+    """v2.1.5 round-5 Codex P1-A: SOFT_FAIL (generic render error, OR
+    malformed scaffold-decision.json) must NOT halt /lp-define — the
+    user's canonical recovery is /lp-scaffold-stack, but the main
+    pipeline can safely run with the prior shape (placeholder docs)."""
+    mod = _runner()
+    # No scaffold-decision.json present → fallback returns OK_NOOP, not
+    # SOFT_FAIL. To exercise SOFT_FAIL, plant a malformed decision.
+    launchpad = tmp_path / ".launchpad"
+    launchpad.mkdir()
+    (launchpad / "scaffold-decision.json").write_text("not-json")
+
+    # generate() should NOT exit non-zero just because the fallback
+    # warned. It may still fail downstream for other reasons (no
+    # adapter detected, etc.), but the fallback's soft-fail should not
+    # be the cause. Check the err message rather than the exit code.
+    try:
+        mod.generate(tmp_path, emit_trust_banner=False)
+    except Exception:
+        # downstream failures are fine for this test's purpose
+        pass
+
+    err = capsys.readouterr().err
+    # SOFT_FAIL warning should appear, but the halt message should NOT.
+    assert "scaffold-decision.json malformed" in err
+    assert "/lp-define halted" not in err
 
 
 # ---------------------------------------------------------------------------

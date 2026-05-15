@@ -352,6 +352,64 @@ jobs:
 # ---------------------------------------------------------------------------
 
 
+def test_codex_round5_p2_rejects_directory_as_version_file(tmp_path: Path) -> None:
+    """v2.1.5 round-5 fix (Codex P2): a workflow with
+    `node-version-file: .` (cwd directory) or `node-version-file: docs`
+    (a real directory) passed the prior `.exists()` check silently.
+    `actions/setup-node` then aborts on CI because it expects a regular
+    file, not a directory.
+
+    The fix uses `.is_file()` which returns False for both directories
+    AND non-existent paths. This test plants a real directory at the
+    referenced path and asserts the check refuses it."""
+    # Plant a real directory at `tmp_path/somedir`.
+    (tmp_path / "somedir").mkdir()
+    workflow = """\
+name: Build
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: somedir
+"""
+    batch = {
+        tmp_path / ".github" / "workflows" / "ci.yml": workflow.encode("utf-8"),
+    }
+    errors = _validate_workflow_self_consistency(batch, tmp_path)
+    assert len(errors) == 1, (
+        "Codex round-5 P2 regression: a directory at the referenced path "
+        f"must be refused (actions/setup-node expects a file). Got: {errors!r}"
+    )
+    assert "somedir" in errors[0]
+
+
+def test_codex_round5_p2_rejects_cwd_dot_as_version_file(tmp_path: Path) -> None:
+    """Codex round-5 P2 extreme case: `node-version-file: .` references
+    the cwd itself. `.exists()` is True; `.is_file()` is False — must
+    be refused."""
+    workflow = """\
+name: Build
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .
+"""
+    batch = {
+        tmp_path / ".github" / "workflows" / "ci.yml": workflow.encode("utf-8"),
+    }
+    errors = _validate_workflow_self_consistency(batch, tmp_path)
+    assert len(errors) == 1, (
+        f"Codex round-5 P2 regression: `.` (cwd) must be refused. Got: {errors!r}"
+    )
+
+
 def test_malformed_yaml_workflow_skipped_not_failed(tmp_path: Path) -> None:
     """`_validate_workflow_self_consistency` deliberately tolerates
     `yaml.YAMLError` and continues (workflows may legitimately contain
