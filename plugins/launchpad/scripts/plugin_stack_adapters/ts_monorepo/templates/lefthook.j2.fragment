@@ -1,5 +1,6 @@
 # lefthook fragment for adapter `ts_monorepo`
-pre-commit:
-  commands:
-    ts_monorepo-noop:
-      run: 'true'
+#
+# v2.1.6 BL-351: drops the prior `ts_monorepo-noop: run: 'true'`
+# placeholder. The ts_monorepo adapter relies on the kernel-template's
+# turborepo pre-commit hooks (turbo lint, turbo test, turbo typecheck)
+# and contributes no monorepo-specific gates beyond those.

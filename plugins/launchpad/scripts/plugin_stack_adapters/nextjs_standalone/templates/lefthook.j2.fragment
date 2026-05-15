@@ -1,5 +1,6 @@
 # lefthook fragment for adapter `nextjs_standalone`
-pre-commit:
-  commands:
-    nextjs_standalone-noop:
-      run: 'true'
+#
+# v2.1.6 BL-351: drops the prior `nextjs_standalone-noop: run: 'true'`
+# placeholder. Next.js relies on the kernel-template's TS-stack hooks
+# (eslint-fix, prettier-fix, typecheck, etc.) and contributes no
+# stack-specific pre-commit gates beyond those.
