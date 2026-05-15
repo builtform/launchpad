@@ -282,13 +282,27 @@ class TechStackInfo(TypedDict):
 
 
 class BackendInfo(TypedDict):
-    """Backing data for docs/architecture/BACKEND_STRUCTURE.md."""
+    """Backing data for docs/architecture/BACKEND_STRUCTURE.md.
+
+    v2.1.6 BL-349 added the `static_capable` field as a required attribute.
+    Every adapter's `describe_backend()` must populate it.
+
+    `static_capable=True` ⇒ BACKEND_STRUCTURE.md is rendered with
+    "static site, no backend" framing — `framework` / `api_style` /
+    `routes_dir` describe the static-site equivalent (e.g.,
+    "Astro static" / "n/a" / "src/pages/") rather than a server
+    framework. Hugo / Eleventy: always True. Astro: True when
+    `astro.config.{js,mjs,ts}` does not set `output: 'server'` or
+    `'hybrid'`. Next.js: True when `output: 'export'`. Backend-required
+    stacks (Django / FastAPI / Hono / Rails): always False.
+    """
 
     framework: str  # "Hono", "Django", "Gin", "Express"
     api_style: str  # "REST", "GraphQL", "tRPC"
     routes_dir: str  # "apps/api/src/routes/", "myapp/urls.py"
     models_dir: str | None  # "packages/db/prisma/", "myapp/models.py", None
     auth_pattern: str | None  # "session", "JWT", "OAuth", None
+    static_capable: bool  # v2.1.6 BL-349 — see docstring
 
 
 class FrontendInfo(TypedDict):

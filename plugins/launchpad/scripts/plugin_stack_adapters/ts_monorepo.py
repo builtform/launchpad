@@ -45,12 +45,14 @@ def describe_tech_stack() -> TechStackInfo:
 
 
 def describe_backend() -> BackendInfo:
+    # v2.1.6 BL-349: ts_monorepo ships a Hono API; static_capable=False.
     return BackendInfo(
         framework="Hono",
         api_style="REST",
         routes_dir="apps/api/src/routes/",
         models_dir="packages/db/prisma/",
         auth_pattern="session",
+        static_capable=False,
     )
 
 
@@ -64,10 +66,13 @@ def describe_frontend() -> FrontendInfo | None:
 
 
 def describe_app_flow() -> AppFlowInfo | None:
+    # v2.1.6 BL-348: minimal placeholder hint.
     return AppFlowInfo(
-        entry_routes=["/", "/signin", "/dashboard"],
+        entry_routes=["/"],
         auth_flow=None,
-        primary_journeys=["Onboarding", "Core workflow", "Settings"],
+        primary_journeys=[
+            "[Placeholder — add real routes via `/lp-shape-section`; Next.js App Router routes live under apps/web/app/]",
+        ],
     )
 
 

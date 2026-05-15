@@ -103,12 +103,18 @@ def describe_tech_stack() -> TechStackInfo:
 
 
 def describe_backend() -> BackendInfo:
+    # v2.1.6 BL-349: generic stack defaults to static_capable=True —
+    # we don't assume a backend exists; the user customizes after
+    # /lp-define detects the actual project shape. Safer to under-claim
+    # backend presence than to over-claim and produce a misleading
+    # BACKEND_STRUCTURE.md.
     return BackendInfo(
         framework="Unknown",
         api_style="",
         routes_dir="",
         models_dir=None,
         auth_pattern=None,
+        static_capable=True,
     )
 
 

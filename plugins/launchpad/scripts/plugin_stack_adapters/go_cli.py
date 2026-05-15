@@ -28,12 +28,14 @@ def describe_tech_stack() -> TechStackInfo:
 
 
 def describe_backend() -> BackendInfo:
+    # v2.1.6 BL-349: Go CLI / service runs a server; static_capable=False.
     return BackendInfo(
         framework="stdlib net/http",
         api_style="REST",
         routes_dir="cmd/",
         models_dir=None,
         auth_pattern=None,
+        static_capable=False,
     )
 
 
