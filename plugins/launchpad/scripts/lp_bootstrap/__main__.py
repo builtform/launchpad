@@ -26,8 +26,8 @@ def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="lp_bootstrap",
         description=(
-            "Materialize the v2.1 30-path infrastructure overlay. Used by "
-            "/lp-bootstrap; this entrypoint is primarily for smoke tests."
+            "Materialize the v2.1 34-path infrastructure overlay (v2.1.5+). "
+            "Used by /lp-bootstrap; this entrypoint is primarily for smoke tests."
         ),
     )
     p.add_argument(

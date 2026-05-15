@@ -662,7 +662,8 @@ def _validate_refresh_paths(refresh_paths: Sequence[str]) -> None:
             ) from exc
         if normalized not in INFRASTRUCTURE_TARGETS:
             raise BootstrapEngineError(
-                f"--refresh path {raw!r} is not in the v2.1 30-path inventory",
+                f"--refresh path {raw!r} is not in the v2.1 "
+                f"{len(INFRASTRUCTURE_TARGETS)}-path inventory",
                 reason=BootstrapErrorCode.UNKNOWN_REFRESH_PATH,
                 path=Path(raw),
                 remediation=(
@@ -685,11 +686,11 @@ def run_bootstrap(
     accept_plugin_version_drift: bool = False,
     dry_run: bool = False,
 ) -> BootstrapResult:
-    """Materialize the v2.1 30-path infrastructure overlay under `cwd`.
+    """Materialize the v2.1 34-path infrastructure overlay (v2.1.5+) under `cwd`.
 
     `mode` selects the dispatch flow:
       * `greenfield`: full bootstrap; identity supplied by caller
-        (lp_scaffold_stack Step 4.6 wiring) -> always renders all 30 paths.
+        (lp_scaffold_stack Step 4.6 wiring) -> always renders all 34 paths.
       * `brownfield-auto`: full bootstrap from `/lp-define`; identity read
         from scaffold-decision; consent prompt (caller's responsibility);
         fast-path skips clean overlay paths.

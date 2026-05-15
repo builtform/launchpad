@@ -1,6 +1,6 @@
 """Infrastructure renderer (V3 plan section 17.1 Phase 3 / Slice B).
 
-Thin subclass of `RendererBase` that ships the 30-path infrastructure
+Thin subclass of `RendererBase` that ships the 34-path infrastructure (v2.1.5+)
 overlay rendered by `/lp-bootstrap` at greenfield scaffold time AND by
 brownfield `/lp-define` auto-invocation. Templates live at
 `plugin_default_generators/infrastructure/<name>.j2`; the inventory is
@@ -324,7 +324,8 @@ def _validate_gitignore_content(rendered_text: str) -> list[str]:
 
 
 class InfrastructureRenderer(RendererBase):
-    """Render the 30 infrastructure files for a project's identity block."""
+    """Render the v2.1 infrastructure files for a project's identity block.
+    Inventory size is pinned by `INFRASTRUCTURE_FILES` (34 paths at v2.1.5+)."""
 
     TEMPLATE_SUBDIR = "infrastructure"
 
@@ -365,7 +366,7 @@ class InfrastructureRenderer(RendererBase):
                 path=Path(template_name),
                 remediation=(
                     "reinstall the LaunchPad plugin; the v2.1 plugin ships "
-                    "all 30 infrastructure templates"
+                    f"all {len(INFRASTRUCTURE_TARGETS)} infrastructure templates"
                 ),
             ) from exc
         except Exception as exc:  # noqa: BLE001 -- map jinja errors uniformly

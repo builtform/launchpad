@@ -328,8 +328,16 @@ def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def identity_inject(identity: Mapping[str, Any]) -> dict[str, Any]:
+def template_context(identity: Mapping[str, Any]) -> dict[str, Any]:
     """Build the Jinja context for kernel/infrastructure templates.
+
+    v2.1.5 round-3 review fix C5 (architecture-strategist P3): renamed
+    from `identity_inject` because the function now mixes identity
+    surfacing with tool-version pins (`default_pnpm_version` +
+    `default_node_version`). `template_context` describes the function's
+    actual job: build the full Jinja context dict for any kernel /
+    infrastructure render. `identity_inject` is preserved below as a
+    back-compat alias so existing call sites + tests don't churn.
 
     v2.1.5 BL-353 + BL-354: `default_pnpm_version` and `default_node_version`
     are surfaced from `plugin_stack_adapters._constants` so the rendered
@@ -356,6 +364,11 @@ def identity_inject(identity: Mapping[str, Any]) -> dict[str, Any]:
         "default_pnpm_version": DEFAULT_PNPM_VERSION,
         "default_node_version": DEFAULT_NODE_VERSION,
     }
+
+
+# v2.1.5 round-3 review fix C5: back-compat alias for callers that still
+# reference the old name. New code should use `template_context`.
+identity_inject = template_context
 
 
 class RendererBase:
@@ -412,7 +425,7 @@ class RendererBase:
         extra_context: Mapping[str, Any] | None = None,
     ) -> str:
         """Render a template with the identity context plus optional extras."""
-        ctx = identity_inject(identity)
+        ctx = template_context(identity)
         if extra_context:
             ctx.update(extra_context)
         template = self.env.get_template(template_name)
@@ -612,8 +625,9 @@ __all__ = [
     "RendererBase",
     "SecretScannerViolation",
     "StackIdInvalidError",
-    "identity_inject",
+    "identity_inject",  # back-compat alias for `template_context` (v2.1.5+)
     "make_jinja_env",
+    "template_context",
     "make_sandboxed_jinja_env",
     "make_stack_aware_jinja_env",
     "sha256_bytes",

@@ -2,7 +2,7 @@
 
 Three active policies (v2.1 ship surface) plus one `--refresh`-mode variant:
 
-  * `overwrite-if-unchanged` -- 26 of 30 paths. Compare on-disk-sha to
+  * `overwrite-if-unchanged` -- 30 of 34 paths (v2.1.5+). Compare on-disk-sha to
     manifest's `rendered_content_sha256`; match -> write new content,
     mismatch -> skip with `kept-user-edits` action message.
   * `merge-keys` -- 3 paths (`lefthook.yml`, `scripts/compound/config.json`,

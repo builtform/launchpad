@@ -94,19 +94,22 @@ def test_infrastructure_present_returns_partial_stale_when_user_edits_file(tmp_p
 
 def test_infrastructure_present_returns_present_unmanaged_when_no_manifest(tmp_path):
     _bootstrap_clean(tmp_path)
-    # Delete just the manifest; all 30 paths still on disk
+    # Delete just the manifest; all overlay paths still on disk
     (tmp_path / LAUNCHPAD_DIR_NAME / "bootstrap-manifest.json").unlink()
     state, paths = infrastructure_present(tmp_path)
     assert state == BootstrapState.PRESENT_UNMANAGED
 
 
 def test_infrastructure_present_module_const_inventory_size(tmp_path):
-    """Path inventory derived from INFRASTRUCTURE_FILES is exactly 30."""
+    """Path inventory derived from INFRASTRUCTURE_FILES; count asserted via
+    `len(INFRASTRUCTURE_FILES)` so the test doesn't drift when paths are
+    added."""
     state, missing = infrastructure_present(tmp_path)
-    # Empty cwd -> all 30 missing
+    # Empty cwd -> all paths missing
     assert state == BootstrapState.ABSENT
     assert sorted(missing) == sorted(missing)
-    # v2.1 Codex PR #50 P1.A: count is 31 after restamp-history-hook entry.
+    # v2.1 Codex PR #50 P1.A: count was 31 after restamp-history-hook entry.
+    # v2.1.5: count is 34 after .nvmrc/dependabot/PR-template entries.
     from lp_bootstrap import INFRASTRUCTURE_FILES
     assert len(missing) == len(INFRASTRUCTURE_FILES)
 
@@ -194,7 +197,7 @@ def test_dead_pid_sentinel_auto_recovers(tmp_path):
 def test_greenfield_pipeline_wires_bootstrap_after_kernel_render(tmp_path):
     """End-to-end: lp_scaffold_stack pipeline runs Step 4.5 (kernel) then
     Step 4.6 (bootstrap). After successful run_pipeline, all 7 kernel files
-    AND all 30 infrastructure files exist with manifest."""
+    AND all `len(INFRASTRUCTURE_FILES)` infrastructure files exist with manifest."""
     # We don't run the full pipeline (it requires scaffolders + decision +
     # nonce + receipt). Instead we pin the wiring: run_bootstrap is
     # callable from the same import path that engine.py uses, AND a

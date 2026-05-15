@@ -10,6 +10,15 @@ the Build job aborts at the setup step and every downstream step is
 skipped — failing CI red on the very first push of a freshly-scaffolded
 project. These constants close that gap.
 
+v2.1.5 round-3 review fix C4 (architecture-strategist + simplicity-reviewer):
+considered folding this 2-constant module back into
+`plugin_default_generators/_renderer_base.py` adjacent to `identity_inject`
+(the only consumer). KEPT as a standalone module because v2.1.6 BL-345
+stack-aware refactor adds `DEFAULT_PYTHON_VERSION`, `DEFAULT_BUN_VERSION`,
+and `DEFAULT_RUBY_VERSION` siblings — having a dedicated module avoids the
+"why are these constants buried inside a renderer's helper file?" question
+when the stack-aware refactor lands.
+
 Update cadence: bump on a quarterly schedule or when the upstream tool
 ships a security advisory. The BL-355 self-consistency assertion catches
 the related class of "workflow references file the manifest doesn't

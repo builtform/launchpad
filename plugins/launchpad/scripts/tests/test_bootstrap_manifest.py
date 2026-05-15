@@ -172,15 +172,15 @@ def test_write_manifest_atomic_against_concurrent_reader(tmp_path):
 # --- Source-template sha cache (harden B3) --------------------------------
 
 def test_compute_source_template_shas_against_real_root():
-    """Once Slice B lands, the real root has all 30 .j2 files; before that
-    the function raises TEMPLATE_NOT_FOUND."""
+    """Once Slice B lands, the real root has all `INFRASTRUCTURE_FILES`
+    .j2 templates; before that the function raises TEMPLATE_NOT_FOUND."""
     try:
         shas = compute_source_template_shas()
     except BootstrapManifestError as exc:
         # Slice A (templates not yet written) -> expected.
         assert exc.reason == BootstrapErrorCode.TEMPLATE_NOT_FOUND
         return
-    # Slice B+ -> all 30 must be present.
+    # Slice B+ -> every entry must be present.
     assert len(shas) == len(INFRASTRUCTURE_FILES)
     for _t, target, _p, _m in INFRASTRUCTURE_FILES:
         assert target in shas

@@ -63,9 +63,30 @@ PR_URL=$(gh pr view --json url -q '.url' 2>/dev/null || echo "N/A")
 if [ -f "$TEMPLATE_FILE" ]; then
   mkdir -p "$LEARNINGS_DIR"
 
+  # v2.1.5 BL-335 + round-3 review fix B9 (Codex P2 + simplicity-reviewer
+  # P3): include PRD.md + scaffold-receipt.json when available so the
+  # extractor has product/stack context for the learnings. Prior shape
+  # declared `PRD_MD_FILE` + `RECEIPT_FILE` as load-bearing but never
+  # referenced them in the prompt — they were dead-code masquerading as
+  # canonical-LaunchPad-artifact integration.
+  PRD_CONTEXT=""
+  if [ -f "$PRD_MD_FILE" ]; then
+    PRD_CONTEXT="Product context (docs/architecture/PRD.md):
+$(cat "$PRD_MD_FILE")
+
+"
+  fi
+  RECEIPT_CONTEXT=""
+  if [ -f "$RECEIPT_FILE" ]; then
+    RECEIPT_CONTEXT="Stack context (.launchpad/scaffold-receipt.json):
+$(cat "$RECEIPT_FILE")
+
+"
+  fi
+
   EXTRACT_PROMPT="Read this progress log and extract a structured learnings document.
 
-Progress log:
+${PRD_CONTEXT}${RECEIPT_CONTEXT}Progress log:
 $(cat "$PROGRESS_FILE")
 
 Template to follow (fill in the YAML frontmatter and sections):
@@ -83,6 +104,9 @@ Fill in these values:
 - pr_url: ${PR_URL}
 
 Extract ALL learnings, patterns, gotchas, and file changes from the progress log.
+Use the product + stack context above to ground learnings in the project's
+actual surface (specific files, frameworks, stack patterns) rather than
+abstract advice.
 Output ONLY the filled-in markdown document, nothing else."
 
   LEARNINGS_CONTENT=$(echo "$EXTRACT_PROMPT" | ai_run 2>&1)

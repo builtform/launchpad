@@ -798,8 +798,8 @@ def _run_pipeline_after_sentinel(
                 )
 
             # --- Step 4.6: Bootstrap (Phase 3 §2.3 wiring) ---
-            # Materialize the v2.1 30-path infrastructure overlay via
-            # `/lp-bootstrap` engine. Greenfield mode renders all 30 paths;
+            # Materialize the v2.1 34-path infrastructure overlay (v2.1.5+) via
+            # `/lp-bootstrap` engine. Greenfield mode renders all 34 paths;
             # the bootstrap-manifest is written atomically at the end of
             # the loop and seeds Phase 4 adapter overlays + Phase 10
             # /lp-update-identity refresh paths.

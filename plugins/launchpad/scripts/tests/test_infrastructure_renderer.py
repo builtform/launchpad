@@ -1,17 +1,19 @@
 """Tests for the v2.1 infrastructure renderer (V3 plan section 17.1 Phase 3 / Slice B).
 
-The infrastructure renderer ships the 30-path overlay rendered by
+The infrastructure renderer ships the 34-path overlay (v2.1.5+) rendered by
 `/lp-bootstrap` at greenfield + brownfield-auto + refresh time. Tests
 cover:
 
-  * All 30 paths emit; output sha256s stable across calls.
+  * All paths emit; output sha256s stable across calls (count via
+    `len(INFRASTRUCTURE_FILES)` rather than a hardcoded integer that
+    drifts when paths are added).
   * Identity injection into templates that reference identity fields.
-  * `FILE_MODES` allowlist: 11 paths -> 0o755; 19 paths -> 0o644.
+  * `FILE_MODES` allowlist: 11 paths -> 0o755; 22 paths -> 0o644 (v2.1.5+).
   * `chmod` after `os.replace` (harden B8): the post-replace mode matches
     `FILE_MODES[target_relpath]` even when the target previously had a
     different mode.
   * `.gitignore` allowlist scan with unknown-entry warning.
-  * `only_paths` filtering: subset of 30 emitted; non-inventory rejection.
+  * `only_paths` filtering: arbitrary subset emitted; non-inventory rejection.
   * Singleton renderer pattern: a freshly-constructed renderer + a cached
     one render byte-identical output for the same identity.
   * `render_target` returns bytes for the engine fast-path; raises
@@ -62,10 +64,15 @@ def _identity(**overrides):
     return base
 
 
-# --- 30-path enumeration --------------------------------------------------
+# --- Full-batch enumeration -----------------------------------------------
 
-def test_renders_all_30_paths(tmp_path):
-    # v2.1 Codex PR #50 P1.A: count is 31 after restamp-history-hook entry.
+def test_renders_all_paths(tmp_path):
+    # v2.1 Codex PR #50 P1.A: count was 31 after restamp-history-hook entry.
+    # v2.1.5 BL-353/354/343/344: count is now 34
+    # (added `.nvmrc`, `.github/dependabot.yml`,
+    # `.github/pull_request_template.md`).
+    # Always assert via `len(INFRASTRUCTURE_FILES)` so future additions
+    # don't drift this test's expected value.
     from lp_bootstrap import INFRASTRUCTURE_FILES
     r = InfrastructureRenderer()
     out = r.render_all(tmp_path, _identity())
