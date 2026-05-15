@@ -6,16 +6,17 @@ title = "{{ identity.project_name }} gitleaks rules"
 [allowlist]
 description = "Repo-wide allowlist"
 paths = [
-    '''node_modules/''',
-    '''\.next/''',
     '''dist/''',
-    '''\.turbo/''',
-    '''pnpm-lock\.yaml''',
-    '''package-lock\.json''',
-    '''yarn\.lock''',
     '''\.launchpad/''',
     '''\.harness/''',
     '''docs/(?:plans|reports)/''',
+    # v2.1.6 BL-350: stack-specific allowlist patterns are injected here
+    # by `lp_bootstrap/stack_ignore_patterns.py` based on `stacks:` in
+    # `.launchpad/config.yml`. The kernel template no longer hardcodes
+    # `node_modules/`, `pnpm-lock.yaml`, `.next/`, etc. — those move
+    # into the matching stack entry in `_ignore_patterns.py`.
+    # STACK_AWARE_GITLEAKS_BEGIN
+    # STACK_AWARE_GITLEAKS_END
 ]
 
 [[rules]]

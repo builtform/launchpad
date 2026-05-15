@@ -1,10 +1,6 @@
 # Build outputs
 build/
 dist/
-*.tsbuildinfo
-
-# Dependencies
-node_modules/
 
 # Environments
 .env
@@ -18,22 +14,12 @@ node_modules/
 # OS
 .DS_Store
 
-# Python
+# Python (universal — every Python tool emits these regardless of framework)
 *.pyc
 __pycache__/
 
-# Turborepo
-.turbo/
-
-# Next.js
-.next/
-
-# pnpm
-.pnpm-store/
-
 # Misc caches
 .cache/
-.tsbuildinfo
 coverage/
 
 # Generated images
@@ -46,3 +32,11 @@ generated_images/
 .launchpad/backups/
 # LaunchPad scaffold tempdirs (composition + single-adapter wrapping)
 .lp-tmp/
+
+# v2.1.6 BL-350: stack-specific patterns are injected here by
+# `lp_bootstrap/stack_ignore_patterns.py` based on `stacks:` in
+# `.launchpad/config.yml`. The kernel template no longer hardcodes
+# `node_modules/`, `.next/`, `.turbo/`, etc. — those move into the
+# matching stack entry in `_ignore_patterns.py`.
+# STACK_AWARE_GITIGNORE_BEGIN
+# STACK_AWARE_GITIGNORE_END

@@ -1138,6 +1138,25 @@ def _render_loop(
             from .stack_structure_check import enrich_structure_check_with_stacks
 
             rendered_bytes = enrich_structure_check_with_stacks(rendered_bytes, cwd)
+        # v2.1.6 BL-350: stack-aware ignore-pattern injection. Three
+        # surfaces (`.gitignore`, `.gitleaks.toml`, `.greptile.json`)
+        # previously hardcoded TS-monorepo cruft (`.next/`, `.turbo/`,
+        # `pnpm-lock.yaml`). Each now ships a stack-agnostic kernel plus
+        # sentinel markers; the enricher injects per-stack patterns from
+        # `plugin_stack_adapters._ignore_patterns`. Greenfield passes
+        # kernel bytes unchanged.
+        if target_relpath == ".gitignore":
+            from .stack_ignore_patterns import enrich_gitignore_with_stacks
+
+            rendered_bytes = enrich_gitignore_with_stacks(rendered_bytes, cwd)
+        elif target_relpath == ".gitleaks.toml":
+            from .stack_ignore_patterns import enrich_gitleaks_with_stacks
+
+            rendered_bytes = enrich_gitleaks_with_stacks(rendered_bytes, cwd)
+        elif target_relpath in (".greptile.json", "greptile.json"):
+            from .stack_ignore_patterns import enrich_greptile_with_stacks
+
+            rendered_bytes = enrich_greptile_with_stacks(rendered_bytes, cwd)
         rendered_batch[target_path] = rendered_bytes
         rendered_sha = sha256_bytes(rendered_bytes)
         manifest_sha = _entry_sha_for(existing_manifest, target_relpath)
