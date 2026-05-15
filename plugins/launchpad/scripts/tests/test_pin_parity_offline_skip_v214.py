@@ -23,9 +23,14 @@ loop so we can synthesize the four scenarios without network reach:
   3. fetch CalledProcessError              → infra_errors populated
   4. fetch TimeoutExpired                  → infra_errors populated
 
-The `main()`-level offline-skip behavior is exercised via subprocess
-invocations of the script with synthetic _shallow_fetch monkey-patches
-through the module-import surface.
+Scope: this file covers `_check_pin()` only — the unit that classifies
+each pin's outcome into `findings` vs `infra_errors`. The `main()`
+loop's exit-code branching (PASS=0 / real-finding=1 / infra-only-fail=2
+/ `--offline-skip` downgrade-to-0) is documented in the script's
+module docstring; covering the main loop end-to-end would require
+subprocess invocations against a stubbed pin-registry which is out of
+scope at the v2.1.4 ship lane. Adding that coverage is a follow-up if
+the exit-code branching ever needs to change.
 """
 from __future__ import annotations
 

@@ -161,5 +161,11 @@ jobs:
         # ephemeral runners that can't reach github.com don't fail
         # the build (the local pre-push lefthook hook is the
         # always-available fallback, configured separately).
+        # v2.1.4 Codex P2 (round 5): cap the step at 10 minutes so a
+        # continuous network outage cannot stall CI for the full
+        # 5-pin × 600s/pin = 50min worst case. `--offline-skip`
+        # converts the timeout-failure exit code into a clean SKIP
+        # at the next runner run.
+        timeout-minutes: 10
         run: |
           python plugins/launchpad/scripts/plugin-upstream-pin-walk-scope-parity.py --offline-skip
