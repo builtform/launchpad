@@ -1125,6 +1125,19 @@ def _render_loop(
             from .stack_lefthook import enrich_lefthook_with_stacks
 
             rendered_bytes = enrich_lefthook_with_stacks(rendered_bytes, cwd)
+        # v2.1.6 BL-347: stack-aware structure-check allowlist injection.
+        # The kernel template ships universal ALLOWED_DIRS / ALLOWED_CONFIGS
+        # entries plus sentinel-comment placeholders. The enricher reads
+        # the persisted `stacks:` list from `.launchpad/config.yml` and
+        # splices per-stack additions (`apps/` for ts_monorepo, `public/`
+        # + `astro.config.mjs` for astro, etc.) between the sentinels.
+        # Greenfield (no stacks persisted) passes kernel bytes unchanged;
+        # the kernel allowlist is now stack-agnostic so a fresh single-app
+        # project no longer hits a P0 first-commit blocker.
+        if target_relpath == "scripts/maintenance/check-repo-structure.sh":
+            from .stack_structure_check import enrich_structure_check_with_stacks
+
+            rendered_bytes = enrich_structure_check_with_stacks(rendered_bytes, cwd)
         rendered_batch[target_path] = rendered_bytes
         rendered_sha = sha256_bytes(rendered_bytes)
         manifest_sha = _entry_sha_for(existing_manifest, target_relpath)

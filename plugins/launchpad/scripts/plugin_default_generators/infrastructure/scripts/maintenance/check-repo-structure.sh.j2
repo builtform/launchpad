@@ -118,11 +118,18 @@ ALLOWED_CONFIGS=(
   ".worktreeinclude"
   "greptile.json"
   ".greptile.json"
+  # STACK_AWARE_CONFIGS_BEGIN — BL-347 sentinel; do NOT edit by hand
+  # STACK_AWARE_CONFIGS_END
 )
 
+# v2.1.6 BL-347: ALLOWED_DIRS no longer hard-codes the LaunchPad monorepo
+# shape (`apps/`, `packages/`). Stack-specific extensions are injected
+# between the sentinel comments below by
+# `lp_bootstrap/stack_structure_check.py` at /lp-bootstrap render time,
+# driven by the persisted `stacks:` list in `.launchpad/config.yml`. The
+# kernel allowlist below covers universal directories that every project
+# needs regardless of stack (scripts, docs, .github, .git, etc.).
 ALLOWED_DIRS=(
-  "apps"
-  "packages"
   "scripts"
   "docs"
   "plugins"
@@ -134,10 +141,10 @@ ALLOWED_DIRS=(
   ".launchpad"
   "node_modules"
   ".git"
-  ".next"
-  ".turbo"
   "dist"
   "build"
+  # STACK_AWARE_DIRS_BEGIN — BL-347 sentinel; do NOT edit by hand
+  # STACK_AWARE_DIRS_END
 )
 
 # Get all items at root (excluding hidden files starting with .)
