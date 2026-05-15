@@ -359,6 +359,19 @@ def detect_from_manifest(path: Path) -> dict[str, Any]:
             frameworks.append("express")
         if "@prisma/client" in deps or "prisma" in deps:
             frameworks.append("prisma")
+        # v2.1.6 BL-345: extend the detector to recognise additional v2.1
+        # active stacks that previously fell through to `generic`. Each
+        # entry adds one framework token used by downstream stack-id
+        # mapping; the actual stack-id assignment below picks the most
+        # specific match.
+        if "astro" in deps:
+            frameworks.append("astro")
+        if "@11ty/eleventy" in deps:
+            frameworks.append("eleventy")
+        if "expo" in deps:
+            frameworks.append("expo")
+        if "@supabase/supabase-js" in deps or "@supabase/auth-helpers-nextjs" in deps:
+            frameworks.append("supabase")
         # Map to ts_monorepo ONLY when the project IS a monorepo AND has
         # the framework profile the adapter is shaped for: pnpm + Turborepo
         # + apps/web (Next), apps/api (Hono), packages/db (Prisma). Three
@@ -388,8 +401,21 @@ def detect_from_manifest(path: Path) -> dict[str, Any]:
         has_relevant_framework = any(
             fw in frameworks for fw in ("next.js", "hono", "prisma")
         )
-        if is_monorepo and has_typescript and has_relevant_framework:
+        # v2.1.6 BL-345: stack-id mapping for non-monorepo single-stack
+        # projects. Specificity order: astro > next > eleventy > expo >
+        # ts_monorepo > generic. The first matching framework picks the
+        # stack id; downstream adapters handle composition when multiple
+        # frameworks coexist.
+        if "astro" in frameworks:
+            stack = "astro"
+        elif is_monorepo and has_typescript and has_relevant_framework:
             stack = "ts_monorepo"
+        elif "next.js" in frameworks and not is_monorepo:
+            stack = "nextjs_standalone"
+        elif "eleventy" in frameworks:
+            stack = "generic"  # v2.2 candidate; ships under generic for v2.1
+        elif "expo" in frameworks:
+            stack = "generic"  # v2.2 candidate
         else:
             stack = "generic"
         return {"stack": stack, "frameworks": frameworks, "evidence": str(path)}
@@ -412,14 +438,23 @@ def detect_from_manifest(path: Path) -> dict[str, Any]:
             frameworks.append("fastapi")
         if "flask" in dep_str.lower():
             frameworks.append("flask")
-        # Map to python_django only when Django is actually present. FastAPI,
-        # Flask, plain-Python, or unknown-framework projects fall back to
-        # generic so the doc generator does not seed Django-specific commands
-        # (manage.py migrate, etc.) for projects that do not use Django.
+        # v2.1.6 BL-345: any Python project (FastAPI, Flask, plain-Python)
+        # now maps to `python_generic` instead of falling through to
+        # `generic`. The doc generator gains Python-specific scaffolding
+        # (pytest, ruff, pyright commands) without seeding Django-specific
+        # commands inappropriately. Django still maps to `python_django`
+        # for its specific scaffolding needs (manage.py migrate, etc.).
         if "django" in frameworks:
             stack = "python_django"
+        elif frameworks:  # any Python framework detected
+            stack = "python_generic"
         else:
-            stack = "generic"
+            # No framework detected — still mark as python_generic so
+            # the Python stack family (pytest / ruff / pyright commands)
+            # applies. The pre-v2.1.6 fall-through to `generic` produced
+            # broken pnpm-based bootstrap output for every plain-Python
+            # project; python_generic is strictly safer.
+            stack = "python_generic"
         return {"stack": stack, "frameworks": frameworks, "evidence": str(path)}
 
     if name == "go.mod":
