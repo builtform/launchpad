@@ -6,7 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Tracked in [ROADMAP.md](ROADMAP.md). v2.1.6 lands the 8 Tier 2 stack-aware refactors deferred from v2.1.5 (`BACKLOG.md` BL-345 through BL-352); v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` (BL-251 through BL-254) for v2.2-deferred items captured during v2.1 ship.
+Tracked in [ROADMAP.md](ROADMAP.md). v2.1.7 candidates include BL-357 (`/lp-shape-section --auto` synthesize-from-artifacts mode), setup-action step rewrites in ci.yml for non-TS stacks, and astro.config content-grep for output-mode detection. v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
+
+## [v2.1.6]
+
+Tier 2 stack-aware refactors + autonomous-ack gate generalisation. v2.1.6 closes the 8 Tier 2 BLs deferred from v2.1.5 (BL-345..BL-352) plus an architectural fix to the autonomous-ack gate (BL-356). The Tier 2 work makes `/lp-bootstrap` output coherent for non-TS-monorepo stacks (Astro, Next.js single-app, Python, Ruby, Hugo, Go) — pre-v2.1.6 every greenfield single-app project hit a P0 first-commit blocker because the rendered structure-check script's allowlist was monorepo-shaped, plus a cascade of TS-monorepo cruft in `.gitignore` / `.gitleaks.toml` / `.greptile.json` and `pnpm <cmd>` commands in lefthook + ci.yml that fail for non-TS users. BL-356 closes a direct-invocation bypass of the autonomous-ack gate that the v2.1.5 ack design only enforced on `/lp-build`.
+
+### For LaunchPad users (downstream behavior changes)
+
+- **Stack-aware `check-repo-structure.sh` allowlist (BL-347, P0).** Per-stack ALLOWED_DIRS / ALLOWED_CONFIGS data injected via sentinel comments at `/lp-bootstrap` render time. Greenfield single-app projects no longer hit a first-commit blocker; framework files at root (`astro.config.mjs`, `next.config.ts`, `public/`, `src/`, `manage.py`, `Gemfile`) pass the structure-check gate. `apps/` + `packages/` moved out of the universal kernel allowlist into the `ts_monorepo` stack entry.
+- **Stack-aware `.gitignore` / `.gitleaks.toml` / `.greptile.json` (BL-350, P3).** TS-monorepo cruft (`.next/`, `.turbo/`, `pnpm-lock.yaml`) moved into per-stack data. Python / Ruby / Hugo / Go users no longer see irrelevant entries in their rendered ignore files. `.greptile.json`'s sentinels are stripped on every render (sentinels live inside a JSON string value).
+- **Stack-aware `lefthook.yml` + `.github/workflows/ci.yml` package-manager commands (BL-346 + BL-352, both P1).** New `_package_managers.py` declares per-family lefthook bodies + CI setup actions. Two new enrichers rewrite `run: pnpm test` → `run: pytest`, `run: pnpm typecheck` → `run: pyright .`, etc. TS-family projects ship byte-identical to v2.1.5 (no-op path). Setup-action steps in ci.yml remain TS-shape for non-TS projects (documented limitation; deferred to v2.1.7).
+- **Minimal APP_FLOW.md placeholder hints + `BackendInfo.static_capable` (BL-348 + BL-349, both P1).** Every adapter's `describe_app_flow()` previously emitted concrete fake routes that misled users. v2.1.6 emits `entry_routes=["/"]` plus an explicit `[Placeholder — add real routes via /lp-shape-section]` marker. `BackendInfo` gains a required `static_capable: bool` field so BACKEND_STRUCTURE.md can render "static site, no backend" framing for static-output stacks.
+- **`<stack>-noop: run: 'true'` placeholder hooks dropped (BL-351, P3).** Cosmetic-only placeholders stripped from astro / generic / nextjs_standalone / ts_monorepo lefthook fragments.
+- **Stack-detector recognises Astro, single-app Next.js, plain Python (BL-345, P2).** `plugin-stack-detector.py` adds `astro` / `nextjs_standalone` / `python_generic` stack-id mappings; surfaces `@11ty/eleventy` / `expo` / `@supabase/*` frameworks as v2.2 active enum candidates.
+- **Autonomous-ack gate covers every direct-invocation autonomous-write command (BL-356, P1).** The v2.1.5 gate enforced `.launchpad/autonomous-ack.md` only on `/lp-build`. v2.1.6 lifts the gate into a shared helper (`assert_autonomous_ack`) and wires `/lp-inf`, `/lp-resolve-todo-parallel`, `/lp-ship` to call it. Refuse-message embeds a copy-pasteable starter template beginning with `# Autonomous Execution Acknowledgment`.
+
+### Plugin-internal changes
+
+See `docs/releases/v2.1.6.md` for full file-by-file breakdown — 3 new data modules, 3 new enricher modules, 10 adapter file updates, 5 command markdown updates, 1 detector update, +153 net new tests across 6 new test files.
+
+### Test count
+
+1730 passing + 4 skipped (was 1577 at v2.1.5 squash).
 
 ## [v2.1.5]
 
