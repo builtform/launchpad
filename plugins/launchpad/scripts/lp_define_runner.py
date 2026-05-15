@@ -941,11 +941,23 @@ def redetect_stack(repo_root: Path, *, force: bool) -> int:
     """
     import importlib.util
 
+    # v2.1.5 round-3 review fix C12 (ts-reviewer): guard spec/loader before
+    # use. Prior shape did `spec.loader.exec_module(...)` with a
+    # `type: ignore[union-attr]` and would AttributeError-crash at runtime
+    # if `spec_from_file_location` returned None (file missing / unreadable).
+    # Mirrors the sibling-loader pattern at lp_define_runner.py:771-777.
     spec = importlib.util.spec_from_file_location(
         "plugin_config_loader", SCRIPT_DIR / "plugin-config-loader.py"
     )
+    if spec is None or spec.loader is None:
+        print(
+            "error: redetect-stack — plugin-config-loader.py not found "
+            "or unreadable; reinstall the LaunchPad plugin to recover.",
+            file=sys.stderr,
+        )
+        return 1
     cfg_mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(cfg_mod)  # type: ignore[union-attr]
+    spec.loader.exec_module(cfg_mod)
 
     persisted = cfg_mod.read_stacks(repo_root)
     report = run_detector(repo_root)

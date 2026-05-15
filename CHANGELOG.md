@@ -45,10 +45,13 @@ Tier 2 stack-aware refactors (BL-345 through BL-352) deferred to v2.1.6. The 11-
 - New helper: `lp_define_runner.read_brainstorm_summary(repo_root)` + `_slug_section_name(heading)`.
 - New helper: `lp_define_runner._kernel_fallback_render(repo_root)`.
 - New helper: `plugin-build-runner._run_cmd_with_prompt_detection(cmd, repo_root)` + `_PROMPT_BAIL_PATTERNS` closed-enum.
-- New helper: `plugin_default_generators.infrastructure_renderer._validate_workflow_self_consistency(batch, cwd)` + `_WORKFLOW_FILE_REF_INPUTS` closed-enum.
-- `identity_inject` extended with `default_pnpm_version` + `default_node_version` keys.
-- `INFRASTRUCTURE_FILES` count moves 31 → 34 (added `.nvmrc`, `.github/dependabot.yml`, `.github/pull_request_template.md`). `FILE_MODES` 0o644 count moves 19 → 22.
-- New tests: `test_ci_self_consistency_v215.py` (12), `test_kernel_security_md_v215.py` (3), `test_infrastructure_template_fixes_v215.py` (8), `test_brainstorm_define_v215.py` (7), `test_build_runner_non_tty_v215.py` (4). +34 new tests; full suite 1440 → 1474 passing.
+- New helper: `plugin_default_generators.infrastructure_renderer._validate_workflow_self_consistency(batch, cwd)` + `assert_workflow_self_consistency(batch, cwd, *, error_cls)` helper + `_WORKFLOW_FILE_REF_INPUTS` closed-enum (1 row at v2.1.5; v2.1.6 BL-345 extends).
+- New module-scope constants in `lp_define_runner`: `_BRAINSTORM_ALIASES` + `_BRAINSTORM_CANONICAL_SLUGS` (hoisted from per-call rebuild) + precompiled slug regexes `_SLUG_WS_RE` / `_SLUG_NONALNUM_RE` / `_SLUG_COLLAPSE_RE`.
+- New Jinja partial: `plugin_default_generators/_brainstorm_macro.j2` (shared `brainstorm_section(content)` macro applying `| markdown_safe` + the BL-333 marker comment; consumed by PRD/APP_FLOW/BACKEND_STRUCTURE).
+- `template_context()` renamed from `identity_inject` (the function now mixes identity + tool-version pins; old name preserved as a back-compat alias). Extended with `default_pnpm_version` + `default_node_version` keys.
+- `KernelRenderer.render_all` gains an `only_paths: Sequence[str] | None = None` parameter mirroring `InfrastructureRenderer.render_all`; `_kernel_fallback_render` uses it so user-edited kernel files are never overwritten when one or two are absent.
+- `INFRASTRUCTURE_FILES` count moves 31 → 34 (added `.nvmrc`, `.github/dependabot.yml`, `.github/pull_request_template.md`). `FILE_MODES` 0o644 count moves 19 → 22. Group-header integer ranges in the tuple's comments dropped (drift-prone; replaced with bare group labels).
+- New tests added across v2.1.5: `test_ci_self_consistency_v215.py`, `test_kernel_security_md_v215.py`, `test_infrastructure_template_fixes_v215.py`, `test_brainstorm_define_v215.py`, `test_build_runner_non_tty_v215.py`, `test_kernel_fallback_v215.py` (new), `test_lp_review_md_invariants_v215.py` (new), `test_lp_commit_md_invariants_v215.py` (new). Plus new tests in `test_bootstrap_render_loop.py` for the BL-355 engine-path coverage. Full suite 1440 → 1562 passing (+122 net new tests across v2.1.5 + the round-3 review-fix loop).
 
 ## [v2.1.4]
 
