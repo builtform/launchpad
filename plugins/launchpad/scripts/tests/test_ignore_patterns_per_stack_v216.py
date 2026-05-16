@@ -186,6 +186,27 @@ def test_ts_monorepo_ignores_next_build_output() -> None:
     assert ".next/" in GITIGNORE_PATTERNS_PER_STACK["ts_monorepo"]
 
 
+def test_generic_stack_ignores_node_modules() -> None:
+    """v2.1.6 BL-350 round-4 review fix (Codex P2): `generic` is mapped
+    to the TS family in `_package_managers.STACK_FAMILY` and is the
+    dispatch target for Node-shape projects (standalone Hono, Supabase
+    aliases, post-round-2 nextjs_standalone / python_generic doc
+    rendering, and any unknown stack). Without `node_modules/` in its
+    ignore data, generated Node-shape generic projects accidentally
+    stage the full dependency tree because the universal kernel no
+    longer ships the entry."""
+    assert "node_modules/" in GITIGNORE_PATTERNS_PER_STACK["generic"], (
+        "generic stack must include node_modules/ in its gitignore "
+        "additions; without this, Hono-only / Supabase / unknown-stack "
+        "Node projects accidentally stage their dependency tree."
+    )
+    # Gitleaks + greptile parity.
+    leaks = GITLEAKS_PATHS_PER_STACK["generic"]
+    assert r"node_modules/" in leaks
+    greptile = GREPTILE_IGNORE_PATTERNS_PER_STACK["generic"]
+    assert "**/node_modules/**" in greptile
+
+
 def test_astro_ignores_full_ts_toolchain_set() -> None:
     """Astro is a JS framework that always uses pnpm/npm/yarn. Pre
     round-3 the entry shipped only `.astro/` — accidentally staging

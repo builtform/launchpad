@@ -284,6 +284,28 @@ def _read_command(name: str) -> str:
 
 
 @pytest.mark.parametrize("command", GATED_COMMANDS)
+def test_gated_command_catches_autonomous_ack_error_base_class(command: str) -> None:
+    """v2.1.6 round-4 review fix (Codex P1 #2 + Greptile P1):
+    `assert_autonomous_ack` now raises one of TWO subclasses —
+    `AutonomousAckMissingError` OR `AutonomousAckUntrackedError`. Pre
+    round-4 the command markdown only documented the missing-subclass,
+    so a Claude agent following the literal gate spec might not surface
+    the untracked-file refuse-message — precisely the threat the
+    round-3 untracked check was added to close.
+
+    Every gated command's markdown MUST mention `AutonomousAckError`
+    (the base class) so both subclasses get handled at the callsite.
+    """
+    body = _read_command(command)
+    assert "AutonomousAckError" in body, (
+        f"`{command}.md` must reference `AutonomousAckError` (the "
+        f"shared base class) so both `AutonomousAckMissingError` and "
+        f"`AutonomousAckUntrackedError` are surfaced. Round-4 review "
+        f"fix Codex P1 #2 + Greptile P1."
+    )
+
+
+@pytest.mark.parametrize("command", GATED_COMMANDS)
 def test_gated_command_references_shared_helper(command: str) -> None:
     """Every direct-invocation autonomous-write command's markdown MUST
     reference `assert_autonomous_ack` by name in its gate step.

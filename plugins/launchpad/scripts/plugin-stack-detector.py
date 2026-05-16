@@ -517,11 +517,33 @@ def detect(root: Path) -> dict[str, Any]:
     # anywhere, every other package.json's "generic" contribution is just a
     # sub-package of that monorepo, not a separate stack. Same for
     # python_django vs generic from pyproject.toml.
+    #
+    # v2.1.6 round-4 review fix (Codex P1 #1): BL-345 extended the
+    # per-manifest classifier to emit `nextjs_standalone` for single-app
+    # Next.js (no workspaces) and `python_generic` for non-Django Python.
+    # That makes a TURBOREPO's `apps/web/package.json` return
+    # `nextjs_standalone` because workspaces live in ROOT's package.json,
+    # not the sub-manifest. Pre round-4 the suppress logic only collapsed
+    # the LEGACY `generic` sub-package contribution; the new BL-345
+    # variants leaked through, marking a single Turborepo as polyglot
+    # `[nextjs_standalone, ts_monorepo]`. The fix extends the collapse
+    # rule to cover both legacy `generic` and the BL-345 single-app
+    # variants — every package.json sub-contribution is suppressed when
+    # the root manifest has already produced `ts_monorepo`. The
+    # ancestor-walk alternative is architecturally cleaner but more
+    # invasive; the suppress-list extension matches the existing pattern
+    # and ships in v2.1.6's deferred-cleanup space.
     suppress: set[tuple[str, str]] = set()
-    if "ts_monorepo" in package_json_stacks and "generic" in package_json_stacks:
-        suppress.add(("package.json", "generic"))
-    if "python_django" in pyproject_stacks and "generic" in pyproject_stacks:
-        suppress.add(("pyproject.toml", "generic"))
+    _TS_SUB_PACKAGE_STACKS = ("generic", "nextjs_standalone", "astro")
+    _PY_SUB_PACKAGE_STACKS = ("generic", "python_generic")
+    if "ts_monorepo" in package_json_stacks:
+        for sub in _TS_SUB_PACKAGE_STACKS:
+            if sub in package_json_stacks:
+                suppress.add(("package.json", sub))
+    if "python_django" in pyproject_stacks:
+        for sub in _PY_SUB_PACKAGE_STACKS:
+            if sub in pyproject_stacks:
+                suppress.add(("pyproject.toml", sub))
 
     seen_stacks: set[str] = set()
     stacks: list[str] = []

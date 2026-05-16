@@ -142,7 +142,24 @@ GITIGNORE_PATTERNS_PER_STACK: Final[dict[str, tuple[str, ...]]] = {
         "*.out",
         "coverage.txt",
     ),
-    "generic": (),
+    # v2.1.6 BL-350 round-4 review fix (Codex P2): `generic` is mapped
+    # to the `ts` family in `_package_managers.STACK_FAMILY` and is the
+    # dispatch target for any Node-shape project that doesn't match a
+    # more specific stack (standalone Hono, Supabase routes via
+    # `lp_define_runner._single_adapter`, post-round-2 nextjs_standalone
+    # / python_generic doc rendering, unknown stacks). Without
+    # `node_modules/` here, generated Node-shape projects accidentally
+    # stage the full dependency tree because the universal kernel no
+    # longer ships the entry. The fallback set mirrors `ts_monorepo` /
+    # `astro` for parity; non-Node generic projects (which are rare —
+    # the detector classifies most non-Node shapes into a specific
+    # stack) tolerate the extra ignores harmlessly.
+    "generic": (
+        "node_modules/",
+        ".pnpm-store/",
+        "*.tsbuildinfo",
+        "dist/",
+    ),
 }
 
 
@@ -232,7 +249,17 @@ GITLEAKS_PATHS_PER_STACK: Final[dict[str, tuple[str, ...]]] = {
         r"bin/",
         r"go\.sum",
     ),
-    "generic": (),
+    # v2.1.6 BL-350 round-4 review fix (Codex P2 parity): generic is the
+    # Node fallback (Hono / Supabase / nextjs_standalone routing /
+    # unknown). Without these gitleaks scans the dependency tree and
+    # generates massive false-positive noise.
+    "generic": (
+        r"node_modules/",
+        r"pnpm-lock\.yaml",
+        r"package-lock\.json",
+        r"yarn\.lock",
+        r"dist/",
+    ),
 }
 
 
@@ -307,7 +334,14 @@ GREPTILE_IGNORE_PATTERNS_PER_STACK: Final[dict[str, tuple[str, ...]]] = {
         "**/vendor/**",
         "**/bin/**",
     ),
-    "generic": (),
+    # v2.1.6 BL-350 round-4 review fix (Codex P2 parity): generic Node
+    # fallback. Without `**/node_modules/**` Greptile attempts to index
+    # the dependency tree if it ever lands in git.
+    "generic": (
+        "**/node_modules/**",
+        "**/dist/**",
+        "pnpm-lock.yaml",
+    ),
 }
 
 

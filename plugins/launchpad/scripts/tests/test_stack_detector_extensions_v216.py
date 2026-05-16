@@ -123,6 +123,75 @@ def test_monorepo_nextjs_still_detected_as_ts_monorepo(tmp_path: Path) -> None:
     assert result.get("stack") == "ts_monorepo"
 
 
+def test_turborepo_apps_web_nested_manifest_collapsed_into_ts_monorepo(tmp_path: Path) -> None:
+    """v2.1.6 BL-345 round-4 review fix (Codex P1 #1): a Turborepo's
+    `apps/web/package.json` has `next` but NO workspaces (workspaces
+    live in the root `package.json`). Pre round-4 the per-manifest
+    classifier returned `nextjs_standalone` for the sub-manifest, and
+    the `detect()` aggregator's suppress logic only collapsed legacy
+    `generic` contributions — the new BL-345 variant leaked through,
+    marking a single Turborepo as polyglot `[nextjs_standalone,
+    ts_monorepo]`.
+
+    Post round-4: the aggregator's suppress logic also collapses
+    `nextjs_standalone` (and `astro`) under a root `ts_monorepo`, so
+    the final stacks list is `[ts_monorepo]` for the canonical
+    Turborepo shape. The fix preserves the suppress-list pattern
+    rather than rewriting the detector with ancestor-walk traversal."""
+    _detect = _detector.detect
+    # Root manifest: Turborepo + Next dep.
+    root_pkg = tmp_path / "package.json"
+    _write(
+        root_pkg,
+        '{"name": "monorepo", "workspaces": ["apps/*", "packages/*"], '
+        '"dependencies": {"next": "^15.0.0", "turbo": "^2.0.0", "typescript": "^5.0.0"}}',
+    )
+    _write(tmp_path / "tsconfig.json", "{}")
+    # Nested manifest: apps/web with Next only (no workspaces).
+    nested_pkg = tmp_path / "apps" / "web" / "package.json"
+    _write(
+        nested_pkg,
+        '{"name": "@repo/web", "dependencies": {"next": "^15.0.0", "react": "^18.0.0"}}',
+    )
+    _write(tmp_path / "apps" / "web" / "tsconfig.json", "{}")
+    report = _detect(tmp_path)
+    assert report["stacks"] == ["ts_monorepo"], (
+        f"Turborepo with apps/web/package.json must collapse to "
+        f"[ts_monorepo], not surface nextjs_standalone as a polyglot "
+        f"contribution; got: {report['stacks']}"
+    )
+    assert not report["polyglot"], (
+        f"Single Turborepo must not be flagged as polyglot; got: {report}"
+    )
+
+
+def test_legitimate_polyglot_ts_python_still_preserved(tmp_path: Path) -> None:
+    """Round-4 suppress-list extension MUST NOT over-collapse: a real
+    TS + Python polyglot (Next monorepo + Django sub-project) must
+    keep BOTH stacks because the collapse rule only fires on
+    same-language splits — TS sub-packages collapse under root
+    `ts_monorepo`, but `python_django` is a different language and
+    survives untouched."""
+    _detect = _detector.detect
+    root_pkg = tmp_path / "package.json"
+    _write(
+        root_pkg,
+        '{"name": "monorepo", "workspaces": ["apps/*"], '
+        '"dependencies": {"next": "^15.0.0", "turbo": "^2.0.0", "typescript": "^5.0.0"}}',
+    )
+    _write(tmp_path / "tsconfig.json", "{}")
+    # Django sub-project at apps/api.
+    pyproject = tmp_path / "apps" / "api" / "pyproject.toml"
+    _write(
+        pyproject,
+        '[project]\nname = "api"\ndependencies = ["django>=4"]\n',
+    )
+    report = _detect(tmp_path)
+    assert "ts_monorepo" in report["stacks"]
+    assert "python_django" in report["stacks"]
+    assert report["polyglot"] is True
+
+
 # ---------------------------------------------------------------------------
 # (4) + (5) + (6) Python project detection.
 # ---------------------------------------------------------------------------
