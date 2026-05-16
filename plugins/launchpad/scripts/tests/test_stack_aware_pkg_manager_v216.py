@@ -163,14 +163,20 @@ def test_lefthook_python_stack_rewrites_typecheck(tmp_path: Path) -> None:
 
 def test_ci_python_stack_rewrites_run_lines(tmp_path: Path) -> None:
     """On a Python-primary project, ci.yml `run: pnpm test` becomes
-    `run: pytest`, `run: pnpm install --frozen-lockfile` becomes
-    `run: pip install -r requirements.txt`, etc."""
+    `run: pytest`, `run: pnpm install --frozen-lockfile` becomes the
+    pyproject-aware install conditional (v2.1.6 round-3 review fix,
+    Codex P1 #3), etc."""
     _write_config(tmp_path, ["python_generic"])
     rewritten = enrich_ci_yml_pkg_setup(_CI_KERNEL, tmp_path).decode("utf-8")
     assert "run: pytest" in rewritten
     assert "run: pyright ." in rewritten
     assert "run: ruff check ." in rewritten
-    assert "run: pip install -r requirements.txt" in rewritten
+    # v2.1.6 round-3 review fix (Codex P1 #3): install command is a
+    # shell conditional that prefers requirements.txt when present,
+    # falling back to `pip install -e .` for pyproject-only projects.
+    assert "pip install -r requirements.txt" in rewritten
+    assert "pip install -e ." in rewritten
+    assert "if [ -f requirements.txt ]" in rewritten
     assert "run: pnpm test" not in rewritten
     assert "run: pnpm typecheck" not in rewritten
 

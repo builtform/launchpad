@@ -150,6 +150,61 @@ def test_ignore_data_keys_are_subset_of_active_enum() -> None:
 
 
 # ---------------------------------------------------------------------------
+# v2.1.6 BL-350 round-3 review fix (Codex P1 #4 + Greptile #1/#2/#3):
+# every TS-toolchain stack MUST ignore `node_modules/` because the
+# universal kernel no longer ships it. Pre round-3 `astro` shipped only
+# `.astro/` and `ts_monorepo` was missing `.next/`. Generated TS repos
+# accidentally staged dependency trees / Next build output.
+# ---------------------------------------------------------------------------
+
+
+def test_every_ts_stack_ignores_node_modules() -> None:
+    """All TS-toolchain stacks must carry `node_modules/` in their
+    .gitignore entry. The universal kernel no longer ships it (BL-350
+    move-out), so every Node-based stack must re-add it explicitly."""
+    ts_stacks = (
+        "astro",
+        "ts_monorepo",
+        "nextjs_standalone",
+        "nextjs_fastapi",
+        "nextjs_hono_cloudflare",
+        "nextjs_trpc_prisma",
+    )
+    for stack_id in ts_stacks:
+        patterns = GITIGNORE_PATTERNS_PER_STACK[stack_id]
+        assert "node_modules/" in patterns, (
+            f"`{stack_id}` .gitignore must include `node_modules/` "
+            f"(BL-350 kernel-move regression check); got: {patterns}"
+        )
+
+
+def test_ts_monorepo_ignores_next_build_output() -> None:
+    """ts_monorepo repos commonly host a Next.js app under apps/web; the
+    `.next/` build directory must be ignored. Pre round-3 the universal
+    kernel had `.next/`; after BL-350 moved kernel cruft into per-stack
+    data, ts_monorepo lost coverage until the round-3 fix restored it."""
+    assert ".next/" in GITIGNORE_PATTERNS_PER_STACK["ts_monorepo"]
+
+
+def test_astro_ignores_full_ts_toolchain_set() -> None:
+    """Astro is a JS framework that always uses pnpm/npm/yarn. Pre
+    round-3 the entry shipped only `.astro/` — accidentally staging
+    `node_modules/`, lockfiles, tsbuildinfo was a real risk on every
+    Astro greenfield."""
+    astro_patterns = GITIGNORE_PATTERNS_PER_STACK["astro"]
+    assert ".astro/" in astro_patterns
+    assert "node_modules/" in astro_patterns
+    assert "*.tsbuildinfo" in astro_patterns
+    # gitleaks parity
+    leaks = GITLEAKS_PATHS_PER_STACK["astro"]
+    assert r"node_modules/" in leaks
+    assert any("pnpm-lock" in p for p in leaks), f"got: {leaks}"
+    # greptile parity
+    greptile = GREPTILE_IGNORE_PATTERNS_PER_STACK["astro"]
+    assert "**/node_modules/**" in greptile
+
+
+# ---------------------------------------------------------------------------
 # (2) Greenfield no-op for gitignore + gitleaks.
 # ---------------------------------------------------------------------------
 

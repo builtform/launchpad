@@ -151,6 +151,39 @@ def _refuse_message_missing_ack() -> str:
     )
 
 
+def _refuse_message_untracked_ack() -> str:
+    """Canonical refuse-text when `.launchpad/autonomous-ack.md` exists on
+    disk but is not tracked by git (v2.1.6 round-3 review fix, Codex P1
+    #1).
+
+    The threat model treats the ack as a `team-visible authorization
+    signal` (HOW_IT_WORKS.md:363 — `having the file tracked in git blame
+    makes autonomous-execution authorization visible`). An untracked
+    local file satisfies file-existence but bypasses the team-visibility
+    intent: a hostile contributor could drop an ack file into their
+    local working tree and run autonomous commands without leaving any
+    committed evidence. Requiring the file to be tracked (and ideally
+    present in HEAD) closes that gap.
+    """
+    return (
+        "Autonomous execution requires `.launchpad/autonomous-ack.md` to be "
+        "**tracked by git** (not just present in the working tree).\n"
+        "\n"
+        f"{AUTONOMOUS_ACK_DESCRIPTION}\n"
+        "\n"
+        "The file currently exists at `.launchpad/autonomous-ack.md` but "
+        "git is not tracking it — that defeats the team-visibility intent "
+        "of the gate (the ack must appear in git blame / PR diffs for the "
+        "authorization to count). Stage and commit the file, then re-run "
+        "the command:\n"
+        "\n"
+        "```\n"
+        "git add .launchpad/autonomous-ack.md\n"
+        "git commit -m 'chore: acknowledge autonomous execution'\n"
+        "```\n"
+    )
+
+
 _REFUSE_SAME_COMMIT = (
     "This section was added to the registry in the same commit that "
     "introduced `.launchpad/autonomous-ack.md`. That's the exact pattern "
@@ -186,6 +219,18 @@ class AutonomousAckMissingError(AutonomousAckError):
     `str(exc)` returns `_refuse_message_missing_ack()` — the canonical
     refuse-message containing the description and the copy-pasteable
     template.
+    """
+
+
+class AutonomousAckUntrackedError(AutonomousAckError):
+    """Raised by `assert_autonomous_ack` when the ack file exists on
+    disk but is not tracked by git (v2.1.6 round-3 review fix, Codex P1
+    #1).
+
+    `str(exc)` returns `_refuse_message_untracked_ack()` — the canonical
+    refuse-message instructing the user to `git add` + `git commit`.
+    Subclass of `AutonomousAckError` so generic `except
+    AutonomousAckError:` handlers still catch it.
     """
 
 
@@ -375,9 +420,63 @@ def section_added_with_ack(repo_root: Path, section_name: str) -> bool:
     return False
 
 
+def _ack_tracked(repo_root: Path) -> bool:
+    """Return True if `.launchpad/autonomous-ack.md` is tracked by git.
+
+    Detection order (v2.1.6 round-3 fix, Codex P1 #1):
+      1. If HEAD exists, require the file to be present in HEAD
+         (`git ls-tree HEAD -- .launchpad/autonomous-ack.md`). This is
+         the strict interpretation matching HOW_IT_WORKS.md's `commit,
+         then re-run` guidance — the file must appear in a commit, not
+         merely be staged.
+      2. If HEAD does NOT exist (pre-first-commit repos: greenfield
+         scaffolds where no commit has landed yet), fall back to
+         tracked-by-git (`git ls-files --error-unmatch ...`). This
+         covers the legitimate flow where /lp-bootstrap stages the
+         ack file and a fresh user is about to make their first commit
+         that includes both the scaffold AND the ack — blocking that
+         flow would require committing twice.
+      3. If git is unavailable (not installed) or `repo_root` is not a
+         git repository at all, return False — fail-closed. The gate
+         is for autonomous-write LaunchPad commands operating on git
+         repos; running outside a git repo is undefined and should be
+         refused.
+    """
+    head_rc = _git_rc(repo_root, "rev-parse", "--verify", "--quiet", "HEAD")
+    if head_rc is None:
+        # git not installed OR not a git repo — fail-closed.
+        return False
+    if head_rc == 0:
+        # HEAD exists; require the ack to be in HEAD.
+        rc = _git_rc(
+            repo_root,
+            "cat-file",
+            "-e",
+            "HEAD:.launchpad/autonomous-ack.md",
+        )
+        return rc == 0
+    # HEAD does not exist (pre-first-commit). Allow staged-only ack.
+    rc = _git_rc(
+        repo_root,
+        "ls-files",
+        "--error-unmatch",
+        ".launchpad/autonomous-ack.md",
+    )
+    return rc == 0
+
+
 def assert_autonomous_ack(repo_root: Path) -> None:
     """Raise `AutonomousAckMissingError` if `.launchpad/autonomous-ack.md`
-    does not exist under `repo_root`.
+    does not exist under `repo_root`, or `AutonomousAckUntrackedError`
+    if it exists but is not tracked by git (v2.1.6 round-3 review fix,
+    Codex P1 #1).
+
+    Tracked-file enforcement closes the threat-model gap where an
+    untracked local file satisfied the gate: HOW_IT_WORKS.md:363
+    describes the ack as a `tracked file` whose visibility in git blame
+    is the authorization signal, so an untracked file bypasses the
+    team-visibility intent. Detection logic lives in `_ack_tracked`;
+    see its docstring for the HEAD-vs-pre-first-commit fallback.
 
     Exception `str(exc)` is the canonical refuse-message — includes the
     short description of the file's purpose plus the copy-pasteable starter
@@ -387,6 +486,8 @@ def assert_autonomous_ack(repo_root: Path) -> None:
     ack_path = repo_root / ".launchpad" / "autonomous-ack.md"
     if not ack_path.is_file():
         raise AutonomousAckMissingError(_refuse_message_missing_ack())
+    if not _ack_tracked(repo_root):
+        raise AutonomousAckUntrackedError(_refuse_message_untracked_ack())
 
 
 def assert_ack_not_same_commit_as(repo_root: Path, section_name: str) -> None:

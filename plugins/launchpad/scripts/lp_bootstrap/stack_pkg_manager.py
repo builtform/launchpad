@@ -11,19 +11,27 @@ and rewrites the rendered files at the bootstrap render boundary.
 Two enrichers, one per file:
 
   enrich_ci_yml_pkg_setup(kernel_bytes, cwd)
-    Operates on `.github/workflows/ci.yml`. Replaces the
-    `pnpm/action-setup` + `actions/setup-node` setup block with the
-    family-appropriate setup actions (e.g. `actions/setup-python` for
-    Python stacks). Replaces the test/typecheck/lint/build `run:`
-    lines with the family-appropriate command strings.
+    Operates on `.github/workflows/ci.yml`. **Rewrites only the
+    `run:` body lines** (test / typecheck / lint / build / install)
+    with the family-appropriate command strings — see the
+    `_PNPM_HOOK_REWRITES` map below for the exact set. The
+    `pnpm/action-setup` + `actions/setup-node` setup-action steps
+    themselves are LEFT IN PLACE; replacing the setup block per
+    family (`actions/setup-python` etc.) requires a structural
+    workflow rewrite that's deferred to v2.1.7 (see
+    `docs/releases/v2.1.6.md` "Scope NOT in v2.1.6"). Non-TS users
+    will see CI fail at the pnpm setup step on first run with a
+    clear error; the recommended workaround is to swap the setup
+    steps manually following the v2.1.7 documentation.
 
   enrich_lefthook_yml_pkg_commands(kernel_bytes, cwd)
-    Operates on `lefthook.yml`. Replaces the `pnpm typecheck`, `pnpm
-    eslint --fix {staged_files}`, `pnpm prettier --write {staged_files}`
-    hook bodies with family-appropriate equivalents. For non-TS
-    families, the prettier/eslint hooks are converted into stack-
-    appropriate format/lint commands. For Hugo family there are no
-    pre-commit checks; the hooks are reduced to a single build step.
+    Operates on `lefthook.yml`. Rewrites the `pnpm typecheck`, `pnpm
+    test`, `pnpm install --frozen-lockfile` etc. hook bodies with
+    family-appropriate equivalents (see `_PNPM_HOOK_REWRITES`). For
+    non-TS primary stacks, the entire `prettier-fix:` and
+    `eslint-fix:` hook blocks are STRIPPED (their globs match
+    `json/css/md/yml/yaml/html` which non-TS projects DO have, so
+    pre-fix they fired at the `pnpm` invocation and failed).
 
 Architecture mirrors BL-347's `stack_structure_check`: greenfield
 returns kernel bytes unchanged for TS-stack identity preservation. The

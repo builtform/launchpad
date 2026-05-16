@@ -48,9 +48,26 @@ from typing import Final
 # ---------------------------------------------------------------------------
 
 GITIGNORE_PATTERNS_PER_STACK: Final[dict[str, tuple[str, ...]]] = {
-    "astro": (".astro/",),
+    # v2.1.6 BL-350 round-3 review fix (Codex P1 #4): astro projects
+    # need the full TS-toolchain ignore set, not just `.astro/`. Pre
+    # round-3 generated Astro repos accidentally staged `node_modules/`
+    # and TypeScript buildinfo.
+    "astro": (
+        "node_modules/",
+        ".astro/",
+        ".pnpm-store/",
+        "*.tsbuildinfo",
+        "dist/",
+    ),
+    # v2.1.6 BL-350 round-3 review fix (Codex P1 #4): `ts_monorepo`
+    # repos that include a Next.js app under `apps/web/` need `.next/`
+    # ignored. Pre round-3 the universal kernel had it, but BL-350
+    # moved kernel TS cruft into per-stack data and `ts_monorepo`
+    # didn't re-add `.next/`. The LaunchPad repo itself is a witness:
+    # its `apps/web/.next/` build output must stay un-tracked.
     "ts_monorepo": (
         "node_modules/",
+        ".next/",
         ".turbo/",
         ".pnpm-store/",
         "*.tsbuildinfo",
@@ -139,7 +156,18 @@ GITIGNORE_PATTERNS_PER_STACK: Final[dict[str, tuple[str, ...]]] = {
 # escapes — they are raw).
 
 GITLEAKS_PATHS_PER_STACK: Final[dict[str, tuple[str, ...]]] = {
-    "astro": (r"\.astro/",),
+    # v2.1.6 BL-350 round-3 review fix (Codex P1 #4 parity): same gap
+    # as the gitignore astro entry — `.astro/` alone undercounts the
+    # ignorable surface. Adding the TS-toolchain entries keeps gitleaks
+    # from scanning node_modules / lockfiles on every commit.
+    "astro": (
+        r"node_modules/",
+        r"\.astro/",
+        r"pnpm-lock\.yaml",
+        r"package-lock\.json",
+        r"yarn\.lock",
+        r"dist/",
+    ),
     "ts_monorepo": (
         r"node_modules/",
         r"\.next/",
@@ -215,7 +243,14 @@ GITLEAKS_PATHS_PER_STACK: Final[dict[str, tuple[str, ...]]] = {
 # Greptile takes one `\n`-joined string. Patterns are glob-style.
 
 GREPTILE_IGNORE_PATTERNS_PER_STACK: Final[dict[str, tuple[str, ...]]] = {
-    "astro": ("**/.astro/**",),
+    # v2.1.6 BL-350 round-3 review fix (Codex P1 #4 parity): same gap
+    # as the gitignore astro entry.
+    "astro": (
+        "**/node_modules/**",
+        "**/.astro/**",
+        "**/dist/**",
+        "pnpm-lock.yaml",
+    ),
     "ts_monorepo": (
         "**/node_modules/**",
         "**/.next/**",

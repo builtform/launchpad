@@ -95,7 +95,18 @@ STACK_LEFTHOOK_HOOKS: Final[dict[str, StackLefthookHooks]] = {
         "build_command": "pnpm build",
     },
     "python": {
-        "install_command": "pip install -r requirements.txt",
+        # v2.1.6 BL-346 round-3 review fix (Codex P1 #3): the detector
+        # classifies every plain-pyproject project as `python_generic`
+        # (no manage.py → not Django). Pre round-3 install_command was
+        # `pip install -r requirements.txt`, which fails on the
+        # increasingly-common pyproject-only project shape (poetry /
+        # hatch / setuptools_scm). Use a shell conditional: prefer
+        # `requirements.txt` when present (matches both Django's
+        # convention and the pip-tools workflow), otherwise fall back
+        # to PEP 660 editable install via `pip install -e .` for
+        # pyproject-based projects. Projects with neither file get a
+        # clear pip error message rather than a silent no-op.
+        "install_command": "if [ -f requirements.txt ]; then pip install -r requirements.txt; else pip install -e .; fi",
         "test_command": "pytest",
         "typecheck_command": "pyright .",
         "lint_command": "ruff check .",

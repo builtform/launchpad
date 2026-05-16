@@ -61,6 +61,7 @@ assert_autonomous_ack = _guard.assert_autonomous_ack
 assert_ack_not_same_commit_as = _guard.assert_ack_not_same_commit_as
 AutonomousAckMissingError = _guard.AutonomousAckMissingError
 AutonomousAckSameCommitError = _guard.AutonomousAckSameCommitError
+AutonomousAckUntrackedError = _guard.AutonomousAckUntrackedError
 AUTONOMOUS_ACK_SENTINEL = _guard.AUTONOMOUS_ACK_SENTINEL
 AUTONOMOUS_ACK_TEMPLATE = _guard.AUTONOMOUS_ACK_TEMPLATE
 AUTONOMOUS_ACK_DESCRIPTION = _guard.AUTONOMOUS_ACK_DESCRIPTION
@@ -105,14 +106,101 @@ def test_assert_autonomous_ack_raises_when_file_missing() -> None:
         )
 
 
-def test_assert_autonomous_ack_passes_when_file_present() -> None:
-    """With the ack file present, assert_autonomous_ack does not raise."""
-    with tempfile.TemporaryDirectory(prefix="lp-ack-present-") as tmpstr:
+def test_assert_autonomous_ack_passes_when_file_present_in_head() -> None:
+    """With the ack file committed (present in HEAD),
+    assert_autonomous_ack does not raise.
+
+    v2.1.6 round-3 review fix (Codex P1 #1): pre round-3 the helper only
+    checked file existence on disk. Now it also requires the file to be
+    git-tracked in HEAD so untracked local files no longer bypass the
+    team-visibility intent of the gate."""
+    with tempfile.TemporaryDirectory(prefix="lp-ack-tracked-") as tmpstr:
         tmp = Path(tmpstr).resolve()
+        _git(tmp, "init", "-q", "-b", "main")
+        _git(tmp, "config", "user.email", "test@example.com")
+        _git(tmp, "config", "user.name", "Test")
         ack = tmp / ".launchpad" / "autonomous-ack.md"
         ack.parent.mkdir(parents=True, exist_ok=True)
         ack.write_text("# Autonomous Execution Acknowledgment\n\nack body\n", encoding="utf-8")
-        # Should not raise.
+        _git(tmp, "add", ".launchpad/autonomous-ack.md")
+        _git(tmp, "commit", "-q", "-m", "ack")
+        # Should not raise — file exists AND is in HEAD.
+        assert_autonomous_ack(tmp)
+
+
+def test_assert_autonomous_ack_raises_when_file_exists_but_untracked() -> None:
+    """v2.1.6 round-3 review fix (Codex P1 #1): pre round-3 an untracked
+    local file satisfied the gate, bypassing the documented `tracked
+    file` requirement (HOW_IT_WORKS.md:363). The helper now raises
+    `AutonomousAckUntrackedError` when the file exists on disk but is
+    not present in HEAD."""
+    with tempfile.TemporaryDirectory(prefix="lp-ack-untracked-") as tmpstr:
+        tmp = Path(tmpstr).resolve()
+        _git(tmp, "init", "-q", "-b", "main")
+        _git(tmp, "config", "user.email", "test@example.com")
+        _git(tmp, "config", "user.name", "Test")
+        # Land an unrelated commit so HEAD exists.
+        seed = tmp / "README.md"
+        seed.write_text("seed\n", encoding="utf-8")
+        _git(tmp, "add", "README.md")
+        _git(tmp, "commit", "-q", "-m", "seed")
+        # Now create the ack file but DON'T track/commit it.
+        ack = tmp / ".launchpad" / "autonomous-ack.md"
+        ack.parent.mkdir(parents=True, exist_ok=True)
+        ack.write_text("# Autonomous Execution Acknowledgment\n\nack body\n", encoding="utf-8")
+        with pytest.raises(AutonomousAckUntrackedError) as excinfo:
+            assert_autonomous_ack(tmp)
+        msg = str(excinfo.value)
+        assert "tracked by git" in msg, (
+            f"untracked-refuse-message must explain the tracked requirement; got: {msg!r}"
+        )
+        assert "git add .launchpad/autonomous-ack.md" in msg, (
+            "refuse-message must include a copy-pasteable `git add` command"
+        )
+
+
+def test_assert_autonomous_ack_raises_when_file_staged_but_head_exists() -> None:
+    """v2.1.6 round-3 review fix (Codex P1 #1): staging without
+    committing does NOT satisfy the gate when HEAD already exists.
+    Tracked-in-HEAD is the strict interpretation matching
+    HOW_IT_WORKS.md's `commit, then re-run` guidance."""
+    with tempfile.TemporaryDirectory(prefix="lp-ack-staged-") as tmpstr:
+        tmp = Path(tmpstr).resolve()
+        _git(tmp, "init", "-q", "-b", "main")
+        _git(tmp, "config", "user.email", "test@example.com")
+        _git(tmp, "config", "user.name", "Test")
+        # Seed a commit so HEAD exists.
+        seed = tmp / "README.md"
+        seed.write_text("seed\n", encoding="utf-8")
+        _git(tmp, "add", "README.md")
+        _git(tmp, "commit", "-q", "-m", "seed")
+        # Stage the ack but don't commit.
+        ack = tmp / ".launchpad" / "autonomous-ack.md"
+        ack.parent.mkdir(parents=True, exist_ok=True)
+        ack.write_text("ack\n", encoding="utf-8")
+        _git(tmp, "add", ".launchpad/autonomous-ack.md")
+        # `git add` makes it tracked, but not yet in HEAD.
+        with pytest.raises(AutonomousAckUntrackedError):
+            assert_autonomous_ack(tmp)
+
+
+def test_assert_autonomous_ack_passes_pre_first_commit_when_staged() -> None:
+    """v2.1.6 round-3 review fix (Codex P1 #1): pre-first-commit repos
+    have no HEAD, so HEAD-presence is impossible. The fallback allows
+    staged-only (tracked via `git add`) so the legitimate greenfield
+    flow — /lp-bootstrap stages files; user makes their first commit
+    including the ack — is not artificially blocked."""
+    with tempfile.TemporaryDirectory(prefix="lp-ack-pre-first-") as tmpstr:
+        tmp = Path(tmpstr).resolve()
+        _git(tmp, "init", "-q", "-b", "main")
+        _git(tmp, "config", "user.email", "test@example.com")
+        _git(tmp, "config", "user.name", "Test")
+        # Create + stage but DO NOT commit. No HEAD yet.
+        ack = tmp / ".launchpad" / "autonomous-ack.md"
+        ack.parent.mkdir(parents=True, exist_ok=True)
+        ack.write_text("ack\n", encoding="utf-8")
+        _git(tmp, "add", ".launchpad/autonomous-ack.md")
+        # Should NOT raise — pre-first-commit fallback accepts staged.
         assert_autonomous_ack(tmp)
 
 
