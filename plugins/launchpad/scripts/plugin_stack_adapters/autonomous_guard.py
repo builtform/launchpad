@@ -1,4 +1,4 @@
-"""Autonomous-build integrity checks.
+"""Autonomous-build integrity checks (BL-356 generalised at v2.1.6).
 
 The v1 trust model treats `.launchpad/autonomous-ack.md` as a *social / review
 signal* — any contributor with commit access can add it. That's intentional
@@ -11,8 +11,8 @@ for v1 scope. But it leaves one narrow attack surface:
     commits to lower visual prominence: commit A adds the ack quietly,
     commit B adds the section.
 
-This module supplies the belt-and-suspenders check: `/lp-plan` refuses to
-auto-approve a plan for a section when EITHER
+This module supplies the belt-and-suspenders check: `/lp-plan` and `/lp-build`
+refuse to auto-approve a plan for a section when EITHER
 
   (a) the section's introduction commit also touched autonomous-ack.md
       (same-commit attack), OR
@@ -23,17 +23,229 @@ auto-approve a plan for a section when EITHER
 Human plan approval is still the authoritative gate; this just makes the
 fast-path refuse.
 
+**BL-356 — gate generalised across autonomous-write commands.** Prior to
+v2.1.6 the ack-file-must-exist gate lived only in `/lp-build` Step 0.1 as
+inline markdown logic, even though `/lp-build` is a meta-orchestrator that
+chains `/lp-inf`, `/lp-resolve-todo-parallel`, and `/lp-ship`. Each of
+those wrapped commands performs autonomous code mutation; calling any of
+them directly bypassed the ack gate. v2.1.6 lifts the gate into a shared
+helper (`assert_autonomous_ack`) and wires every direct-invocation command
+to call it. The refuse-message also gains a copy-pasteable starter template
+so first-time users hitting the refuse don't have to read HOW_IT_WORKS.md
+to understand what the file is for.
+
 Contract:
   - section_added_with_ack(repo_root, section_name) -> bool
-    Returns True if either condition above holds.
+    Returns True if either same-commit or cross-commit attack pattern holds.
+  - assert_ack_not_same_commit_as(repo_root, section_name) -> None
+    Raises `AutonomousAckSameCommitError` if `section_added_with_ack` is True.
+    Exception message is the canonical refuse-text used by `/lp-build` 0.3
+    and `/lp-plan` 0.3.
+  - assert_autonomous_ack(repo_root) -> None
+    Raises `AutonomousAckMissingError` if `.launchpad/autonomous-ack.md`
+    does not exist. Exception message is the canonical refuse-text — short
+    description of what the file is + the copy-pasteable starter template
+    (`AUTONOMOUS_ACK_TEMPLATE`).
   - Missing files or repo in detached-head / shallow-clone state → returns
     False (don't block legitimate users with edge-case git state).
+
+Single-source-of-truth invariant (BL-356 test 5): the gate logic for both
+checks lives in exactly one module — this one. Command markdown files MUST
+reference these helpers by name (`assert_autonomous_ack`,
+`assert_ack_not_same_commit_as`) rather than re-implementing the refuse
+logic inline. The test harness greps for inline `.launchpad/autonomous-ack.md`
+absence-checks in command markdown and fails if it finds any that are not
+references to this module.
 """
 
 from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# UX constants — single source of truth for refuse-message text.
+# ---------------------------------------------------------------------------
+#
+# Every site that surfaces the ack requirement (refuse-messages on the four
+# wrapped commands AND the `/lp-plan` final transition message) MUST
+# reference these constants rather than copy-pasting the text inline. The
+# BL-356 test 6 (UX surface test) greps for the canonical sentinel
+# `# Autonomous Execution Acknowledgment` in command markdown to verify
+# every surface reflects the shared template.
+
+AUTONOMOUS_ACK_SENTINEL = "# Autonomous Execution Acknowledgment"
+"""Canonical first-line sentinel for the starter template.
+
+Used by BL-356 test 6 to verify every surface site references the same
+template. The string MUST appear verbatim in `AUTONOMOUS_ACK_TEMPLATE`
+and in the refuse-message text of every wrapped command markdown file.
+"""
+
+AUTONOMOUS_ACK_DESCRIPTION = (
+    "`.launchpad/autonomous-ack.md` is a visible, git-tracked acknowledgment "
+    "that the team has consciously authorized autonomous code execution in "
+    "this repository. It is a social / review signal, not a cryptographic "
+    "gate — but its presence in git history makes the authorization visible "
+    "in PR diffs and `git blame`."
+)
+"""Short description of what `autonomous-ack.md` is.
+
+Surfaces in the refuse-message of every wrapped command + the `/lp-plan`
+final transition message. Lets a first-time user hitting the refuse
+understand the file's purpose without reading HOW_IT_WORKS.md.
+"""
+
+AUTONOMOUS_ACK_TEMPLATE = """\
+# Autonomous Execution Acknowledgment
+
+I, <Your Name>, acknowledge that running `/lp-build`, `/lp-inf`,
+`/lp-resolve-todo-parallel`, or `/lp-ship` in this repository will cause
+LaunchPad to:
+
+- Write and modify source files autonomously based on planned section specs
+- Run tests, linters, type checkers, and build commands
+- Open pull requests, push commits, and merge branches (depending on
+  `.launchpad/config.yml`)
+
+I accept these risks and authorize autonomous code execution in this
+repository.
+
+**Authorized by:** <Your Name> <your-email@example.com>
+**Authorized on:** <YYYY-MM-DD>
+**Scope:** <optional — e.g., "all sections" or "only sections under docs/marketing/">
+"""
+"""Copy-pasteable starter template for `.launchpad/autonomous-ack.md`.
+
+The refuse-message reproduces this verbatim so the user can copy-edit-commit
+without leaving the terminal. The template names every autonomous-write
+command the gate covers (`/lp-build`, `/lp-inf`,
+`/lp-resolve-todo-parallel`, `/lp-ship`) so the author can confirm scope.
+"""
+
+
+def _refuse_message_missing_ack() -> str:
+    """Canonical refuse-text for `assert_autonomous_ack` failure.
+
+    Composed from `AUTONOMOUS_ACK_DESCRIPTION` + `AUTONOMOUS_ACK_TEMPLATE`
+    so every refuse surface stays byte-identical even if the template
+    changes. The body is also reflected verbatim in `/lp-plan`'s final
+    transition message (Step 5 success branch) so the same content reaches
+    the user at the moment they're told they need the file, not only at
+    refuse-time.
+    """
+    return (
+        "Autonomous execution requires `.launchpad/autonomous-ack.md` to exist.\n"
+        "\n"
+        f"{AUTONOMOUS_ACK_DESCRIPTION}\n"
+        "\n"
+        "Create the file at `.launchpad/autonomous-ack.md` using the "
+        "starter template below, edit it with your name / email / date, "
+        "commit it, then re-run the command.\n"
+        "\n"
+        "Starter template (copy-paste, then edit):\n"
+        "\n"
+        "```markdown\n"
+        f"{AUTONOMOUS_ACK_TEMPLATE}"
+        "```\n"
+    )
+
+
+def _refuse_message_untracked_ack() -> str:
+    """Canonical refuse-text when `.launchpad/autonomous-ack.md` exists on
+    disk but is not tracked by git (v2.1.6 round-3 review fix, Codex P1
+    #1).
+
+    The threat model treats the ack as a `team-visible authorization
+    signal` (HOW_IT_WORKS.md:363 — `having the file tracked in git blame
+    makes autonomous-execution authorization visible`). An untracked
+    local file satisfies file-existence but bypasses the team-visibility
+    intent: a hostile contributor could drop an ack file into their
+    local working tree and run autonomous commands without leaving any
+    committed evidence. Requiring the file to be tracked (and ideally
+    present in HEAD) closes that gap.
+    """
+    return (
+        "Autonomous execution requires `.launchpad/autonomous-ack.md` to be "
+        "**tracked by git** (not just present in the working tree).\n"
+        "\n"
+        f"{AUTONOMOUS_ACK_DESCRIPTION}\n"
+        "\n"
+        "The file currently exists at `.launchpad/autonomous-ack.md` but "
+        "git is not tracking it — that defeats the team-visibility intent "
+        "of the gate (the ack must appear in git blame / PR diffs for the "
+        "authorization to count). Stage and commit the file, then re-run "
+        "the command:\n"
+        "\n"
+        "```\n"
+        "git add .launchpad/autonomous-ack.md\n"
+        "git commit -m 'chore: acknowledge autonomous execution'\n"
+        "```\n"
+    )
+
+
+_REFUSE_SAME_COMMIT = (
+    "This section was added to the registry in the same commit that "
+    "introduced `.launchpad/autonomous-ack.md`. That's the exact pattern "
+    "a hostile PR would use to bypass review. Refusing autonomous build. "
+    "Verify the section spec is legitimate and have the ack file predate "
+    "the section, then retry."
+)
+"""Canonical refuse-text for `assert_ack_not_same_commit_as` failure.
+
+Identical to the prior inline markdown text in `/lp-build` 0.3 — verbatim
+reuse so v2.1.6 is a no-op refactor on the user-visible refuse surface for
+this branch (only the missing-ack refuse gets the new UX content).
+"""
+
+
+# ---------------------------------------------------------------------------
+# Custom exceptions.
+# ---------------------------------------------------------------------------
+
+
+class AutonomousAckError(Exception):
+    """Base class for autonomous-ack gate refusals.
+
+    Catching this base type lets command runners surface ANY ack-gate
+    failure with a generic "autonomous execution refused" wrapper while
+    still rendering the specific refuse-message via `str(exc)`.
+    """
+
+
+class AutonomousAckMissingError(AutonomousAckError):
+    """Raised by `assert_autonomous_ack` when the ack file is absent.
+
+    `str(exc)` returns `_refuse_message_missing_ack()` — the canonical
+    refuse-message containing the description and the copy-pasteable
+    template.
+    """
+
+
+class AutonomousAckUntrackedError(AutonomousAckError):
+    """Raised by `assert_autonomous_ack` when the ack file exists on
+    disk but is not tracked by git (v2.1.6 round-3 review fix, Codex P1
+    #1).
+
+    `str(exc)` returns `_refuse_message_untracked_ack()` — the canonical
+    refuse-message instructing the user to `git add` + `git commit`.
+    Subclass of `AutonomousAckError` so generic `except
+    AutonomousAckError:` handlers still catch it.
+    """
+
+
+class AutonomousAckSameCommitError(AutonomousAckError):
+    """Raised by `assert_ack_not_same_commit_as` when the same-commit or
+    cross-commit pattern fires.
+
+    `str(exc)` returns `_REFUSE_SAME_COMMIT` — preserves the v2.1.5 refuse
+    text byte-for-byte.
+    """
+
+
+# ---------------------------------------------------------------------------
+# Git plumbing helpers (carried forward from v2.1.5).
+# ---------------------------------------------------------------------------
 
 
 def _git(repo_root: Path, *args: str) -> str | None:
@@ -172,6 +384,11 @@ def _ack_added_in_current_branch(repo_root: Path) -> bool:
     return True  # ack introduced in current branch — refuse
 
 
+# ---------------------------------------------------------------------------
+# Public API.
+# ---------------------------------------------------------------------------
+
+
 def section_added_with_ack(repo_root: Path, section_name: str) -> bool:
     """Return True if the named section's plan should be refused for
     autonomous-build fast-path approval.
@@ -201,3 +418,85 @@ def section_added_with_ack(repo_root: Path, section_name: str) -> bool:
         return True
 
     return False
+
+
+def _ack_tracked(repo_root: Path) -> bool:
+    """Return True if `.launchpad/autonomous-ack.md` is tracked by git.
+
+    Detection order (v2.1.6 round-3 fix, Codex P1 #1):
+      1. If HEAD exists, require the file to be present in HEAD
+         (`git ls-tree HEAD -- .launchpad/autonomous-ack.md`). This is
+         the strict interpretation matching HOW_IT_WORKS.md's `commit,
+         then re-run` guidance — the file must appear in a commit, not
+         merely be staged.
+      2. If HEAD does NOT exist (pre-first-commit repos: greenfield
+         scaffolds where no commit has landed yet), fall back to
+         tracked-by-git (`git ls-files --error-unmatch ...`). This
+         covers the legitimate flow where /lp-bootstrap stages the
+         ack file and a fresh user is about to make their first commit
+         that includes both the scaffold AND the ack — blocking that
+         flow would require committing twice.
+      3. If git is unavailable (not installed) or `repo_root` is not a
+         git repository at all, return False — fail-closed. The gate
+         is for autonomous-write LaunchPad commands operating on git
+         repos; running outside a git repo is undefined and should be
+         refused.
+    """
+    head_rc = _git_rc(repo_root, "rev-parse", "--verify", "--quiet", "HEAD")
+    if head_rc is None:
+        # git not installed OR not a git repo — fail-closed.
+        return False
+    if head_rc == 0:
+        # HEAD exists; require the ack to be in HEAD.
+        rc = _git_rc(
+            repo_root,
+            "cat-file",
+            "-e",
+            "HEAD:.launchpad/autonomous-ack.md",
+        )
+        return rc == 0
+    # HEAD does not exist (pre-first-commit). Allow staged-only ack.
+    rc = _git_rc(
+        repo_root,
+        "ls-files",
+        "--error-unmatch",
+        ".launchpad/autonomous-ack.md",
+    )
+    return rc == 0
+
+
+def assert_autonomous_ack(repo_root: Path) -> None:
+    """Raise `AutonomousAckMissingError` if `.launchpad/autonomous-ack.md`
+    does not exist under `repo_root`, or `AutonomousAckUntrackedError`
+    if it exists but is not tracked by git (v2.1.6 round-3 review fix,
+    Codex P1 #1).
+
+    Tracked-file enforcement closes the threat-model gap where an
+    untracked local file satisfied the gate: HOW_IT_WORKS.md:363
+    describes the ack as a `tracked file` whose visibility in git blame
+    is the authorization signal, so an untracked file bypasses the
+    team-visibility intent. Detection logic lives in `_ack_tracked`;
+    see its docstring for the HEAD-vs-pre-first-commit fallback.
+
+    Exception `str(exc)` is the canonical refuse-message — includes the
+    short description of the file's purpose plus the copy-pasteable starter
+    template (`AUTONOMOUS_ACK_TEMPLATE`). Wire every autonomous-write
+    command's gate to call this and surface `str(exc)` verbatim on failure.
+    """
+    ack_path = repo_root / ".launchpad" / "autonomous-ack.md"
+    if not ack_path.is_file():
+        raise AutonomousAckMissingError(_refuse_message_missing_ack())
+    if not _ack_tracked(repo_root):
+        raise AutonomousAckUntrackedError(_refuse_message_untracked_ack())
+
+
+def assert_ack_not_same_commit_as(repo_root: Path, section_name: str) -> None:
+    """Raise `AutonomousAckSameCommitError` if the named section's plan
+    should be refused for autonomous-build fast-path approval.
+
+    Wraps `section_added_with_ack` with raising behavior so callers (the
+    `/lp-build` 0.3 and `/lp-plan` 0.3 gates) can share an identical
+    refuse-message via `str(exc)` without re-implementing the logic.
+    """
+    if section_added_with_ack(repo_root, section_name):
+        raise AutonomousAckSameCommitError(_REFUSE_SAME_COMMIT)

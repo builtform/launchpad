@@ -15,6 +15,14 @@ Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=
 
 Verify-or-refuse only. The lite helper checks both required files exist and exits 1 with a pointer to `/lp-define` if either is missing. `/lp-ship` never writes `agents.yml` or `config.yml` — those are owned by `/lp-define`.
 
+## Step 0.5: Autonomous-mode acknowledgment (BL-356)
+
+`/lp-ship` commits, pushes, opens PRs, and (when `config.yml` enables it) merges branches autonomously. Even when invoked directly (without going through `/lp-build`), the same authorization signal applies — `.launchpad/autonomous-ack.md` MUST exist.
+
+Call `assert_autonomous_ack(repo_root)` from `${CLAUDE_PLUGIN_ROOT}/scripts/plugin_stack_adapters/autonomous_guard.py`. If it raises `AutonomousAckError` (shared base class — covers `AutonomousAckMissingError` when the file is absent AND `AutonomousAckUntrackedError` when the file exists on disk but is not tracked by git), surface `str(exc)` verbatim to the user and exit. The missing-file refuse-message embeds `AUTONOMOUS_ACK_DESCRIPTION` + `AUTONOMOUS_ACK_TEMPLATE` (starter template beginning with `# Autonomous Execution Acknowledgment`); the untracked-file refuse-message embeds copy-pasteable `git add` + `git commit` commands. Catching the base class ensures both subclasses are handled without enumerating them at every callsite (BL-356; round-4 review fix Codex P1 #2).
+
+BL-356 invariant: gate logic lives in exactly one module. Do NOT re-author the refuse-text in this command file, and do NOT inline a markdown-only absence check — the shared helper is the single source of truth.
+
 ---
 
 ## Step 1: Branch Guard

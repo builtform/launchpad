@@ -2609,3 +2609,128 @@ On failure: `/lp-bootstrap` refuses to write (atomic-batch refuse-all per existi
 **Test**: `tests/test_bootstrap_ci_self_consistency_v215.py` — (1) deliberately-broken bootstrap state (workflow references a file the manifest doesn't include): assert `/lp-bootstrap` refuses to write and surfaces the specific missing file; (2) current correct state (after BL-353/BL-354 land): assert `/lp-bootstrap` writes cleanly with no false positives; (3) per-active-stack: render bootstrap for each stack, assert all workflow-referenced files are present.
 
 **Default decision**: ship in v2.1.5 alongside BL-353 + BL-354. Narrow fixes solve today; structural assertion prevents tomorrow.
+
+#### BL-356 - v2.1.6: autonomous-ack gate enforced only on `/lp-build`; wrapped autonomous-write commands (`/lp-inf`, `/lp-resolve-todo-parallel`, `/lp-ship`) bypass it (P1)
+
+**Status (2026-05-15)**: NEW — surfaced during post-v2.1.5 architectural scope review. The `.launchpad/autonomous-ack.md` gate at `/lp-build` Step 0.1 refuses execution if the acknowledgment file is absent. The intent (per `/lp-build` Step 0.1 + `docs/guides/HOW_IT_WORKS.md` lines 363, 676, 917) is to require a visible, git-tracked acknowledgment of autonomous-execution risks before any autonomous code mutation runs. The gate works correctly on `/lp-build` itself.
+
+However, `/lp-build` is a meta-orchestrator that chains five wrapped commands. Three of those — `/lp-inf` (autonomous code-write per plan), `/lp-resolve-todo-parallel` (autonomous fix-implementation across multiple todos in parallel), and `/lp-ship` (autonomous commit + push + PR + merge) — perform exactly the kind of autonomous-execution the ack signal is supposed to gate. None of the three reference `autonomous-ack.md`:
+
+```
+$ grep -c "autonomous-ack" plugins/launchpad/commands/lp-{inf,resolve-todo-parallel,ship}.md
+lp-inf.md:                    0
+lp-resolve-todo-parallel.md:  0
+lp-ship.md:                   0
+```
+
+Result: a user who calls `/lp-inf <slug>` or `/lp-resolve-todo-parallel` or `/lp-ship` directly (bypassing `/lp-build`) writes code or ships autonomously without any check that the team-acknowledgment file exists. The intended visible-in-git-blame social signal can be sidestepped without intent.
+
+Separately: every site that currently DOES surface the autonomous-ack requirement (`/lp-build` Step 0.1 refuse-message, `/lp-plan` final transition message) gives the user a directive ("Create the file with a one-paragraph acknowledgment and commit it, then re-run") without explaining what the file is or providing a copy-pasteable starting template. First-time users hitting this requirement at refuse-time have to read `docs/guides/HOW_IT_WORKS.md` to understand the intent. UX gap.
+
+**Source**: gate logic is duplicated/missing across:
+
+- `/lp-build` Step 0.1 — has the gate ✓
+- `/lp-plan` Step 0.3 — has a same-commit guard for `autonomous-ack.md` vs section spec (anti-hostile-PR pattern) ✓
+- `/lp-plan` final transition message — surfaces the requirement to the user (no description, no template) △
+- `/lp-inf` — no gate ✗
+- `/lp-resolve-todo-parallel` — no gate ✗
+- `/lp-ship` — no gate ✗
+
+The same-commit guard logic is also duplicated between `/lp-plan` Step 0.3 and `/lp-build` Step 0.3, suggesting a missing shared helper.
+
+**Driver**: any user who learns the LaunchPad command surface beyond `/lp-build`. The bypass requires no special knowledge — `/lp-ship` is a documented user-facing command. A user who runs `/lp-inf` directly after `/lp-plan` to skip the full meta-orchestrator chain encounters no enforcement of the very gate that was advertised at `/lp-plan` completion ("Run `/lp-build` to execute autonomously (requires `.launchpad/autonomous-ack.md`)..."). The UX gap also means first-time users hitting the requirement at refuse-time have no starter template — they're told to "author a one-paragraph acknowledgment" with no example of what it should contain.
+
+**Fix shape**:
+
+1. **Extract shared helper** into `plugin_stack_adapters/autonomous_guard.py` (which already houses `section_added_with_ack`):
+   - `assert_autonomous_ack(repo_root) -> None` — raises if `.launchpad/autonomous-ack.md` is missing. Refuse-message includes (a) short description of what the file is, (b) copy-pasteable starter template (see item 4).
+   - `assert_ack_not_same_commit_as(section_name, repo_root) -> None` — moves the same-commit guard out of inline duplication.
+
+2. **Add the gate** to `/lp-inf` Step 0, `/lp-resolve-todo-parallel` Step 0, `/lp-ship` Step 0 — using the shared helper, identical refuse-message shape.
+
+3. **Refactor** `/lp-build` 0.1, `/lp-plan` 0.3, `/lp-build` 0.3 to call the shared helper instead of inline-implementing the same logic.
+
+4. **Improve UX at every surface site** (refuse-messages + `/lp-plan` transition message). Each must include:
+   - A short description (2-3 sentences) of what `.launchpad/autonomous-ack.md` is — its purpose as a visible-in-git social signal of conscious team authorization of autonomous-execution risks.
+   - A copy-pasteable starter template the user can edit and own. Suggested shape (kept as a constant in `autonomous_guard.py`; refuse-messages + transition message all reference the same constant for single source of truth):
+
+     ```markdown
+     # Autonomous Execution Acknowledgment
+
+     I, <Your Name>, acknowledge that running `/lp-build`, `/lp-inf`,
+     `/lp-resolve-todo-parallel`, or `/lp-ship` in this repository will cause
+     LaunchPad to:
+
+     - Write and modify source files autonomously based on planned section specs
+     - Run tests, linters, type checkers, and build commands
+     - Open pull requests, push commits, and merge branches (depending on
+       `.launchpad/config.yml`)
+
+     I accept these risks and authorize autonomous code execution in this
+     repository.
+
+     **Authorized by:** <Your Name> <your-email@example.com>
+     **Authorized on:** <YYYY-MM-DD>
+     **Scope:** <optional — e.g., "all sections" or "only sections under docs/marketing/">
+     ```
+
+5. **Scope-NOT-included** (deferred per scope review):
+   - `/lp-review` — writes findings to `.harness/todos/` but does not mutate source code; lower-priority gate candidate. Defer to v2.1.7+ if a use case surfaces.
+   - `/lp-test-browser` — read-only-ish (takes screenshots, runs browser tests); no autonomous-execution semantics. Skip.
+
+**Default decision**: ship in v2.1.6 as a P1 architectural fix. Aligns with the v2.1.6 stack-aware refactor scope (BL-345..BL-352) timing-wise; no conflict with that work.
+
+**Test**: `tests/test_autonomous_ack_gate_v216.py`:
+
+- (1) Parametrized per autonomous-write command (`/lp-build`, `/lp-inf`, `/lp-resolve-todo-parallel`, `/lp-ship`): with `.launchpad/autonomous-ack.md` absent, assert command refuses with the canonical message.
+- (2) Same parametrization: with the ack file present, assert command proceeds past Step 0.
+- (3) Same-commit guard: assert refuse when section and ack file are introduced in the same git commit (covers `/lp-plan` 0.3 + `/lp-build` 0.3 + the new gate sites).
+- (4) Negative test: `/lp-review` and `/lp-test-browser` proceed regardless of ack file state (confirms scope-NOT-included is enforced).
+- (5) Source-of-truth test: assert the gate logic exists in exactly one place (`autonomous_guard.py`); no duplicated inline implementations.
+- (6) UX surface test: assert each refuse-message AND the `/lp-plan` transition message include (a) the description sentence about `autonomous-ack.md`'s purpose, (b) the copy-pasteable template (regex check for the canonical sentinel string `# Autonomous Execution Acknowledgment`). All sites reference the same constant from `autonomous_guard.py`.
+
+#### BL-357 - v2.1.7: `/lp-shape-section` lacks `--auto` synthesize-from-artifacts mode; documented 54-question flow is UX-prohibitive when upstream artifacts already exist (P2)
+
+**Status (2026-05-15)**: NEW — surfaced during post-v2.1.5 architectural scope review. `/lp-shape-section`'s documented flow is a 9-question interactive interview per section (Purpose, Actions, Information, Flows, UI Patterns, Data Requirements, Scope Boundaries, Edge Cases, Copy Status). For a project shaping multiple surfaces in one pass (e.g., 6 marketing/docs pages), this becomes 54 sequential interactions. When upstream artifacts already cover those dimensions — `docs/architecture/PRD.md` + `.launchpad/brainstorm-summary.md` + positioning + sales-pitch storyboard + APP_FLOW + BACKEND_STRUCTURE — the 54 questions are redundant: the information IS knowable from disk; the interview ceremony doesn't add content, it consumes wall-clock time.
+
+This is the same UX gap that `/growth-positioning` and `/growth-sales-pitch` already solve via their `--auto` flags (autonomous synthesis from upstream artifacts; conversational mode remains the default). `/lp-shape-section` has no equivalent. A user who runs the documented protocol when upstream artifacts already exist sees 54 questions whose answers are already in the artifacts they pre-supplied. A user who skips the interview by judgment (the pragmatic path) produces a spec that covers all 9 dimensions but lands in a soft protocol violation — the documented flow was not followed, and the audit trail doesn't distinguish "user answered 54 questions" from "user pre-supplied artifacts and synthesis worked from those."
+
+**Observed cost (from a real-world reproduction)**: a 6-section shape pass ran in ~9.5 minutes via synthesis vs an estimated 1.5–3 hours via the documented interactive flow. The interactive flow would have asked the user to answer questions whose answers were already in `docs/architecture/PRD.md` + `.launchpad/brainstorm-summary.md` + `docs/growth/{positioning,sales-pitch-storyboard}-*.md`. The synthesis path delivered all 9 dimensions across all 6 specs without dropping quality (verified by manual cross-section consistency audit post-run).
+
+**Source**: `plugins/launchpad/commands/lp-shape-section.md` documents the 9-question interactive flow but neither documents nor implements a non-interactive synthesize mode. There is no shape-equivalent of the `pitch-storyboard-writer` or `positioning-strategist` autonomous synthesis agents. The growth-toolkit triad pattern (skill mode default + `--auto` autonomous synthesis + `--review` audit agent) is not mirrored at the LaunchPad section-shape layer.
+
+**Driver**: any project running `/lp-shape-section` on more than one surface where upstream artifacts (PRD + brainstorm-summary + positioning + storyboard) already exist. UX-cost grows linearly with section count. At 3+ sections, synthesis is materially faster than the interactive flow; at 6+, the interactive flow is operationally prohibitive. The "pragmatic bypass without tool support" pattern also reduces audit-trail clarity — judgment calls become invisible to the documented protocol.
+
+**Fix shape**:
+
+1. **Add `--auto` flag to `/lp-shape-section`.** Behavior: scan for upstream artifacts in expected locations. Required: `docs/architecture/PRD.md`. Optional (each adds context): `.launchpad/brainstorm-summary.md`, `docs/growth/positioning*.md`, `docs/growth/sales-pitch-storyboard*.md`, `docs/architecture/APP_FLOW.md`, `docs/architecture/BACKEND_STRUCTURE.md`. If PRD is missing: refuse with `"Auto mode requires "docs/architecture/PRD.md". Run "/lp-define" first, or use skill mode for a from-scratch interview."`
+
+2. **Dispatch a new `shape-synthesizer` agent** (parallel to `pitch-storyboard-writer`). Inputs: section name + located artifact paths + inline context. Outputs: full section spec covering all 9 dimensions, plus a frontmatter marker `synthesis_source: auto` so downstream commands (`/lp-plan`, `/lp-build`) can distinguish auto-shaped from skill-shaped specs if needed. Synthesized specs surface gaps explicitly: fields that lack artifact backing get a `[NEEDS DECISION]` flag (visible in spec, must resolve before `/lp-plan` runs) rather than being silently invented.
+
+3. **Add `--review` flag** dispatching a `shape-validator` agent (parallel to `pitch-validator`). Audits an existing shape spec against:
+   - All 9 dimensions present
+   - Per-dimension content coverage (e.g., User Flows has at least one flow per audience identified in Purpose)
+   - Cross-spec consistency when run with `--batch` (shared concepts, naming, audience routing)
+   - Open-question discipline (deferred OQs flagged, not silently dropped)
+   - Honest framing audit (no `[PROOF TO BE SUPPLIED]` bracketed leakage planned for production prose)
+   - Returns 4-tier verdict matching `pitch-validator` (PASS / TARGETED PATCH / PATCH / RE-RUN)
+
+4. **`--batch` mode** (combines with `--auto` or `--review`): operate on multiple sections in one pass. Auto-batch produces N specs + a cross-section consistency report (shared component reuse, audience-routing consistency, footer/header coherence). Review-batch audits N specs and surfaces cross-spec drift.
+
+5. **Document the deviation pattern**: extend `docs/guides/HOW_IT_WORKS.md` and `/lp-shape-section`'s command help to note when `--auto` is preferred over skill mode. Suggested rule: "Use `--auto` when (a) PRD + brainstorm-summary + at-least-one-growth-artifact exist, AND (b) you're shaping 2+ sections in one pass. Use skill mode when (a) the project is in early discovery and artifacts don't yet exist, OR (b) the section is conceptually unique and benefits from an interview."
+
+6. **Meta-concern to address in test plan**: when `--auto --review` is chained (same-conversation synthesizer + validator), `pitch-validator` patterns observed in v0.2.0 of growth-toolkit show a tendency toward PASS verdicts because the validating agent reasons similarly to the synthesizer. Test (5) below specifically guards against this — the validator must catch deliberately-broken auto-output, proving it isn't rubber-stamping same-conversation peer output.
+
+**Default decision**: ship in v2.1.7 as a P2 UX improvement. v2.1.6 is already scoped (BL-345..BL-352 stack-aware refactor + BL-356 autonomous-ack gate consolidation); BL-357 is orthogonal but smaller and can park at v2.1.7. If v2.1.6 has remaining capacity after stack-aware + ack-gate work, BL-357 can be pulled forward — the work doesn't conflict with anything in v2.1.6 scope.
+
+**Test**: `tests/test_lp_shape_section_auto_v217.py`:
+
+- (1) `--auto` with full upstream artifacts: assert spec produced covers all 9 dimensions; assert frontmatter has `synthesis_source: auto`; assert no `[NEEDS DECISION]` flags for dimensions backed by artifacts.
+- (2) `--auto` with PRD absent: assert refuse-message names PRD as the missing artifact; assert no spec written.
+- (3) `--auto` with PRD-only (no brainstorm-summary, no growth artifacts): assert spec produced but with `[NEEDS DECISION]` flags for dimensions that would have benefited from growth context (e.g., audience routing, tone calibration).
+- (4) `--review` against an auto-produced spec covering all 9 dimensions: assert PASS verdict with structured report; assert `pitch-validator`-style 4-tier classification.
+- (5) `--review` against a deliberately-broken spec (missing User Flows dimension): assert DRIFT verdict; assert missing dimension named in report; **guards against same-agent rubber-stamping** when `--auto --review` is chained.
+- (6) `--batch --auto` for 3 sections: assert all 3 specs produced + cross-section consistency report generated covering shared component reuse + audience-routing + naming consistency.
+- (7) `--batch --review` against 3 specs with deliberate cross-section drift (different audience labels for the same audience across two specs): assert drift surfaced in report.
+- (8) Skill mode (no flag) still works as documented (regression check).
+- (9) `--auto --review` chain: assert synthesizer runs, then validator runs against the fresh spec, structured report returned, written-spec frontmatter records both `synthesis_source: auto` and `last_audited: <timestamp>`.

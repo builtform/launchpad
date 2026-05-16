@@ -1,5 +1,6 @@
 # lefthook fragment for adapter `generic`
-pre-commit:
-  commands:
-    generic-noop:
-      run: 'true'
+#
+# v2.1.6 BL-351: drops the prior `generic-noop: run: 'true'` placeholder
+# for the same cosmetic-noise reason as the astro fragment. The generic
+# adapter is the catch-all for unrecognized stacks; it contributes no
+# stack-specific hooks because it has no stack-specific tooling.

@@ -103,12 +103,34 @@ def describe_tech_stack() -> TechStackInfo:
 
 
 def describe_backend() -> BackendInfo:
+    # v2.1.6 BL-349 round-2 review fix (Greptile P1): the v2.1.6
+    # initial scope set `static_capable=True` on the generic adapter,
+    # which rendered "Static site — no backend" framing in
+    # BACKEND_STRUCTURE.md for ANY project routed through `generic`.
+    # That includes:
+    #   * standalone Hono projects (detector emits `generic` when no
+    #     monorepo signal is present);
+    #   * `hono` and `supabase` v2.0 catalog ids (both routed through
+    #     `generic` via lp_define_runner._single_adapter and
+    #     polyglot.ADAPTERS until dedicated adapters ship);
+    #   * unknown / unmodelled stacks (detector fallback path);
+    #   * (post round-2) `nextjs_standalone` and `python_generic`
+    #     detector emissions that re-route here.
+    #
+    # Calling any of those "no backend" is actively wrong; under-
+    # claiming backend presence here over-corrected. Flipping to
+    # `static_capable=False` restores the pre-v2.1.6 server-side
+    # placeholder framing, which is the correct default when the
+    # adapter genuinely doesn't know whether a backend exists — an
+    # empty "Unknown" placeholder section is honest about the unknown
+    # state, while "Static site — no backend" claims false negative.
     return BackendInfo(
         framework="Unknown",
         api_style="",
         routes_dir="",
         models_dir=None,
         auth_pattern=None,
+        static_capable=False,
     )
 
 

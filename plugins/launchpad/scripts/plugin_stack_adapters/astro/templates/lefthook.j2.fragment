@@ -1,5 +1,14 @@
 # lefthook fragment for adapter `astro`
-pre-commit:
-  commands:
-    astro-noop:
-      run: 'true'
+#
+# v2.1.6 BL-351: pre-v2.1.6 this fragment emitted a no-op
+# `astro-noop: run: 'true'` hook so that consumer-rendered `lefthook.yml`
+# contained a cosmetically-visible entry per active stack. The no-op did
+# nothing at hook-execution time and confused users reviewing their
+# rendered `lefthook.yml` ("what does astro-noop do?"). BL-351 drops it.
+#
+# This fragment is now empty (comment-only). The stack-lefthook enricher
+# parses the YAML body and falls through cleanly when the parse result is
+# None (empty YAML) or not-a-dict, so an empty fragment is the canonical
+# shape for adapters that contribute nothing to pre-commit. If `astro`
+# ever needs a real hook (e.g., `astro check` as a pre-commit gate), add
+# the YAML block here.

@@ -158,12 +158,21 @@ def describe_tech_stack() -> TechStackInfo:
 
 
 def describe_backend() -> BackendInfo:
+    # v2.1.6 BL-349: static_capable=True by default — Astro projects
+    # default to `output: 'static'`. Astro endpoints exist only when
+    # `output: 'server'` or `'hybrid'` is set in `astro.config.*`. The
+    # BACKEND_STRUCTURE.md renderer reads this and emits "static site,
+    # no backend" framing when True. A future enhancement may runtime-
+    # detect the project's actual output mode from
+    # `astro.config.{js,mjs,ts}` via text-grep; until then the default
+    # matches Astro's own default.
     return BackendInfo(
         framework="Astro endpoints (built-in)",
         api_style="REST",
         routes_dir="apps/web/src/pages/",
         models_dir=None,
         auth_pattern=None,
+        static_capable=True,
     )
 
 
@@ -177,10 +186,18 @@ def describe_frontend() -> FrontendInfo | None:
 
 
 def describe_app_flow() -> AppFlowInfo | None:
+    # v2.1.6 BL-348: minimal placeholder hints. The previous concrete-
+    # looking values (`/about`, `/blog`) misled users into thinking the
+    # routes were detected from their project; they were always
+    # placeholder fiction. Now we ship one universal entry route (`/`)
+    # and an explicit "shape via /lp-shape-section" placeholder so the
+    # rendered APP_FLOW.md is honestly a stub awaiting refinement.
     return AppFlowInfo(
-        entry_routes=["/", "/about", "/blog"],
+        entry_routes=["/"],
         auth_flow=None,
-        primary_journeys=["Landing", "Content read", "Contact"],
+        primary_journeys=[
+            "[Placeholder — add real routes via `/lp-shape-section`; Astro routes live under src/pages/]",
+        ],
     )
 
 

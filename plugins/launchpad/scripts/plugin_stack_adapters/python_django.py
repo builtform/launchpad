@@ -29,12 +29,14 @@ def describe_tech_stack() -> TechStackInfo:
 
 
 def describe_backend() -> BackendInfo:
+    # v2.1.6 BL-349: Django needs a running server; static_capable=False.
     return BackendInfo(
         framework="Django",
         api_style="REST (Django REST Framework)",
         routes_dir="myapp/urls.py",
         models_dir="myapp/models.py",
         auth_pattern="session (Django auth)",
+        static_capable=False,
     )
 
 

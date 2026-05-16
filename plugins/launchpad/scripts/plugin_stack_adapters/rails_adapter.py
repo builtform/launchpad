@@ -32,12 +32,14 @@ def describe_tech_stack() -> TechStackInfo:
 
 
 def describe_backend() -> BackendInfo:
+    # v2.1.6 BL-349: Rails runs a server; static_capable=False.
     return BackendInfo(
         framework="Rails 8",
         api_style="REST",
         routes_dir="config/routes.rb",
         models_dir="app/models/",
         auth_pattern="session",
+        static_capable=False,
     )
 
 
@@ -52,10 +54,13 @@ def describe_frontend() -> FrontendInfo | None:
 
 
 def describe_app_flow() -> AppFlowInfo | None:
+    # v2.1.6 BL-348: minimal placeholder hint.
     return AppFlowInfo(
-        entry_routes=["/", "/users/sign_in", "/dashboard"],
-        auth_flow="session (Devise)",
-        primary_journeys=["Sign up", "Core workflow", "Settings"],
+        entry_routes=["/"],
+        auth_flow=None,
+        primary_journeys=[
+            "[Placeholder — add real routes via `/lp-shape-section`; Rails routes live in config/routes.rb]",
+        ],
     )
 
 

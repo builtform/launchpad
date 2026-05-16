@@ -16,12 +16,21 @@ from plugin_default_generators._renderer_base import (
 )
 
 
-def test_active_enum_contains_exactly_ten_v21_stack_ids():
+def test_active_enum_contains_exactly_eleven_v21_stack_ids():
     # Phase 7 v2.1 (DA5): reconciled to V3 §8.1 union of StackIdActive (5) and
     # StackIdV22Candidate (5). Renderer accepts the union; adapter dispatch
     # routes candidate ids without an active Adapter Protocol implementation
     # via `generic`. Companion partition guard lives in
     # tests/test_stack_coupling_refactors.py.
+    #
+    # v2.1.6 BL-345 review fix (Codex P1 #2 + Greptile #2): `go_cli`
+    # widened from 10 → 11. The detector has been emitting `go_cli` since
+    # v2.0 with a real `go_cli.py` adapter module-level `run()`, but it
+    # was missing from the active enum; the v2.1.6 stack-aware data
+    # modules (_package_managers / _structure_allowlists /
+    # _ignore_patterns) gained Go entries, and listing the id in the
+    # active enum lets the data-shape invariant tests cover it without
+    # special-casing.
     assert STACK_ID_ACTIVE_ENUM == frozenset({
         "ts_monorepo",
         "nextjs_standalone",
@@ -33,6 +42,7 @@ def test_active_enum_contains_exactly_ten_v21_stack_ids():
         "nextjs_hono_cloudflare",
         "nextjs_trpc_prisma",
         "rails",
+        "go_cli",
     })
 
 

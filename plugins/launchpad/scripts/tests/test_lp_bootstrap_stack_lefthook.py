@@ -100,17 +100,26 @@ def test_single_stack_nextjs_fastapi_adds_python_gates(tmp_path: Path) -> None:
         assert gate in pre_push_cmds, f"missing {gate} in pre-push.commands"
 
 
-def test_single_stack_astro_adds_only_noop(tmp_path: Path) -> None:
-    """`stacks: [astro]` -> `astro-noop` present, no Python gates leak,
-    kernel commands survive. Confirms the stack-aware enrichment is
-    correctly stack-scoped (Codex P1-B's parsed-YAML test for non-Python
-    stacks)."""
+def test_single_stack_astro_adds_no_stack_specific_hooks(tmp_path: Path) -> None:
+    """`stacks: [astro]` -> kernel commands survive, no Python gates leak,
+    and the astro fragment contributes NO stack-specific hooks (v2.1.6
+    BL-351 dropped the cosmetic `astro-noop: run: 'true'` placeholder).
+
+    Confirms the stack-aware enrichment remains stack-scoped (Codex P1-B's
+    parsed-YAML test for non-Python stacks) while honouring BL-351's
+    placeholder removal. If Astro ever needs a real stack-specific hook
+    (e.g., `astro check` as a pre-commit gate), this test should be
+    updated to assert that hook's presence.
+    """
     _write_config(tmp_path, ["astro"])
     out = enrich_lefthook_with_stacks(_KERNEL_FIXTURE, tmp_path)
     parsed = yaml.safe_load(out)
 
     pre_commit_cmds = parsed["pre-commit"]["commands"]
-    assert "astro-noop" in pre_commit_cmds
+    # v2.1.6 BL-351: astro-noop placeholder dropped.
+    assert "astro-noop" not in pre_commit_cmds, (
+        "astro-noop placeholder re-introduced; BL-351 dropped this hook."
+    )
     assert "prettier-fix" in pre_commit_cmds  # kernel survives
     for gate in (*_PYTHON_PRECOMMIT_GATES, *_PYTHON_PREPUSH_GATES):
         assert gate not in pre_commit_cmds, (
@@ -130,14 +139,18 @@ def test_multi_stack_composition_runtime_yaml_keeps_all_gates(
     tmp_path: Path, ordering: list[str]
 ) -> None:
     """Multi-stack composition: BOTH orderings keep all 5 Python gates
-    AND `astro-noop` in the parsed YAML, regardless of which stack is
-    declared first.
+    in the parsed YAML, regardless of which stack is declared first.
 
     This is the parsed-YAML test that the existing
     `test_composition_includes_python_gates_when_nextjs_fastapi_present`
     (substring-only) deferred to BL-323. Slice 4c.4's wiring through
     `merge_keys_additive` closes that runtime gap natively because
-    additive map-merge cannot drop keys via last-key-wins."""
+    additive map-merge cannot drop keys via last-key-wins.
+
+    v2.1.6 BL-351: the historical `astro-noop` placeholder assertion was
+    removed — Astro contributes no stack-specific hooks. The composition
+    invariant (Python gates from `nextjs_fastapi` survive the merge) is
+    the load-bearing claim that this test exists to lock in."""
     _write_config(tmp_path, ordering)
     out = enrich_lefthook_with_stacks(_KERNEL_FIXTURE, tmp_path)
     parsed = yaml.safe_load(out)
@@ -147,8 +160,10 @@ def test_multi_stack_composition_runtime_yaml_keeps_all_gates(
         assert gate in pre_commit_cmds, (
             f"missing {gate} in ordering {ordering!r} (multi-stack drop)"
         )
-    assert "astro-noop" in pre_commit_cmds, (
-        f"missing astro-noop in ordering {ordering!r}"
+    # v2.1.6 BL-351: astro-noop placeholder dropped; assertion removed.
+    assert "astro-noop" not in pre_commit_cmds, (
+        f"astro-noop placeholder re-introduced in ordering {ordering!r}; "
+        f"BL-351 dropped this hook."
     )
     assert "prettier-fix" in pre_commit_cmds, "kernel command lost"
 

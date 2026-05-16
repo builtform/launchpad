@@ -32,12 +32,14 @@ def describe_tech_stack() -> TechStackInfo:
 
 
 def describe_backend() -> BackendInfo:
+    # v2.1.6 BL-349: Eleventy is always static; static_capable=True.
     return BackendInfo(
         framework="None (static site)",
         api_style="",
         routes_dir="src/",
         models_dir=None,
         auth_pattern=None,
+        static_capable=True,
     )
 
 
@@ -51,10 +53,13 @@ def describe_frontend() -> FrontendInfo | None:
 
 
 def describe_app_flow() -> AppFlowInfo | None:
+    # v2.1.6 BL-348: minimal placeholder hint.
     return AppFlowInfo(
-        entry_routes=["/", "/posts/", "/about/"],
+        entry_routes=["/"],
         auth_flow=None,
-        primary_journeys=["Read content", "Browse archive"],
+        primary_journeys=[
+            "[Placeholder — add real routes via `/lp-shape-section`; Eleventy routes derive from src/ content files]",
+        ],
     )
 
 

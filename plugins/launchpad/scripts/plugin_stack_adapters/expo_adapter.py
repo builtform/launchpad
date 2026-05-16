@@ -34,12 +34,15 @@ def describe_tech_stack() -> TechStackInfo:
 def describe_backend() -> BackendInfo:
     # Expo apps are typically clients; backend is a separate layer in
     # the user's monorepo (Hono/FastAPI/etc.).
+    # v2.1.6 BL-349: static_capable=True for the BACKEND_STRUCTURE.md
+    # framing — mobile client has no app-side backend code.
     return BackendInfo(
         framework="None (client app)",
         api_style="",
         routes_dir="apps/mobile/app/",
         models_dir=None,
         auth_pattern=None,
+        static_capable=True,
     )
 
 
@@ -53,10 +56,13 @@ def describe_frontend() -> FrontendInfo | None:
 
 
 def describe_app_flow() -> AppFlowInfo | None:
+    # v2.1.6 BL-348: minimal placeholder hint.
     return AppFlowInfo(
-        entry_routes=["/(tabs)", "/(auth)/sign-in", "/profile"],
+        entry_routes=["/"],
         auth_flow=None,
-        primary_journeys=["Onboarding", "Core workflow", "Profile"],
+        primary_journeys=[
+            "[Placeholder — add real routes via `/lp-shape-section`; Expo Router routes live under app/]",
+        ],
     )
 
 

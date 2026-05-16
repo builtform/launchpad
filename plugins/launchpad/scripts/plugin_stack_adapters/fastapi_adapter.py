@@ -32,12 +32,14 @@ def describe_tech_stack() -> TechStackInfo:
 
 
 def describe_backend() -> BackendInfo:
+    # v2.1.6 BL-349: FastAPI requires a running server; static_capable=False.
     return BackendInfo(
         framework="FastAPI",
         api_style="REST",
         routes_dir="apps/api/src/routes/",
         models_dir="apps/api/src/models/",
         auth_pattern="JWT",
+        static_capable=False,
     )
 
 

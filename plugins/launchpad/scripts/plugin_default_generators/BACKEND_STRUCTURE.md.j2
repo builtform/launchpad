@@ -1,6 +1,18 @@
 {%- from "_brainstorm_macro.j2" import brainstorm_section -%}
 # Backend Structure
 
+{% if backend.static_capable %}
+## Static site — no backend
+
+This project is configured for static-output rendering (`{{ backend.framework }}`).
+There is no application-side backend code; the rendered output is a tree of
+static assets served by a CDN. Sections that describe server-side
+concerns (Routes / Data models / Authentication) are intentionally omitted
+because they don't apply to the static-site shape (v2.1.6 BL-349). If you
+later move to a server-rendered mode (Astro `output: 'server'`, Next.js
+without `output: 'export'`, etc.), re-run `/lp-define` to regenerate this
+document with the server framing.
+{% else %}
 ## Framework & style
 
 - **Framework:** {{ backend.framework }}
@@ -52,4 +64,5 @@ Apply it uniformly across handlers._
 {% else %}
 _Logging destination, metrics provider, tracing approach. These are the
 lookups on-call will need at 3am — make them easy to find._
+{% endif %}
 {% endif %}

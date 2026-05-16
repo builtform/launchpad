@@ -112,6 +112,15 @@ STACK_ID_ACTIVE_ENUM: frozenset[str] = frozenset(
         "nextjs_hono_cloudflare",
         "nextjs_trpc_prisma",
         "rails",
+        # v2.1.6 BL-345 review fix (Codex P1 #2 + Greptile #2): `go_cli`
+        # has been an emitted-by-detector stack id since v2.0 with its
+        # own `go_cli.py` adapter module-level run(), but was not listed
+        # in the active enum. The v2.1.6 stack-aware data modules
+        # (_package_managers, _structure_allowlists, _ignore_patterns)
+        # now carry go_cli entries; the enum addition lets the
+        # data-shape invariant test pass without further special-casing
+        # and makes go_cli a peer of the other active stacks.
+        "go_cli",
     }
 )
 

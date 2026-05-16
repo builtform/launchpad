@@ -1,0 +1,370 @@
+"""Per-stack ignore-pattern data for the three downstream ignore surfaces.
+
+Closes BL-350 (v2.1.6): the v2.1.5 `.gitignore` / `.gitleaks.toml` /
+`.greptile.json` kernel templates hardcoded TS-monorepo cruft
+(`.next/`, `.turbo/`, `pnpm-lock.yaml`) at the universal level. Every
+Python / Ruby / Hugo / Go user got those entries — cosmetically misleading
+("this template wasn't built for me") and noisy in `git status` once
+node_modules/ inevitably appears via a tooling install.
+
+v2.1.6 moves stack-specific entries out of the kernel templates into
+per-stack entries here. The kernel templates keep only universal entries
+(build outputs, OS files, `.env*`, Python cache that every Python tool
+emits regardless of framework) plus a sentinel comment block where
+per-stack additions get spliced at /lp-bootstrap render time.
+
+Architecture parallels `_structure_allowlists.py` (BL-347 data store).
+The three lp_bootstrap enrichers (`stack_structure_check`,
+`stack_ignore_patterns`) share the same shape: read stacks: from
+config.yml -> look up per-stack data -> splice between sentinels.
+
+Three surfaces:
+
+  GITIGNORE_PATTERNS_PER_STACK
+    Lines appended to `.gitignore` between the kernel template's
+    `# STACK_AWARE_BEGIN` / `# STACK_AWARE_END` sentinel comments. Each
+    entry is one ignore pattern (e.g., `".next/"`).
+
+  GITLEAKS_PATHS_PER_STACK
+    Entries appended to `.gitleaks.toml`'s `[allowlist].paths` array.
+    Each entry is a TOML triple-quoted regex literal body (not the
+    triple quotes themselves; the enricher wraps).
+
+  GREPTILE_IGNORE_PATTERNS_PER_STACK
+    Glob patterns appended to `.greptile.json`'s `ignorePatterns`
+    string. Entries are joined with `\\n` per Greptile's
+    documented convention.
+
+Unknown stacks return `()` from the lookup helpers — fail-closed defense
+mirrors BL-347.
+"""
+
+from __future__ import annotations
+
+from typing import Final
+
+# ---------------------------------------------------------------------------
+# .gitignore additions per stack.
+# ---------------------------------------------------------------------------
+
+GITIGNORE_PATTERNS_PER_STACK: Final[dict[str, tuple[str, ...]]] = {
+    # v2.1.6 BL-350 round-3 review fix (Codex P1 #4): astro projects
+    # need the full TS-toolchain ignore set, not just `.astro/`. Pre
+    # round-3 generated Astro repos accidentally staged `node_modules/`
+    # and TypeScript buildinfo.
+    "astro": (
+        "node_modules/",
+        ".astro/",
+        ".pnpm-store/",
+        "*.tsbuildinfo",
+        "dist/",
+    ),
+    # v2.1.6 BL-350 round-3 review fix (Codex P1 #4): `ts_monorepo`
+    # repos that include a Next.js app under `apps/web/` need `.next/`
+    # ignored. Pre round-3 the universal kernel had it, but BL-350
+    # moved kernel TS cruft into per-stack data and `ts_monorepo`
+    # didn't re-add `.next/`. The LaunchPad repo itself is a witness:
+    # its `apps/web/.next/` build output must stay un-tracked.
+    "ts_monorepo": (
+        "node_modules/",
+        ".next/",
+        ".turbo/",
+        ".pnpm-store/",
+        "*.tsbuildinfo",
+    ),
+    "nextjs_standalone": (
+        "node_modules/",
+        ".next/",
+        "out/",
+        ".pnpm-store/",
+        "*.tsbuildinfo",
+    ),
+    "nextjs_fastapi": (
+        "node_modules/",
+        ".next/",
+        "out/",
+        ".pnpm-store/",
+        "*.tsbuildinfo",
+        # Python side
+        ".venv/",
+        ".pytest_cache/",
+        ".ruff_cache/",
+    ),
+    "nextjs_hono_cloudflare": (
+        "node_modules/",
+        ".next/",
+        ".wrangler/",
+        "*.tsbuildinfo",
+    ),
+    "nextjs_trpc_prisma": (
+        "node_modules/",
+        ".next/",
+        "out/",
+        "*.tsbuildinfo",
+        # Prisma generated client lives in node_modules/, but local
+        # migrate-against-sqlite dev convention is to also ignore the
+        # dev sqlite file. Optional; users can remove for production-DB
+        # workflows.
+        "prisma/dev.db*",
+    ),
+    "python_django": (
+        ".venv/",
+        ".pytest_cache/",
+        ".ruff_cache/",
+        ".mypy_cache/",
+        "db.sqlite3",
+        "db.sqlite3-journal",
+        "media/",
+        "staticfiles/",
+    ),
+    "python_generic": (
+        ".venv/",
+        ".pytest_cache/",
+        ".ruff_cache/",
+        ".mypy_cache/",
+    ),
+    "rails": (
+        "tmp/",
+        "log/",
+        "db/*.sqlite3",
+        ".bundle/",
+        "vendor/bundle/",
+    ),
+    # v2.1.6 BL-345 review fix (Codex P1 #2 + Greptile #2): Go projects
+    # need their build/test artifacts ignored. Conventional Go binary
+    # output goes alongside the source (no fixed `dist/`); the build is
+    # invoked with `-o bin/<name>` in many projects so `bin/` is the
+    # de-facto build dir.
+    "go_cli": (
+        "bin/",
+        "vendor/",
+        "*.test",
+        "*.out",
+        "coverage.txt",
+    ),
+    # v2.1.6 BL-350 round-4 review fix (Codex P2): `generic` is mapped
+    # to the `ts` family in `_package_managers.STACK_FAMILY` and is the
+    # dispatch target for any Node-shape project that doesn't match a
+    # more specific stack (standalone Hono, Supabase routes via
+    # `lp_define_runner._single_adapter`, post-round-2 nextjs_standalone
+    # / python_generic doc rendering, unknown stacks). Without
+    # `node_modules/` here, generated Node-shape projects accidentally
+    # stage the full dependency tree because the universal kernel no
+    # longer ships the entry. The fallback set mirrors `ts_monorepo` /
+    # `astro` for parity; non-Node generic projects (which are rare —
+    # the detector classifies most non-Node shapes into a specific
+    # stack) tolerate the extra ignores harmlessly.
+    "generic": (
+        "node_modules/",
+        ".pnpm-store/",
+        "*.tsbuildinfo",
+        "dist/",
+    ),
+}
+
+
+# ---------------------------------------------------------------------------
+# .gitleaks.toml allowlist additions per stack.
+# ---------------------------------------------------------------------------
+#
+# Format: TOML regex body — the enricher wraps each in triple-quotes
+# matching the existing `paths = ['''...''']` shape. Backslashes are
+# emitted as-is (TOML triple-quoted literal strings do not interpret
+# escapes — they are raw).
+
+GITLEAKS_PATHS_PER_STACK: Final[dict[str, tuple[str, ...]]] = {
+    # v2.1.6 BL-350 round-3 review fix (Codex P1 #4 parity): same gap
+    # as the gitignore astro entry — `.astro/` alone undercounts the
+    # ignorable surface. Adding the TS-toolchain entries keeps gitleaks
+    # from scanning node_modules / lockfiles on every commit.
+    "astro": (
+        r"node_modules/",
+        r"\.astro/",
+        r"pnpm-lock\.yaml",
+        r"package-lock\.json",
+        r"yarn\.lock",
+        r"dist/",
+    ),
+    "ts_monorepo": (
+        r"node_modules/",
+        r"\.next/",
+        r"\.turbo/",
+        r"pnpm-lock\.yaml",
+        r"package-lock\.json",
+        r"yarn\.lock",
+    ),
+    "nextjs_standalone": (
+        r"node_modules/",
+        r"\.next/",
+        r"pnpm-lock\.yaml",
+        r"package-lock\.json",
+        r"yarn\.lock",
+        r"out/",
+    ),
+    "nextjs_fastapi": (
+        r"node_modules/",
+        r"\.next/",
+        r"pnpm-lock\.yaml",
+        r"\.venv/",
+        r"__pycache__/",
+        r"poetry\.lock",
+    ),
+    "nextjs_hono_cloudflare": (
+        r"node_modules/",
+        r"\.next/",
+        r"\.wrangler/",
+        r"pnpm-lock\.yaml",
+    ),
+    "nextjs_trpc_prisma": (
+        r"node_modules/",
+        r"\.next/",
+        r"pnpm-lock\.yaml",
+    ),
+    "python_django": (
+        r"\.venv/",
+        r"__pycache__/",
+        r"\.pytest_cache/",
+        r"poetry\.lock",
+        r"uv\.lock",
+        r"Pipfile\.lock",
+    ),
+    "python_generic": (
+        r"\.venv/",
+        r"__pycache__/",
+        r"\.pytest_cache/",
+        r"poetry\.lock",
+        r"uv\.lock",
+        r"Pipfile\.lock",
+    ),
+    "rails": (
+        r"tmp/",
+        r"log/",
+        r"\.bundle/",
+        r"vendor/bundle/",
+        r"Gemfile\.lock",
+    ),
+    # v2.1.6 BL-345 review fix: Go projects.
+    "go_cli": (
+        r"vendor/",
+        r"bin/",
+        r"go\.sum",
+    ),
+    # v2.1.6 BL-350 round-4 review fix (Codex P2 parity): generic is the
+    # Node fallback (Hono / Supabase / nextjs_standalone routing /
+    # unknown). Without these gitleaks scans the dependency tree and
+    # generates massive false-positive noise.
+    "generic": (
+        r"node_modules/",
+        r"pnpm-lock\.yaml",
+        r"package-lock\.json",
+        r"yarn\.lock",
+        r"dist/",
+    ),
+}
+
+
+# ---------------------------------------------------------------------------
+# .greptile.json ignorePatterns additions per stack.
+# ---------------------------------------------------------------------------
+#
+# Greptile takes one `\n`-joined string. Patterns are glob-style.
+
+GREPTILE_IGNORE_PATTERNS_PER_STACK: Final[dict[str, tuple[str, ...]]] = {
+    # v2.1.6 BL-350 round-3 review fix (Codex P1 #4 parity): same gap
+    # as the gitignore astro entry.
+    "astro": (
+        "**/node_modules/**",
+        "**/.astro/**",
+        "**/dist/**",
+        "pnpm-lock.yaml",
+    ),
+    "ts_monorepo": (
+        "**/node_modules/**",
+        "**/.next/**",
+        "**/.turbo/**",
+        "**/dist/**",
+        "pnpm-lock.yaml",
+        "**/*.d.ts",
+    ),
+    "nextjs_standalone": (
+        "**/node_modules/**",
+        "**/.next/**",
+        "**/out/**",
+        "pnpm-lock.yaml",
+        "**/*.d.ts",
+    ),
+    "nextjs_fastapi": (
+        "**/node_modules/**",
+        "**/.next/**",
+        "**/__pycache__/**",
+        "**/.venv/**",
+        "pnpm-lock.yaml",
+        "**/*.d.ts",
+    ),
+    "nextjs_hono_cloudflare": (
+        "**/node_modules/**",
+        "**/.next/**",
+        "**/.wrangler/**",
+        "pnpm-lock.yaml",
+    ),
+    "nextjs_trpc_prisma": (
+        "**/node_modules/**",
+        "**/.next/**",
+        "**/out/**",
+        "pnpm-lock.yaml",
+    ),
+    "python_django": (
+        "**/__pycache__/**",
+        "**/.venv/**",
+        "**/.pytest_cache/**",
+        "**/migrations/**",
+    ),
+    "python_generic": (
+        "**/__pycache__/**",
+        "**/.venv/**",
+        "**/.pytest_cache/**",
+    ),
+    "rails": (
+        "**/tmp/**",
+        "**/log/**",
+        "**/vendor/bundle/**",
+    ),
+    # v2.1.6 BL-345 review fix: Go projects.
+    "go_cli": (
+        "**/vendor/**",
+        "**/bin/**",
+    ),
+    # v2.1.6 BL-350 round-4 review fix (Codex P2 parity): generic Node
+    # fallback. Without `**/node_modules/**` Greptile attempts to index
+    # the dependency tree if it ever lands in git.
+    "generic": (
+        "**/node_modules/**",
+        "**/dist/**",
+        "pnpm-lock.yaml",
+    ),
+}
+
+
+def gitignore_patterns(stack_id: str) -> tuple[str, ...]:
+    """Return `.gitignore` additions for `stack_id`, or `()` if unknown."""
+    return GITIGNORE_PATTERNS_PER_STACK.get(stack_id, ())
+
+
+def gitleaks_paths(stack_id: str) -> tuple[str, ...]:
+    """Return `.gitleaks.toml` allowlist additions for `stack_id`."""
+    return GITLEAKS_PATHS_PER_STACK.get(stack_id, ())
+
+
+def greptile_ignore_patterns(stack_id: str) -> tuple[str, ...]:
+    """Return `.greptile.json` ignorePatterns additions for `stack_id`."""
+    return GREPTILE_IGNORE_PATTERNS_PER_STACK.get(stack_id, ())
+
+
+__all__ = [
+    "GITIGNORE_PATTERNS_PER_STACK",
+    "GITLEAKS_PATHS_PER_STACK",
+    "GREPTILE_IGNORE_PATTERNS_PER_STACK",
+    "gitignore_patterns",
+    "gitleaks_paths",
+    "greptile_ignore_patterns",
+]
