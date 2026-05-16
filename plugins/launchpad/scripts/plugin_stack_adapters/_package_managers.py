@@ -56,6 +56,13 @@ STACK_FAMILY: Final[dict[str, str]] = {
     "python_django": "python",
     "python_generic": "python",
     "rails": "ruby",
+    # v2.1.6 BL-345 review fix (Codex P1 #2 + Greptile #2): `go_cli` is
+    # an active stack id the detector emits but the v2.1.6 initial scope
+    # omitted it from the family map, leaving Go projects on the
+    # fail-safe TS default (pnpm-based bootstrap output). The `go` family
+    # below carries Go-idiomatic commands; the lefthook enricher rewrites
+    # `pnpm test` → `go test ./...` etc. for Go-primary projects.
+    "go_cli": "go",
     "generic": "ts",  # fail-safe default; matches v2.1.5 kernel behaviour
 }
 
@@ -102,6 +109,20 @@ STACK_LEFTHOOK_HOOKS: Final[dict[str, StackLefthookHooks]] = {
         "lint_command": "bundle exec rubocop",
         "format_command": "bundle exec rubocop -a",
         "build_command": "bundle exec rails assets:precompile",
+    },
+    "go": {
+        # v2.1.6 BL-345 review fix: `go_cli` stack family. Commands
+        # match the per-adapter defaults in `go_cli.py` so the bootstrap
+        # render produces a coherent Go pipeline. `go vet` is the
+        # idiomatic typecheck; `golangci-lint` is the de-facto lint
+        # (consumers who don't have it installed see a clear missing-
+        # tool error rather than a silent pass).
+        "install_command": "go mod download",
+        "test_command": "go test ./...",
+        "typecheck_command": "go vet ./...",
+        "lint_command": "golangci-lint run",
+        "format_command": "gofmt -w .",
+        "build_command": "go build ./...",
     },
 }
 

@@ -113,6 +113,18 @@ GITIGNORE_PATTERNS_PER_STACK: Final[dict[str, tuple[str, ...]]] = {
         ".bundle/",
         "vendor/bundle/",
     ),
+    # v2.1.6 BL-345 review fix (Codex P1 #2 + Greptile #2): Go projects
+    # need their build/test artifacts ignored. Conventional Go binary
+    # output goes alongside the source (no fixed `dist/`); the build is
+    # invoked with `-o bin/<name>` in many projects so `bin/` is the
+    # de-facto build dir.
+    "go_cli": (
+        "bin/",
+        "vendor/",
+        "*.test",
+        "*.out",
+        "coverage.txt",
+    ),
     "generic": (),
 }
 
@@ -186,6 +198,12 @@ GITLEAKS_PATHS_PER_STACK: Final[dict[str, tuple[str, ...]]] = {
         r"vendor/bundle/",
         r"Gemfile\.lock",
     ),
+    # v2.1.6 BL-345 review fix: Go projects.
+    "go_cli": (
+        r"vendor/",
+        r"bin/",
+        r"go\.sum",
+    ),
     "generic": (),
 }
 
@@ -248,6 +266,11 @@ GREPTILE_IGNORE_PATTERNS_PER_STACK: Final[dict[str, tuple[str, ...]]] = {
         "**/tmp/**",
         "**/log/**",
         "**/vendor/bundle/**",
+    ),
+    # v2.1.6 BL-345 review fix: Go projects.
+    "go_cli": (
+        "**/vendor/**",
+        "**/bin/**",
     ),
     "generic": (),
 }

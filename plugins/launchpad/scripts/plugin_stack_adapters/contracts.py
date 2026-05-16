@@ -90,6 +90,13 @@ StackIdV22Candidate = Literal[
     "nextjs_hono_cloudflare",
     "nextjs_trpc_prisma",
     "rails",
+    # v2.1.6 BL-345 review fix (Codex P1 #2 + Greptile #2): `go_cli`
+    # joins the candidate set. The `go_cli.py` adapter has shipped a
+    # module-level `run()` since v2.0; the v2.1.6 stack-aware data
+    # modules added `go_cli` coverage, and listing it here keeps the
+    # `STACK_ID_ACTIVE_ENUM == StackIdActive | StackIdV22Candidate`
+    # partition invariant intact.
+    "go_cli",
 ]
 
 # 4-policy enum (DA7 LOCKED) shared between bootstrap policy resolution and the

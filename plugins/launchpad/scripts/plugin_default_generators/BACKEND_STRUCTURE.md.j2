@@ -49,7 +49,6 @@ handlers, or establish a models location if the project grows._
 {% else %}
 _No authentication pattern detected. Document yours here once established._
 {% endif %}
-{% endif %}
 
 ## Error handling
 {% if brainstorm.get("error_handling") %}
@@ -65,4 +64,5 @@ Apply it uniformly across handlers._
 {% else %}
 _Logging destination, metrics provider, tracing approach. These are the
 lookups on-call will need at 3am — make them easy to find._
+{% endif %}
 {% endif %}

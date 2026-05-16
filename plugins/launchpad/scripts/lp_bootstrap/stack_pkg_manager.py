@@ -109,6 +109,29 @@ _PNPM_HOOK_REWRITES: dict[str, str] = {
 }
 
 
+# v2.1.6 BL-346 review fix (Codex P1 #3): the `prettier-fix` and
+# `eslint-fix` auto-fixer hooks in `lefthook.yml.j2` match
+# `{staged_files}` against globs that include `json`, `css`, `md`,
+# `yml`, `yaml`, `html`. On Python / Ruby / Hugo / Go projects those
+# globs DO match real staged files (e.g., `.github/workflows/*.yml`,
+# `README.md`, `pyproject.toml`'s sibling `*.yml` configs). Pre-v2.1.6
+# the inert-hook claim was wrong; the hooks fired and failed at the
+# `pnpm` invocation because pnpm wasn't installed. The fix is to
+# strip both hook blocks from the rendered lefthook.yml for non-TS
+# primary stacks.
+#
+# Hook-block regex: matches `    <name>:` (4-space-indented YAML key
+# at the lefthook command level) through to the next blank line OR
+# the next command sibling. Anchored to the start of a YAML line so
+# inline references in comments don't match.
+_PRETTIER_FIX_HOOK_RE = re.compile(
+    r"\n    prettier-fix:\n(?:      [^\n]*\n)+",
+)
+_ESLINT_FIX_HOOK_RE = re.compile(
+    r"\n    eslint-fix:\n(?:      [^\n]*\n)+",
+)
+
+
 def enrich_lefthook_yml_pkg_commands(kernel_bytes: bytes, cwd: Path) -> bytes:
     """Rewrite `pnpm <cmd>` hook bodies in lefthook.yml for non-TS
     primary stacks.
@@ -125,14 +148,16 @@ def enrich_lefthook_yml_pkg_commands(kernel_bytes: bytes, cwd: Path) -> bytes:
       * `pnpm build`         -> family's build_command
       * `pnpm install --frozen-lockfile` -> family's install_command
 
-    TS-only auto-fix hooks (`pnpm prettier --write {staged_files}`,
-    `pnpm eslint --fix {staged_files}`) are LEFT IN PLACE — they
-    operate on `{staged_files}` glob-matched JS/TS files. On a
-    Python-primary project those globs match nothing, so the hooks
-    are inert. Removing them would require a structural template
-    rewrite outside BL-346's scope; the inert-hook fallback is
-    correct-but-cosmetically-imperfect, which is the BL-346 / BL-351
-    pattern.
+    v2.1.6 BL-346 review fix (Codex P1 #3): for non-TS primary stacks
+    the entire `prettier-fix` and `eslint-fix` hook blocks are STRIPPED
+    from the rendered output. Pre-fix these hooks claimed to be inert
+    on non-TS projects but their globs include `json` / `css` / `md` /
+    `yml` / `yaml` / `html` — Python / Ruby / Hugo / Go projects DO
+    have such files (README, GitHub workflow YAMLs, etc.) and the
+    hooks fired at the `pnpm` invocation. The fix removes the hook
+    blocks entirely; non-TS projects relying on Prettier/ESLint for
+    their JS/TS sub-directories can re-add them via the consumer-side
+    `lefthook.yml` user customization.
     """
     family = _primary_family(cwd)
     if family == "ts":
@@ -147,6 +172,13 @@ def enrich_lefthook_yml_pkg_commands(kernel_bytes: bytes, cwd: Path) -> bytes:
         return kernel_bytes
 
     decoded = kernel_bytes.decode("utf-8", errors="strict")
+
+    # First: strip the prettier-fix / eslint-fix hook blocks for non-TS
+    # families. These hooks fail at runtime on non-TS projects because
+    # their globs match docs/yaml/css files that the project DOES have.
+    decoded = _PRETTIER_FIX_HOOK_RE.sub("\n", decoded)
+    decoded = _ESLINT_FIX_HOOK_RE.sub("\n", decoded)
+
     rewritten = decoded
     for pnpm_str, hook_key in _PNPM_HOOK_REWRITES.items():
         replacement = hooks.get(hook_key, "")

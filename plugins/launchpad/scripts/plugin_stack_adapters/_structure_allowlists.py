@@ -79,6 +79,12 @@ STACK_ALLOWED_DIRS: Final[dict[str, tuple[str, ...]]] = {
     "python_django": ("apps",),
     "python_generic": ("src", "app"),
     "rails": ("app", "config", "db", "lib", "public", "test", "spec", "vendor"),
+    # v2.1.6 BL-345 review fix (Codex P1 #2 + Greptile #2): `go_cli`
+    # was emitted by the detector but missing from this allowlist; Go
+    # projects hit a P0 first-commit blocker on `cmd/`, `internal/`,
+    # `pkg/`, `vendor/` directories. Stack-typical Go layout per the
+    # Go standard project layout convention.
+    "go_cli": ("cmd", "internal", "pkg", "vendor", "api", "configs", "scripts"),
     # Generic / unrecognized stacks contribute nothing — user customizes.
     "generic": (),
 }
@@ -126,6 +132,8 @@ STACK_ALLOWED_CONFIGS: Final[dict[str, tuple[str, ...]]] = {
     "python_django": ("manage.py", "requirements.txt", "pyproject.toml"),
     "python_generic": ("pyproject.toml", "requirements.txt", "setup.py", "setup.cfg"),
     "rails": ("Gemfile", "Rakefile", "config.ru"),
+    # v2.1.6 BL-345 review fix: Go projects need go.mod / go.sum at root.
+    "go_cli": ("go.mod", "go.sum", "Makefile"),
     "generic": (),
 }
 

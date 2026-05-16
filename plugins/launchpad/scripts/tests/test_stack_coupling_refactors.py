@@ -4,7 +4,7 @@ Eight tests covering DA1-DA6 commitments (DA7 N/A by design; DA8 gated by
 CODEOWNERS + invariant test #4):
 
   1. StackIdActive Literal exact membership (5 ids -- DA1)
-  2. StackIdV22Candidate Literal exact membership (5 ids -- DA2)
+  2. StackIdV22Candidate Literal exact membership (6 ids -- DA2 + v2.1.6 BL-345)
   3. StackIdActive ∩ StackIdV22Candidate disjoint
   4. STACK_ID_ACTIVE_ENUM partition invariant (DA5 -- union equality +
      active/candidate disjoint subsets)
@@ -58,13 +58,27 @@ def test_stackid_active_exact_membership():
 
 
 def test_stackid_v22_candidate_exact_membership():
-    """DA2: StackIdV22Candidate Literal carries exactly the 5 V3 §8.1 ids."""
+    """DA2: StackIdV22Candidate Literal carries the V3 §8.1 ids plus the
+    v2.1.6 BL-345 widening for `go_cli`.
+
+    v2.1.6 BL-345 review fix (Codex P1 #2 + Greptile #2): the detector has
+    emitted `go_cli` since v2.0 (with a real module-level `run()` in
+    `go_cli.py`), but the closed-enum gate at `_renderer_base.py` never
+    listed it. v2.1.6's stack-aware data modules
+    (`_package_managers` / `_structure_allowlists` / `_ignore_patterns`)
+    gained Go entries; listing `go_cli` on the candidate side of the
+    `StackIdActive | StackIdV22Candidate` partition lets the active enum
+    grow without misclassifying `go_cli` as an active Adapter-Protocol
+    surface. Adapter dispatch for `go_cli` continues to route via the
+    `generic` fallback (no class-based `*Adapter` implementation yet).
+    """
     assert set(get_args(StackIdV22Candidate)) == {
         "python_django",
         "python_generic",
         "nextjs_hono_cloudflare",
         "nextjs_trpc_prisma",
         "rails",
+        "go_cli",
     }
 
 

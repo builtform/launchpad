@@ -39,8 +39,18 @@ from .contracts import (
     PipelineOverrides,
     ProductContextInfo,
     StackId,
+    StackIdActive,
+    StackIdV22Candidate,
     TechStackInfo,
 )
+
+# v2.1.6 BL-345 review fix: the detector now emits ids from the
+# `StackIdActive` (`nextjs_standalone`) and `StackIdV22Candidate`
+# (`python_generic`) surfaces in addition to the v2.0 14-id `StackId`
+# catalog. `STACK_PRECEDENCE` and `ADAPTERS` accept any of those, so the
+# tuple type widens to the union. This is a type-only widening — runtime
+# membership is still constrained by the explicit tuple literal below.
+StackIdAny = StackId | StackIdActive | StackIdV22Candidate
 
 # Precedence order for conflicting scalar values. Earlier wins. v2.0 ordering:
 # (1) full-stack TypeScript (ts_monorepo) wins on shared scalars; (2) framework
@@ -49,11 +59,20 @@ from .contracts import (
 # (4) the legacy go_cli + generic baselines absorb anything unmatched. The
 # precedence drives which adapter "owns" conflicting scalar values like
 # `commands.dev` when the user composes a polyglot project.
-STACK_PRECEDENCE: tuple[StackId, ...] = (
+STACK_PRECEDENCE: tuple[StackIdAny, ...] = (
     "ts_monorepo",
     "next",  # aliases to ts_monorepo
+    # v2.1.6 BL-345: detector now emits `nextjs_standalone` for single-
+    # app Next.js. Place it adjacent to the monorepo Next entry so
+    # polyglot scalar conflicts resolve the same way (Next.js wins
+    # over Rails / Django for shared scalars).
+    "nextjs_standalone",
     "python_django",
     "django",  # aliases to python_django
+    # v2.1.6 BL-345: `python_generic` for non-Django Python (FastAPI /
+    # Flask / plain). Place adjacent to django since both produce
+    # Python-shape outputs.
+    "python_generic",
     "rails",
     "astro",
     "hugo",
@@ -84,6 +103,15 @@ ADAPTERS = {
     "django": python_django,
     "hono": generic,
     "supabase": generic,
+    # v2.1.6 BL-345: detector-emitted IDs route through their closest
+    # adapter shape. `nextjs_standalone` → ts_monorepo (Next-shape
+    # describe_* output); `python_generic` → python_django (Python-shape
+    # describe_* output). Downstream lefthook + ci.yml enrichers use
+    # STACK_FAMILY lookups keyed by the persisted stack id (not this
+    # alias map) so per-stack command rewriting still fires correctly.
+    # Mirrors the lp_define_runner._single_adapter mapping.
+    "nextjs_standalone": ts_monorepo,
+    "python_generic": python_django,
 }
 
 
@@ -133,14 +161,38 @@ def _merge_tech_stack(outputs: list[AdapterOutput]) -> TechStackInfo:
 
 
 def _merge_backend(outputs: list[AdapterOutput]) -> BackendInfo:
-    """Backend takes the highest-precedence adapter's fields. Polyglot projects
-    typically have one clear primary backend; composer picks it.
+    """Backend takes the highest-precedence adapter's fields, BUT prefers a
+    `static_capable=False` backend when one is present (v2.1.6 BL-349
+    Codex P2 fix).
 
-    This is a deliberate simplification for v1 — dual-backend (e.g. TS API +
-    Python worker) is v1.1 territory.
+    Pre-v2.1.6 the simple "first wins" rule silently hid a real backend in
+    polyglot compositions where a static-output frontend outranks a server
+    backend in `STACK_PRECEDENCE`. Example: Astro (precedence #6,
+    `static_capable=True`) + FastAPI (precedence #9, `static_capable=False`)
+    would render BACKEND_STRUCTURE.md with "Static site — no backend"
+    framing despite FastAPI being part of the stack.
+
+    The v2.1.6 rule: if any adapter contributes `static_capable=False`,
+    prefer that one (the first such in precedence order). Otherwise fall
+    back to the original "first wins" behavior. Single-adapter compositions
+    are unaffected. Pure all-static compositions (e.g., Astro + Hugo)
+    correctly retain `static_capable=True` because no `False` exists to
+    prefer.
+
+    Dual-backend compositions (TS API + Python worker) remain a v1.1+
+    deferred shape; this fix doesn't add multi-backend rendering, just
+    closes the static-frontend-hides-real-backend foot-gun.
     """
-    primary = outputs[0]["backend"]
-    return primary
+    # First pass: prefer the first server-shaped backend.
+    for o in outputs:
+        backend = o["backend"]
+        if backend.get("static_capable") is False:
+            return backend
+    # Fallback: original "first by precedence" behavior. Reached when every
+    # adapter is `static_capable=True` (all-static composition) or when
+    # `static_capable` is absent (legacy adapter — shouldn't happen at
+    # v2.1.6 since contracts.py requires the field).
+    return outputs[0]["backend"]
 
 
 def _merge_frontend(outputs: list[AdapterOutput]) -> FrontendInfo | None:

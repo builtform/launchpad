@@ -236,3 +236,96 @@ def test_lefthook_hooks_complete_per_family(family: str) -> None:
         assert key in hooks, (
             f"family {family} lefthook_hooks_for_family() missing `{key}`"
         )
+
+
+# ---------------------------------------------------------------------------
+# v2.1.6 BL-346 Codex P1 #3 round-1 review fix: non-TS lefthook output must
+# strip the `prettier-fix` and `eslint-fix` hook blocks. Their `{staged_files}`
+# globs match `json/css/md/yml/yaml/html` — files Python / Ruby / Hugo / Go
+# projects DO have (README.md, GitHub workflow YAMLs, pyproject sibling
+# configs) — so pre-fix the hooks fired at the `pnpm` invocation and failed.
+# ---------------------------------------------------------------------------
+
+
+_LEFTHOOK_KERNEL_WITH_AUTOFIX_HOOKS = b"""
+pre-commit:
+  commands:
+    typecheck:
+      run: pnpm typecheck
+      priority: 10
+    prettier-fix:
+      tags: format
+      glob: "*.{ts,tsx,js,json,css,md,yml,yaml,html}"
+      run: pnpm prettier --write {staged_files}
+      stage_fixed: true
+    eslint-fix:
+      tags: lint
+      glob: "*.{ts,tsx,js}"
+      run: pnpm eslint --fix {staged_files}
+      stage_fixed: true
+    structure-check:
+      tags: structure
+      run: ./scripts/maintenance/check-repo-structure.sh
+"""
+
+
+def test_lefthook_python_stack_strips_prettier_fix_and_eslint_fix_hook_blocks(
+    tmp_path: Path,
+) -> None:
+    """On a Python-primary project, the entire `prettier-fix:` and
+    `eslint-fix:` hook command blocks must be removed from the rendered
+    lefthook.yml. Their `{staged_files}` globs match `json/md/yml/yaml`
+    which Python projects DO have — pre-v2.1.6 these hooks fired at the
+    pnpm invocation and failed."""
+    _write_config(tmp_path, ["python_django"])
+    rewritten = enrich_lefthook_yml_pkg_commands(
+        _LEFTHOOK_KERNEL_WITH_AUTOFIX_HOOKS, tmp_path
+    ).decode("utf-8")
+    assert "prettier-fix:" not in rewritten, (
+        "Python-primary lefthook.yml must NOT contain the `prettier-fix:` "
+        f"hook block; got:\n{rewritten}"
+    )
+    assert "eslint-fix:" not in rewritten, (
+        "Python-primary lefthook.yml must NOT contain the `eslint-fix:` "
+        f"hook block; got:\n{rewritten}"
+    )
+    assert "pnpm prettier" not in rewritten, (
+        "Python-primary lefthook.yml must NOT reference pnpm prettier; "
+        f"got:\n{rewritten}"
+    )
+    assert "pnpm eslint" not in rewritten, (
+        "Python-primary lefthook.yml must NOT reference pnpm eslint; "
+        f"got:\n{rewritten}"
+    )
+    # The non-pnpm hook (structure-check) must survive untouched.
+    assert "structure-check:" in rewritten
+
+
+def test_lefthook_ts_stack_preserves_prettier_fix_and_eslint_fix_hook_blocks(
+    tmp_path: Path,
+) -> None:
+    """On a TS-primary project, the kernel template's `prettier-fix:`
+    and `eslint-fix:` hook blocks must pass through unchanged — the
+    enricher only strips them for non-TS families."""
+    _write_config(tmp_path, ["ts_monorepo"])
+    rewritten = enrich_lefthook_yml_pkg_commands(
+        _LEFTHOOK_KERNEL_WITH_AUTOFIX_HOOKS, tmp_path
+    )
+    assert rewritten == _LEFTHOOK_KERNEL_WITH_AUTOFIX_HOOKS, (
+        "TS-primary lefthook.yml must be byte-identical to kernel (no-op "
+        "enrichment); the prettier-fix + eslint-fix stripping is non-TS only."
+    )
+
+
+def test_lefthook_rails_stack_strips_prettier_fix_and_eslint_fix_hook_blocks(
+    tmp_path: Path,
+) -> None:
+    """Ruby/Rails parity: Rails projects must also get the hook blocks
+    stripped — same `json/md/yml/yaml` glob issue as Python."""
+    _write_config(tmp_path, ["rails"])
+    rewritten = enrich_lefthook_yml_pkg_commands(
+        _LEFTHOOK_KERNEL_WITH_AUTOFIX_HOOKS, tmp_path
+    ).decode("utf-8")
+    assert "prettier-fix:" not in rewritten
+    assert "eslint-fix:" not in rewritten
+    assert "structure-check:" in rewritten
