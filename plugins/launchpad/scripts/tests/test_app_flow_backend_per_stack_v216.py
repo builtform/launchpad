@@ -49,7 +49,14 @@ _BACKEND_EXPECT: dict[str, bool] = {
     "eleventy_adapter": True,
     "expo_adapter": True,
     "fastapi_adapter": False,
-    "generic": True,  # under-claim backend presence; safer than over-claim
+    # v2.1.6 BL-349 round-2 review fix (Greptile P1): generic adapter
+    # flipped to `static_capable=False`. Originally `True` to under-
+    # claim backend presence, but `generic` is the dispatch target
+    # for `hono`, `supabase`, and unknown stacks — calling those
+    # projects "static site — no backend" was actively wrong. `False`
+    # restores server-side placeholder framing as the safer default
+    # when the adapter doesn't know whether a backend exists.
+    "generic": False,
     "go_cli": False,
     "hugo_adapter": True,
     "python_django": False,

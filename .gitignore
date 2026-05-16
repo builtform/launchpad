@@ -24,6 +24,7 @@ __pycache__/
 .env.local
 .env.migrate
 .next/
+.playwright-mcp/
 .pnpm-store/
 .turbo/
 build/

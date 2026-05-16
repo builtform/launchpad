@@ -240,6 +240,23 @@ _PARAMETRIZE_STACKS = sorted(
 )
 
 
+def test_python_django_allowlist_includes_config_directory() -> None:
+    """v2.1.6 BL-347 round-2 review fix (Codex P2 #4): default
+    `django-admin startproject` layouts produce a `config/` directory
+    (or `<project_name>/`) at root. Pre round-2 the allowlist only
+    permitted `apps/`, so fresh Django projects hit the structure-check
+    on first commit. The fix adds `config/` (the most common Django
+    convention since cookiecutter-django popularised it)."""
+    assert "config" in STACK_ALLOWED_DIRS["python_django"], (
+        "python_django STACK_ALLOWED_DIRS must include `config` so "
+        "default Django project layouts pass the structure check on "
+        "first commit. Custom project module names are still a v2.1.7 "
+        "BL (warning-based Python structure check)."
+    )
+    # Sanity: the original `apps/` entry survives.
+    assert "apps" in STACK_ALLOWED_DIRS["python_django"]
+
+
 @pytest.mark.parametrize("stack_id", _PARAMETRIZE_STACKS)
 def test_per_stack_additions_injected(stack_id: str, tmp_path: Path) -> None:
     """For each stack, render the script with only that stack persisted

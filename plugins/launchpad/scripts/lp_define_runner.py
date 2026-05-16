@@ -186,33 +186,27 @@ def _single_adapter(stack_id: str):
         "hugo": hugo_adapter,
         "eleventy": eleventy_adapter,
         "expo": expo_adapter,
-        # v2.1.6 BL-345: detector now emits `nextjs_standalone` for
-        # single-app Next.js projects (no workspaces / no turbo) and
-        # `python_generic` for non-Django Python projects (FastAPI /
-        # Flask / plain). Without an explicit mapping these would fall
-        # through to `generic` and produce broken pnpm-based bootstrap
-        # output (Python case) or miss the Next-specific shape (single-
-        # app case). `nextjs_standalone` routes to `ts_monorepo` for the
-        # doc-generation path — `ts_monorepo.run()` produces module-
-        # level describe_* output that matches the Next.js shape (Next is
-        # the primary framework in the ts_monorepo adapter's described
-        # tech stack); the class-based `NextjsStandaloneAdapter` in
-        # `nextjs_standalone.py` is for scaffolding (`lp-scaffold-stack`),
-        # not doc generation, so this mapping does not conflict. The
-        # downstream lefthook + ci.yml enrichers (BL-346 / BL-352) use
-        # `STACK_FAMILY` lookups keyed by the persisted `stacks:` array
-        # in config.yml (which contains `nextjs_standalone` verbatim from
-        # the detector), NOT this mapping — so per-stack command
-        # rewriting still fires correctly.
-        # `python_generic` routes to `python_django` as the closest
-        # Python-shape adapter. The doc generator's Django-specific
-        # commands are inert for plain-Python projects, and the lefthook /
-        # CI enrichers (BL-346 / BL-352) rewrite the rendered commands
-        # based on `STACK_FAMILY["python_generic"] = "python"`. A
-        # dedicated python_generic Adapter Protocol class is a v2.2 BL
-        # candidate.
-        "nextjs_standalone": ts_monorepo,
-        "python_generic": python_django,
+        # v2.1.6 BL-345 round-2 review fix (Codex P1 #1): detector
+        # emits `nextjs_standalone` for single-app Next.js (no
+        # workspaces / no turbo) and `python_generic` for non-Django
+        # Python (FastAPI / Flask / plain). The round-1 fix mapped
+        # these to `ts_monorepo` and `python_django` respectively,
+        # but those adapters render concrete framing — Turborepo +
+        # Prisma + Hono + apps/web for `ts_monorepo`; Django ORM +
+        # `python manage.py collectstatic` for `python_django` —
+        # which is actively wrong for standalone-Next and non-Django
+        # Python projects. Routing both to `generic` produces
+        # Unknown-framework placeholders, which is the honest answer
+        # until dedicated `nextjs_standalone_adapter` /
+        # `python_generic_adapter` doc-generation classes ship in
+        # v2.1.7+. The downstream lefthook + ci.yml enrichers
+        # (BL-346 / BL-352) still use `STACK_FAMILY` lookups keyed
+        # by the persisted `stacks:` array (which contains
+        # `nextjs_standalone` / `python_generic` verbatim from the
+        # detector), so per-family command rewriting (`go test`,
+        # `pytest`, etc.) continues to fire correctly.
+        "nextjs_standalone": generic,
+        "python_generic": generic,
         # v2.0 catalog aliases
         "next": ts_monorepo,
         "django": python_django,

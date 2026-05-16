@@ -103,15 +103,18 @@ ADAPTERS = {
     "django": python_django,
     "hono": generic,
     "supabase": generic,
-    # v2.1.6 BL-345: detector-emitted IDs route through their closest
-    # adapter shape. `nextjs_standalone` → ts_monorepo (Next-shape
-    # describe_* output); `python_generic` → python_django (Python-shape
-    # describe_* output). Downstream lefthook + ci.yml enrichers use
-    # STACK_FAMILY lookups keyed by the persisted stack id (not this
-    # alias map) so per-stack command rewriting still fires correctly.
-    # Mirrors the lp_define_runner._single_adapter mapping.
-    "nextjs_standalone": ts_monorepo,
-    "python_generic": python_django,
+    # v2.1.6 BL-345 round-2 review fix (Codex P1 #1): detector-emitted
+    # IDs route through `generic` (Unknown-framework placeholders),
+    # NOT through ts_monorepo / python_django — the latter render
+    # Turborepo + Prisma / Django + collectstatic framing that's
+    # actively wrong for standalone-Next / plain-Python projects.
+    # Dedicated `nextjs_standalone_adapter` + `python_generic_adapter`
+    # doc-generation classes are a v2.1.7+ BL candidate.
+    # `STACK_FAMILY` lookups (per-family lefthook / ci.yml rewriting)
+    # are unaffected — they read the persisted stack id directly, not
+    # this alias map. Mirrors the lp_define_runner._single_adapter map.
+    "nextjs_standalone": generic,
+    "python_generic": generic,
 }
 
 

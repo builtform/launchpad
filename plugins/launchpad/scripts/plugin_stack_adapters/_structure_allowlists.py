@@ -72,11 +72,18 @@ STACK_ALLOWED_DIRS: Final[dict[str, tuple[str, ...]]] = {
     "nextjs_hono_cloudflare": ("app", "src", "public", "pages"),
     "nextjs_trpc_prisma": ("app", "src", "public", "pages", "prisma"),
     # Python stacks vary in project-name directory shape — `<project_name>/`
-    # is the conventional Django location. The structure check allows
-    # `apps/` as a generic Python application directory; users with a
-    # `<project_name>/` directory at root append it to their local copy
-    # after first commit.
-    "python_django": ("apps",),
+    # is the conventional Django location. v2.1.6 BL-347 round-2 review
+    # fix (Codex P2 #4): default `django-admin startproject` layouts
+    # produce either a `config/` directory (when the user renames the
+    # default project module to `config`, a common convention since
+    # cookiecutter-django popularised it) or a `<project_name>/`
+    # directory at root. The structure check now allows both `apps/`
+    # (LaunchPad's monorepo-leaning convention) and `config/` (the
+    # most common Django default). Users with a custom project module
+    # name append it locally after first commit — a future v2.1.7 BL
+    # may make Python/Django structure checks warning-based to dodge
+    # the project-module-name problem entirely.
+    "python_django": ("apps", "config"),
     "python_generic": ("src", "app"),
     "rails": ("app", "config", "db", "lib", "public", "test", "spec", "vendor"),
     # v2.1.6 BL-345 review fix (Codex P1 #2 + Greptile #2): `go_cli`

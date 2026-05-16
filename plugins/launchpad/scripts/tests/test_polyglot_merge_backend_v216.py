@@ -91,3 +91,63 @@ def test_compose_astro_plus_fastapi_renders_fastapi_backend():
     out = polyglot.compose(["astro", "fastapi"])  # pyright: ignore[reportArgumentType]
     assert out["backend"]["static_capable"] is False
     assert "FastAPI" in out["backend"]["framework"] or "fastapi" in out["backend"]["framework"].lower()
+
+
+# ---------------------------------------------------------------------------
+# v2.1.6 BL-345 round-2 review fix (Codex P1 #1): nextjs_standalone and
+# python_generic must route to the `generic` adapter, NOT to ts_monorepo
+# or python_django. ts_monorepo renders Turborepo + Prisma + Hono +
+# apps/web framing; python_django renders Django ORM + collectstatic
+# commands — both actively wrong for standalone-Next / non-Django Python
+# projects. Routing to generic produces Unknown-framework placeholders
+# (honest framing) until dedicated adapters ship.
+# ---------------------------------------------------------------------------
+
+
+def test_nextjs_standalone_routes_to_generic_adapter():
+    """`polyglot.ADAPTERS["nextjs_standalone"]` resolves to the `generic`
+    module, not `ts_monorepo`. Pre round-2 it was `ts_monorepo`, which
+    rendered Turborepo + Prisma docs for single-app Next.js projects."""
+    from plugin_stack_adapters import generic as generic_mod
+    assert polyglot.ADAPTERS["nextjs_standalone"] is generic_mod
+
+
+def test_python_generic_routes_to_generic_adapter():
+    """`polyglot.ADAPTERS["python_generic"]` resolves to the `generic`
+    module, not `python_django`. Pre round-2 it was `python_django`,
+    which rendered Django ORM + collectstatic docs for FastAPI / Flask /
+    plain Python projects."""
+    from plugin_stack_adapters import generic as generic_mod
+    assert polyglot.ADAPTERS["python_generic"] is generic_mod
+
+
+def test_compose_nextjs_standalone_solo_produces_unknown_framework():
+    """A standalone-Next composition (single stack id `nextjs_standalone`)
+    must produce Unknown-framework framing, NOT ts_monorepo's
+    Next+Tailwind+Turborepo framing."""
+    out = polyglot.compose(["nextjs_standalone"])  # pyright: ignore[reportArgumentType]
+    # `generic.describe_backend()` returns framework="Unknown"; we accept
+    # that exact string or any non-"Next.js" framing as proof the route
+    # no longer falls through to ts_monorepo.
+    assert out["backend"]["framework"] != "Next.js"
+    assert out["backend"]["framework"] != "Hono"  # ts_monorepo's backend framework
+    assert out["tech_stack"]["language"] == "Unknown"
+
+
+def test_compose_python_generic_solo_produces_unknown_framework():
+    """A non-Django Python composition (single stack id `python_generic`)
+    must produce Unknown-framework framing, NOT python_django's Django
+    + Postgres framing."""
+    out = polyglot.compose(["python_generic"])  # pyright: ignore[reportArgumentType]
+    assert out["backend"]["framework"] != "Django"
+    assert out["tech_stack"]["language"] == "Unknown"
+
+
+def test_compose_generic_static_capable_is_false():
+    """v2.1.6 BL-349 round-2 review fix (Greptile P1): the `generic`
+    adapter contributes `static_capable=False`, NOT True. This restores
+    server-side placeholder framing in BACKEND_STRUCTURE.md for projects
+    routed through `generic` (hono / supabase aliases, unknown stacks,
+    and post-round-2 nextjs_standalone / python_generic)."""
+    out = polyglot.compose(["generic"])  # pyright: ignore[reportArgumentType]
+    assert out["backend"]["static_capable"] is False
