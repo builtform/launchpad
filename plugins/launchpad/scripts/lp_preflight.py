@@ -117,6 +117,15 @@ DEFAULT_STALE_WINDOW_DAYS = 30
 
 VALID_CATEGORIES = ("A", "B", "C1", "C2")
 
+_PROFILE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+"""Strict charset for provider profile names in `.launchpad/preflight.config.yaml`.
+
+Provider names are interpolated directly into the filesystem path
+`<profile_dir>/<name>.yaml`. Without this guard a malicious or mistaken
+value like `../../etc/passwd` would escape the profile directory.
+Codex round-3 P2.
+"""
+
 CHECKLIST_HEADER = """\
 # Preflight Checklist
 
@@ -319,12 +328,28 @@ def _coerce_check(
     category = str(raw["category"])
     _validate_category(category, item_id, profile_name)
     override = overrides.get(item_id, {})
-    stale_window = int(
-        override.get(
-            "stale_window_days",
-            raw.get("stale_window_days", DEFAULT_STALE_WINDOW_DAYS),
-        )
+    raw_window = override.get(
+        "stale_window_days",
+        raw.get("stale_window_days", DEFAULT_STALE_WINDOW_DAYS),
     )
+    # Validate stale_window_days as a positive int. A malformed value like
+    # `stale_window_days: soon` would otherwise raise raw ValueError from
+    # `int()` and bypass the CLI's PreflightConfigError -> exit-code-2 path
+    # (Codex round-3 P1). Pre-CONFIG-ERROR check + range guard so users
+    # see an actionable message naming the offending profile and check id.
+    try:
+        stale_window = int(raw_window)
+    except (TypeError, ValueError) as exc:
+        raise PreflightConfigError(
+            f"profile {profile_name!r} item {item_id!r}: "
+            f"`stale_window_days` must be a non-negative integer; "
+            f"got {raw_window!r} ({type(raw_window).__name__})"
+        ) from exc
+    if stale_window < 0:
+        raise PreflightConfigError(
+            f"profile {profile_name!r} item {item_id!r}: "
+            f"`stale_window_days` must be non-negative; got {stale_window}"
+        )
     probe = raw.get("probe")
     if probe is not None:
         probe = str(probe)
@@ -457,6 +482,17 @@ def load_preflight_config(
     checks: list[CheckDefinition] = []
     seen_ids: set[str] = set()
     for provider in providers:
+        # Validate provider names against a strict profile-id regex
+        # before constructing the filesystem path. A malicious or
+        # mistaken value like `../../etc/passwd` would otherwise
+        # interpolate into pdir without confinement. Codex round-3 P2.
+        if not _PROFILE_NAME_RE.fullmatch(provider):
+            raise PreflightConfigError(
+                f"{CONFIG_PATH}: provider name {provider!r} must match "
+                f"`^[A-Za-z0-9_-]+$` (no path separators, no traversal "
+                f"segments). Bundled profile names live at "
+                f"`plugins/launchpad/preflight-profiles/<name>.yaml`."
+            )
         path = pdir / f"{provider}.yaml"
         provider_checks = load_profile(path, overrides=overrides)
         for chk in provider_checks:
@@ -562,7 +598,18 @@ def _render_check_block(
         box = "x" if chk.category == "C1" and confirmation.confirmed else " "
     else:
         raise ValueError(f"unknown status {result.status!r} for {chk.item_id}")
-    last = confirmation.last_confirmed or "never"
+    # When the box is unticked AND the underlying status is
+    # needs-confirmation (true stale OR never-confirmed), drop the
+    # `Last confirmed:` timestamp so a user-re-tick on the next round
+    # is treated as a fresh confirmation event by the first-tick
+    # stamping branch in `run_preflight`. Preserving the old timestamp
+    # would make re-tick + re-run see `confirmed=True` with stale ts,
+    # _is_stale returns True forever, infinite re-prompt loop.
+    # Codex round-3 P1.
+    if box == " " and result.status == "needs-confirmation":
+        last = "never"
+    else:
+        last = confirmation.last_confirmed or "never"
     window = _stale_window_label(chk.stale_window_days)
     lines = [
         f"- [{box}] {chk.title} (id: {chk.item_id})",
@@ -668,6 +715,24 @@ def _needs_confirmation(chk: CheckDefinition) -> CheckResult:
 # ----- A-category probes (file-system checks) -----
 
 
+def _resolve_under_root(rel: str, repo_root: Path) -> Path | None:
+    """Resolve `rel` under `repo_root` AND confirm the resolved path stays
+    inside the root. Defense-in-depth against path-traversal via profile
+    `args.path: ../../etc/passwd` and absolute-path interpolation.
+    Returns None if `rel` escapes the root or fails to resolve.
+    Codex round-3 P2.
+    """
+    try:
+        candidate = (repo_root / rel).resolve()
+    except (OSError, RuntimeError):
+        return None
+    try:
+        candidate.relative_to(repo_root.resolve())
+    except ValueError:
+        return None
+    return candidate
+
+
 @register_probe("file-exists")
 def _probe_file_exists(
     repo_root: Path, chk: CheckDefinition, clients: ProbeClients
@@ -675,7 +740,9 @@ def _probe_file_exists(
     rel = str(chk.args.get("path", ""))
     if not rel:
         return _fail(chk, "probe `file-exists` requires `args.path`")
-    target = repo_root / rel
+    target = _resolve_under_root(rel, repo_root)
+    if target is None:
+        return _fail(chk, f"args.path {rel!r} escapes repo root; refusing to inspect")
     if target.is_file():
         return _pass(chk, f"{rel} exists")
     return _fail(chk, f"file {rel!r} not found under repo root")
@@ -691,7 +758,9 @@ def _probe_file_contains(
         return _fail(
             chk, "probe `file-contains` requires `args.path` and `args.pattern`"
         )
-    target = repo_root / rel
+    target = _resolve_under_root(rel, repo_root)
+    if target is None:
+        return _fail(chk, f"args.path {rel!r} escapes repo root; refusing to inspect")
     if not target.is_file():
         return _fail(chk, f"file {rel!r} not found")
     try:
@@ -715,9 +784,12 @@ def _probe_file_contains(
 def _probe_prd_tbd(
     repo_root: Path, chk: CheckDefinition, clients: ProbeClients
 ) -> CheckResult:
-    prd = repo_root / chk.args.get("path", "docs/architecture/PRD.md")
+    rel = str(chk.args.get("path", "docs/architecture/PRD.md"))
+    prd = _resolve_under_root(rel, repo_root)
+    if prd is None:
+        return _fail(chk, f"args.path {rel!r} escapes repo root; refusing to inspect")
     if not prd.is_file():
-        return _fail(chk, f"PRD file not found: {prd.relative_to(repo_root)}")
+        return _fail(chk, f"PRD file not found: {rel}")
     try:
         text = prd.read_text(encoding="utf-8")
     except OSError as exc:
@@ -738,9 +810,11 @@ def _probe_prd_tbd(
 def _probe_changelog(
     repo_root: Path, chk: CheckDefinition, clients: ProbeClients
 ) -> CheckResult:
-    rel = chk.args.get("path", "CHANGELOG.md")
+    rel = str(chk.args.get("path", "CHANGELOG.md"))
     version = chk.args.get("version")
-    changelog = repo_root / rel
+    changelog = _resolve_under_root(rel, repo_root)
+    if changelog is None:
+        return _fail(chk, f"args.path {rel!r} escapes repo root; refusing to inspect")
     if not changelog.is_file():
         return _fail(chk, f"{rel} not found")
     try:
@@ -787,7 +861,15 @@ def _probe_section_specs_approved(
     Missing directory means no sections to check (pass with a note).
     """
     glob = chk.args.get("section_glob", "docs/tasks/sections/*.md")
-    matches = sorted(repo_root.glob(glob))
+    # Exclude implementation plan files which live alongside section specs
+    # at `docs/tasks/sections/<name>-plan.md` per /lp-plan + /lp-pnf
+    # conventions. Plan files have NO `status:` frontmatter, so including
+    # them would false-fail the probe with "no status field" on a fully
+    # approved section. Codex round-3 P1.
+    plan_suffix = "-plan.md"
+    matches = sorted(
+        p for p in repo_root.glob(glob) if not p.name.endswith(plan_suffix)
+    )
     if not matches:
         return _pass(chk, f"no section specs found at {glob}")
     bad: list[str] = []
@@ -1175,7 +1257,26 @@ def _probe_dns_cname(
         chk.args.get("domain_env", "PREFLIGHT_DOMAIN")
     )
     expected_suffix = chk.args.get("expected_suffix")
-    expected_prefixes = list(chk.args.get("expected_prefixes", []))
+    raw_prefixes = chk.args.get("expected_prefixes", [])
+    # Validate expected_prefixes shape: must be a list of strings.
+    # A scalar string like `expected_prefixes: "104.16."` would silently
+    # iterate character-by-character, checking prefixes "1", "0", "4",
+    # ".", "1", "6", "." and false-passing arbitrary 1.x.x.x answers.
+    # Codex round-3 P2.
+    if not isinstance(raw_prefixes, list):
+        return _fail(
+            chk,
+            f"`args.expected_prefixes` must be a list of strings; got "
+            f"{type(raw_prefixes).__name__} ({raw_prefixes!r:.60}). Use YAML "
+            f"list syntax: `expected_prefixes: [104.16., 172.64.]`.",
+        )
+    if not all(isinstance(p, str) for p in raw_prefixes):
+        return _fail(
+            chk,
+            "`args.expected_prefixes` must be a list of STRINGS; "
+            "non-string entries detected",
+        )
+    expected_prefixes = list(raw_prefixes)
     if not domain:
         return _fail(
             chk,

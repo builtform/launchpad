@@ -2146,3 +2146,194 @@ def test_dns_cloudflare_accepts_full_172_block(tmp_path: Path, monkeypatch):
     )
     assert res.status == "pass"
     assert "172.70" in res.message
+
+
+# ---------------------------------------------------------------------------
+# Codex round-3 review fixes: plan-file glob exclusion, stale-retick clear,
+# stale_window_days validation, path-traversal guard, provider name regex,
+# expected_prefixes shape validation.
+# ---------------------------------------------------------------------------
+
+
+def test_section_specs_excludes_plan_md_files(tmp_path: Path):
+    """`docs/tasks/sections/*-plan.md` files lack section-status frontmatter
+    and must be excluded from the section-specs-approved scan. Codex
+    round-3 P1: previously they false-failed as 'no status field'."""
+    _make_repo(tmp_path, ["spec-completeness"])
+    (tmp_path / ".launchpad" / "autonomous-ack.md").write_text(
+        "ack\n", encoding="utf-8"
+    )
+    (tmp_path / "docs" / "architecture").mkdir(parents=True)
+    (tmp_path / "docs" / "architecture" / "PRD.md").write_text(
+        "# PRD\n", encoding="utf-8"
+    )
+    (tmp_path / "CHANGELOG.md").write_text("## [v1.0.0]\n", encoding="utf-8")
+    sections = tmp_path / "docs" / "tasks" / "sections"
+    sections.mkdir(parents=True)
+    (sections / "hero.md").write_text("---\nstatus: approved\n---\n", encoding="utf-8")
+    # Plan file with NO status frontmatter; should be ignored by the probe.
+    (sections / "hero-plan.md").write_text(
+        "# Implementation plan for hero\n\nNo status frontmatter here.\n",
+        encoding="utf-8",
+    )
+    clients = _make_clients(
+        command_responses={
+            ("git", "-C", str(tmp_path), "status", "--porcelain"): CommandResult(
+                0, "", ""
+            ),
+        }
+    )
+    report = run_preflight(
+        tmp_path, clients=clients, profile_dir=PROFILE_DIR, write_checklist=False
+    )
+    by_id = {r.item_id: r for r in report.results}
+    assert by_id["spec-completeness.section-specs-approved"].status == "pass"
+
+
+def test_stale_render_clears_timestamp_so_retick_stamps_fresh(tmp_path: Path):
+    """Round-trip: render a stale check (un-tick + last=`never`); user
+    re-ticks; next run stamps fresh timestamp. Codex round-3 P1."""
+    _make_repo(tmp_path, ["cloudflare-pages"])
+    old_ts = (datetime.now(UTC) - timedelta(days=400)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    checklist = tmp_path / ".launchpad" / "preflight-checklist.md"
+    checklist.write_text(
+        "- [x] Cloudflare account (id: cloudflare-pages.account-exists)\n"
+        f"  Last confirmed: {old_ts}\n",
+        encoding="utf-8",
+    )
+    clients = _make_clients(
+        http_responses={"https://api.cloudflare.com/": HttpResponse(401, "{}")},
+        command_responses={
+            ("gh", "secret", "list", "--json", "name"): CommandResult(0, "[]", ""),
+        },
+    )
+    # First run: stale -> render unticked + last="never"
+    run_preflight(
+        tmp_path, clients=clients, profile_dir=PROFILE_DIR, write_checklist=True
+    )
+    rendered = checklist.read_text(encoding="utf-8")
+    assert "Last confirmed: never" in rendered, (
+        "stale render must clear the timestamp so re-tick is treated as "
+        "a fresh confirmation event by the first-tick stamping branch"
+    )
+
+
+def test_malformed_stale_window_days_raises_config_error(tmp_path: Path):
+    """`stale_window_days: soon` MUST raise PreflightConfigError (exit
+    code 2) instead of propagating raw ValueError from int(). Codex
+    round-3 P1."""
+    cfg = tmp_path / ".launchpad" / "preflight.config.yaml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("providers:\n  - bad-window\n", encoding="utf-8")
+    profile_dir = tmp_path / "profiles"
+    profile_dir.mkdir()
+    (profile_dir / "bad-window.yaml").write_text(
+        "name: bad-window\n"
+        "checks:\n"
+        "  - id: bad-window.invalid-stale\n"
+        "    category: A\n"
+        "    title: Bad window\n"
+        "    setup_hint: |\n"
+        "      irrelevant\n"
+        "    stale_window_days: soon\n"
+        "    probe: file-exists\n"
+        "    args:\n"
+        "      path: nope.md\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(PreflightConfigError, match="stale_window_days"):
+        load_preflight_config(tmp_path, profile_dir=profile_dir)
+
+
+def test_negative_stale_window_days_raises_config_error(tmp_path: Path):
+    """Numeric but negative `stale_window_days: -5` also fails. Symmetric
+    with the non-numeric branch."""
+    cfg = tmp_path / ".launchpad" / "preflight.config.yaml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("providers:\n  - neg-window\n", encoding="utf-8")
+    profile_dir = tmp_path / "profiles"
+    profile_dir.mkdir()
+    (profile_dir / "neg-window.yaml").write_text(
+        "name: neg-window\n"
+        "checks:\n"
+        "  - id: neg-window.invalid-stale\n"
+        "    category: A\n"
+        "    title: Bad window\n"
+        "    setup_hint: |\n"
+        "      irrelevant\n"
+        "    stale_window_days: -5\n"
+        "    probe: file-exists\n"
+        "    args:\n"
+        "      path: nope.md\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(PreflightConfigError, match="non-negative"):
+        load_preflight_config(tmp_path, profile_dir=profile_dir)
+
+
+def test_file_probe_path_traversal_refused(tmp_path: Path):
+    """`args.path: ../../etc/passwd` MUST be refused by file-based probes
+    via _resolve_under_root. Codex round-3 P2."""
+    cfg = tmp_path / ".launchpad" / "preflight.config.yaml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("providers:\n  - escape\n", encoding="utf-8")
+    profile_dir = tmp_path / "profiles"
+    profile_dir.mkdir()
+    (profile_dir / "escape.yaml").write_text(
+        "name: escape\n"
+        "checks:\n"
+        "  - id: escape.try-traversal\n"
+        "    category: A\n"
+        "    title: Try traversal\n"
+        "    setup_hint: |\n"
+        "      irrelevant\n"
+        "    probe: file-exists\n"
+        "    args:\n"
+        "      path: ../../etc/passwd\n",
+        encoding="utf-8",
+    )
+    clients = _make_clients()
+    report = run_preflight(
+        tmp_path, clients=clients, profile_dir=profile_dir, write_checklist=False
+    )
+    by_id = {r.item_id: r for r in report.results}
+    res = by_id["escape.try-traversal"]
+    assert res.status == "fail"
+    assert "escapes repo root" in res.message
+
+
+def test_provider_name_with_path_traversal_refused(tmp_path: Path):
+    """Provider names with `../` must be refused before any file open.
+    Codex round-3 P2."""
+    cfg = tmp_path / ".launchpad" / "preflight.config.yaml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("providers:\n  - ../../etc/passwd\n", encoding="utf-8")
+    with pytest.raises(PreflightConfigError, match=r"provider name"):
+        load_preflight_config(tmp_path, profile_dir=PROFILE_DIR)
+
+
+def test_expected_prefixes_string_refused(tmp_path: Path, monkeypatch):
+    """A scalar string for `expected_prefixes` (instead of a list) MUST
+    fail with an actionable message rather than iterate character-by-
+    character. Codex round-3 P2."""
+    monkeypatch.setenv("PREFLIGHT_DOMAIN", "example.test")
+    chk = lp_preflight.CheckDefinition(
+        item_id="test.bad-prefixes",
+        category="C1",
+        title="DNS",
+        setup_hint="",
+        stale_window_days=30,
+        probe="dns-resolves-via-cname",
+        args={
+            "domain_env": "PREFLIGHT_DOMAIN",
+            "expected_prefixes": "104.16.",  # WRONG: should be a list
+        },
+    )
+    clients = _make_clients(
+        command_responses={
+            ("dig", "+short", "--", "example.test"): CommandResult(0, "1.2.3.4\n", ""),
+        }
+    )
+    res = lp_preflight._PROBE_REGISTRY["dns-resolves-via-cname"](tmp_path, chk, clients)
+    assert res.status == "fail"
+    assert "list of strings" in res.message
