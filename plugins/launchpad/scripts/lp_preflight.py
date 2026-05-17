@@ -68,6 +68,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import ipaddress
+import itertools
 import json
 import os
 import re
@@ -1321,6 +1322,267 @@ def _probe_github_secrets(
     return _fail(chk, f"missing GitHub Secrets: {', '.join(missing)}")
 
 
+# Build-time API auth probe (BL-373).
+#
+# Detects build-time fetch() calls to known rate-limited public APIs
+# (api.github.com, api.gitlab.com) and verifies the corresponding auth
+# env var is set. Closes the v2.1.7 gap where a JAMstack build hits a
+# shared-IP rate-limit because the auth env var was never configured.
+
+# Defense-in-depth caps. The detection-glob scan reads arbitrary project
+# files; a symlinked `/dev/zero` or multi-GB log would otherwise hang
+# preflight. The file-list cap caps the FAIL message length so a repo
+# with thousands of host references does not produce an unreadable wall
+# of text. The glob-enumeration cap bounds the upstream walk cost so an
+# adversarial or accidental `**/*` cannot materialize tens of thousands
+# of Path objects into memory before the 5-file cap fires (security F1).
+_PROBE_FILE_LIST_CAP = 5
+_PROBE_FILES_PER_GLOB_CAP = 1000
+
+
+# The capped-read helper is shared with `lp_bootstrap.preflight_proposer`
+# (BL-370 workflow scanner) so the symlink-rejection + size-cap semantics
+# stay in lockstep. Two near-identical copies in two modules drifts on
+# any future fix; one shared callable is the architectural fix flagged
+# by simplicity + python + architecture reviewers in the v2.1.8 round-2
+# review pass.
+from lp_bootstrap.preflight_proposer import _read_text_capped  # noqa: E402
+
+
+def _validated_detection_glob(pattern: str) -> str | None:
+    """Reject absolute paths, `..` segments, NUL bytes, and non-string
+    entries in detection globs.
+
+    Mirrors the validation in ``_probe_section_specs_approved`` with the
+    extra NUL-byte gate (security F2). Windows-specific drive-letter
+    rejection is intentionally deferred: the existing
+    ``_probe_section_specs_approved`` has the same gap; fixing both
+    probes together in a separate BL keeps the mirror loyal.
+
+    Returns the pattern unchanged on acceptance, ``None`` on rejection.
+    """
+    if not isinstance(pattern, str) or not pattern:
+        return None
+    if "\x00" in pattern:
+        return None
+    if pattern.startswith("/") or ".." in Path(pattern).parts:
+        return None
+    return pattern
+
+
+_REMEDIATION_URL_SCHEME = "https://"
+
+
+def _safe_remediation_url(value: object) -> str | None:
+    """Return ``value`` iff it is a safe https URL with no control chars.
+
+    Profiles ship the remediation URL as a literal in the YAML; the
+    bundled v2.1.8 catalog uses ``github.com`` and ``gitlab.com`` only.
+    A consumer-authored or forked profile could substitute any string
+    (``javascript:``, ``data:``, ANSI escapes, newlines). The FAIL
+    message is printed to stdout so a poisoned URL would render in the
+    terminal; restrict to plain https URLs with no control chars.
+    Security F3.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    if not value.startswith(_REMEDIATION_URL_SCHEME):
+        return None
+    if any(ord(c) < 0x20 or ord(c) == 0x7F for c in value):
+        return None
+    return value
+
+
+def _is_positive_int(value: object) -> bool:
+    """Strict positive-int check that rejects bool.
+
+    ``bool`` is a subclass of ``int`` in Python so ``isinstance(True, int)``
+    is ``True``. A profile YAML accidentally setting
+    ``rate_limit_anon_per_hour: true`` would otherwise render the FAIL
+    text as ``the True/hour anonymous rate limit``. Reject bool + non-
+    positive ints explicitly. Python reviewer P1-1 + security F6.
+    """
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+@register_probe("build-time-api-auth")
+def _probe_build_time_api_auth(
+    repo_root: Path, chk: CheckDefinition, clients: ProbeClients
+) -> CheckResult:
+    """Verify an auth env var is set when a known rate-limited host is
+    called at build time.
+
+    Args (all required unless marked optional):
+        host: str          (literal hostname to search for, e.g. ``api.github.com``)
+        env_var: str       (env var name to check, e.g. ``GITHUB_TOKEN``)
+        detection_globs: list[str]
+                           (repo-root-relative globs; absolute paths,
+                            ``..`` segments, and NUL bytes are rejected.
+                            Brace expansion is NOT supported; list each
+                            extension explicitly.)
+        rate_limit_anon_per_hour: int  (optional, used in FAIL message)
+        rate_limit_auth_per_hour: int  (optional, used in FAIL message)
+        remediation_url: str           (optional; included in FAIL text;
+                                        must be plain https:// + no
+                                        control chars)
+        remediation_scope_hint: str    (optional; included in FAIL text)
+
+    Skip semantics: when the host is not detected in any of the
+    configured globs, returns ``_pass`` with a "skipping" message. The
+    probe only fires when the relevant fetch() call is actually present.
+    Strategy A (trust-based local-env check) per BL-373; Strategy B
+    (programmatic deploy-env verification) is a v2.2 BL.
+    """
+    host = chk.args.get("host")
+    env_var = chk.args.get("env_var")
+    raw_globs = chk.args.get("detection_globs", [])
+    if not isinstance(host, str) or not host:
+        return _fail(chk, "`args.host` is required (literal hostname to search for)")
+    if not isinstance(env_var, str) or not env_var:
+        return _fail(chk, "`args.env_var` is required (env var name to check)")
+    if not isinstance(raw_globs, list) or not raw_globs:
+        return _fail(
+            chk,
+            "`args.detection_globs` must be a non-empty list of repo-root-"
+            "relative glob strings",
+        )
+    # Validate each glob shape; reject absolute paths, `..` segments,
+    # NUL bytes.
+    validated_globs: list[str] = []
+    for raw in raw_globs:
+        if not isinstance(raw, str):
+            return _fail(
+                chk,
+                f"`args.detection_globs` entry {raw!r} must be a string; "
+                f"got {type(raw).__name__}",
+            )
+        accepted = _validated_detection_glob(raw)
+        if accepted is None:
+            return _fail(
+                chk,
+                f"`args.detection_globs` entry {raw!r} must be a non-empty "
+                f"repo-root-relative pattern (no absolute paths, no `..` "
+                f"segments, no NUL bytes)",
+            )
+        validated_globs.append(accepted)
+
+    # Step 1: env-var-first short-circuit. When the auth env var is set,
+    # the outcome is PASS regardless of which files reference the host;
+    # skipping the filesystem walk is a perf win on the common happy
+    # path (token already configured). Performance reviewer P2.
+    env_value = _resolve_env(env_var)
+    if env_value:
+        return _pass(
+            chk,
+            f"{env_var} is set in local environment; build-time call scan "
+            f"skipped (remember to set {env_var} in your deploy environment's "
+            f"env vars too)",
+        )
+
+    # Step 2: env var not set; scan the detection globs for the host
+    # literal. Case-insensitive match tolerates the rare uppercase
+    # `API.GitHub.COM` in legacy code while keeping the common-case
+    # search cheap. The 5-file cap on `found_in` caps the FAIL message
+    # length; the per-glob cap (`_PROBE_FILES_PER_GLOB_CAP`) bounds the
+    # walk cost so an adversarial `**/*` cannot materialize a huge match
+    # set into memory before the 5-file cap fires.
+    #
+    # Host-needle includes the trailing `/` so a bare mention of
+    # ``api.github.com`` in a comment, docs string, or vendored chunk
+    # does not false-trigger; real fetch URLs always have a path
+    # separator after the host (security F4).
+    needle = (host + "/").lower()
+    found_in: list[Path] = []
+    root_resolved = repo_root.resolve()
+    for pattern in validated_globs:
+        if len(found_in) >= _PROBE_FILE_LIST_CAP:
+            break
+        # Bounded glob walk: `itertools.islice` caps the per-glob
+        # enumeration so the outer `for path in ...` cannot pull more
+        # than `_PROBE_FILES_PER_GLOB_CAP` Path objects into memory
+        # (security F1). The walk itself stops early when the file-list
+        # cap is reached.
+        try:
+            walker = itertools.islice(
+                repo_root.glob(pattern), _PROBE_FILES_PER_GLOB_CAP
+            )
+        except (NotImplementedError, OSError, ValueError):
+            # Malformed glob from a future profile; treat as no match.
+            # `ValueError` covers NUL-byte / encoding pathologies that
+            # slip past `_validated_detection_glob` on some platforms.
+            continue
+        # Sort the truncated subset for stable FAIL output; sorting the
+        # full glob result before truncation would defeat the cap.
+        try:
+            ordered = sorted(walker)
+        except (OSError, ValueError):
+            continue
+        for path in ordered:
+            if len(found_in) >= _PROBE_FILE_LIST_CAP:
+                break
+            # Confine each match under repo_root (defense-in-depth even
+            # though the glob is pre-validated). Mirrors
+            # `_probe_section_specs_approved`.
+            try:
+                path.resolve().relative_to(root_resolved)
+            except (OSError, ValueError):
+                continue
+            text = _read_text_capped(path)
+            if text is None:
+                continue
+            if needle in text.lower():
+                try:
+                    rel = path.relative_to(repo_root)
+                except ValueError:
+                    rel = path
+                found_in.append(rel)
+
+    if not found_in:
+        return _pass(chk, f"no build-time call to {host} detected; skipping")
+
+    # Step 3: host detected AND env var not set: FAIL with remediation.
+    # The setup_hint already contains the detailed remediation steps;
+    # the FAIL message adds the runtime-specific bits (which files
+    # matched, the actual rate limits).
+    anon = chk.args.get("rate_limit_anon_per_hour")
+    auth = chk.args.get("rate_limit_auth_per_hour")
+    remediation_url = _safe_remediation_url(chk.args.get("remediation_url"))
+    remediation_scope = chk.args.get("remediation_scope_hint")
+
+    files_block = "\n".join(f"  - {p}" for p in found_in)
+    limit_clause = ""
+    if _is_positive_int(anon) and _is_positive_int(auth):
+        limit_clause = (
+            f" Without authentication, builds may hit the {anon}/hour "
+            f"anonymous rate limit on shared-IP build runners (Cloudflare "
+            f"Pages, Vercel, Netlify, etc.). With {env_var} set, the limit "
+            f"is {auth}/hour."
+        )
+    remediation_lines = [
+        f"  1. Set locally: export {env_var}=<token> in your shell rc.",
+        f"  2. Set in deploy env: add {env_var} to your hosting provider's "
+        f"environment variables dashboard (Cloudflare Pages / Vercel / "
+        f"Netlify / etc.).",
+    ]
+    if remediation_url is not None:
+        scope_suffix = (
+            f" ({remediation_scope})"
+            if isinstance(remediation_scope, str) and remediation_scope
+            else ""
+        )
+        remediation_lines.insert(
+            0, f"  0. Generate a token: {remediation_url}{scope_suffix}"
+        )
+    remediation_block = "\n".join(remediation_lines)
+
+    return _fail(
+        chk,
+        f"detected build-time fetch to {host} in:\n{files_block}\n"
+        f"But {env_var} is not set in the local environment.{limit_clause}\n\n"
+        f"Remediation:\n{remediation_block}",
+    )
+
+
 @register_probe("git-uncommitted-changes-warn")
 def _probe_uncommitted(
     repo_root: Path, chk: CheckDefinition, clients: ProbeClients
@@ -1772,14 +2034,14 @@ class ReceiptCheckResult:
 
     BL-371 v2 (PR #76 review):
 
-    * ``scope_changed`` — receipt was written for a different section
+    * ``scope_changed``: receipt was written for a different section
       scope than the caller's. A receipt written by
       ``/lp-build --section docs/tasks/sections/hero.md`` does NOT
       satisfy a project-wide ``/lp-ship`` invocation (project-wide
       probes are weaker than section-scoped ones); a project-wide
       receipt (``section_path == None``) DOES satisfy a section-scoped
       caller (broader covers narrower).
-    * ``future_version`` — receipt was written by a newer LaunchPad and
+    * ``future_version``: receipt was written by a newer LaunchPad and
       its schema version exceeds this reader's ``RECEIPT_VERSION``.
       Distinct from ``corrupt`` so audit-log telemetry surfaces the
       upgrade path instead of pointing at a "broken" receipt.

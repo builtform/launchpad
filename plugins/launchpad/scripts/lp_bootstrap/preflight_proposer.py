@@ -79,6 +79,7 @@ from atomic_io import atomic_write_replace  # noqa: E402
 # otherwise the generated config fails to load at /lp-preflight time.
 KNOWN_PROFILES: frozenset[str] = frozenset(
     {
+        "build-time-api-auth",
         "cloudflare-dns",
         "cloudflare-pages",
         "namecheap-dns",
@@ -229,11 +230,17 @@ def proposed_profiles(detected: list[str]) -> list[str]:
 
     Always includes ``spec-completeness``. Auto-adds ``cloudflare-dns``
     when ``cloudflare-pages`` is detected (most Pages projects use a
-    custom domain; user can remove the line if not).
+    custom domain; user can remove the line if not). Auto-adds
+    ``build-time-api-auth`` (BL-373) when ANY deploy target is detected
+    so the probe is opt-in-by-default for new projects; the probe is
+    a no-op for projects that do not call rate-limited APIs at build
+    time (PASS-with-skip-message), so the default-on posture is safe.
     """
     profiles: set[str] = {"spec-completeness", *detected}
     if "cloudflare-pages" in detected:
         profiles.add("cloudflare-dns")
+    if detected:
+        profiles.add("build-time-api-auth")
     return sorted(profiles & KNOWN_PROFILES)
 
 
@@ -259,6 +266,8 @@ def _render_yaml(providers: list[str]) -> str:
         comment = ""
         if provider == "cloudflare-dns":
             comment = "  # remove if no custom domain"
+        elif provider == "build-time-api-auth":
+            comment = "  # BL-373: detect missing GITHUB_TOKEN / GITLAB_TOKEN"
         lines.append(f"  - {provider}{comment}")
     lines.append("")
     return "\n".join(lines)

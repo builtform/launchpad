@@ -181,11 +181,15 @@ def test_detect_skips_oversized_workflow(tmp_path: Path) -> None:
 
 
 def test_proposed_profiles_always_includes_spec_completeness() -> None:
+    # Empty detection -> no deploy target -> no `build-time-api-auth`
+    # (BL-373 is opt-in-by-default ONLY when a deploy target is detected;
+    # a fully greenfield project with no signals stays minimal).
     assert proposed_profiles([]) == ["spec-completeness"]
 
 
 def test_proposed_profiles_auto_adds_cloudflare_dns() -> None:
     assert proposed_profiles(["cloudflare-pages"]) == [
+        "build-time-api-auth",
         "cloudflare-dns",
         "cloudflare-pages",
         "spec-completeness",
@@ -193,7 +197,13 @@ def test_proposed_profiles_auto_adds_cloudflare_dns() -> None:
 
 
 def test_proposed_profiles_for_vercel_does_not_add_dns() -> None:
-    assert proposed_profiles(["vercel"]) == ["spec-completeness", "vercel"]
+    # Vercel deploy detected -> BL-373 build-time-api-auth auto-adds but
+    # cloudflare-dns does NOT (only attached to cloudflare-pages detection).
+    assert proposed_profiles(["vercel"]) == [
+        "build-time-api-auth",
+        "spec-completeness",
+        "vercel",
+    ]
 
 
 def test_proposed_profiles_filters_unknown_inputs() -> None:
@@ -202,6 +212,28 @@ def test_proposed_profiles_filters_unknown_inputs() -> None:
     out = proposed_profiles(["cloudflare-pages", "imaginary-cdn"])
     assert "imaginary-cdn" not in out
     assert set(out) <= KNOWN_PROFILES
+
+
+def test_bl373_proposed_config_includes_build_time_api_auth_when_any_deploy_target_detected() -> None:
+    """BL-373: when any deploy target is detected, the proposed starter
+    config auto-includes `build-time-api-auth` so the GitHub/GitLab probes
+    are opt-in-by-default for new projects. The probe is a no-op for
+    projects that do not call rate-limited APIs at build time (returns
+    PASS-with-skip-message), so the default-on posture is safe.
+    """
+    # Each deploy target gets the BL-373 profile auto-added.
+    for target in ("cloudflare-pages", "vercel", "netlify"):
+        out = proposed_profiles([target])
+        assert "build-time-api-auth" in out, (
+            f"BL-373 profile must be auto-added when {target!r} is detected; "
+            f"got {out!r}"
+        )
+
+
+def test_bl373_not_added_when_no_deploy_target_detected() -> None:
+    """The opt-in-by-default trigger is ANY deploy target. A project with
+    no signals at all stays minimal (only `spec-completeness`)."""
+    assert "build-time-api-auth" not in proposed_profiles([])
 
 
 # --- write_preflight_config + write_skipped_marker --------------------------

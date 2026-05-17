@@ -3710,3 +3710,80 @@ Ship a `.claude/settings.json` template that pre-approves the LaunchPad-specific
 - `/lp-define` preflight advisory (BL-370 secondary surface; can land in v2.1.x patch).
 - Multi-target detection edge cases (project with both `wrangler.jsonc` AND `vercel.json`; pick one or warn).
 - Schema versioning for `.launchpad/preflight-receipt.json` (v2 schema reserved).
+
+---
+
+#### BL-373 - v2.1.8: Build-time API auth preflight probe (detect missing GITHUB_TOKEN / GITLAB_TOKEN before shared-IP rate-limit failures) (P1)
+
+**Filed by**: post-v2.1.7 real-world dogfood (Cloudflare Pages + Astro 6 JAMstack site, 2026-05-17). Build-time `fetch('https://api.github.com/repos/.../releases')` from a static-prerender step hit a 403 rate-limit failure on a shared-IP build runner because `GITHUB_TOKEN` was never set in the deploy environment. v2.1.7 preflight had no probe for this class of misconfiguration.
+
+**Status (2026-05-17)**: NEW. Addendum to the v2.1.8 lane. Implementation is fully additive (new profile + new probe); does NOT modify BL-370 / BL-371 / BL-372 work already on `feat/v2.1.8-autonomy`.
+
+**Impact**: ANY build-time API call to a rate-limited public service (`api.github.com`, `api.gitlab.com`, ...) from a shared-IP build runner (Cloudflare Pages, Vercel, Netlify, GitHub Pages, Render, Fly, ...) can hit the per-IP anonymous rate limit (typically 60/hour) and fail unpredictably. With the auth env var set, the limit rises ~33-83x (5000/hour GitHub, 2000/hour GitLab). The failure is invisible to the consumer until a deploy fails; preflight should surface it before `/lp-build` even starts.
+
+**Solution shape: new `build-time-api-auth` provider profile**
+
+A new profile ships alongside the existing 6 v2.1.7 profiles (`cloudflare-pages`, `vercel`, `netlify`, `cloudflare-dns`, `namecheap-dns`, `spec-completeness`):
+
+- `plugins/launchpad/preflight-profiles/build-time-api-auth.yaml`: NEW. One Category B check per known rate-limited host (initial: `github-api-token`, `gitlab-api-token`).
+- `plugins/launchpad/scripts/lp_preflight.py`: NEW probe `build-time-api-auth`. Scans the project for evidence the host is called at build time (greps `src/**/*.{ts,tsx,js,mjs,astro,vue,svelte}` and `dist/.prerender/**/*.mjs`); if host detected AND auth env var NOT set, FAIL with remediation; if host detected AND env var set, PASS; if host NOT detected, PASS-with-skip-message (probe only fires when relevant).
+- BL-370 integration: when any deploy target is detected, include `build-time-api-auth` in the proposed starter `preflight.config.yaml` so the probe is opt-in-by-default for new projects.
+
+**Critical design choice (Strategy A vs Strategy B)**:
+
+- Strategy A (ship in v2.1.8): probe checks LOCAL env for the variable. If set locally, assume the user has also configured it in the deploy environment. Remediation tells the user to set it BOTH locally (for /lp-preflight verification) AND in the deploy environment dashboard. Trade-off: trust-based, not verified against Cloudflare/Vercel API. Document the trust-based check in the FAIL text.
+- Strategy B (v2.2 BL, out of scope here): provider-aware probe using Cloudflare/Vercel/Netlify APIs to verify the deploy environment directly. Requires per-provider integration; meaningfully larger scope.
+
+**Initial host catalog (ship in v2.1.8)**:
+
+| Host             | Env var        | Anon limit/hour | Auth limit/hour |
+| ---------------- | -------------- | --------------- | --------------- |
+| `api.github.com` | `GITHUB_TOKEN` | 60              | 5000            |
+| `api.gitlab.com` | `GITLAB_TOKEN` | 60              | 2000            |
+
+Future hosts (v2.2 BL): `registry.npmjs.org`, `pypi.org/simple/`, `crates.io`, per-customer additions.
+
+**Files to modify**:
+
+- `plugins/launchpad/preflight-profiles/build-time-api-auth.yaml`: NEW profile.
+- `plugins/launchpad/scripts/lp_preflight.py`: register `build-time-api-auth` probe.
+- `plugins/launchpad/scripts/tests/test_lp_preflight.py`: add ~10 new tests.
+- `plugins/launchpad/scripts/lp_bootstrap/preflight_proposer.py`: include `build-time-api-auth` in `proposed_profiles()` when any deploy target detected.
+- `docs/releases/v2.1.8.md`: append BL-373 section.
+- `CHANGELOG.md`: append BL-373 bullet under `[v2.1.8]`.
+
+**Tests to add**:
+
+- `test_build_time_api_auth_github_skipped_when_no_call_detected`
+- `test_build_time_api_auth_github_ok_when_call_detected_and_token_set`
+- `test_build_time_api_auth_github_fail_when_call_detected_and_token_missing`
+- `test_build_time_api_auth_github_finds_call_in_astro_file`
+- `test_build_time_api_auth_github_finds_call_in_prerender_chunk`
+- `test_build_time_api_auth_github_caps_file_list_at_5`
+- `test_build_time_api_auth_handles_unreadable_file_gracefully`
+- `test_build_time_api_auth_gitlab_symmetric_to_github`
+- `test_build_time_api_auth_remediation_text_includes_token_url`
+- `test_bl370_proposed_config_includes_build_time_api_auth_when_any_deploy_target_detected`
+
+**Acceptance criteria**:
+
+- Project with build-time `fetch('https://api.github.com/...')` AND no `GITHUB_TOKEN` env var: `/lp-preflight` FAILs with clear remediation.
+- Same project with `GITHUB_TOKEN` set in local env: `/lp-preflight` passes with reminder to set in deploy env too.
+- Project with no GitHub API calls: probe returns PASS-with-skip-message (no FAIL).
+- BL-370's starter config includes `build-time-api-auth` by default when any deploy target detected.
+- All existing 91 preflight tests continue to pass; ~10 new tests added.
+
+**Stop conditions** (pause + report):
+
+- Detection grep produces false-positives (e.g., matches `api.github.com` inside a comment). ACCEPTABLE for v2.1.8: over-matching is safer than under-matching, defers to user judgment. v2.2 BL can add AST-aware detection if false-positives become noisy.
+- Remediation URLs 404: verify at implementation time that both `github.com/settings/tokens?type=beta` and `gitlab.com/-/user_settings/personal_access_tokens` resolve.
+
+**Out of scope for v2.1.8** (defer to v2.2 / v2.x):
+
+- Strategy B (direct verification against Cloudflare/Vercel/Netlify env var APIs).
+- AST-aware fetch-call detection (replace literal-grep with proper code parsing).
+- More hosts (npmjs, pypi, crates.io); ship just GitHub + GitLab in v2.1.8.
+- User-configurable host catalog via project-local override.
+- Auto-rotation reminders for tokens approaching expiration.
+
+**Default decision**: ship in v2.1.8 as a fourth additive BL on the autonomy lane. Touches different files from BL-370 / BL-371 / BL-372, so no merge-time interaction. Total scope ~150-200 LOC + new profile + ~10 net new tests.
