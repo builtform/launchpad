@@ -1455,7 +1455,25 @@ def test_github_secrets_missing_fails(tmp_path: Path, monkeypatch):
             ),
         },
         command_responses={
-            ("gh", "secret", "list", "--json", "name"): CommandResult(
+            # _derive_gh_repo_slug runs first; stub the git remote call
+            # so the probe pins --repo to the derived slug.
+            (
+                "git",
+                "-C",
+                str(tmp_path),
+                "remote",
+                "get-url",
+                "origin",
+            ): CommandResult(0, "https://github.com/test-org/test-repo.git\n", ""),
+            (
+                "gh",
+                "secret",
+                "list",
+                "--json",
+                "name",
+                "--repo",
+                "test-org/test-repo",
+            ): CommandResult(
                 0,
                 json.dumps([{"name": "CLOUDFLARE_API_TOKEN"}]),
                 "",
@@ -1498,7 +1516,23 @@ def test_github_secrets_gh_not_installed(tmp_path: Path, monkeypatch):
             ),
         },
         command_responses={
-            ("gh", "secret", "list", "--json", "name"): CommandResult(
+            (
+                "git",
+                "-C",
+                str(tmp_path),
+                "remote",
+                "get-url",
+                "origin",
+            ): CommandResult(0, "https://github.com/test-org/test-repo.git\n", ""),
+            (
+                "gh",
+                "secret",
+                "list",
+                "--json",
+                "name",
+                "--repo",
+                "test-org/test-repo",
+            ): CommandResult(
                 returncode=127, stdout="", stderr="FileNotFoundError"
             ),
         },
@@ -1663,3 +1697,128 @@ def test_parse_checklist_skips_malformed_lines(tmp_path: Path):
     result = parse_checklist(checklist)
     assert result["spec.valid"].confirmed is True
     assert result["spec.valid"].last_confirmed == "2026-05-17T00:00:00Z"
+
+
+# ---------------------------------------------------------------------------
+# Round-2 Codex review fixes: empty-providers refusal, override.args merge,
+# gh --repo pin, malformed-override raise.
+# ---------------------------------------------------------------------------
+
+
+def test_empty_providers_list_refuses(tmp_path: Path):
+    """Refuse `providers: []` at config-load time. An empty providers list
+    would vacuously pass the gate with zero checks; the user almost
+    certainly does NOT want that (they either declare profiles or delete
+    the config file entirely). Codex round-2 P1."""
+    cfg = tmp_path / ".launchpad" / "preflight.config.yaml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("providers: []\n", encoding="utf-8")
+    with pytest.raises(PreflightConfigError, match="empty"):
+        load_preflight_config(tmp_path, profile_dir=PROFILE_DIR)
+
+
+def test_missing_providers_key_refuses(tmp_path: Path):
+    """Refuse a config file with NO `providers:` key at all. Distinct
+    failure mode from empty-list (a missing key is a typo or template
+    fragment; an empty list is intentional)."""
+    cfg = tmp_path / ".launchpad" / "preflight.config.yaml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("overrides: {}\n", encoding="utf-8")
+    with pytest.raises(PreflightConfigError, match="required"):
+        load_preflight_config(tmp_path, profile_dir=PROFILE_DIR)
+
+
+def test_override_args_merge_with_profile_args(tmp_path: Path):
+    """`overrides.<item>.args` MUST merge into the CheckDefinition.args
+    map. Multiple profiles document this contract (namecheap-dns.yaml
+    `apex-resolves-via-cname`, cloudflare-dns.yaml `apex-resolves-...`,
+    spec-completeness.yaml `changelog-has-version-entry`). Codex round-2 P1."""
+    cfg = tmp_path / ".launchpad" / "preflight.config.yaml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text(
+        "providers:\n"
+        "  - namecheap-dns\n"
+        "overrides:\n"
+        "  namecheap-dns.apex-resolves-via-cname:\n"
+        "    args:\n"
+        "      domain: example.test\n"
+        "      expected_suffix: .pages.dev\n",
+        encoding="utf-8",
+    )
+    checks, _ = load_preflight_config(tmp_path, profile_dir=PROFILE_DIR)
+    by_id = {c.item_id: c for c in checks}
+    check = by_id["namecheap-dns.apex-resolves-via-cname"]
+    # Profile's domain_env arg should survive...
+    assert check.args.get("domain_env") == "PREFLIGHT_DOMAIN"
+    # ...AND the override's args should be merged in.
+    assert check.args.get("domain") == "example.test"
+    assert check.args.get("expected_suffix") == ".pages.dev"
+
+
+def test_malformed_override_value_raises(tmp_path: Path):
+    """A non-mapping override value (e.g., a string or a list) MUST raise
+    PreflightConfigError rather than be silently dropped. Codex round-2 P2."""
+    cfg = tmp_path / ".launchpad" / "preflight.config.yaml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text(
+        "providers:\n  - spec-completeness\n"
+        "overrides:\n"
+        "  spec-completeness.changelog-has-version-entry: \"not-a-dict\"\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(PreflightConfigError, match="must be a mapping"):
+        load_preflight_config(tmp_path, profile_dir=PROFILE_DIR)
+
+
+def test_github_secrets_pins_repo_from_origin(tmp_path: Path, monkeypatch):
+    """The github-secrets probe MUST derive the repo slug from
+    `git remote get-url origin` (rooted in --repo-root, not cwd) and pass
+    `--repo <slug>` to `gh secret list`. Codex round-2 P1."""
+    _make_repo(tmp_path, ["cloudflare-pages"])
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "ok")
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "acct")
+    monkeypatch.setenv("CLOUDFLARE_PAGES_PROJECT_SLUG", "slug")
+    checklist = tmp_path / ".launchpad" / "preflight-checklist.md"
+    checklist.write_text(
+        "- [x] GitHub Secrets (id: cloudflare-pages.github-secrets-populated)\n"
+        "  Last confirmed: 2026-05-16T00:00:00Z\n",
+        encoding="utf-8",
+    )
+    captured_commands: list[list[str]] = []
+
+    def _capture_run(args: list[str]) -> CommandResult:
+        captured_commands.append(args)
+        if args[:4] == ["git", "-C", str(tmp_path), "remote"]:
+            return CommandResult(
+                0, "git@github.com:org-via-ssh/repo-via-ssh.git\n", ""
+            )
+        if args[:3] == ["gh", "secret", "list"]:
+            return CommandResult(
+                0,
+                json.dumps(
+                    [
+                        {"name": "CLOUDFLARE_API_TOKEN"},
+                        {"name": "CLOUDFLARE_ACCOUNT_ID"},
+                    ]
+                ),
+                "",
+            )
+        raise AssertionError(f"unexpected run_command: {args}")
+
+    clients = ProbeClients(
+        http_get=lambda url, headers: HttpResponse(
+            200, json.dumps({"success": True, "result": {"status": "active"}})
+        ),
+        run_command=_capture_run,
+    )
+    report = run_preflight(
+        tmp_path, clients=clients, profile_dir=PROFILE_DIR, write_checklist=False
+    )
+    by_id = {r.item_id: r for r in report.results}
+    assert by_id["cloudflare-pages.github-secrets-populated"].status == "pass"
+    # Find the gh call and verify --repo is pinned to the SSH-form slug.
+    gh_calls = [c for c in captured_commands if c[:3] == ["gh", "secret", "list"]]
+    assert len(gh_calls) == 1
+    assert "--repo" in gh_calls[0]
+    repo_idx = gh_calls[0].index("--repo")
+    assert gh_calls[0][repo_idx + 1] == "org-via-ssh/repo-via-ssh"

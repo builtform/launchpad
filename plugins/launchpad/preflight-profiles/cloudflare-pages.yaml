@@ -34,9 +34,10 @@ checks:
       2. Create a token with the following scopes:
            - Account.Cloudflare Pages: Edit
            - Account.Account Settings: Read
-      3. Export the token: `export CLOUDFLARE_API_TOKEN=...` (or put it
-         in .env / .env.local; LaunchPad sources `.env*` per the local
-         dotenv convention).
+      3. Export the token in your shell: `export CLOUDFLARE_API_TOKEN=...`.
+         Preflight reads from process environment only; if you keep tokens
+         in `.env`, source the file (`set -a; . .env; set +a`) before
+         invoking `/lp-preflight`, `/lp-build`, or `/lp-ship`.
     stale_window_days: 60
     probe: cloudflare-api-token-valid
     args:

@@ -28,7 +28,10 @@ checks:
       2. Create a token, scope: Full Account (or Project-scoped if you
          prefer least-privilege; ensure project-create permission is
          granted).
-      3. Export: `export VERCEL_TOKEN=...` (or add to .env).
+      3. Export in your shell: `export VERCEL_TOKEN=...`. Preflight reads
+         from process environment only; if you keep tokens in `.env`,
+         source the file before invoking `/lp-preflight` / `/lp-build` /
+         `/lp-ship`.
     stale_window_days: 60
     probe: vercel-api-token-valid
     args:

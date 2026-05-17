@@ -320,6 +320,26 @@ def _coerce_check(
     probe = raw.get("probe")
     if probe is not None:
         probe = str(probe)
+    # Merge profile args with override args. Profile YAMLs document this
+    # contract (e.g., namecheap-dns.apex-resolves-via-cname:
+    # "Override args.domain in .launchpad/preflight.config.yaml"), but the
+    # original implementation only merged stale_window_days. The merge is a
+    # shallow dict.update so override values shadow profile defaults on a
+    # per-key basis.
+    profile_args = raw.get("args", {})
+    if not isinstance(profile_args, dict):
+        raise PreflightConfigError(
+            f"profile {profile_name!r} item {item_id!r}: `args:` must be a "
+            f"mapping; got {type(profile_args).__name__}"
+        )
+    override_args = override.get("args", {})
+    if not isinstance(override_args, dict):
+        raise PreflightConfigError(
+            f"overrides for {item_id!r}: `args:` must be a mapping; "
+            f"got {type(override_args).__name__}"
+        )
+    merged_args: dict[str, Any] = dict(profile_args)
+    merged_args.update(override_args)
     return CheckDefinition(
         item_id=item_id,
         category=category,
@@ -327,7 +347,7 @@ def _coerce_check(
         setup_hint=str(raw["setup_hint"]).rstrip(),
         stale_window_days=stale_window,
         probe=probe,
-        args=dict(raw.get("args", {})),
+        args=merged_args,
     )
 
 
@@ -387,21 +407,44 @@ def load_preflight_config(
         raise PreflightConfigError(
             f"{CONFIG_PATH} root must be a mapping; got {type(raw).__name__}"
         )
-    providers = raw.get("providers") or []
+    # Refuse missing-or-empty providers: the existence of preflight.config.yaml
+    # is what enables the gate at /lp-ship Step 0.6 + /lp-build Step 0.6, so an
+    # empty `providers:` would silently bypass all external-infrastructure
+    # verification with a vacuously-true "report.ok = True". Either the user
+    # omits the file entirely (gate disabled) or declares one or more profiles.
+    if "providers" not in raw:
+        raise PreflightConfigError(
+            f"{CONFIG_PATH}: `providers:` key is required. Declare one or more "
+            f"profile names (e.g., `providers: [spec-completeness]`), or delete "
+            f"{CONFIG_PATH} entirely to disable the preflight gate."
+        )
+    providers = raw["providers"]
     if not isinstance(providers, list) or not all(
         isinstance(p, str) for p in providers
     ):
         raise PreflightConfigError(
             f"{CONFIG_PATH}: `providers:` must be a list of profile-name strings"
         )
+    if not providers:
+        raise PreflightConfigError(
+            f"{CONFIG_PATH}: `providers:` is empty. Declare at least one profile "
+            f"or delete {CONFIG_PATH} entirely to disable the preflight gate."
+        )
     overrides_raw = raw.get("overrides") or {}
     if not isinstance(overrides_raw, dict):
         raise PreflightConfigError(
             f"{CONFIG_PATH}: `overrides:` must be a mapping of item-id to override-dict"
         )
-    overrides: dict[str, dict[str, Any]] = {
-        str(k): dict(v) for k, v in overrides_raw.items() if isinstance(v, dict)
-    }
+    overrides: dict[str, dict[str, Any]] = {}
+    for k, v in overrides_raw.items():
+        if not isinstance(v, dict):
+            raise PreflightConfigError(
+                f"{CONFIG_PATH}: overrides[{k!r}] must be a mapping; "
+                f"got {type(v).__name__}. Silently dropping malformed override "
+                f"values masks config typos; declare overrides as "
+                f"`<item-id>: {{ stale_window_days: N, args: {{...}} }}`."
+            )
+        overrides[str(k)] = dict(v)
     pdir = profile_dir or _profile_dir()
     checks: list[CheckDefinition] = []
     seen_ids: set[str] = set()
@@ -951,6 +994,29 @@ def _probe_netlify_site(
     return _fail(chk, f"Netlify site probe failed: HTTP {resp.status}")
 
 
+_GH_REPO_SLUG_RE = re.compile(
+    r"github\.com[:/](?P<owner>[A-Za-z0-9_.-]+)/(?P<repo>[A-Za-z0-9_.-]+?)(?:\.git)?/?$"
+)
+
+
+def _derive_gh_repo_slug(repo_root: Path, clients: ProbeClients) -> str | None:
+    """Derive an `owner/repo` slug from the repo's origin remote URL.
+
+    Returns None if `git -C <repo_root> remote get-url origin` fails or the
+    URL is not a github.com URL. Callers should fall back to gh's
+    ambient-cwd inference with an explicit warning in the failure message.
+    """
+    result = clients.run_command(
+        ["git", "-C", str(repo_root), "remote", "get-url", "origin"]
+    )
+    if result.returncode != 0:
+        return None
+    m = _GH_REPO_SLUG_RE.search(result.stdout.strip())
+    if not m:
+        return None
+    return f"{m.group('owner')}/{m.group('repo')}"
+
+
 @register_probe("github-secrets-populated")
 def _probe_github_secrets(
     repo_root: Path, chk: CheckDefinition, clients: ProbeClients
@@ -960,8 +1026,21 @@ def _probe_github_secrets(
         return _fail(chk, "`required_secrets` arg list is empty")
     # Use the gh CLI rather than the raw GitHub API: gh auth handles token
     # resolution from gh config OR GH_TOKEN/GITHUB_TOKEN env vars, which
-    # matches how most users already authenticate locally.
-    result = clients.run_command(["gh", "secret", "list", "--json", "name"])
+    # matches how most users already authenticate locally. Pin --repo to
+    # the slug derived from repo_root's git remote so an invocation like
+    # `/lp-preflight --repo-root /elsewhere` from a different cwd validates
+    # the right repository (closes Codex P1: cwd-ambient gh inference can
+    # false-pass when --repo-root and cwd disagree).
+    slug = _derive_gh_repo_slug(repo_root, clients)
+    cmd = ["gh", "secret", "list", "--json", "name"]
+    if slug is not None:
+        cmd.extend(["--repo", slug])
+    else:
+        # No-origin / non-github remote / non-repo path: fall through to
+        # gh's ambient inference but surface the gap in the failure
+        # message so users understand which repo is being checked.
+        pass
+    result = clients.run_command(cmd)
     if result.returncode == 127:
         return _fail(
             chk,

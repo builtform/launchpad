@@ -26,7 +26,10 @@ checks:
       1. Visit https://app.netlify.com/user/applications.
       2. Click "New access token", give it a description, copy the
          token (Netlify shows it once).
-      3. Export: `export NETLIFY_AUTH_TOKEN=...` (or add to .env).
+      3. Export in your shell: `export NETLIFY_AUTH_TOKEN=...`. Preflight
+         reads from process environment only; if you keep tokens in `.env`,
+         source the file before invoking `/lp-preflight` / `/lp-build` /
+         `/lp-ship`.
     stale_window_days: 60
     probe: netlify-api-token-valid
     args:
