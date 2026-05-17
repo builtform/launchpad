@@ -17,7 +17,7 @@ checks:
     title: Vercel account exists at vercel.com
     setup_hint: |
       Sign up at https://vercel.com/signup. Connect a GitHub account
-      during the flow so projects can be imported from GitHub directly.
+      during the flow so the GitHub repo can be linked at project creation.
     stale_window_days: 365
 
   - id: vercel.api-token-valid
