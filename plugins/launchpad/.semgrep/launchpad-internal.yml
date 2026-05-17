@@ -82,6 +82,15 @@ rules:
         # Mirrors the LINT_RAW_SUBPROCESS_ALLOWLIST entry in
         # plugin-v2-handshake-lint.py.
         - "plugins/launchpad/scripts/plugin-upstream-pin-walk-scope-parity.py"
+        # v2.1.7 BL-364: external-infrastructure preflight engine.
+        # subprocess.run dispatch through injectable ProbeClients seam;
+        # check=False is required so probes can inspect non-zero exit
+        # codes (127 missing binary, 124 timeout, 4xx provider API).
+        # safe_run's strict env-allowlist would also break `gh` auth
+        # (requires GH_TOKEN / gh-config access). Tests substitute the
+        # ProbeClients via dependency injection. Mirrors the
+        # LINT_RAW_SUBPROCESS_ALLOWLIST entry in plugin-v2-handshake-lint.py.
+        - "plugins/launchpad/scripts/lp_preflight.py"
     pattern-either:
       - pattern: subprocess.run(...)
       - pattern: subprocess.Popen(...)

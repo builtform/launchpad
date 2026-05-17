@@ -209,6 +209,19 @@ LINT_RAW_SUBPROCESS_ALLOWLIST = frozenset(
         # pin-rotation validation). Migration to safe_run alongside the
         # v2.x sweep tracked in BL-308.
         "plugins/launchpad/scripts/plugin-upstream-pin-walk-scope-parity.py",
+        # v2.1.7 BL-364: external-infrastructure preflight engine. Calls
+        # fixed-argv `dig` (DNS probes) and `gh secret list` (GitHub
+        # Secrets probe) plus `git status --porcelain` (uncommitted-
+        # changes warn-only) through an injectable ProbeClients seam.
+        # check=False is required because probes inspect non-zero exit
+        # codes (127 missing binary, 124 timeout, 4xx provider API).
+        # safe_run's strict env-allowlist would also break `gh` auth
+        # (requires GH_TOKEN / gh-config access). Tests substitute the
+        # entire ProbeClients via dependency injection so the production
+        # subprocess.run path is bypassed under test. Migration to
+        # safe_run tracked in BL-365 if the env-allowlist concern is
+        # resolved upstream.
+        "plugins/launchpad/scripts/lp_preflight.py",
     }
 )
 
