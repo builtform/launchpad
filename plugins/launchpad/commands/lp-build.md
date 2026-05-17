@@ -60,6 +60,38 @@ Gitignored by default. Teams who want PR visibility can opt in via `audit: { com
 
 Load `pipeline.build.test_browser` from `config.yml`. If it's `skipped`, Step 3 (/lp-test-browser) is skipped entirely. Backend-only projects bypass browser testing by configuration, not by ad-hoc detection.
 
+### 0.55: Resolve target section name (pre-preflight)
+
+Resolve the target section name BEFORE preflight so Step 0.6 can scope the `section-specs-approved` check to the actual target (Codex round-5 P1-A). Without this scoping, multi-section projects with one approved section + others in `shaped` / `planned` state would false-fail preflight on unrelated future work.
+
+- **CASE A** (`$ARGUMENTS` provided): the argument is the target section name. Compute path: `docs/tasks/sections/<name>.md` (or expand from `paths.sections_file_pattern` in `config.yml` if set).
+- **CASE B** (no argument): read the section registry, find the first section with status `approved`. Compute its path the same way.
+- **CASE C** (no resolvable target): skip target scoping (pass no `--section` to Step 0.6; the all-sections semantic applies). Status routing in the Guard step below will surface the missing-target error after preflight.
+
+Status validation (registry integrity + status routing) stays in the Guard step below; this step resolves the name only.
+
+### 0.6: External-infrastructure preflight (BL-364)
+
+`/lp-build` chains through `/lp-inf` (autonomous implementation, can run 30+ minutes) before reaching `/lp-ship` (which deploys). If the external infrastructure prerequisites (provider account, deploy project, GitHub Secrets, DNS, etc.) are missing, the run wastes the autonomous implementation budget before failing at the ship-time network wall. Fail-fast here instead.
+
+If `.launchpad/preflight.config.yaml` exists, run the preflight gate. When Step 0.55 resolved a target section path, pass it via `--section` so the `section-specs-approved` check scopes to that section only:
+
+```bash
+# CASE A or B: target resolved
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_preflight.py --repo-root . --section docs/tasks/sections/<name>.md
+
+# CASE C: no target resolved
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_preflight.py --repo-root .
+```
+
+Exit code 0 means proceed. Exit code 1 means one or more checks failed or are awaiting user confirmation; surface the script's stdout verbatim (the message names each failing item plus the path to `.launchpad/preflight-checklist.md`) and ABORT before Step 1 (/lp-inf). Exit code 2 indicates a config / profile load error; surface stderr and abort.
+
+If `.launchpad/preflight.config.yaml` does NOT exist, skip preflight silently. Projects that have not configured external-infrastructure prerequisites opt-out by omitting the file.
+
+This is the same gate `/lp-ship` runs at its Step 0.6. Running it here fails fast on ship blockers BEFORE entering autonomous implementation; running it again at `/lp-ship` Step 0.6 catches drift if the user invokes `/lp-ship` directly without going through `/lp-build`. `/lp-ship` does NOT pass `--section` (it gates the whole project at ship time); `/lp-build` passes it because it builds one section at a time.
+
+BL-364 invariant: preflight logic lives in exactly one module (`lp_preflight.py`). Do NOT inline an alternative gate here; call the script and surface its output.
+
 ---
 
 ## Guard: Status Check + Resolve Target

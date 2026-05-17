@@ -16,6 +16,7 @@
 *.tsbuildinfo
 .launchpad/audit.log
 .launchpad/backups/
+.launchpad/preflight-checklist.md
 __pycache__/
 .DS_Store
 .cache/

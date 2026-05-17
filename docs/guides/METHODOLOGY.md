@@ -151,6 +151,14 @@ A 30-minute fix becomes a seconds-long pattern match on next occurrence, and eve
 3. **Next occurrence** — AI reads `docs/solutions/` during planning and recognizes the pattern (seconds).
 4. **Promotion** — valuable patterns graduate into `CLAUDE.md`; all future sessions start with the pattern pre-loaded.
 
+### 6. Provider-profile inheritance for external-infrastructure preflight
+
+External-infrastructure prerequisites (deploy provider account, project, GitHub Secrets, DNS, custom domain) are gated at the front of the autonomous flow via `lp_preflight.py` (BL-364, v2.1.7). The mechanism mirrors the autonomous-ack gate (BL-356): surface the requirement before the costly autonomous work starts, refuse with an actionable message until resolved, then proceed.
+
+The design separates the engine from provider knowledge. The engine knows only four check categories (auto-detect-silent, API-verified-with-credentials, user-confirmed-with-probe, user-confirmed-trust-only) plus the dispatch rules between them. Each provider ships its own profile YAML under `plugins/launchpad/preflight-profiles/<name>.yaml` listing the checks for that provider's surface (account, token, project, secrets, DNS, analytics, etc.) with per-check default stale windows. A consuming project's `.launchpad/preflight.config.yaml` declares which profiles to apply plus per-item overrides; adding a new provider equals adding a profile YAML, with zero changes to the engine.
+
+The same gate fires at `/lp-build` Step 0.6 (before entering `/lp-inf`) AND `/lp-ship` Step 0.6 (before any quality-gate work) so the direct-invocation bypass path cannot avoid the prerequisite verification. Standalone usage: `/lp-preflight`. The user-facing surface is `.launchpad/preflight-checklist.md`, gitignored by default; ticking the `- [ ]` boxes for C1/C2 items records a `Last confirmed: <iso-timestamp>` line that the engine re-reads on subsequent runs and re-prompts when the configured stale window has elapsed.
+
 ---
 
 ## The agent fleet

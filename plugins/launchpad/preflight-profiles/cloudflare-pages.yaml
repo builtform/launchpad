@@ -1,0 +1,101 @@
+# Cloudflare Pages deployment preflight profile.
+#
+# Covers: account existence, API token validity, deploy-project existence,
+# GitHub Secrets population for the deploy workflow. DNS / custom-domain
+# items live in the separate `cloudflare-dns` profile so projects on a
+# different DNS host can mix-and-match.
+#
+# Required env vars (declared per-check via the `*_env` args):
+#   - CLOUDFLARE_API_TOKEN          (Pages:Edit + Account:Read scopes)
+#   - CLOUDFLARE_ACCOUNT_ID         (account UUID)
+#   - CLOUDFLARE_PAGES_PROJECT_SLUG (the Pages project name)
+#
+# The user can override env var names per-check via .launchpad/preflight.config.yaml
+# `overrides:` block if the project uses different conventions.
+
+name: cloudflare-pages
+description: Cloudflare Pages deploy prerequisites
+
+checks:
+  - id: cloudflare-pages.account-exists
+    category: C2
+    title: Cloudflare account exists at dash.cloudflare.com
+    setup_hint: |
+      Sign up at https://dash.cloudflare.com/sign-up.
+      No programmatic verification is possible at this layer; the
+      account-not-found path will surface at API-token creation time.
+    stale_window_days: 365
+
+  - id: cloudflare-pages.api-token-valid
+    category: B
+    title: CLOUDFLARE_API_TOKEN is set and valid
+    setup_hint: |
+      1. Visit https://dash.cloudflare.com/profile/api-tokens.
+      2. Create a token with the following scopes:
+           - Account.Cloudflare Pages: Edit
+           - Account.Account Settings: Read
+      3. Export the token in your shell: `export CLOUDFLARE_API_TOKEN=...`.
+         Preflight reads from process environment only; if you keep tokens
+         in `.env`, source the file (`set -a; . .env; set +a`) before
+         invoking `/lp-preflight`, `/lp-build`, or `/lp-ship`.
+    stale_window_days: 60
+    probe: cloudflare-api-token-valid
+    args:
+      token_env: CLOUDFLARE_API_TOKEN
+
+  - id: cloudflare-pages.project-exists
+    category: C1
+    title: Cloudflare Pages project exists
+    setup_hint: |
+      1. Visit https://dash.cloudflare.com/?to=/:account/pages.
+      2. Click "Create application" -> "Pages" -> "Connect to Git".
+      3. Authorize Cloudflare on the GitHub org, select the repo,
+         set production branch = `main`, build command = `pnpm build`
+         (or your stack's equivalent), and output dir = `dist`
+         (Astro) or `.next` (Next.js) or `public` (Hugo) etc.
+      4. Set CLOUDFLARE_PAGES_PROJECT_SLUG env var to the project slug
+         Cloudflare assigns (visible in the project URL).
+      The probe verifies the project EXISTS in the account; it does NOT
+      verify the project is linked to the right GitHub repo. The user
+      ticks the confirmation box to attest that the Git integration in
+      the Cloudflare dashboard points at the correct repo. Programmatic
+      linkage verification via the API `source.config` block is tracked
+      as BL-367 (v2.1.8).
+    stale_window_days: 90
+    probe: cloudflare-pages-project-exists
+    args:
+      token_env: CLOUDFLARE_API_TOKEN
+      account_id_env: CLOUDFLARE_ACCOUNT_ID
+      slug_env: CLOUDFLARE_PAGES_PROJECT_SLUG
+
+  - id: cloudflare-pages.github-secrets-populated
+    category: C1
+    title: GitHub Secrets CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID are set
+    setup_hint: |
+      The deploy workflow at .github/workflows/deploy.yml references
+      these two secrets. Without them the first CI deploy fails at
+      env-var-resolution before the wrangler push runs.
+      1. Visit https://github.com/<owner>/<repo>/settings/secrets/actions.
+      2. Add CLOUDFLARE_API_TOKEN (paste the same token from the
+         api-token-valid check above).
+      3. Add CLOUDFLARE_ACCOUNT_ID (paste the account UUID).
+      4. Ensure the `gh` CLI is authenticated locally (`gh auth status`)
+         so this probe can verify by listing repo secrets.
+    stale_window_days: 60
+    probe: github-secrets-populated
+    args:
+      required_secrets:
+        - CLOUDFLARE_API_TOKEN
+        - CLOUDFLARE_ACCOUNT_ID
+
+  - id: cloudflare-pages.analytics-token
+    category: C2
+    title: Cloudflare Web Analytics property exists and beacon token is in .env
+    setup_hint: |
+      1. Visit https://dash.cloudflare.com/?to=/:account/web-analytics.
+      2. Click "Add a site", paste the production hostname.
+      3. Copy the beacon token from the snippet.
+      4. Add to .env / .env.local as PUBLIC_CF_ANALYTICS_TOKEN.
+      Cannot verify programmatically: the token is opaque, and reading
+      .env from a preflight risks leaking secrets into logs.
+    stale_window_days: 180

@@ -2734,3 +2734,495 @@ This is the same UX gap that `/growth-positioning` and `/growth-sales-pitch` alr
 - (7) `--batch --review` against 3 specs with deliberate cross-section drift (different audience labels for the same audience across two specs): assert drift surfaced in report.
 - (8) Skill mode (no flag) still works as documented (regression check).
 - (9) `--auto --review` chain: assert synthesizer runs, then validator runs against the fresh spec, structured report returned, written-spec frontmatter records both `synthesis_source: auto` and `last_audited: <timestamp>`.
+
+---
+
+#### BL-358 - v2.1.7: multi-stack `primary_family_for_stacks` loses secondary family commands (P1)
+
+**Status (2026-05-16)**: NEW. Surfaced by Codex round-2 (raised again rounds 3-5) on PR #69 (v2.1.6). Deferred from v2.1.6 with a "Scope NOT in v2.1.6" note in `docs/releases/v2.1.6.md`. **Source**: Codex automated review.
+
+**Owner**: TBD.
+
+**Found via**: PR #69 v2.1.6 review pass (Codex rounds 2-5; re-raised every round).
+
+**Problem**: `plugin_stack_adapters/_package_managers.py:primary_family_for_stacks()` selects `STACK_FAMILY[stacks[0]]` and returns ONE family. The lefthook + ci.yml enrichers in `lp_bootstrap/stack_pkg_manager.py` rewrite all `run: pnpm <cmd>` lines using only that primary family's command set. For multi-stack projects with mixed families, the secondary family's install/test/lint/typecheck commands are dropped from the rendered files.
+
+Concrete failure mode: a TS + Python brownfield repo (e.g., `apps/web/` Next.js + `apps/api/` FastAPI). The detector emits `["python_generic", "ts_monorepo"]` after alpha-sorting, `primary_family_for_stacks(["python_generic", "ts_monorepo"])` returns `python`, the rendered lefthook.yml has `pytest`/`pyright`/`ruff` but loses `pnpm test`/`pnpm typecheck`/`pnpm lint`. Round-4 fix BL-345 collapsed `[nextjs_standalone, ts_monorepo]` under `ts_monorepo` via the suppress-list extension, but cross-language polyglots (TS + Python, TS + Ruby, etc.) are intentionally preserved — and they're exactly where this bug bites.
+
+**Pre-v2.1.6 baseline**: every multi-stack project got TS-only hooks regardless of composition (the kernel was TS-shape and there was no rewrite). v2.1.6 is a strict improvement for single-stack non-TS projects but introduces this new multi-stack blind spot.
+
+**At v2.1.7 design time**: two architectural shapes to evaluate.
+
+1. **Union-of-families merge** (Codex's preferred direction): extend `_package_managers.lefthook_hooks_for_family()` to accept a list of families and return a union dict where each command field concatenates with `&&` (e.g., `test_command: "pnpm test && pytest"` for `[ts, python]`). The lefthook + ci.yml enricher then passes ALL detected families instead of just `stacks[0]`'s. Already proven shape in v2.1.6's `ts_python` family (mostly used by `nextjs_fastapi`) — generalise to N-way merge. Impact: YAML structure unchanged; per-hook command bodies grow.
+2. **Explicit primary-stack field + separate union of required checks**: add a `primary_stack:` field to `.launchpad/config.yml` written by `/lp-define` (defaults to first non-TS stack if any, else first stack). Use it for adapter dispatch (kept single-family for descriptive docs) but compute the lefthook/ci.yml command set as a UNION across all stacks. Impact: schema change + handshake-lint update + lp_define_runner write path.
+
+Shape 1 is smaller / lower-risk; ship it first. Shape 2 is architecturally cleaner if/when we want descriptive doc dispatch (TECH_STACK.md framing) and hook command coverage to diverge — that's a v2.2 cleanup.
+
+**Default decision**: ship in v2.1.7 as a P1 architectural fix. Shape-1 (union-of-families) is the recommended approach for the v2.1.7 scope.
+
+**Test**: extend `tests/test_stack_aware_pkg_manager_v216.py` with:
+
+- (1) `primary_family_for_stacks(["python_django", "ts_monorepo"])` returns a UNION (e.g., a sentinel composite family or a list `["python", "ts"]`) rather than `"python"`.
+- (2) `lefthook_hooks_for_family(<composite>)` returns merged commands — `test_command: "pnpm test && pytest"`, `typecheck_command: "pnpm typecheck && pyright ."`, etc.
+- (3) Enriched lefthook.yml for `["python_django", "ts_monorepo"]` contains BOTH `pnpm test` AND `pytest` in the test hook body.
+- (4) Enriched ci.yml for `["ts_monorepo", "rails"]` install step contains BOTH `pnpm install --frozen-lockfile` AND `bundle install`.
+- (5) Single-stack regression: `primary_family_for_stacks(["python_django"])` still returns `"python"` (or single-family equivalent under the new API) — the union path only fires for N≥2.
+
+---
+
+#### BL-359 - v2.1.7: Hugo stack missing from `STACK_FAMILY` map; persisted `stacks: [hugo]` falls through to TS pnpm defaults (P1)
+
+**Status (2026-05-16)**: NEW. Surfaced by Codex round-5 on PR #69 (v2.1.6). **Source**: Codex automated review.
+
+**Owner**: TBD.
+
+**Found via**: PR #69 v2.1.6 review pass (Codex round 5).
+
+**Problem**: `plugin_stack_adapters/hugo_adapter.py:74` defines Hugo's build command as `hugo --minify` and the adapter is wired into `polyglot.ADAPTERS` + `lp_define_runner._single_adapter`, but `plugin_stack_adapters/_package_managers.py:STACK_FAMILY` has NO `"hugo"` entry. Persisted `stacks: [hugo]` falls through to `_package_managers.lefthook_hooks_for_family("ts")` (the fail-safe default), so the rendered lefthook.yml + ci.yml keep all `pnpm` commands (`pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm test`, etc.). On a Hugo greenfield, the first commit's pre-commit hooks fail at the `pnpm` invocation.
+
+The v2.1.6 release notes mention a `hugo` family in `_package_managers.py` line-13 prose ("ts / ts_python / python / ruby / hugo / go"), but only 5 families ship: `ts`, `ts_python`, `python`, `ruby`, `go`. Hugo was scoped but missed.
+
+**At v2.1.7 design time**: add a `hugo` family entry to `STACK_LEFTHOOK_HOOKS` and a `STACK_FAMILY["hugo"] = "hugo"` mapping. Hugo's CLI is largely command-free for the project — there's no `hugo test`, no `hugo typecheck`. The family entries should be:
+
+```python
+"hugo": {
+    "install_command": "hugo mod download",
+    "test_command": "true",  # Hugo has no test framework
+    "typecheck_command": "true",  # Hugo has no typecheck
+    "lint_command": "true",  # Hugo has no lint
+    "format_command": "true",  # Hugo has no format
+    "build_command": "hugo --minify",
+}
+```
+
+Cross-check the existing `enrich_lefthook_yml_pkg_commands` no-op replacement logic — `:` (shell no-op builtin) might be cleaner than `true` since the v2.1.6 lefthook fail-soft path already uses `:` for missing family commands (per `stack_pkg_manager.py:_PNPM_HOOK_REWRITES` logic).
+
+**Default decision**: ship in v2.1.7 as a P1 stack-coverage fix. Tiny scope (single new family + 1 map entry); should ride along with BL-358 in the same v2.1.7 PR.
+
+**Test**: extend `tests/test_stack_aware_pkg_manager_v216.py`:
+
+- (1) `STACK_FAMILY["hugo"] == "hugo"` (data-shape assertion).
+- (2) `STACK_LEFTHOOK_HOOKS["hugo"]["build_command"] == "hugo --minify"` (matches the Hugo adapter's declared build).
+- (3) `primary_family_for_stacks(["hugo"]) == "hugo"`.
+- (4) Enriched lefthook.yml for `stacks: [hugo]` has `run: hugo --minify` somewhere; has NO `run: pnpm` anywhere.
+- (5) Enriched ci.yml for `stacks: [hugo]` mirrors (4).
+
+---
+
+#### BL-360 - v2.1.7: CI workflow `pnpm/action-setup` + `actions/setup-node` left in place for non-TS stacks (P1)
+
+**Status (2026-05-16)**: NEW (carried over from v2.1.6 documented deferral). Surfaced by Codex rounds 2-5 on PR #69 (v2.1.6) — re-raised every round. **Source**: Codex automated review.
+
+**Owner**: TBD.
+
+**Found via**: PR #69 v2.1.6 review pass (Codex rounds 2-5; re-raised every round).
+
+**Problem**: BL-352 in v2.1.6 rewrote `run: pnpm <cmd>` body lines in the rendered `.github/workflows/ci.yml` for non-TS primary stacks, but LEFT the setup-action steps (`pnpm/action-setup@<sha>` + `actions/setup-node@<sha>` with `cache: pnpm`) in place. On a Python / Ruby / Go / Hugo greenfield, the first CI run fails at the pnpm setup step BEFORE reaching the rewritten test/lint/typecheck steps.
+
+The deferral was deliberate: replacing the setup block requires a structural workflow rewrite (different YAML shape per family) and best-effort automatic action swap would silently produce invalid workflows on any setup-action sha rotation. v2.1.6 documented this as a Known Limitation in `docs/releases/v2.1.6.md` "Scope NOT in v2.1.6" plus a docstring caveat at `stack_pkg_manager.py:enrich_ci_yml_pkg_setup`.
+
+**At v2.1.7 design time**: implement per-family CI setup blocks. Approach:
+
+1. Add a `STACK_CI_SETUP_ACTIONS` data table to `_package_managers.py` keyed by family, value is a list of action steps (each step a dict matching the YAML shape: `uses:`, `with:`, etc.).
+   - `ts`: `pnpm/action-setup@<sha>` + `actions/setup-node@<sha>` with `cache: pnpm` (matches v2.1.5 kernel exactly).
+   - `python`: `actions/setup-python@<sha>` with `python-version: '3.11'` and `cache: pip`.
+   - `ruby`: `ruby/setup-ruby@<sha>` with `bundler-cache: true`.
+   - `go`: `actions/setup-go@<sha>` with `go-version: '1.21'`.
+   - `hugo`: `peaceiris/actions-hugo@<sha>` with `hugo-version: 'latest'`.
+2. Extend `enrich_ci_yml_pkg_setup` to detect the setup block via a sentinel comment (e.g., `# STACK_CI_SETUP_BEGIN ... # STACK_CI_SETUP_END`) and substitute the family-appropriate YAML between them.
+3. Pin every action's sha via the existing workflow-action-sha-pin lefthook hook on the SOURCE template (`infrastructure/github/workflows/ci.yml.j2`). The sentinel block keeps the template parseable; the substitution emits sha-pinned actions in the rendered file. CRITICAL: the substitution must NEVER hardcode sha values in `_package_managers.py` — use a lookup table that the workflow-action-sha-pin hook can update centrally.
+
+**Default decision**: ship in v2.1.7 as a P1 follow-on to BL-358/BL-359. Without this, non-TS users still see CI fail on first push despite the v2.1.6 `run:` rewrite work — the gap looks like a regression to a fresh user.
+
+**Test**: extend `tests/test_stack_aware_pkg_manager_v216.py`:
+
+- (1) For each non-TS family (`python`, `ruby`, `go`, `hugo`), enriched ci.yml has NO `pnpm/action-setup` reference and NO `cache: pnpm` reference.
+- (2) For each non-TS family, enriched ci.yml has the FAMILY's setup action (`actions/setup-python` for python, `ruby/setup-ruby` for ruby, etc.).
+- (3) TS family is byte-identical to v2.1.6 kernel (regression check).
+- (4) All emitted action references are sha-pinned (regex check: `@[0-9a-f]{40}` after each `uses:`).
+- (5) Multi-family composition (`stacks: [python_django, ts_monorepo]`) emits BOTH setup blocks — sequentially, in stack-precedence order.
+
+---
+
+#### BL-361 - v2.1.7: v2.1.6 release notes claim `generic` renders "static site, no backend" but round-2 fix flipped `static_capable=False` (P3)
+
+**Status (2026-05-16)**: NEW. Surfaced by Codex round-5 on PR #69 (v2.1.6). **Source**: Codex automated review.
+
+**Owner**: TBD.
+
+**Found via**: PR #69 v2.1.6 review pass (Codex round 5).
+
+**Problem**: `docs/releases/v2.1.6.md:12` says BackendInfo.static_capable "can render 'static site, no backend' framing for Astro static / Hugo / Eleventy / Expo / **generic** stacks". v2.1.6 round-2 review fix (Greptile P1) flipped `generic.describe_backend()` to `static_capable=False` (correct server-side placeholder framing for unknown/Hono/Supabase). The release notes carry the pre-round-2 framing.
+
+**At v2.1.7 design time**: small docs fix — remove `generic` from the static-site list in `v2.1.6.md:12` and rewrite the sentence to enumerate only `astro` / `hugo` / `eleventy` / `expo`. Since v2.1.6 is already shipped, the fix lives in `v2.1.7.md`'s "Documentation corrections from v2.1.6" section rather than editing the v2.1.6 release notes after the fact (release notes are historical artifacts; correct via a forward-pointing note).
+
+**Default decision**: include in v2.1.7 release notes; trivial.
+
+**Test**: `docs/releases/v2.1.7.md` should contain a "Documentation corrections" section enumerating both BL-361 and BL-362 fixes.
+
+---
+
+#### BL-362 - v2.1.7: v2.1.6 release notes claim non-TS prettier-fix/eslint-fix hooks are "inert and deferred" but round-1 strips them (P3)
+
+**Status (2026-05-16)**: NEW. Surfaced by Codex round-5 on PR #69 (v2.1.6). **Source**: Codex automated review.
+
+**Owner**: TBD.
+
+**Found via**: PR #69 v2.1.6 review pass (Codex round 5).
+
+**Problem**: `docs/releases/v2.1.6.md:71` lists "lefthook.yml prettier-fix / eslint-fix auto-fixers on non-TS stacks" in the v2.1.7 deferred-scope section, saying the hooks are "inert" because their `{staged_files}` glob matches nothing on non-TS projects. v2.1.6 round-1 review fix (Codex P1 #3) actually STRIPS those hook blocks entirely from the rendered lefthook.yml for non-TS primary stacks — the inert claim was incorrect (the globs match `.md` / `.yml` / `.json` which non-TS projects DO have, so pre-fix the hooks fired at `pnpm` and failed). The release notes carry the pre-round-1 framing.
+
+**At v2.1.7 design time**: same approach as BL-361 — add a "Documentation corrections from v2.1.6" section to `v2.1.7.md` and remove the misleading bullet from the v2.1.6 deferred-scope section's forward reference. The actual code in `stack_pkg_manager.py:_PRETTIER_FIX_HOOK_RE` + `_ESLINT_FIX_HOOK_RE` is correct; only the docs lag.
+
+**Default decision**: include in v2.1.7 release notes alongside BL-361; trivial.
+
+**Test**: covered by BL-361's documentation-corrections section test (same artifact).
+
+---
+
+#### BL-363 - v2.1.7: `ts_python` family loses `prettier-fix` / `eslint-fix` lefthook auto-fixers; v2.1.6 regression vs v2.1.5 for `nextjs_fastapi` (P1)
+
+**Status (2026-05-16)**: NEW. Surfaced by Greptile round-5 on PR #69 (v2.1.6) — the final comment, dropped after Codex round-5 just before squash-merge. **Source**: Greptile automated review.
+
+**Owner**: TBD.
+
+**Found via**: PR #69 v2.1.6 review pass (Greptile round 5).
+
+**Problem**: `lp_bootstrap/stack_pkg_manager.py:enrich_lefthook_yml_pkg_commands()` early-returns ONLY when the primary family is `"ts"`. For `nextjs_fastapi` projects (family `"ts_python"`), the function falls through to the strip branch that removes the entire `prettier-fix:` and `eslint-fix:` hook blocks via `_PRETTIER_FIX_HOOK_RE` + `_ESLINT_FIX_HOOK_RE`.
+
+The strip logic was added in v2.1.6 round-1 review fix (Codex P1 #3) to close a real bug: pure Python / Ruby / Hugo / Go projects have `.md` / `.yml` / `.json` files matching the `{staged_files}` glob, so pre-fix the hooks fired at the `pnpm` invocation and failed because pnpm isn't installed. But `ts_python` projects HAVE pnpm installed (it's used for the TypeScript half of the composition — `nextjs_fastapi` has both `pnpm test && pytest` etc. in `ts_python`'s STACK_LEFTHOOK_HOOKS entry). The strip's motivation does not apply to `ts_python`; the hooks would actually work.
+
+Net effect: every `nextjs_fastapi` bootstrap loses pre-commit auto-formatting for its TypeScript/React frontend, a silent regression vs v2.1.5. The user notices only when staged files don't auto-fix on commit.
+
+**At v2.1.7 design time**: two fix shapes.
+
+1. **Whitelist hybrid families** (minimum-change): extend the early-return guard from `if family == "ts"` to `if family in ("ts", "ts_python")`. Tight, mechanical, matches the v2.1.6 fix shape.
+2. **Blacklist non-pnpm families** (forward-safe): invert the strip to only apply when `family in ("python", "ruby", "go", "hugo")`. Any future hybrid family (e.g., a v2.2 `ts_ruby` composition) defaults safe — would auto-keep the prettier/eslint hooks rather than silently dropping them. Greptile's preferred shape.
+
+Shape 2 is the better default for v2.1.7 scope. The fix is one line; the test cost is one more case in `tests/test_stack_aware_pkg_manager_v216.py`.
+
+**Default decision**: ship in v2.1.7 as a P1 regression fix; bundle with BL-358 / BL-359 (same module surface).
+
+**Test**: extend `tests/test_stack_aware_pkg_manager_v216.py`:
+
+- (1) `nextjs_fastapi` (family `ts_python`) enriched lefthook.yml RETAINS `prettier-fix:` AND `eslint-fix:` hook blocks (regression check against the v2.1.6 strip).
+- (2) `nextjs_fastapi` enriched lefthook.yml still has the family's `pnpm test && pytest` etc. `run:` body rewrites (no-regression on the v2.1.6 BL-346 win).
+- (3) Pure-Python project (family `python`) continues to STRIP both hook blocks (no-regression on the v2.1.6 round-1 Codex P1 #3 fix).
+- (4) Pure-Ruby project (family `ruby`) continues to STRIP (parity).
+- (5) (Forward-safety check) a synthetic future hybrid family like `ts_ruby` would retain hooks under shape 2 — gated behind the BL-359 Hugo work since adding a synthetic family requires touching `STACK_FAMILY` + `STACK_LEFTHOOK_HOOKS`. Mark as a v2.2 follow-up if shape 2 is chosen.
+
+---
+
+#### BL-364 - v2.1.7: `/lp-ship` lacks preflight gate for external infrastructure prerequisites (P1)
+
+**Status (2026-05-17)**: IMPLEMENTED on the v2.1.7 development branch. Engine at `plugins/launchpad/scripts/lp_preflight.py`; 6 provider profiles at `plugins/launchpad/preflight-profiles/{cloudflare-pages,vercel,netlify,cloudflare-dns,namecheap-dns,spec-completeness}.yaml`; new standalone command at `plugins/launchpad/commands/lp-preflight.md`; gate wired into `/lp-ship` Step 0.6 + `/lp-build` Step 0.6; 24 new tests in `plugins/launchpad/scripts/tests/test_lp_preflight.py` (total: 1789 passing + 4 skipped). `.launchpad/preflight-checklist.md` added to `.gitignore`. Will be cross-referenced from the `## [v2.1.7]` CHANGELOG block when the release is cut.
+
+**Status (2026-05-16)**: NEW. Surfaced during post-v2.1.6 architectural scope review. **Source**: scope review.
+
+**Owner**: TBD.
+
+**Found via**: post-v2.1.6 architectural scope review.
+
+**Problem**: the autonomous-ack gate from BL-356 correctly forces user authorization before `/lp-inf` enters the autonomous implementation loop, but there is no equivalent preflight check for the EXTERNAL infrastructure that the ship phase depends on (provider account, deploy project, deploy credentials in GitHub Secrets, DNS configuration, custom domain setup, third-party analytics tokens, etc.).
+
+Current behavior: `/lp-build` runs `/lp-inf` → `/lp-review` → `/lp-resolve-todo-parallel` → `/lp-test-browser` → `/lp-ship` in sequence. `/lp-ship` then writes deploy workflow files referencing missing secrets, attempts to deploy, and fails at the external-dependency wall, after the user has already spent 30+ minutes of autonomous implementation work that could have been blocked up-front.
+
+Same UX pattern as the autonomous-ack gate but for external prerequisites: surface them at the front of the autonomous flow, block until resolved, then proceed.
+
+**Scope**: implement a preflight gate tied to `/lp-ship` (the only sub-command that touches external infrastructure). `/lp-build` calls `/lp-ship`'s preflight at Step 0 of its orchestration to fail fast (same code, invoked early). `/lp-inf`, `/lp-review`, `/lp-resolve-todo-parallel`, `/lp-test-browser`, `/lp-learn` are not touched; they don't need preflight (`/lp-inf` keeps its existing autonomous-ack gate from BL-356). Also add a standalone `/lp-preflight` slash command that runs the same preflight without committing to a full `/lp-build` or `/lp-ship`.
+
+**Check categories**:
+
+- **A: auto-detect, silent.** Things LaunchPad can verify by reading project files (`.launchpad/autonomous-ack.md` exists, `astro.config.mjs` has `site:` set, required deps installed, `[TBD]` markers absent in PRD, CHANGELOG.md has current-version entry, all in-scope section specs at `approved` status, etc.).
+- **B: auto-detect via API, requires user-provided credentials.** Provider API token works (test API call), deploy project exists with expected slug, DNS resolves to expected provider, GitHub Secrets are populated (if GitHub API token is available).
+- **C1: user confirms, preflight probes to verify.** Items the user must claim are set up that the preflight CAN verify after confirmation, for example "DNS is configured" then preflight runs `dig` to validate.
+- **C2: user confirms, no programmatic verification possible.** Preflight trusts the confirmation; failure surfaces at the actual deploy step with a clear "preflight C2 item X was confirmed but failed at deploy" message.
+
+**Locked design decisions**:
+
+1. **Uncommitted git changes**: warn-only, do not block. Defensive blocking is too inconvenient during iteration.
+2. **Config: provider-profile templates + per-project explicit config.** LaunchPad ships built-in profiles at `plugins/launchpad/preflight-profiles/<provider>.yaml` (cloudflare-pages, vercel, netlify, cloudflare-dns, namecheap-dns, plus a `spec-completeness.yaml` for non-deploy items). The consuming project declares `.launchpad/preflight.config.yaml`:
+
+   ```yaml
+   providers:
+     - cloudflare-pages
+     - namecheap-dns
+     - spec-completeness
+   overrides:
+     cloudflare-pages.api-token-valid:
+       stale_window_days: 60
+   ```
+
+   Inherits everything from the named profile templates; overrides tune specific items. Override keys are check IDs (`<provider>.<item>`), not env-var names. Adding a new provider means adding a profile YAML; zero changes to the preflight engine.
+
+3. **Per-item stale windows.** Default 30 days. Each profile declares per-check defaults; the project's overrides block can tighten or loosen any specific item. API tokens rotate faster than DNS, etc.
+4. **Non-deploy items in scope.** The built-in `spec-completeness` profile covers `[TBD]` markers in PRD, CHANGELOG.md hygiene, in-scope section specs at `approved` status, etc. All ship-time hygiene; lives in the same preflight machinery.
+
+**Files to add**:
+
+- `plugins/launchpad/scripts/lp_preflight.py`, preflight engine.
+- `plugins/launchpad/commands/lp-preflight.md`, standalone slash command.
+- `plugins/launchpad/preflight-profiles/cloudflare-pages.yaml`
+- `plugins/launchpad/preflight-profiles/vercel.yaml`
+- `plugins/launchpad/preflight-profiles/netlify.yaml`
+- `plugins/launchpad/preflight-profiles/cloudflare-dns.yaml`
+- `plugins/launchpad/preflight-profiles/namecheap-dns.yaml`
+- `plugins/launchpad/preflight-profiles/spec-completeness.yaml`
+- `plugins/launchpad/scripts/tests/test_lp_preflight.py`, unit + integration tests with mocked provider APIs.
+
+**Files to modify**:
+
+- `plugins/launchpad/commands/lp-ship.md`, invoke preflight as Step 0 of `/lp-ship`; block ship work if preflight fails.
+- `plugins/launchpad/commands/lp-build.md`, invoke `/lp-ship`'s preflight at Step 0 of `/lp-build`'s orchestration; block entry to `/lp-inf` if preflight fails. Fail-fast on ship-time blockers BEFORE spending autonomous-implementation time.
+- `docs/guides/HOW_IT_WORKS.md`, document the preflight gate.
+- `docs/guides/METHODOLOGY.md`, document provider-profile inheritance.
+- `docs/tasks/BACKLOG.md`, file + close this BL.
+
+**UX flow** (first run, missing infrastructure):
+
+```
+$ /lp-build hero
+
+[preflight] Running 17 checks (cloudflare-pages + namecheap-dns +
+            spec-completeness profiles)...
+[preflight] OK: 11 auto-detected silently
+[preflight] WARN: 6 items need your confirmation
+[preflight]
+[preflight] A checklist has been generated at:
+[preflight]   .launchpad/preflight-checklist.md
+[preflight]
+[preflight] Edit the checklist file to tick confirmation boxes
+[preflight] (first-time setup hints are inline for each item),
+[preflight] then re-run /lp-build (or run /lp-preflight to verify
+[preflight] alone).
+[preflight]
+[preflight] Halting before entering autonomous mode.
+```
+
+After user ticks confirmation boxes:
+
+```
+$ /lp-build hero
+
+[preflight] Running 17 checks...
+[preflight] OK: 11 auto-detected
+[preflight] OK: 4 user-confirmed + verified via probe
+[preflight]      (DNS resolves, API token works, Pages project exists,
+[preflight]       GitHub Secrets populated)
+[preflight] OK: 2 user-confirmed (Analytics property, custom domain
+[preflight]      redirect; trusted; failure will surface at deploy)
+[preflight] All checks pass. Entering autonomous build...
+```
+
+**Checklist file format** (`.launchpad/preflight-checklist.md`, gitignored by default, generated on first `/lp-preflight` or `/lp-build` run):
+
+```markdown
+# Preflight Checklist
+
+Generated: 2026-05-16T20:00:00Z
+Providers: cloudflare-pages, namecheap-dns, spec-completeness
+
+## Auto-detected (no action needed)
+
+- [x] .launchpad/autonomous-ack.md exists
+- [x] astro.config.mjs has `site:` set
+- [x] `pnpm typecheck` passes
+- [x] `pnpm build` passes
+- [x] No `[TBD]` markers in docs/architecture/PRD.md
+- [x] CHANGELOG.md has v0.1.0 entry
+- [x] All in-scope section specs at `approved` status
+- ...
+
+## User confirmation (verifiable via probe)
+
+- [ ] Cloudflare account exists at dash.cloudflare.com
+      Setup hint: https://dash.cloudflare.com/sign-up
+      Last confirmed: never (stale window: 365 days)
+
+- [ ] Cloudflare Pages project `<project-slug>` exists, pointed at
+      the configured GitHub repo, branch `main`
+      Setup hint: https://developers.cloudflare.com/pages/get-started/
+      Last confirmed: never (stale window: 90 days)
+      Probe: Cloudflare API GET /accounts/{id}/pages/projects/<slug>
+
+- [ ] DNS for `<domain>` points to Cloudflare
+      Setup hint: registrar Advanced DNS, CNAME flatten at apex, OR
+      NS-delegate to Cloudflare nameservers
+      Last confirmed: never (stale window: 365 days)
+      Probe: `dig <domain>` returns Cloudflare IP range
+
+- [ ] GitHub Secrets CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID
+      populated at the repo's settings/secrets page
+      Setup hint: Cloudflare dashboard, Manage Account, API Tokens,
+      Create token with Pages:Edit + Account:Read scopes
+      Last confirmed: never (stale window: 60 days)
+      Probe: GitHub API GET /repos/.../actions/secrets (requires GH token)
+
+## User confirmation (cannot verify programmatically)
+
+- [ ] Cloudflare Web Analytics property created + beacon token
+      generated; token in `.env` as `PUBLIC_CF_ANALYTICS_TOKEN`
+      Setup hint: dash.cloudflare.com, Analytics, Web Analytics,
+      Add a site, copy beacon token
+      Last confirmed: never (stale window: 180 days)
+
+- [ ] Custom domain `<domain>` + `www.<domain>` redirect configured
+      in Cloudflare Pages project
+      Setup hint: Cloudflare Pages project, Custom domains, Add
+      Last confirmed: never (stale window: 365 days)
+```
+
+Confirmations are persisted via per-item `Last confirmed:` ISO timestamps in the file. The preflight engine re-prompts when an item's stale window has elapsed.
+
+**Acceptance criteria**:
+
+- `/lp-preflight` standalone command runs all checks declared in `.launchpad/preflight.config.yaml`, generates / updates the checklist file, exits non-zero if any check fails.
+- `/lp-ship <surface>` invokes preflight as its Step 0; refuses to proceed past Step 0 if preflight fails.
+- `/lp-build <surface>` invokes `/lp-ship`'s preflight at its own Step 0 (before entering `/lp-inf`); refuses to proceed if preflight fails. Fail-fast on ship blockers BEFORE doing autonomous implementation work.
+- Auto-detect (A) checks run silently; surface only on failure.
+- API-verified (B) checks run if user has provided credentials.
+- C1 items: user ticks confirmation in checklist file; preflight runs the probe AFTER confirmation; probe failure blocks (clearer feedback than "did you actually configure DNS?").
+- C2 items: preflight trusts the confirmation; failure surfaces at the actual deploy step with a "preflight C2 item X was confirmed but failed at deploy" message.
+- Per-item stale windows enforced; expired items re-prompted in the checklist file.
+- Provider profiles loaded from `plugins/launchpad/preflight-profiles/`; adding a new provider equals adding a profile YAML, no engine changes.
+- Built-in `spec-completeness` profile covers non-deploy items (`[TBD]` markers, CHANGELOG hygiene, section spec status).
+- Tests: ≥ 90% coverage on `lp_preflight.py`; mock Cloudflare API, GitHub API, `dig` for probe paths.
+- All existing tests pass; typecheck + lint clean.
+- Pre-commit hooks pass without `--no-verify`.
+- Documentation updated in `HOW_IT_WORKS.md` + `METHODOLOGY.md`.
+- BACKLOG.md entry filed + closed at PR merge.
+
+**Out of scope** (file as separate BLs if needed later):
+
+- Auto-fix of preflight failures (e.g., auto-create Cloudflare Pages project via API). User retains explicit control over external infrastructure.
+- Multi-environment preflight (staging vs production). v1 assumes a single deploy environment; multi-env can be a future BL.
+- Cross-project preflight (shared profile sets across multiple consumer projects). v1 is per-project.
+
+**Default decision**: ship in v2.1.7 as a P1 architectural fix. Companion to BL-357 (`/lp-shape-section --auto` mode); both can land in the same release.
+
+**Test**: `plugins/launchpad/scripts/tests/test_lp_preflight.py`:
+
+- (1) Profile loader: `.launchpad/preflight.config.yaml` declaring three profiles assembles a merged check list with per-item stale windows honoring `overrides:` entries.
+- (2) Category A check: with `.launchpad/autonomous-ack.md` present, the check passes silently; with it absent, the check fails and surfaces in the report.
+- (3) Category B check (mocked Cloudflare API): with a valid token, `GET /accounts/{id}/pages/projects/<slug>` returns 200 and the check passes; with an invalid token, the check fails with an actionable message.
+- (4) Category C1 check: with the confirmation box unchecked in the checklist file, the check fails before running the probe; with the box checked, the probe runs; probe failure blocks; probe success passes.
+- (5) Category C2 check: with the confirmation box checked, the check passes; the report flags it as "trusted, not verified" so downstream deploy-step failures can cross-reference.
+- (6) Stale-window enforcement: a confirmation timestamp older than the configured stale window re-flags the item as needing reconfirmation.
+- (7) `/lp-ship` Step 0 integration: with preflight failing, `/lp-ship` refuses; with preflight passing, `/lp-ship` proceeds.
+- (8) `/lp-build` Step 0 integration: with preflight failing, `/lp-build` refuses BEFORE dispatching `/lp-inf`; with preflight passing, the orchestration proceeds.
+- (9) Standalone `/lp-preflight`: runs the same engine, generates / updates the checklist file, exits with the same status code as the gated invocations.
+- (10) Provider profile addition: dropping a new `plugins/launchpad/preflight-profiles/<new-provider>.yaml` and referencing it in `.launchpad/preflight.config.yaml` extends the check list with no engine code changes.
+- (11) Uncommitted git changes: preflight emits a warning, does NOT block (per locked design decision 1).
+- (12) Spec-completeness profile: `[TBD]` markers in PRD fail the check; absent markers + current-version CHANGELOG entry + all in-scope section specs at `approved` status pass.
+
+---
+
+#### BL-365 - v2.1.8: Parallelize preflight probe dispatch + short-TTL cache + `_run_one_check` refactor (P2)
+
+**Status (2026-05-17)**: NEW. Surfaced during the post-BL-364 `/lp-review` pass on `feat/bl-364-preflight-gate` (8-agent dispatch). **Source**: BL-364 review findings 01 (`lp-performance-auditor`) + 05 (4-agent consensus across `lp-code-simplicity-reviewer`, `lp-kieran-foad-python-reviewer`, `lp-pattern-finder`, `lp-architecture-strategist`).
+
+**Owner**: TBD.
+
+**Found via**: post-implementation review of v2.1.7 BL-364.
+
+**Problem**:
+
+The BL-364 preflight engine runs probes serially in `run_preflight` (lp_preflight.py:1154-1159). Each B-category probe makes a synchronous HTTPS call with a 10-15s timeout. The gate fires at BOTH `/lp-build` Step 0.6 AND `/lp-ship` Step 0.6 in the same autonomous flow, so the user pays the latency twice in a single `/lp-build` invocation.
+
+Concrete worst case: a 3-profile config (cloudflare-pages + spec-completeness + namecheap-dns) with 4 network probes per Cloudflare profile + 1 dig per DNS profile equals up to 30-40 seconds of synchronous network wait before each autonomous flow entry. Doubled to 60-80 seconds by the `/lp-build` to `/lp-ship` double-fire. Typical case is 3-5 seconds per entry, 6-10 seconds doubled. Acceptable, but the worst case is user-painful and entirely avoidable.
+
+Separately, `_run_one_check` (lp_preflight.py:1031-1101) has four near-identical category branches (A/B/C1/C2) where A and B are byte-identical and C1/C2 share a 6-line confirm+stale prologue. Probe-lookup boilerplate (`if not chk.probe / probe = _PROBE_REGISTRY.get / if probe is None`) is repeated 3x. The duplication invites future drift where one arm grows a feature the others lack. Multi-agent consensus surfaced this independently from 4 reviewers.
+
+**At v2.1.8 design time**: three changes bundled in one PR.
+
+1. **Parallelize probe dispatch.** Replace the for-loop with `concurrent.futures.ThreadPoolExecutor(max_workers=8)`. Probes are pure-I/O and stateless; thread safety is free given frozen `CheckResult` dataclasses. Result ordering preserved via either (a) iterate `checks` and look up `future_by_id[chk.item_id].result()` or (b) sort results by original-position index.
+
+2. **Short-TTL preflight cache.** Cache `PreflightReport` in `.launchpad/preflight-cache.json` keyed by sha256(config + all referenced profile YAMLs). Skip dispatch if cache is younger than 5 minutes AND `report.ok = True`. Eliminates the `/lp-build` to `/lp-ship` double-fire. Gitignored by default.
+
+3. **`_run_one_check` refactor.** Extract `_dispatch_probe(chk, repo_root, clients) -> CheckResult` containing the probe-lookup boilerplate. Collapse A/B into one path and C1/C2 into one confirm-first path. Drops ~30 LOC and removes 3 places future maintainers must keep in sync.
+
+**Default decision**: ship in v2.1.8 as a P2 polish bundle. Total scope ~150-200 LOC of code + tests. Self-contained; no migration concerns.
+
+**Test**: extend `tests/test_lp_preflight.py`:
+
+- (1) Concurrency: stub clients with deliberately delayed responses (e.g., `time.sleep(0.5)` in the http_get stub); assert parallel dispatch completes in roughly `max(probe_time)` rather than `sum(probe_time)`.
+- (2) Result-ordering invariant: parallel and serial dispatches return identical results in identical order.
+- (3) Cache hit: two consecutive `assert_preflight_ok` calls within 5 minutes invoke probes only once.
+- (4) Cache invalidation on config change: edit `.launchpad/preflight.config.yaml`, re-invoke, assert cache miss + fresh dispatch.
+- (5) Cache miss after TTL: monkeypatch `datetime.now` to advance 6 minutes, assert re-dispatch.
+- (6) `_dispatch_probe` regression: existing 24 tests pass byte-identical post-refactor (no behavior change).
+
+---
+
+#### BL-366 - v2.1.x: BL-364 follow-up polish (preflight hardening + ergonomics) (P3)
+
+**Status (2026-05-17)**: NEW. Surfaced during the post-BL-364 `/lp-review` pass on `feat/bl-364-preflight-gate` (8-agent dispatch). **Source**: 18 consolidated P2 + P3 review findings.
+
+**Owner**: TBD.
+
+**Found via**: post-implementation review of v2.1.7 BL-364.
+
+**Problem**:
+
+Eighteen polish, hardening, and ergonomic items surfaced during the post-BL-364 review. None are correctness bugs or coverage gaps (those are fixed in the same PR as BL-364). All are architectural cleanups, defense-in-depth additions, or documentation amendments that compound usefully into a single follow-up cycle.
+
+**Items in scope (grouped by theme)**:
+
+Architectural cleanup (5):
+
+- `assert_preflight_ok` is exported as the in-process API but no command markdown uses it (commands shell out via CLI). Either prune the public function OR wire one command to call it for in-process consistency. Reviewed by `lp-pattern-finder` + `lp-architecture-strategist`.
+- Default env-var names dual-located (probe code fallbacks + profile YAML explicit). Pick one as authoritative. Reviewed by `lp-architecture-strategist`.
+- Profile-level `name:` field is unused (every YAML declares it; loader reads only `profile_path.stem`). Prune or wire it.
+- `github-secrets-populated` check repeats across cloudflare-pages / vercel / netlify profiles. Extract a shared partial via a loader-side include mechanism.
+- `_resolve_env` "missing X or Y env var" duplication across 6 B-probes. Extract `_require_envs(chk, mapping) -> tuple[dict[str, str], CheckResult | None]` helper.
+
+Defense-in-depth (3):
+
+- Path-traversal in file-\* probes (`file-exists`, `file-contains`, `prd-tbd-markers-absent`, `changelog-has-version-entry`). Add `target.resolve().is_relative_to(repo_root.resolve())` guard. Not exploitable today (profile YAMLs are operator-authored) but cheap.
+- `gh secret list --repo <derived>` pin instead of cwd-inferred remote. Closes the tampered-git-remote oracle.
+- `--repo-root` sanity check (must contain `.git/`). Defense against accidental misuse from outside a repo.
+
+Test architecture (5):
+
+- 24 flat tests reorganized into ~4 classes (TestProfileLoader / TestCategoryDispatch / TestProbes / TestCLI / TestEngine).
+- Shared `spec_repo` fixture for the recurring "minimum spec surface" setup (PRD + CHANGELOG + autonomous-ack + clean-git stub). Removes ~150 LOC of boilerplate.
+- `assert_status(report, item_id, expected)` helper that includes the result's `message` body on failure for better DX.
+- `test_cli_exit_zero_on_pass` skipif on missing `git` binary (hermeticity exception).
+- Hypothesis-based property test for `parse_checklist` to lock the tolerant-parser contract (no exceptions on arbitrary user-edited input).
+
+Code hygiene (4):
+
+- `CheckConfirmation` should be `@dataclass(frozen=True)` to match `CheckDefinition` and `CheckResult`. Engine already treats it as a value object via replacement.
+- `_PROBE_REGISTRY` idempotent on `importlib.reload`: skip duplicate registration when the same function is re-registered (tests that reload the module currently raise `RuntimeError`).
+- A-category probes' unused `clients` arg: document the trade-off (uniform signature for registry dispatch vs unused parameter) in the docstring of `register_probe`.
+- `CHECKLIST_HEADER` lacks a docstring; inconsistent with `DEFAULT_STALE_WINDOW_DAYS` at line 108. Add a docstring naming the test surfaces that reference it.
+
+CLI ergonomics (1):
+
+- Add `--profile-dir <path>` (override the bundled `preflight-profiles/` location), `--version` (print module version + Python version), `--json` (machine-parsable output mode for CI integration).
+
+**Default decision**: ship in v2.1.x (between v2.1.8 and v2.2) as a P3 polish bundle. Total scope ~300-400 LOC of code + tests. Self-contained; no migration concerns.
+
+**Test**: each item gets a targeted test or test refactor. Verify total test count stays balanced (~30 net new across the bundle) and suite runtime stays under 1 second.
+
+---
+
+#### BL-367 - v2.1.8: Programmatic GitHub-repo linkage verification for provider project probes (P2)
+
+**Filed by**: Codex round-5 review on PR #75 (v2.1.7 / BL-364), 2026-05-17.
+
+**Context**: BL-364 ships `cloudflare-pages.project-exists`, `vercel.project-exists`, and `netlify.site-exists` probes that verify a deploy project exists under the credentialed account, but DO NOT verify the project is linked to the correct GitHub repo. The v2.1.7 fix narrows the profile titles + setup_hint text to "project exists" (truth-in-advertising), with a C1 user-confirmation that the Git integration is correct. Programmatic verification is deferred here.
+
+**Scope**: extend each probe to parse the repo-linkage block from the API response and compare against the derived `<owner>/<repo>` slug:
+
+- **Cloudflare Pages**: response `result.source.config.{owner, repo_name}` -> compare to derived slug.
+- **Vercel**: response `link.{type, repo, org}` (type must be `github`; repo must match) -> compare to derived slug.
+- **Netlify**: response `build_settings.repo_url` -> parse with `_GH_REPO_SLUG_RE` then compare.
+
+On linkage mismatch: probe FAILS with message naming the detected linkage vs the expected slug. On linkage block absent (project linked via a different provider, e.g., GitLab): probe FAILS asking the user to re-link to GitHub. On linkage block present but unparseable: probe FAILS with the raw value (defensive).
+
+**Profile changes**: restore "is linked to the GitHub repo" language in titles + setup_hints once the probe verifies it. Update SETUP_HINT wording to drop the "user attests" language.
+
+**Test**: per-provider success + failure + no-linkage + unparseable-linkage cases. Mock API responses via existing `ProbeClients.http_get` seam.
+
+**Default decision**: ship in v2.1.8 alongside BL-365. Total scope ~80-120 LOC of code + tests. Self-contained.

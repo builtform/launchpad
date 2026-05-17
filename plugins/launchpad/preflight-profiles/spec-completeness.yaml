@@ -1,0 +1,91 @@
+# Spec-completeness preflight profile (non-deploy hygiene).
+#
+# Bundles ship-time documentation hygiene that LaunchPad can verify
+# without any external API: PRD has no [TBD] markers, CHANGELOG.md has
+# a current-version entry, every in-scope section spec is at `approved`
+# status, the autonomous-ack file exists, and the working tree warns
+# (but doesn't block) on uncommitted changes.
+#
+# All checks are category A (auto-detected from project files); no env
+# vars or user confirmations required.
+
+name: spec-completeness
+description: Documentation + state hygiene before ship
+
+checks:
+  - id: spec-completeness.autonomous-ack-exists
+    category: A
+    title: .launchpad/autonomous-ack.md exists
+    setup_hint: |
+      The BL-356 autonomous-ack gate enforces this at /lp-ship Step 0.5
+      and /lp-build Step 0.1; preflight surfaces the same signal at
+      Step 0.6 for clearer first-screen feedback if the user runs
+      /lp-preflight directly. To author the file, run /lp-build (or
+      /lp-ship) once and copy the starter template from the refuse
+      message, then commit.
+    stale_window_days: 365
+    probe: file-exists
+    args:
+      path: .launchpad/autonomous-ack.md
+
+  - id: spec-completeness.prd-no-tbd-markers
+    category: A
+    title: docs/architecture/PRD.md has no [TBD] markers
+    setup_hint: |
+      Search the PRD for [TBD] strings and resolve each one. Common
+      sources of leftover markers:
+        - placeholders from /lp-define that the user accepted without
+          editing
+        - "decision deferred" markers from /lp-shape-section that should
+          be resolved before ship
+      The probe reports up to 3 line numbers in the FAIL message.
+    stale_window_days: 30
+    probe: prd-tbd-markers-absent
+    args:
+      path: docs/architecture/PRD.md
+
+  - id: spec-completeness.changelog-has-version-entry
+    category: A
+    title: CHANGELOG.md has at least one version or [Unreleased] entry
+    setup_hint: |
+      Per Keep-a-Changelog convention, every shippable state has either
+      a `## [Unreleased]` section (during development) or a
+      `## [vX.Y.Z]` block (after the version is cut). Empty CHANGELOG
+      files surface as a FAIL here.
+      If preparing a specific release, override args.version to assert
+      the named version's section is present:
+          overrides:
+            spec-completeness.changelog-has-version-entry:
+              args:
+                version: v0.1.0
+    stale_window_days: 30
+    probe: changelog-has-version-entry
+    args:
+      path: CHANGELOG.md
+
+  - id: spec-completeness.section-specs-approved
+    category: A
+    title: All section specs at docs/tasks/sections/*.md are at status approved
+    setup_hint: |
+      Section specs progress through statuses: shaped -> designed ->
+      planned -> hardened -> approved -> built. /lp-build only runs
+      sections at `approved` status. Preflight catches the
+      not-yet-approved case before /lp-build's autonomous loop spends
+      effort on it.
+      If a project has no section specs yet (e.g., a /lp-ship before
+      the first /lp-shape-section), this probe passes silently.
+    stale_window_days: 30
+    probe: section-specs-approved
+    args:
+      section_glob: docs/tasks/sections/*.md
+
+  - id: spec-completeness.working-tree-clean-warn
+    category: A
+    title: Working tree status (warn-only)
+    setup_hint: |
+      Locked design decision 1 in BL-364: uncommitted git changes warn
+      but do NOT block. Surfaces here as a `pass` with a warning
+      message naming the number of dirty paths; the user can ignore the
+      warning if they're iterating, or stash/commit to clean the tree.
+    stale_window_days: 30
+    probe: git-uncommitted-changes-warn

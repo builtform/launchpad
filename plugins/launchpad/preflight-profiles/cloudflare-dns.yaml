@@ -1,0 +1,61 @@
+# Cloudflare DNS preflight profile.
+#
+# Use when the project's DNS is hosted on Cloudflare (registrar might be
+# Cloudflare Registrar OR a third-party registrar that delegates NS to
+# Cloudflare). Verifies the custom domain resolves to Cloudflare's edge
+# range or a Cloudflare-managed CNAME.
+#
+# Required:
+#   - args.domain (set per-project via .launchpad/preflight.config.yaml
+#                  overrides) OR PREFLIGHT_DOMAIN env var
+
+name: cloudflare-dns
+description: Cloudflare DNS prerequisites for the project's custom domain
+
+checks:
+  - id: cloudflare-dns.zone-exists
+    category: C2
+    title: Cloudflare zone exists for the project's custom domain
+    setup_hint: |
+      1. Visit https://dash.cloudflare.com and click "Add a site".
+      2. Enter the apex domain, pick the Free plan.
+      3. Cloudflare assigns two nameservers; copy them.
+      4. At the registrar (Cloudflare Registrar or third-party),
+         update the domain's nameservers to the assigned values.
+      5. Wait for propagation (usually < 1h, up to 48h).
+      No programmatic verification at the zone-existence layer; the
+      dns-resolves check below catches the practical effect.
+    stale_window_days: 365
+
+  - id: cloudflare-dns.apex-resolves-to-cloudflare
+    category: C1
+    title: Custom domain resolves to Cloudflare's edge range
+    setup_hint: |
+      Override args.domain in .launchpad/preflight.config.yaml:
+          overrides:
+            cloudflare-dns.apex-resolves-to-cloudflare:
+              args:
+                domain: example.com
+      or export PREFLIGHT_DOMAIN=example.com before running preflight.
+      The probe runs `dig +short <domain>` and asserts the answer
+      starts with a Cloudflare edge prefix (the full 104.16.0.0/12 block,
+      i.e., 104.16.* through 104.31.*, AND the full 172.64.0.0/13 block,
+      i.e., 172.64.* through 172.71.*) or is a CNAME to
+      *.cloudflare.com / *.pages.dev.
+    stale_window_days: 365
+    probe: dns-resolves-to-cloudflare
+    args:
+      domain_env: PREFLIGHT_DOMAIN
+
+  - id: cloudflare-dns.www-redirect-configured
+    category: C2
+    title: www subdomain redirects to apex (or vice versa, per project convention)
+    setup_hint: |
+      In the Cloudflare Pages project, go to Custom domains and add
+      both `<domain>` and `www.<domain>`. Then create a Page Rule or
+      Redirect Rule for the non-canonical hostname pointing at the
+      canonical one with a 301.
+      Cannot verify programmatically without knowing which direction
+      the project canonicalises; tick this after the redirect rule is
+      live in production.
+    stale_window_days: 365
