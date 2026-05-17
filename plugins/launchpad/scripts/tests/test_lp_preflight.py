@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -2705,3 +2706,484 @@ def test_dns_cname_probe_does_not_treat_hostname_as_ip_prefix(
     result = probe(tmp_path, chk, clients)
     assert result.status == "fail"
     assert "104.16.evil.attacker.example" in result.message
+
+
+# ---------------------------------------------------------------------------
+# BL-373: build-time API auth preflight probe.
+# ---------------------------------------------------------------------------
+
+
+def _make_build_time_api_auth_check(
+    *,
+    host: str = "api.github.com",
+    env_var: str = "GITHUB_TOKEN",
+    detection_globs: list[str] | None = None,
+    rate_limit_anon_per_hour: int | None = 60,
+    rate_limit_auth_per_hour: int | None = 5000,
+    remediation_url: str | None = "https://github.com/settings/tokens?type=beta",
+    remediation_scope_hint: str | None = "Minimum scope: public_repo read-only",
+) -> lp_preflight.CheckDefinition:
+    """Build a BL-373 CheckDefinition with sensible defaults; per-test
+    overrides cover the GitLab symmetric case + edge cases."""
+    args: dict[str, object] = {
+        "host": host,
+        "env_var": env_var,
+        "detection_globs": detection_globs
+        if detection_globs is not None
+        else [
+            "src/**/*.ts",
+            "src/**/*.tsx",
+            "src/**/*.js",
+            "src/**/*.mjs",
+            "src/**/*.astro",
+            "src/**/*.vue",
+            "src/**/*.svelte",
+            "dist/.prerender/**/*.mjs",
+        ],
+    }
+    if rate_limit_anon_per_hour is not None:
+        args["rate_limit_anon_per_hour"] = rate_limit_anon_per_hour
+    if rate_limit_auth_per_hour is not None:
+        args["rate_limit_auth_per_hour"] = rate_limit_auth_per_hour
+    if remediation_url is not None:
+        args["remediation_url"] = remediation_url
+    if remediation_scope_hint is not None:
+        args["remediation_scope_hint"] = remediation_scope_hint
+    return lp_preflight.CheckDefinition(
+        item_id="build-time-api-auth.github-api-token",
+        category="B",
+        title="BL-373 test check",
+        setup_hint="(test setup hint)",
+        stale_window_days=60,
+        probe="build-time-api-auth",
+        args=args,
+    )
+
+
+def _run_build_time_api_auth(
+    tmp_path: Path, chk: lp_preflight.CheckDefinition
+) -> lp_preflight.CheckResult:
+    """Direct probe invocation; no http_get / run_command needed for this
+    probe so we supply a stub that asserts if either is invoked."""
+
+    def _http(url: str, headers: dict[str, str]) -> HttpResponse:
+        raise AssertionError(
+            f"build-time-api-auth probe must not invoke http_get; got {url}"
+        )
+
+    def _run(args: list[str]) -> CommandResult:
+        raise AssertionError(
+            f"build-time-api-auth probe must not invoke run_command; got {args}"
+        )
+
+    clients = ProbeClients(http_get=_http, run_command=_run)
+    probe = lp_preflight._PROBE_REGISTRY["build-time-api-auth"]
+    return probe(tmp_path, chk, clients)
+
+
+def test_build_time_api_auth_github_skipped_when_no_call_detected(
+    tmp_path: Path, monkeypatch
+):
+    """No `api.github.com` literal anywhere in the project -> PASS-with-
+    skip-message (probe only fires when the host is detected)."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "index.ts").write_text(
+        "export const greeting = 'hello';\n", encoding="utf-8"
+    )
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    result = _run_build_time_api_auth(tmp_path, _make_build_time_api_auth_check())
+    assert result.status == "pass"
+    assert "no build-time call" in result.message
+    assert "api.github.com" in result.message
+    assert "skipping" in result.message
+
+
+def test_build_time_api_auth_github_ok_when_call_detected_and_token_set(
+    tmp_path: Path, monkeypatch
+):
+    """Env-var-first short-circuit (perf fix from BL-373 round-2 review):
+    when ``GITHUB_TOKEN`` is set, the probe PASSes without scanning files.
+    The PASS message includes the deploy-env reminder even though the
+    file scan was skipped, because the outcome is the same either way
+    (token set -> probe passes), and the perf win pays back on every
+    /lp-preflight invocation where the token IS configured.
+    """
+    (tmp_path / "src" / "lib").mkdir(parents=True)
+    (tmp_path / "src" / "lib" / "github-releases.ts").write_text(
+        "export async function fetchReleases() {\n"
+        "  const r = await fetch('https://api.github.com/repos/x/y/releases');\n"
+        "  return r.json();\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token-active")
+    result = _run_build_time_api_auth(tmp_path, _make_build_time_api_auth_check())
+    assert result.status == "pass"
+    assert "GITHUB_TOKEN is set in local environment" in result.message
+    assert "build-time call scan skipped" in result.message
+    assert "deploy environment" in result.message
+
+
+def test_build_time_api_auth_github_fail_when_call_detected_and_token_missing(
+    tmp_path: Path, monkeypatch
+):
+    """Host detected AND token missing -> FAIL with full remediation block."""
+    (tmp_path / "src" / "lib").mkdir(parents=True)
+    (tmp_path / "src" / "lib" / "github-releases.ts").write_text(
+        "fetch('https://api.github.com/repos/x/y/releases')\n", encoding="utf-8"
+    )
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    result = _run_build_time_api_auth(tmp_path, _make_build_time_api_auth_check())
+    assert result.status == "fail"
+    assert "detected build-time fetch to api.github.com" in result.message
+    assert "src/lib/github-releases.ts" in result.message
+    assert "GITHUB_TOKEN is not set" in result.message
+    assert "60/hour anonymous rate limit" in result.message
+    assert "5000/hour" in result.message
+    assert "Remediation:" in result.message
+    assert "https://github.com/settings/tokens" in result.message
+
+
+def test_build_time_api_auth_github_finds_call_in_astro_file(
+    tmp_path: Path, monkeypatch
+):
+    """Astro static-prerender files are covered by the default globs."""
+    (tmp_path / "src" / "pages").mkdir(parents=True)
+    (tmp_path / "src" / "pages" / "releases.astro").write_text(
+        "---\n"
+        "const data = await fetch('https://api.github.com/repos/x/y/releases');\n"
+        "---\n"
+        "<ul>{/* render data */}</ul>\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    result = _run_build_time_api_auth(tmp_path, _make_build_time_api_auth_check())
+    assert result.status == "fail"
+    assert "src/pages/releases.astro" in result.message
+
+
+def test_build_time_api_auth_github_finds_call_in_prerender_chunk(
+    tmp_path: Path, monkeypatch
+):
+    """Existing `dist/.prerender/**/*.mjs` is covered (post-build dogfood
+    scenario where the user runs /lp-preflight after a failed build)."""
+    (tmp_path / "dist" / ".prerender" / "chunks").mkdir(parents=True)
+    (tmp_path / "dist" / ".prerender" / "chunks" / "_@astrojs.mjs").write_text(
+        "const u='https://api.github.com/repos/foo/bar/releases';\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    result = _run_build_time_api_auth(tmp_path, _make_build_time_api_auth_check())
+    assert result.status == "fail"
+    assert "_@astrojs.mjs" in result.message
+
+
+def test_build_time_api_auth_github_caps_file_list_at_5(
+    tmp_path: Path, monkeypatch
+):
+    """The FAIL file-list block is capped at 5 entries even when more
+    files reference the host."""
+    src = tmp_path / "src"
+    src.mkdir()
+    for n in range(10):
+        (src / f"mod-{n}.ts").write_text(
+            "fetch('https://api.github.com/users/me')\n", encoding="utf-8"
+        )
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    result = _run_build_time_api_auth(tmp_path, _make_build_time_api_auth_check())
+    assert result.status == "fail"
+    # Count file lines (bullet-indent "  - "). Cap is 5.
+    file_lines = [ln for ln in result.message.splitlines() if ln.startswith("  - ")]
+    assert len(file_lines) == 5
+
+
+def test_build_time_api_auth_handles_unreadable_file_gracefully(
+    tmp_path: Path, monkeypatch
+):
+    """A symlinked detection-glob match (e.g., a build artifact symlinked
+    to `/dev/null` or a file with size over the cap) is skipped rather
+    than crashing the probe. The probe must still report SKIP when no
+    READABLE file contains the host."""
+    src = tmp_path / "src"
+    src.mkdir()
+    # Symlink rejection: the helper rejects any symlinked target. Pointing
+    # the symlink at a real file with the host literal would otherwise
+    # cause the probe to FAIL; we want to confirm the symlink is silently
+    # skipped instead.
+    target = tmp_path / "elsewhere.ts"
+    target.write_text(
+        "fetch('https://api.github.com/users/me')\n", encoding="utf-8"
+    )
+    (src / "symlinked.ts").symlink_to(target)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    result = _run_build_time_api_auth(tmp_path, _make_build_time_api_auth_check())
+    # No NON-symlinked file in src/ contains the host -> SKIP path.
+    assert result.status == "pass"
+    assert "no build-time call" in result.message
+
+
+def test_build_time_api_auth_gitlab_symmetric_to_github(
+    tmp_path: Path, monkeypatch
+):
+    """GitLab check has identical FAIL semantics with the GitLab env var
+    name and remediation URL."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "feed.ts").write_text(
+        "fetch('https://api.gitlab.com/api/v4/projects/123')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("GITLAB_TOKEN", raising=False)
+    chk = _make_build_time_api_auth_check(
+        host="api.gitlab.com",
+        env_var="GITLAB_TOKEN",
+        rate_limit_anon_per_hour=60,
+        rate_limit_auth_per_hour=2000,
+        remediation_url="https://gitlab.com/-/user_settings/personal_access_tokens",
+        remediation_scope_hint="Minimum scope: read_api",
+    )
+    result = _run_build_time_api_auth(tmp_path, chk)
+    assert result.status == "fail"
+    assert "api.gitlab.com" in result.message
+    assert "GITLAB_TOKEN is not set" in result.message
+    assert "2000/hour" in result.message
+    assert "https://gitlab.com/-/user_settings/personal_access_tokens" in result.message
+
+
+def test_build_time_api_auth_remediation_text_includes_token_url(
+    tmp_path: Path, monkeypatch
+):
+    """The FAIL remediation block lists numbered steps including a token-
+    generation URL and both the local-export and deploy-env reminders."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "x.ts").write_text(
+        "fetch('https://api.github.com/repos/x/y')\n", encoding="utf-8"
+    )
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    result = _run_build_time_api_auth(tmp_path, _make_build_time_api_auth_check())
+    assert result.status == "fail"
+    # Numbered remediation: 0/1/2 (0. token URL, 1. local export, 2. deploy env).
+    assert "  0. Generate a token: https://github.com/settings/tokens" in result.message
+    assert "  1. Set locally: export GITHUB_TOKEN=" in result.message
+    assert "  2. Set in deploy env: add GITHUB_TOKEN to" in result.message
+
+
+def test_build_time_api_auth_rejects_absolute_glob(tmp_path: Path, monkeypatch):
+    """Detection-glob safety: an absolute path or `..` segment must fail
+    closed (FAIL with refuse-message) rather than scanning outside the
+    repo. Mirrors the validation in `_probe_section_specs_approved`."""
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    chk = _make_build_time_api_auth_check(detection_globs=["/etc/passwd"])
+    result = _run_build_time_api_auth(tmp_path, chk)
+    assert result.status == "fail"
+    assert "must be a non-empty repo-root-relative pattern" in result.message
+
+
+def test_build_time_api_auth_rejects_parent_segment_glob(
+    tmp_path: Path, monkeypatch
+):
+    """`..` segments are rejected so a profile cannot scan outside the
+    repo."""
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    chk = _make_build_time_api_auth_check(detection_globs=["../**/*.ts"])
+    result = _run_build_time_api_auth(tmp_path, chk)
+    assert result.status == "fail"
+    assert "no `..` segments" in result.message
+
+
+def test_build_time_api_auth_case_insensitive_host_match(
+    tmp_path: Path, monkeypatch
+):
+    """Tolerate the rare uppercase `API.GitHub.COM` literal in legacy code
+    so the probe does not silently miss the call."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "legacy.ts").write_text(
+        "fetch('https://API.GitHub.COM/repos/x/y')\n", encoding="utf-8"
+    )
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    result = _run_build_time_api_auth(tmp_path, _make_build_time_api_auth_check())
+    assert result.status == "fail"
+    assert "src/legacy.ts" in result.message
+
+
+def test_build_time_api_auth_rejects_missing_host(tmp_path: Path, monkeypatch):
+    """Round-2 review (testing-reviewer P2): missing `args.host` must
+    produce a FAIL with a precise error message rather than a silent
+    skip."""
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    chk = _make_build_time_api_auth_check()
+    # Strip the host arg to simulate a malformed profile.
+    chk_no_host = replace(
+        chk, args={k: v for k, v in chk.args.items() if k != "host"}
+    )
+    result = _run_build_time_api_auth(tmp_path, chk_no_host)
+    assert result.status == "fail"
+    assert "`args.host` is required" in result.message
+
+
+def test_build_time_api_auth_rejects_missing_env_var(tmp_path: Path, monkeypatch):
+    """Round-2 review (testing-reviewer P2): missing `args.env_var` must
+    produce a FAIL."""
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    chk = _make_build_time_api_auth_check()
+    chk_no_env = replace(
+        chk, args={k: v for k, v in chk.args.items() if k != "env_var"}
+    )
+    result = _run_build_time_api_auth(tmp_path, chk_no_env)
+    assert result.status == "fail"
+    assert "`args.env_var` is required" in result.message
+
+
+def test_build_time_api_auth_rejects_non_list_detection_globs(
+    tmp_path: Path, monkeypatch
+):
+    """Round-2 review (testing-reviewer P2): a scalar `detection_globs:
+    src/**/*.ts` (missing YAML list brackets) must produce a FAIL
+    with the list-shape error message, not iterate the string
+    character-by-character."""
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    chk = _make_build_time_api_auth_check(detection_globs=[])
+    # Inject a scalar shape via dataclasses.replace (the typed factory
+    # rejects non-list at the parameter surface).
+    chk_scalar = replace(chk, args={**chk.args, "detection_globs": "src/**/*.ts"})
+    result = _run_build_time_api_auth(tmp_path, chk_scalar)
+    assert result.status == "fail"
+    assert "non-empty list" in result.message
+
+
+def test_build_time_api_auth_bool_rate_limit_does_not_render(
+    tmp_path: Path, monkeypatch
+):
+    """Round-2 review (python-reviewer P1-1): a profile YAML mistake like
+    `rate_limit_anon_per_hour: true` must NOT render `True/hour` in the
+    FAIL text. The `_is_positive_int` guard rejects bool (since bool
+    subclasses int in Python) and falls back to the no-limit-clause
+    branch."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "x.ts").write_text(
+        "fetch('https://api.github.com/repos/x/y')\n", encoding="utf-8"
+    )
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    chk = _make_build_time_api_auth_check(
+        rate_limit_anon_per_hour=None,  # Drop the default
+        rate_limit_auth_per_hour=None,
+    )
+    chk_with_bool = replace(
+        chk,
+        args={
+            **chk.args,
+            "rate_limit_anon_per_hour": True,
+            "rate_limit_auth_per_hour": False,
+        },
+    )
+    result = _run_build_time_api_auth(tmp_path, chk_with_bool)
+    assert result.status == "fail"
+    # The bool values must NOT leak into the rendered message.
+    assert "True/hour" not in result.message
+    assert "False/hour" not in result.message
+    # The limit-clause is omitted entirely; just the file list +
+    # remediation block remain.
+    assert "anonymous rate limit" not in result.message
+
+
+def test_build_time_api_auth_rejects_unsafe_remediation_url(
+    tmp_path: Path, monkeypatch
+):
+    """Round-2 review (security-auditor F3): a `javascript:` /
+    control-char / non-https `remediation_url` must be silently dropped
+    from the FAIL text rather than rendered into a terminal-poisoning
+    string."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "x.ts").write_text(
+        "fetch('https://api.github.com/repos/x/y')\n", encoding="utf-8"
+    )
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    chk = _make_build_time_api_auth_check(
+        remediation_url="javascript:alert(1)",
+        remediation_scope_hint="malicious",
+    )
+    result = _run_build_time_api_auth(tmp_path, chk)
+    assert result.status == "fail"
+    assert "javascript:" not in result.message
+    # The token-generation line is dropped when the URL is unsafe; the
+    # local-export + deploy-env lines still render.
+    assert "  0. Generate a token: " not in result.message
+    assert "  1. Set locally: " in result.message
+
+
+def test_build_time_api_auth_rejects_control_chars_in_remediation_url(
+    tmp_path: Path, monkeypatch
+):
+    """Round-2 review (security-auditor F3): ANSI escape sequences
+    embedded in the remediation URL must not reach stdout."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "x.ts").write_text(
+        "fetch('https://api.github.com/repos/x/y')\n", encoding="utf-8"
+    )
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    chk = _make_build_time_api_auth_check(
+        remediation_url="https://github.com/\x1b[31m\x07",
+    )
+    result = _run_build_time_api_auth(tmp_path, chk)
+    assert result.status == "fail"
+    assert "\x1b" not in result.message
+    assert "\x07" not in result.message
+    assert "  0. Generate a token: " not in result.message
+
+
+def test_build_time_api_auth_rejects_nul_byte_in_glob(
+    tmp_path: Path, monkeypatch
+):
+    """Round-2 review (security-auditor F2): a NUL byte in a detection
+    glob must be rejected at the validator boundary rather than reach
+    `Path.glob()` (which would raise an unhandled ValueError on some
+    platforms)."""
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    chk = _make_build_time_api_auth_check(detection_globs=["src/\x00/*.ts"])
+    result = _run_build_time_api_auth(tmp_path, chk)
+    assert result.status == "fail"
+    assert "no NUL bytes" in result.message
+
+
+def test_build_time_api_auth_host_needle_requires_trailing_slash(
+    tmp_path: Path, monkeypatch
+):
+    """Round-2 review (security-auditor F4): the host needle includes a
+    trailing `/` so a bare mention of `api.github.com` in a docs string
+    or comment does not false-trigger. Only real fetch URLs (which
+    always have a path separator) match."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "doc.ts").write_text(
+        "// Note: api.github.com is rate-limited\n"
+        "// See https://docs.github.com/en/rest for general docs.\n"
+        "export const COMMENT = 'we used to call api.github.com';\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    result = _run_build_time_api_auth(tmp_path, _make_build_time_api_auth_check())
+    # No real fetch URL (no trailing path separator after the host) so
+    # the probe SKIPs even though the literal hostname appears 3 times.
+    assert result.status == "pass"
+    assert "no build-time call" in result.message
+
+
+def test_build_time_api_auth_profile_loads_via_engine(tmp_path: Path, monkeypatch):
+    """Smoke test: the new profile YAML loads through the normal
+    profile-loader pipeline and produces two checks with the expected
+    probe wired up."""
+    cfg = tmp_path / ".launchpad" / "preflight.config.yaml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text(
+        "providers:\n  - build-time-api-auth\n", encoding="utf-8"
+    )
+    checks, providers = load_preflight_config(tmp_path, profile_dir=PROFILE_DIR)
+    assert providers == ["build-time-api-auth"]
+    by_id = {c.item_id: c for c in checks}
+    assert "build-time-api-auth.github-api-token" in by_id
+    assert "build-time-api-auth.gitlab-api-token" in by_id
+    gh = by_id["build-time-api-auth.github-api-token"]
+    assert gh.probe == "build-time-api-auth"
+    assert gh.args.get("host") == "api.github.com"
+    assert gh.args.get("env_var") == "GITHUB_TOKEN"
+    gl = by_id["build-time-api-auth.gitlab-api-token"]
+    assert gl.args.get("host") == "api.gitlab.com"
+    assert gl.args.get("env_var") == "GITLAB_TOKEN"

@@ -1,0 +1,115 @@
+# Build-time API auth preflight profile (BL-373, v2.1.8).
+#
+# Detects build-time `fetch()` calls to known rate-limited public APIs
+# (api.github.com, api.gitlab.com) and verifies the corresponding auth
+# env var is set, preventing shared-IP rate-limit failures on JAMstack
+# build runners (Cloudflare Pages, Vercel, Netlify, GitHub Actions).
+#
+# Failure mode this profile addresses:
+#   - A build-time `fetch('https://api.github.com/...')` from inside a
+#     static-prerender step. Cloudflare Pages / Vercel / Netlify builds
+#     run on shared egress IPs across many tenants. The unauthenticated
+#     GitHub API rate limit is 60 req/hour PER IP. The IP gets rate-
+#     limited; the build fails. Setting GITHUB_TOKEN raises the limit
+#     to 5000 req/hour per token.
+#
+# Strategy: trust-based local-env check (Strategy A). The probe checks
+# the LOCAL environment for the variable. If set locally, the probe
+# trusts the user has also configured it in the deploy environment.
+# Strategy B (programmatic verification against Cloudflare/Vercel/Netlify
+# env var APIs) is a v2.2 BL.
+#
+# Skip semantics: a check returns PASS-with-skip-message when the host
+# is not detected in any of the configured detection globs. The probe
+# only fires when relevant; projects that do not call these APIs at
+# build time do not see a FAIL.
+
+name: build-time-api-auth
+description: Detect missing auth env vars for rate-limited build-time API calls
+
+checks:
+  - id: build-time-api-auth.github-api-token
+    category: B
+    title: GITHUB_TOKEN set if build-time fetch() to api.github.com is present
+    setup_hint: |
+      JAMstack build runners (Cloudflare Pages, Vercel, Netlify, GitHub
+      Actions) share egress IPs across many tenants. GitHub's anonymous
+      rate limit is 60 requests/hour PER IP, so unauthenticated build-
+      time calls to api.github.com fail unpredictably. Setting
+      GITHUB_TOKEN raises the limit to 5000 requests/hour per token.
+
+      1. Generate a token: https://github.com/settings/tokens?type=beta
+         Minimum scope: public_repo read-only.
+      2. Export it locally so `/lp-preflight` can verify:
+           export GITHUB_TOKEN=<token>
+      3. Add the SAME value to your deploy provider's environment-
+         variable dashboard (Cloudflare Pages / Vercel / Netlify ->
+         Settings -> Environment Variables). The local export is for
+         `/lp-preflight` verification only; the deploy env value is
+         what the build actually uses.
+
+      The probe scans `src/**/*.{ts,tsx,js,mjs,astro,vue,svelte}` plus
+      any existing `dist/.prerender/**/*.mjs` for the literal host
+      `api.github.com`. If the host is not detected anywhere, the
+      probe passes silently (the check only applies to projects that
+      call the API at build time).
+    stale_window_days: 60
+    probe: build-time-api-auth
+    args:
+      host: api.github.com
+      env_var: GITHUB_TOKEN
+      rate_limit_anon_per_hour: 60
+      rate_limit_auth_per_hour: 5000
+      detection_globs:
+        - "src/**/*.ts"
+        - "src/**/*.tsx"
+        - "src/**/*.js"
+        - "src/**/*.mjs"
+        - "src/**/*.astro"
+        - "src/**/*.vue"
+        - "src/**/*.svelte"
+        - "dist/.prerender/**/*.mjs"
+      remediation_url: "https://github.com/settings/tokens?type=beta"
+      remediation_scope_hint: "Minimum scope: public_repo read-only"
+
+  - id: build-time-api-auth.gitlab-api-token
+    category: B
+    title: GITLAB_TOKEN set if build-time fetch() to api.gitlab.com is present
+    setup_hint: |
+      JAMstack build runners share egress IPs across many tenants.
+      GitLab's anonymous API rate limit is 60 requests/hour PER IP,
+      so unauthenticated build-time calls to api.gitlab.com fail
+      unpredictably. Setting GITLAB_TOKEN raises the limit to ~2000
+      requests/hour per token.
+
+      1. Generate a Personal Access Token:
+           https://gitlab.com/-/user_settings/personal_access_tokens
+         Minimum scope: read_api.
+      2. Export it locally so `/lp-preflight` can verify:
+           export GITLAB_TOKEN=<token>
+      3. Add the SAME value to your deploy provider's environment-
+         variable dashboard. The local export is for `/lp-preflight`
+         verification only; the deploy env value is what the build
+         actually uses.
+
+      The probe scans the same detection globs as github-api-token
+      for the literal host `api.gitlab.com`. If the host is not
+      detected anywhere, the probe passes silently.
+    stale_window_days: 60
+    probe: build-time-api-auth
+    args:
+      host: api.gitlab.com
+      env_var: GITLAB_TOKEN
+      rate_limit_anon_per_hour: 60
+      rate_limit_auth_per_hour: 2000
+      detection_globs:
+        - "src/**/*.ts"
+        - "src/**/*.tsx"
+        - "src/**/*.js"
+        - "src/**/*.mjs"
+        - "src/**/*.astro"
+        - "src/**/*.vue"
+        - "src/**/*.svelte"
+        - "dist/.prerender/**/*.mjs"
+      remediation_url: "https://gitlab.com/-/user_settings/personal_access_tokens"
+      remediation_scope_hint: "Minimum scope: read_api"

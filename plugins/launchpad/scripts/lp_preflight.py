@@ -66,7 +66,9 @@ BL-356 invariant on `autonomous_guard.py`.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import ipaddress
+import itertools
 import json
 import os
 import re
@@ -80,6 +82,14 @@ from typing import Any
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 from urllib.parse import quote, urlsplit
+
+# Sibling-script imports (atomic-replace primitive for the receipt artifact;
+# allowlisted in plugin-v2-handshake-lint.py per BL-371).
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from atomic_io import atomic_write_replace  # noqa: E402
 
 # Vendor bootstrap for PyYAML (mirrors plugin-config-loader.py).
 _VENDOR = Path(__file__).resolve().parent / "plugin_stack_adapters" / "_vendor"
@@ -111,7 +121,16 @@ def _load_yaml(text: str) -> Any:
 
 CONFIG_PATH = ".launchpad/preflight.config.yaml"
 CHECKLIST_PATH = ".launchpad/preflight-checklist.md"
+RECEIPT_PATH = ".launchpad/preflight-receipt.json"
+AUDIT_LOG_PATH = ".launchpad/audit.log"
 PROFILE_DIR_NAME = "preflight-profiles"
+
+RECEIPT_VERSION = 1
+"""Schema version for `.launchpad/preflight-receipt.json` (BL-371). v2 reserved."""
+
+DEFAULT_FRESHNESS_WINDOW_SECONDS = 3600
+"""Default receipt freshness window (1 hour) used when neither the CLI
+flag nor the config's top-level `freshness_window_seconds` is set."""
 
 DEFAULT_STALE_WINDOW_DAYS = 30
 """Default stale window if neither the profile nor the override sets one."""
@@ -1303,6 +1322,267 @@ def _probe_github_secrets(
     return _fail(chk, f"missing GitHub Secrets: {', '.join(missing)}")
 
 
+# Build-time API auth probe (BL-373).
+#
+# Detects build-time fetch() calls to known rate-limited public APIs
+# (api.github.com, api.gitlab.com) and verifies the corresponding auth
+# env var is set. Closes the v2.1.7 gap where a JAMstack build hits a
+# shared-IP rate-limit because the auth env var was never configured.
+
+# Defense-in-depth caps. The detection-glob scan reads arbitrary project
+# files; a symlinked `/dev/zero` or multi-GB log would otherwise hang
+# preflight. The file-list cap caps the FAIL message length so a repo
+# with thousands of host references does not produce an unreadable wall
+# of text. The glob-enumeration cap bounds the upstream walk cost so an
+# adversarial or accidental `**/*` cannot materialize tens of thousands
+# of Path objects into memory before the 5-file cap fires (security F1).
+_PROBE_FILE_LIST_CAP = 5
+_PROBE_FILES_PER_GLOB_CAP = 1000
+
+
+# The capped-read helper is shared with `lp_bootstrap.preflight_proposer`
+# (BL-370 workflow scanner) so the symlink-rejection + size-cap semantics
+# stay in lockstep. Two near-identical copies in two modules drifts on
+# any future fix; one shared callable is the architectural fix flagged
+# by simplicity + python + architecture reviewers in the v2.1.8 round-2
+# review pass.
+from lp_bootstrap.preflight_proposer import _read_text_capped  # noqa: E402
+
+
+def _validated_detection_glob(pattern: str) -> str | None:
+    """Reject absolute paths, `..` segments, NUL bytes, and non-string
+    entries in detection globs.
+
+    Mirrors the validation in ``_probe_section_specs_approved`` with the
+    extra NUL-byte gate (security F2). Windows-specific drive-letter
+    rejection is intentionally deferred: the existing
+    ``_probe_section_specs_approved`` has the same gap; fixing both
+    probes together in a separate BL keeps the mirror loyal.
+
+    Returns the pattern unchanged on acceptance, ``None`` on rejection.
+    """
+    if not isinstance(pattern, str) or not pattern:
+        return None
+    if "\x00" in pattern:
+        return None
+    if pattern.startswith("/") or ".." in Path(pattern).parts:
+        return None
+    return pattern
+
+
+_REMEDIATION_URL_SCHEME = "https://"
+
+
+def _safe_remediation_url(value: object) -> str | None:
+    """Return ``value`` iff it is a safe https URL with no control chars.
+
+    Profiles ship the remediation URL as a literal in the YAML; the
+    bundled v2.1.8 catalog uses ``github.com`` and ``gitlab.com`` only.
+    A consumer-authored or forked profile could substitute any string
+    (``javascript:``, ``data:``, ANSI escapes, newlines). The FAIL
+    message is printed to stdout so a poisoned URL would render in the
+    terminal; restrict to plain https URLs with no control chars.
+    Security F3.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    if not value.startswith(_REMEDIATION_URL_SCHEME):
+        return None
+    if any(ord(c) < 0x20 or ord(c) == 0x7F for c in value):
+        return None
+    return value
+
+
+def _is_positive_int(value: object) -> bool:
+    """Strict positive-int check that rejects bool.
+
+    ``bool`` is a subclass of ``int`` in Python so ``isinstance(True, int)``
+    is ``True``. A profile YAML accidentally setting
+    ``rate_limit_anon_per_hour: true`` would otherwise render the FAIL
+    text as ``the True/hour anonymous rate limit``. Reject bool + non-
+    positive ints explicitly. Python reviewer P1-1 + security F6.
+    """
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+@register_probe("build-time-api-auth")
+def _probe_build_time_api_auth(
+    repo_root: Path, chk: CheckDefinition, clients: ProbeClients
+) -> CheckResult:
+    """Verify an auth env var is set when a known rate-limited host is
+    called at build time.
+
+    Args (all required unless marked optional):
+        host: str          (literal hostname to search for, e.g. ``api.github.com``)
+        env_var: str       (env var name to check, e.g. ``GITHUB_TOKEN``)
+        detection_globs: list[str]
+                           (repo-root-relative globs; absolute paths,
+                            ``..`` segments, and NUL bytes are rejected.
+                            Brace expansion is NOT supported; list each
+                            extension explicitly.)
+        rate_limit_anon_per_hour: int  (optional, used in FAIL message)
+        rate_limit_auth_per_hour: int  (optional, used in FAIL message)
+        remediation_url: str           (optional; included in FAIL text;
+                                        must be plain https:// + no
+                                        control chars)
+        remediation_scope_hint: str    (optional; included in FAIL text)
+
+    Skip semantics: when the host is not detected in any of the
+    configured globs, returns ``_pass`` with a "skipping" message. The
+    probe only fires when the relevant fetch() call is actually present.
+    Strategy A (trust-based local-env check) per BL-373; Strategy B
+    (programmatic deploy-env verification) is a v2.2 BL.
+    """
+    host = chk.args.get("host")
+    env_var = chk.args.get("env_var")
+    raw_globs = chk.args.get("detection_globs", [])
+    if not isinstance(host, str) or not host:
+        return _fail(chk, "`args.host` is required (literal hostname to search for)")
+    if not isinstance(env_var, str) or not env_var:
+        return _fail(chk, "`args.env_var` is required (env var name to check)")
+    if not isinstance(raw_globs, list) or not raw_globs:
+        return _fail(
+            chk,
+            "`args.detection_globs` must be a non-empty list of repo-root-"
+            "relative glob strings",
+        )
+    # Validate each glob shape; reject absolute paths, `..` segments,
+    # NUL bytes.
+    validated_globs: list[str] = []
+    for raw in raw_globs:
+        if not isinstance(raw, str):
+            return _fail(
+                chk,
+                f"`args.detection_globs` entry {raw!r} must be a string; "
+                f"got {type(raw).__name__}",
+            )
+        accepted = _validated_detection_glob(raw)
+        if accepted is None:
+            return _fail(
+                chk,
+                f"`args.detection_globs` entry {raw!r} must be a non-empty "
+                f"repo-root-relative pattern (no absolute paths, no `..` "
+                f"segments, no NUL bytes)",
+            )
+        validated_globs.append(accepted)
+
+    # Step 1: env-var-first short-circuit. When the auth env var is set,
+    # the outcome is PASS regardless of which files reference the host;
+    # skipping the filesystem walk is a perf win on the common happy
+    # path (token already configured). Performance reviewer P2.
+    env_value = _resolve_env(env_var)
+    if env_value:
+        return _pass(
+            chk,
+            f"{env_var} is set in local environment; build-time call scan "
+            f"skipped (remember to set {env_var} in your deploy environment's "
+            f"env vars too)",
+        )
+
+    # Step 2: env var not set; scan the detection globs for the host
+    # literal. Case-insensitive match tolerates the rare uppercase
+    # `API.GitHub.COM` in legacy code while keeping the common-case
+    # search cheap. The 5-file cap on `found_in` caps the FAIL message
+    # length; the per-glob cap (`_PROBE_FILES_PER_GLOB_CAP`) bounds the
+    # walk cost so an adversarial `**/*` cannot materialize a huge match
+    # set into memory before the 5-file cap fires.
+    #
+    # Host-needle includes the trailing `/` so a bare mention of
+    # ``api.github.com`` in a comment, docs string, or vendored chunk
+    # does not false-trigger; real fetch URLs always have a path
+    # separator after the host (security F4).
+    needle = (host + "/").lower()
+    found_in: list[Path] = []
+    root_resolved = repo_root.resolve()
+    for pattern in validated_globs:
+        if len(found_in) >= _PROBE_FILE_LIST_CAP:
+            break
+        # Bounded glob walk: `itertools.islice` caps the per-glob
+        # enumeration so the outer `for path in ...` cannot pull more
+        # than `_PROBE_FILES_PER_GLOB_CAP` Path objects into memory
+        # (security F1). The walk itself stops early when the file-list
+        # cap is reached.
+        try:
+            walker = itertools.islice(
+                repo_root.glob(pattern), _PROBE_FILES_PER_GLOB_CAP
+            )
+        except (NotImplementedError, OSError, ValueError):
+            # Malformed glob from a future profile; treat as no match.
+            # `ValueError` covers NUL-byte / encoding pathologies that
+            # slip past `_validated_detection_glob` on some platforms.
+            continue
+        # Sort the truncated subset for stable FAIL output; sorting the
+        # full glob result before truncation would defeat the cap.
+        try:
+            ordered = sorted(walker)
+        except (OSError, ValueError):
+            continue
+        for path in ordered:
+            if len(found_in) >= _PROBE_FILE_LIST_CAP:
+                break
+            # Confine each match under repo_root (defense-in-depth even
+            # though the glob is pre-validated). Mirrors
+            # `_probe_section_specs_approved`.
+            try:
+                path.resolve().relative_to(root_resolved)
+            except (OSError, ValueError):
+                continue
+            text = _read_text_capped(path)
+            if text is None:
+                continue
+            if needle in text.lower():
+                try:
+                    rel = path.relative_to(repo_root)
+                except ValueError:
+                    rel = path
+                found_in.append(rel)
+
+    if not found_in:
+        return _pass(chk, f"no build-time call to {host} detected; skipping")
+
+    # Step 3: host detected AND env var not set: FAIL with remediation.
+    # The setup_hint already contains the detailed remediation steps;
+    # the FAIL message adds the runtime-specific bits (which files
+    # matched, the actual rate limits).
+    anon = chk.args.get("rate_limit_anon_per_hour")
+    auth = chk.args.get("rate_limit_auth_per_hour")
+    remediation_url = _safe_remediation_url(chk.args.get("remediation_url"))
+    remediation_scope = chk.args.get("remediation_scope_hint")
+
+    files_block = "\n".join(f"  - {p}" for p in found_in)
+    limit_clause = ""
+    if _is_positive_int(anon) and _is_positive_int(auth):
+        limit_clause = (
+            f" Without authentication, builds may hit the {anon}/hour "
+            f"anonymous rate limit on shared-IP build runners (Cloudflare "
+            f"Pages, Vercel, Netlify, etc.). With {env_var} set, the limit "
+            f"is {auth}/hour."
+        )
+    remediation_lines = [
+        f"  1. Set locally: export {env_var}=<token> in your shell rc.",
+        f"  2. Set in deploy env: add {env_var} to your hosting provider's "
+        f"environment variables dashboard (Cloudflare Pages / Vercel / "
+        f"Netlify / etc.).",
+    ]
+    if remediation_url is not None:
+        scope_suffix = (
+            f" ({remediation_scope})"
+            if isinstance(remediation_scope, str) and remediation_scope
+            else ""
+        )
+        remediation_lines.insert(
+            0, f"  0. Generate a token: {remediation_url}{scope_suffix}"
+        )
+    remediation_block = "\n".join(remediation_lines)
+
+    return _fail(
+        chk,
+        f"detected build-time fetch to {host} in:\n{files_block}\n"
+        f"But {env_var} is not set in the local environment.{limit_clause}\n\n"
+        f"Remediation:\n{remediation_block}",
+    )
+
+
 @register_probe("git-uncommitted-changes-warn")
 def _probe_uncommitted(
     repo_root: Path, chk: CheckDefinition, clients: ProbeClients
@@ -1739,6 +2019,257 @@ def _format_refuse(report: PreflightReport) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Receipt artifact (BL-371: memoization between /lp-build and /lp-ship).
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ReceiptCheckResult:
+    """Verdict on whether an on-disk receipt licenses skipping probes.
+
+    ``reason`` is one of: ``valid``, ``missing``, ``corrupt``, ``stale``,
+    ``config_changed``, ``checklist_changed``, ``prior_failed``,
+    ``scope_changed``, ``future_version``. Audit-log lines on
+    stale-receipt invalidation include this reason verbatim.
+
+    BL-371 v2 (PR #76 review):
+
+    * ``scope_changed``: receipt was written for a different section
+      scope than the caller's. A receipt written by
+      ``/lp-build --section docs/tasks/sections/hero.md`` does NOT
+      satisfy a project-wide ``/lp-ship`` invocation (project-wide
+      probes are weaker than section-scoped ones); a project-wide
+      receipt (``section_path == None``) DOES satisfy a section-scoped
+      caller (broader covers narrower).
+    * ``future_version``: receipt was written by a newer LaunchPad and
+      its schema version exceeds this reader's ``RECEIPT_VERSION``.
+      Distinct from ``corrupt`` so audit-log telemetry surfaces the
+      upgrade path instead of pointing at a "broken" receipt.
+    """
+
+    valid: bool
+    reason: str
+    receipt_age_seconds: int | None
+    writer_command: str | None
+
+
+def _sha256_of_file(path: Path) -> str | None:
+    """Return hex SHA-256 of ``path``, or ``None`` if the file is missing."""
+    if not path.is_file():
+        return None
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _sanitize_log_field(value: object) -> str:
+    """Percent-escape control characters in a user-influenced log field.
+
+    Mirrors the guard in ``plugin-audit-log.py`` (PR #76 P1, pattern-finder
+    + security-auditor): newline / CR / NUL / DEL / ANSI escapes in
+    receipt fields (``writer_command``, ``verdict.reason``) or CLI args
+    (``--writer-command``) could otherwise smuggle forged audit events
+    onto subsequent lines or render as terminal control sequences when a
+    human ``tail``s the log. The chosen escape (``\\x{NN}``) preserves
+    grep-ability while neutralizing rendering.
+    """
+    text = str(value) if value is not None else ""
+    out: list[str] = []
+    for ch in text:
+        code = ord(ch)
+        if code < 0x20 or code == 0x7F:
+            out.append(f"\\x{code:02x}")
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def _audit_log_event(repo_root: Path, line: str) -> None:
+    """Append a single event line to ``.launchpad/audit.log``.
+
+    Best-effort: write failures are swallowed so a log outage cannot
+    block the preflight gate. Format mirrors ``plugin-audit-log.py``: an
+    ISO-8601-UTC timestamp prefix in ``YYYY-MM-DDTHH:MM:SSZ`` form
+    matching the rest of the LaunchPad codebase (BL-371 v2 PR #76 P2,
+    pattern-finder); receipt events use the BL-371 token shape
+    ``<command> preflight-<action> <key>=<value> ...``. Callers MUST
+    feed already-sanitized field values via ``_sanitize_log_field`` for
+    any user-influenced interpolation.
+    """
+    log_dir = repo_root / ".launchpad"
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / "audit.log"
+        timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        with log_path.open("a", encoding="utf-8") as f:
+            f.write(f"{timestamp} {line}\n")
+    except OSError:
+        pass
+
+
+def _read_receipt(repo_root: Path) -> dict[str, Any] | None:
+    path = repo_root / RECEIPT_PATH
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
+def _freshness_window_from_config(repo_root: Path) -> int | None:
+    """Read top-level ``freshness_window_seconds`` from preflight.config.yaml.
+
+    Returns ``None`` if the key is unset, malformed, or the config is
+    absent / unparseable. Errors do NOT raise: the receipt path must be
+    resilient to config-load failures, and ``load_preflight_config`` will
+    re-surface real errors on the probe path.
+    """
+    cfg = repo_root / CONFIG_PATH
+    if not cfg.is_file():
+        return None
+    try:
+        raw = _load_yaml(cfg.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return None
+    if not isinstance(raw, dict):
+        return None
+    val = raw.get("freshness_window_seconds")
+    # ``bool`` is a subclass of ``int``; reject explicitly so ``True`` is
+    # not silently treated as ``1``.
+    if isinstance(val, bool):
+        return None
+    if not isinstance(val, int) or val <= 0:
+        return None
+    return val
+
+
+def _scope_satisfies(
+    receipt_section_path: object, caller_section_path: str | None
+) -> bool:
+    """Return True iff the receipt's section scope covers the caller's.
+
+    Rule (BL-371 v2, PR #76 P1):
+
+    * A project-wide receipt (``section_path == None``) covers BOTH a
+      project-wide caller AND any section-scoped caller. Broader covers
+      narrower; project-wide probes ran every check the section caller
+      needs plus some it does not.
+    * A section-scoped receipt only covers a caller asking for the
+      EXACT SAME section. Section-scoped probes are weaker than
+      project-wide probes (they scope ``section-specs-approved`` to one
+      file), so they do NOT license skipping the project-wide ship gate.
+    """
+    if receipt_section_path is None:
+        return True
+    if not isinstance(receipt_section_path, str):
+        return False
+    return receipt_section_path == caller_section_path
+
+
+def check_receipt_validity(
+    repo_root: Path,
+    *,
+    freshness_window_seconds: int,
+    now: datetime | None = None,
+    current_section_path: str | None = None,
+) -> ReceiptCheckResult:
+    """Decide whether the on-disk receipt licenses skipping probes.
+
+    Validity requires ALL of:
+
+    * receipt file present, parses as JSON, and version exactly equals
+      ``RECEIPT_VERSION`` (a newer schema returns ``future_version``;
+      truly malformed receipts return ``corrupt``)
+    * ``exit_code == 0``
+    * ``timestamp_utc`` parses; ``(now - timestamp) < freshness_window_seconds``
+    * ``config_sha256`` matches the current preflight config (or both null)
+    * ``checklist_sha256`` matches the current checklist (or both null)
+    * receipt's ``section_path`` covers ``current_section_path`` per the
+      ``_scope_satisfies`` rule (BL-371 v2, PR #76 P1)
+    """
+    now = now or datetime.now(UTC)
+    receipt = _read_receipt(repo_root)
+    if receipt is None:
+        return ReceiptCheckResult(False, "missing", None, None)
+    raw_version = receipt.get("version")
+    if isinstance(raw_version, bool) or not isinstance(raw_version, int):
+        return ReceiptCheckResult(False, "corrupt", None, None)
+    if raw_version > RECEIPT_VERSION:
+        writer_str = (
+            receipt.get("writer_command")
+            if isinstance(receipt.get("writer_command"), str)
+            else None
+        )
+        return ReceiptCheckResult(False, "future_version", None, writer_str)
+    if raw_version != RECEIPT_VERSION:
+        return ReceiptCheckResult(False, "corrupt", None, None)
+    writer = receipt.get("writer_command")
+    writer_str = writer if isinstance(writer, str) else None
+    if receipt.get("exit_code") != 0:
+        return ReceiptCheckResult(False, "prior_failed", None, writer_str)
+    ts_raw = receipt.get("timestamp_utc")
+    if not isinstance(ts_raw, str):
+        return ReceiptCheckResult(False, "corrupt", None, writer_str)
+    try:
+        ts = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
+    except ValueError:
+        return ReceiptCheckResult(False, "corrupt", None, writer_str)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=UTC)
+    age = int((now - ts).total_seconds())
+    if age < 0:
+        return ReceiptCheckResult(False, "corrupt", age, writer_str)
+    if age >= freshness_window_seconds:
+        return ReceiptCheckResult(False, "stale", age, writer_str)
+    if _sha256_of_file(repo_root / CONFIG_PATH) != receipt.get("config_sha256"):
+        return ReceiptCheckResult(False, "config_changed", age, writer_str)
+    if _sha256_of_file(repo_root / CHECKLIST_PATH) != receipt.get("checklist_sha256"):
+        return ReceiptCheckResult(False, "checklist_changed", age, writer_str)
+    if not _scope_satisfies(receipt.get("section_path"), current_section_path):
+        return ReceiptCheckResult(False, "scope_changed", age, writer_str)
+    return ReceiptCheckResult(True, "valid", age, writer_str)
+
+
+def write_receipt(
+    repo_root: Path,
+    *,
+    exit_code: int,
+    section_path: str | None,
+    writer_command: str,
+    freshness_window_seconds: int,
+) -> Path | None:
+    """Write a fresh receipt on success; remove any stale receipt on failure.
+
+    Returns the receipt path when written, ``None`` when the file was
+    removed or no action was needed. Atomic-replace prevents partial-write
+    races with a concurrent ``--read-receipt`` reader.
+    """
+    path = repo_root / RECEIPT_PATH
+    if exit_code != 0:
+        try:
+            path.unlink()
+        except (FileNotFoundError, OSError):
+            return None
+        return None
+    payload = {
+        "version": RECEIPT_VERSION,
+        "timestamp_utc": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "exit_code": exit_code,
+        "config_sha256": _sha256_of_file(repo_root / CONFIG_PATH),
+        "checklist_sha256": _sha256_of_file(repo_root / CHECKLIST_PATH),
+        "section_path": section_path,
+        "writer_command": writer_command,
+        "freshness_window_seconds": freshness_window_seconds,
+    }
+    body = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_replace(path, body, trusted_root=repo_root)
+    return path
+
+
+# ---------------------------------------------------------------------------
 # CLI.
 # ---------------------------------------------------------------------------
 
@@ -1797,8 +2328,108 @@ def main(argv: list[str] | None = None) -> int:
             "standalone runs leave it unset (all-sections semantic)."
         ),
     )
+    parser.add_argument(
+        "--write-receipt",
+        action="store_true",
+        help=(
+            "On exit 0, write `.launchpad/preflight-receipt.json` with the "
+            "config + checklist SHA-256 plus the freshness window so a "
+            "subsequent /lp-ship or /lp-build invocation can skip probes "
+            "when the receipt is still valid. On nonzero exit, any "
+            "existing receipt is removed. BL-371."
+        ),
+    )
+    parser.add_argument(
+        "--read-receipt",
+        action="store_true",
+        help=(
+            "Before running probes, check `.launchpad/preflight-receipt.json` "
+            "and skip probes when `exit_code == 0`, the timestamp is within "
+            "the freshness window, and the recorded config + checklist "
+            "SHA-256 still match the on-disk files. BL-371."
+        ),
+    )
+    parser.add_argument(
+        "--writer-command",
+        default=None,
+        help=(
+            "Identifier of the command writing the receipt "
+            "(e.g., /lp-build, /lp-ship). Default: /lp-preflight. BL-371."
+        ),
+    )
+    parser.add_argument(
+        "--freshness-window-seconds",
+        type=int,
+        default=None,
+        help=(
+            "Override the receipt freshness window. Default: top-level "
+            f"`freshness_window_seconds` in {CONFIG_PATH}, else "
+            f"{DEFAULT_FRESHNESS_WINDOW_SECONDS}. Must be positive. BL-371."
+        ),
+    )
     args = parser.parse_args(argv)
     repo_root = Path(args.repo_root).resolve()
+    # BL-371 v2 (PR #76 P1, pattern-finder + security-auditor): reject
+    # writer-command values containing newlines / CR / NUL up-front so
+    # audit-log forging cannot reach the sanitizer's escape path. The
+    # sanitizer is a second line of defense; this is the first.
+    writer_command_raw = args.writer_command or "/lp-preflight"
+    if any(ch in writer_command_raw for ch in ("\n", "\r", "\x00")):
+        print(
+            "[preflight] CONFIG ERROR: --writer-command must not contain "
+            "newline or NUL characters",
+            file=sys.stderr,
+        )
+        return 2
+    writer_command = _sanitize_log_field(writer_command_raw)
+    freshness = args.freshness_window_seconds
+    if freshness is None:
+        freshness = (
+            _freshness_window_from_config(repo_root) or DEFAULT_FRESHNESS_WINDOW_SECONDS
+        )
+    elif freshness <= 0:
+        print(
+            "[preflight] CONFIG ERROR: --freshness-window-seconds must be "
+            f"a positive integer; got {args.freshness_window_seconds}",
+            file=sys.stderr,
+        )
+        return 2
+
+    if args.read_receipt:
+        verdict = check_receipt_validity(
+            repo_root,
+            freshness_window_seconds=freshness,
+            current_section_path=args.section,
+        )
+        if verdict.valid:
+            # ``verdict.writer_command`` comes from on-disk receipt JSON,
+            # which an attacker with write access to ``.launchpad/`` could
+            # tamper with. Sanitize before interpolating into both stdout
+            # (which a tail-into-terminal would render) and the audit log
+            # (PR #76 P1, pattern-finder + security-auditor F1).
+            issued_by = _sanitize_log_field(verdict.writer_command or "/lp-preflight")
+            print(
+                f"[preflight] receipt valid; skipping probes "
+                f"(issued {verdict.receipt_age_seconds}s ago by {issued_by})"
+            )
+            _audit_log_event(
+                repo_root,
+                f"{writer_command} preflight-skipped-via-receipt "
+                f"receipt_age_seconds={verdict.receipt_age_seconds} "
+                f"writer={issued_by}",
+            )
+            return 0
+        if verdict.reason != "missing":
+            # ``verdict.reason`` is a fixed enum produced inside
+            # ``check_receipt_validity`` so does not require sanitization,
+            # but pass through ``_sanitize_log_field`` defensively in
+            # case a future refactor lets external data reach this slot.
+            reason = _sanitize_log_field(verdict.reason)
+            _audit_log_event(
+                repo_root,
+                f"{writer_command} preflight-receipt-{reason}",
+            )
+
     try:
         report = run_preflight(
             repo_root,
@@ -1807,13 +2438,29 @@ def main(argv: list[str] | None = None) -> int:
         )
     except PreflightConfigError as exc:
         print(f"[preflight] CONFIG ERROR: {exc}", file=sys.stderr)
+        if args.write_receipt:
+            write_receipt(
+                repo_root,
+                exit_code=2,
+                section_path=args.section,
+                writer_command=writer_command,
+                freshness_window_seconds=freshness,
+            )
         return 2
     print(_format_summary(report))
+    exit_code = 0 if report.ok else 1
     if not report.ok:
         print("")
         print(_format_refuse(report))
-        return 1
-    return 0
+    if args.write_receipt:
+        write_receipt(
+            repo_root,
+            exit_code=exit_code,
+            section_path=args.section,
+            writer_command=writer_command,
+            freshness_window_seconds=freshness,
+        )
+    return exit_code
 
 
 if __name__ == "__main__":

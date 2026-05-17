@@ -203,6 +203,162 @@ Tooling notes:
 
 See https://github.com/builtform/launchpad/blob/main/docs/architecture/CI_CD.md#consumer-python-gates
 
+## Post-bootstrap follow-up: Claude Code permission mode (BL-372, v2.1.8)
+
+After the engine returns `BootstrapStatus.SUCCESS` AND the user has opted
+into autonomous mode by creating `.launchpad/autonomous-ack.md` (BL-356),
+also propose merging the bundled autonomous-mode template into
+`.claude/settings.json` so the `/lp-build` -> `/lp-inf` -> `/lp-review`
+-> `/lp-resolve-todo-parallel` -> `/lp-test-browser` -> `/lp-ship` chain
+does not hit a Skill or Monitor permission prompt at every transition
+(5-7+ prompts per `/lp-build` run). The `BootstrapStatus.SUCCESS` gate
+matches the BL-370 preflight follow-up below; both follow-ups are
+skipped on any non-success bootstrap outcome.
+
+The `lp_bootstrap` package lives under `${CLAUDE_PLUGIN_ROOT}/scripts/`,
+not on the consumer repo's default `PYTHONPATH`. Every invocation in
+this section MUST prepend that path (BL-371/BL-372 PR #76 review, Codex
+P1):
+
+```bash
+PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/scripts" \
+  python -m lp_bootstrap.claude_settings_merger --json --repo-root "$PWD"
+```
+
+Returned JSON:
+
+```json
+{
+  "ack_present": true,
+  "settings_present": true,
+  "skipped_marker_present": false,
+  "additions": ["permissions.allow['Skill']", "permissions.allow['Monitor']"],
+  "already_satisfied": false,
+  "template_path": "<plugin root>/templates/claude-settings-autonomous.json",
+  "settings_path": "<cwd>/.claude/settings.json"
+}
+```
+
+Decision matrix:
+
+| `ack_present` | `skipped_marker_present` | `already_satisfied` | Action                                                                                                     |
+| ------------- | ------------------------ | ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| false         | n/a                      | n/a                 | No action. The user has not opted into autonomous mode; prompts at runtime are the correct UX.             |
+| true          | true                     | n/a                 | No action. User previously declined the settings merge; do not re-prompt.                                  |
+| true          | false                    | true                | No action. Existing `.claude/settings.json` already covers the autonomous-mode template.                   |
+| true          | false                    | false               | Prompt the user with the additions list (see template below). On accept, run `--apply`. On decline, no-op. |
+
+Prompt template (only fires on the last row):
+
+> Detected `.launchpad/autonomous-ack.md`. Merge the LaunchPad
+> autonomous-mode permission template into `.claude/settings.json` so the
+> `/lp-build` autonomous chain runs without per-Skill prompts? The merge
+> would add: **`<comma-joined additions>`**. Your existing entries are
+> preserved (tightened rules like `Bash(git:*)` are NOT broadened, scalar
+> values are NOT replaced). \[y/N]
+
+On accept:
+
+```bash
+PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/scripts" \
+  python -m lp_bootstrap.claude_settings_merger --apply --repo-root "$PWD"
+```
+
+On decline (permanent opt-out marker, mirrors BL-370's
+`preflight.config.skipped`):
+
+```bash
+PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/scripts" \
+  python -m lp_bootstrap.claude_settings_merger --write-skipped --repo-root "$PWD"
+```
+
+The `--apply` invocation refuses with exit 65 if `.launchpad/autonomous-ack.md`
+is absent (the gate cannot be bypassed implicitly), and atomically writes
+the merged JSON via `atomic_write_replace`. The `--write-skipped`
+invocation writes a one-line `.launchpad/autonomous-settings-merge.skipped`
+sentinel so future bootstrap runs do not re-prompt; the user can delete
+the sentinel to opt back in. The user can also opt out permanently by
+NOT creating `autonomous-ack.md`.
+
+The shipped template uses TOOL-level entries (`"Skill"`, `"Bash"`, `"Edit"`,
+`"Monitor"`, ...). Per-skill granularity (e.g. `"Skill(launchpad:lp-inf)"`)
+is NOT supported by Claude Code's current permission schema; the merger
+will not generate such entries even if requested.
+
+## Post-bootstrap follow-up: preflight config (BL-370, v2.1.8)
+
+After the engine returns `BootstrapStatus.SUCCESS`, scan for deploy-target
+signals so the v2.1.7 external-infrastructure preflight gate actually
+fires for default greenfield setups. The gap this closes: without a
+`.launchpad/preflight.config.yaml`, `/lp-build` Step 0.6 and `/lp-ship`
+Step 0.6 silently skip preflight and the user only discovers missing
+Cloudflare / DNS / secret setup at deploy time, ~30 min into autonomous
+`/lp-inf` work.
+
+Run the proposer in `--json` mode and decide from the structured output.
+The `lp_bootstrap` package lives under `${CLAUDE_PLUGIN_ROOT}/scripts/`,
+not on the consumer repo's default `PYTHONPATH`. Every invocation in
+this section MUST prepend that path (BL-370 PR #76 review, Codex P1):
+
+```bash
+PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/scripts" \
+  python -m lp_bootstrap.preflight_proposer --json --repo-root "$PWD"
+```
+
+Returned JSON:
+
+```json
+{
+  "detected": ["cloudflare-pages"],
+  "proposed_profiles": ["cloudflare-dns", "cloudflare-pages", "spec-completeness"],
+  "config_present": false,
+  "skipped_marker_present": false
+}
+```
+
+Decision matrix:
+
+| Detected  | `config_present` | `skipped_marker_present` | Action                                                                                                    |
+| --------- | ---------------- | ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| empty     | any              | any                      | No action. Repo has no deploy target yet.                                                                 |
+| non-empty | true             | any                      | No action. Config already authored; respect user edits.                                                   |
+| non-empty | false            | true                     | No action. User previously opted out; do not re-prompt.                                                   |
+| non-empty | false            | false                    | Prompt the user (see template below). On accept, run `--write-config`. On decline, run `--write-skipped`. |
+
+Prompt template (only fires on the last row of the matrix):
+
+> Detected deploy provider(s): **`<comma-joined detected>`**.
+> Create `.launchpad/preflight.config.yaml` covering
+> **`<comma-joined proposed_profiles>`** so `/lp-build` and `/lp-ship` can
+> probe these prerequisites before deploy time? \[y/N]
+
+On accept:
+
+```bash
+PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/scripts" \
+  python -m lp_bootstrap.preflight_proposer --write-config \
+    --providers "<comma-joined proposed_profiles>" --repo-root "$PWD"
+```
+
+On decline:
+
+```bash
+PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/scripts" \
+  python -m lp_bootstrap.preflight_proposer --write-skipped --repo-root "$PWD"
+```
+
+The `--write-config` invocation atomically writes the YAML via
+`atomic_write_replace` and refuses to overwrite an existing config (exit
+65). The `--write-skipped` invocation writes a one-line
+`.launchpad/preflight.config.skipped` sentinel so future bootstrap runs
+do not re-prompt; the user can delete the sentinel to opt back in.
+
+The detector currently covers `cloudflare-pages` (from `wrangler.{jsonc,toml,json}`
+or `cloudflare/pages-action` / `cloudflare/wrangler-action` workflow refs),
+`vercel` (from `vercel.json` or `.vercel/project.json`), and `netlify`
+(from `netlify.toml`). Additional providers join as their profile lands
+in `plugins/launchpad/preflight-profiles/`.
+
 ## Examples
 
 ```bash

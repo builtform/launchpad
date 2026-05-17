@@ -17,6 +17,8 @@
 .launchpad/audit.log
 .launchpad/backups/
 .launchpad/preflight-checklist.md
+.launchpad/preflight-receipt.json
+.launchpad/preflight.config.skipped
 __pycache__/
 .DS_Store
 .cache/

@@ -3201,9 +3201,14 @@ CLI ergonomics (1):
 
 - Add `--profile-dir <path>` (override the bundled `preflight-profiles/` location), `--version` (print module version + Python version), `--json` (machine-parsable output mode for CI integration).
 
+Codex round-6 follow-ups on PR #75 (2):
+
+- **`stale_window_days: 0` causes an impossible confirmation loop (Codex round-6, P2).** `_is_stale()` at `plugins/launchpad/scripts/lp_preflight.py:1521` returns `age_days >= stale_window_days`. A freshly-confirmed C1/C2 item has `age_days = 0`, so `0 >= 0` is True: the item is reported stale immediately after the user ticks the box, the gate re-prompts, and the user is stuck in a loop. Profile loader at `plugins/launchpad/scripts/lp_preflight.py:349` currently rejects only NEGATIVE values; bump the lower bound to `>= 1` with an actionable error naming the offending profile and item id, OR define explicit special-case semantics for zero (e.g., "always stale, intentional one-shot confirmation pattern"). If zero is allowed, add a `_run_one_check` branch that emits a different confirmation message so the user understands the loop is intentional.
+- **`overrides` block merges `args` now, but docs + comments still say it only merges `stale_window_days` (Codex round-6, P3).** Round-2 P2-A widened the merge to include `args` at `plugins/launchpad/scripts/lp_preflight.py:375`, but the comment block at `docs/releases/v2.1.7.md:20` and test comments at `plugins/launchpad/scripts/tests/test_lp_preflight.py:1301` + `:1373` still say overrides only support `stale_window_days`. Update the three doc/comment sites to name the actual contract: overrides merge `stale_window_days` AND `args` (shallow `dict.update`, override values shadow profile defaults on a per-key basis). Add a test asserting that an override `args.domain` value reaches the probe through the merge.
+
 **Default decision**: ship in v2.1.x (between v2.1.8 and v2.2) as a P3 polish bundle. Total scope ~300-400 LOC of code + tests. Self-contained; no migration concerns.
 
-**Test**: each item gets a targeted test or test refactor. Verify total test count stays balanced (~30 net new across the bundle) and suite runtime stays under 1 second.
+**Test**: each item gets a targeted test or test refactor. Verify total test count stays balanced (~32 net new across the bundle: 30 from the original 18 items + 2 from the Codex round-6 follow-ups) and suite runtime stays under 1 second.
 
 ---
 
@@ -3226,3 +3231,559 @@ On linkage mismatch: probe FAILS with message naming the detected linkage vs the
 **Test**: per-provider success + failure + no-linkage + unparseable-linkage cases. Mock API responses via existing `ProbeClients.http_get` seam.
 
 **Default decision**: ship in v2.1.8 alongside BL-365. Total scope ~80-120 LOC of code + tests. Self-contained.
+
+---
+
+#### BL-368 - v2.1.8: DNS probes pass `dig +short -- <domain>` but BIND `dig` does not support `--` as end-of-options sentinel; all DNS checks false-fail in real invocations (P1)
+
+**Filed by**: Codex round-6 review on PR #75 (post-merge, after `f6838ae` push), 2026-05-17. Validated locally against `DiG 9.10.6`: `dig +short -- example.com` prints `Invalid option: --` + usage to stderr and exits 0 with EMPTY stdout. The probe code at `plugins/launchpad/scripts/lp_preflight.py:1416` (`dns-resolves-to-cloudflare`) and `:1468` (`dns-resolves-via-cname`) parses stdout for answer lines, sees zero answers, and returns `fail` with the message `"no DNS A records for <domain>"` or `"no DNS records for <domain>"`. Real consequence: **every DNS probe in v2.1.7 false-fails against a correctly-configured domain**, because the `--` sentinel I added to defend against leading-dash domain interpretation is not a BIND-supported option.
+
+**Status (2026-05-17)**: NEW. Surfaced after v2.1.7 ship (squash `052e603`, tag `v2.1.7`); not caught during the PR because the test suite stubs `dig` entirely via `ProbeClients.run_command`, so the broken argv shape never met a real BIND binary.
+
+**Impact**: any project that enables `cloudflare-dns`, `namecheap-dns`, or any future DNS-resolving profile in `.launchpad/preflight.config.yaml` will see `cloudflare-dns.apex-resolves-to-cloudflare` and `namecheap-dns.apex-resolves-via-cname` fail every run. Workarounds: untick the box manually after the probe fails (loses the staleness window benefit) OR remove the DNS profile from `preflight.config.yaml` (loses the check entirely). Either workaround degrades the v2.1.7 ship value for DNS-using projects.
+
+**Fix shape**:
+
+1. **Remove `--` from both `dig +short ...` call sites** in `lp_preflight.py:1416` + `lp_preflight.py:1468` (and any other DNS probe that lands later). The two callsites currently read `clients.run_command(["dig", "+short", "--", str(domain)])`; change to `["dig", "+short", str(domain)]`.
+
+2. **Restore the leading-dash defense via input validation, not dig argv shape.** Validate `domain` against a strict hostname regex BEFORE passing to dig (RFC 1123 host label: `^(?=.{1,253}$)[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`). A leading-dash domain fails this regex and the probe returns `_fail(chk, "domain {domain!r} is not a valid hostname")` before dig ever runs. Other invalid shapes (whitespace, NUL, embedded shell metacharacters) are caught here too.
+
+3. **Update test fixtures** that currently assert the broken argv. Affected tests (per Codex finding): `plugins/launchpad/scripts/tests/test_lp_preflight.py:862`, `:1323`, plus any DNS-related fixture using `("dig", "+short", "--", ...)` as the command_responses key. Replace with `("dig", "+short", ...)`.
+
+4. **Add a regression test** that asserts the new validation: stub `clients.run_command` and verify that a domain like `-rf` or `--help` is rejected at the validation layer BEFORE the dig invocation (no `run_command` calls recorded).
+
+5. **OPTIONAL hardening**: add a `dig +noall +answer <domain>` smoke test inside the engine's `default_clients()` factory that runs once at module import time on a known-resolving domain (e.g., `localhost.`, which always resolves). If the smoke test fails, log a one-line WARN to stderr naming the dig version + the failure mode. This catches future dig-argv breakage from BIND version upgrades. Cost: one extra dig call per `lp_preflight.py` import; gated behind an env var `LP_PREFLIGHT_DIG_SMOKE_TEST=1` so test suites stay hermetic.
+
+**Why this is NOT in BL-366**: BL-366 is a P3 polish bundle. This is a P1 correctness bug that breaks every DNS probe in real invocations. The polish-bundle framing would (1) under-prioritize the fix, (2) bundle a P1 with P2/P3 items so the fix waits for the full bundle's review-iterate cycle, and (3) hide the severity from anyone scanning BACKLOG.md for v2.1.8 candidates.
+
+**Why this is NOT a v2.1.7.1 hotfix**: the workaround (untick the box, OR drop the DNS profile from config) is functional, and v2.1.7 just shipped. A same-day hotfix re-burns the release-process budget for a probe that real users typically run once during initial setup, then re-confirm only at the 365-day stale window. v2.1.8 batching is appropriate.
+
+**Default decision**: ship in v2.1.8 as the headline DNS fix. Total scope ~40-60 LOC of code (probe edits + validation regex + tests) + 3-5 net new tests. Self-contained.
+
+---
+
+#### BL-369 - v2.2: Rename `/lp-plan` to `/lp-design` (terminology realignment) (P2)
+
+**Filed by**: user feedback after first real-world greenfield usage on ulcspec.org, 2026-05-17. The command currently named `/lp-plan` actually drives the entire section-design pass: visual mocks (via design agents), interaction patterns, copy, layout decisions, and the implementation plan that follows. The "plan" framing under-sells what the user experiences: "this process actually designs the entire website."
+
+**Status (2026-05-17)**: CLOSED — dropped. After reviewing the blast-radius scan (~38 reference sites across 9 namespaces) plus the five coupled sub-decisions (lifecycle `designed` / `planned` status overlap, three pre-existing `/lp-design-*` commands, six `agents/design/` namespaced agents, `/lp-harden-plan` cascading rename, `*-plan.md` artifact filename), the user decided the complexity-vs-clarity tradeoff is not worth pursuing. `/lp-plan` stays as the command name. The naming-clarity concern is acknowledged but accepted as a documentation-level fix (the command's `description:` frontmatter and HOW_IT_WORKS.md `/lp-plan` section can be reworded to lead with "designs the section" instead of "plans the section" without renaming the command itself). No further work tracked under this BL. Leaving this entry in BACKLOG.md as a historical record so the same rename proposal does not get re-filed without the blast-radius context.
+
+**Source**: user direct feedback after running through `/lp-plan` on ulcspec.org's 7-section dual-track rewrite.
+
+**Owner**: TBD.
+
+**Found via**: real-world usage; the documented protocol calls it "interactive planning pipeline" but the experience is design-first.
+
+---
+
+**Critical naming conflicts to resolve BEFORE implementation**:
+
+This is not a simple find-and-replace. Three pre-existing naming surfaces collide with `/lp-design`:
+
+1. **Section spec lifecycle has both `designed` AND `planned` as distinct statuses.** The canonical lifecycle (declared in `docs/guides/METHODOLOGY.md:86`, `docs/guides/HOW_IT_WORKS.md:254`, and `plugins/launchpad/scripts/plugin_default_generators/SECTION_REGISTRY.md.j2:17`) is:
+
+   ```
+   defined → shaped → designed / "design:skipped" → planned → hardened → approved → reviewed → built
+   ```
+
+   `/lp-plan` advances a section from `designed` (or `design:skipped`) to `planned`. If we rename the command but keep both statuses, a user runs `/lp-design <section>` and watches the status change from `designed` to `planned`, which is semantically backwards. Three options:
+   - **(a) Collapse `designed` + `planned` into one stage** (call it `designed`). Lose the distinction between "design artifacts exist" (pre-`/lp-plan`) and "implementation plan locked in" (post-`/lp-plan`). The current distinction matters for `/lp-build` Step 0.6 + the `review_design_agents` dispatch in `/lp-review`, which both branch on the design / design-skipped status.
+   - **(b) Rename `planned` status to something else** (e.g., `design-locked`, `spec-locked`, `ready-for-build`). Lifecycle becomes `defined → shaped → designed → design-locked → hardened → approved → reviewed → built`. Cleaner semantic but cascades into every test fixture and template that asserts the literal `planned` status.
+   - **(c) Pick a different command name** (e.g., `/lp-design-section` or `/lp-section-spec`). Sidesteps the lifecycle conflict but loses the user's preferred name.
+   - **(d) Keep both names and document the mismatch.** Confusing; we should not ship this.
+   - **Recommendation**: option (b). Reflects what the command produces while preserving the pre-/post-plan distinction the design agents rely on.
+
+2. **Three pre-existing `/lp-design-*` commands.** `plugins/launchpad/commands/lp-design-onboard.md`, `lp-design-polish.md`, and `lp-design-review.md` already exist. They handle UI feedback loops (designer-side workflows, not section-spec planning). A bare `/lp-design` (singular, top-level) would sit alongside them as a sibling but in a different conceptual layer. Decide: are the `/lp-design-*` commands re-namespaced (e.g., `/lp-ui-onboard`, `/lp-ui-polish`, `/lp-ui-review`) so `design` is reserved for the section-design lane? Or do we accept the prefix-overlap and rely on documentation to differentiate? Recommendation: rename the existing three to `/lp-ui-*` (they are UI-specific) so `design` is reserved for the section-design meta-orchestrator.
+
+3. **Six design-namespaced agents** under `plugins/launchpad/agents/design/`: `lp-design-alignment-checker`, `lp-design-implementation-reviewer`, `lp-design-iterator`, `lp-design-responsive-auditor`, `lp-design-ui-auditor`, `lp-figma-design-sync`. All are UI / visual design agents (Figma sync, responsive audit, etc.) dispatched by the existing `/lp-design-*` commands. If the existing `/lp-design-*` commands are renamed to `/lp-ui-*` per (2) above, these agents should likely move to `agents/ui/` and rename to `lp-ui-*`. If not, they stay where they are. Either way the agent rename is bundled with the (2) decision.
+
+4. **`/lp-harden-plan` command name**. The harden-plan command operates on the `*-plan.md` artifact that `/lp-plan` produces. If `/lp-plan` is renamed, decide:
+   - Keep `/lp-harden-plan` as-is (the noun "plan" refers to the document artifact, not the lifecycle stage)
+   - Also rename to `/lp-harden-design`
+   - Recommendation: rename to `/lp-harden-design` AND rename the artifact filename pattern (see (5)) for full consistency.
+
+5. **Plan-artifact filename pattern**. `paths.plans_file_pattern` in `config.yml.j2:49` defaults to `docs/tasks/sections/{section_name}-plan.md`. Decide:
+   - Keep `-plan.md` suffix (artifact is still called "plan" internally)
+   - Rename to `-design.md` for consistency with the command rename
+   - Recommendation: rename to `-design.md`. Add a migration shim in `plugin-config-loader.py` so existing projects with `-plan.md` artifacts keep working (check for both suffixes; warn on the legacy name).
+
+---
+
+**Full blast radius (38 reference sites across 9 namespaces)**:
+
+**Command markdown files (7)**:
+
+- `plugins/launchpad/commands/lp-plan.md` -> rename file to `lp-design.md`; update `name:` frontmatter; update every internal `/lp-plan` self-reference; update the `description:` frontmatter to say "design" instead of "planning pipeline"; update the lifecycle status routing (Step 1 reads `designed` / `"design:skipped"` -> writes `planned`; under option 1(b) the write becomes `design-locked`).
+- `plugins/launchpad/commands/lp-build.md` -> update Step 0.55 + Step 1 references; the chain text "/lp-define -> /lp-plan -> /lp-build" needs the rename.
+- `plugins/launchpad/commands/lp-copy-review.md` -> reference update.
+- `plugins/launchpad/commands/lp-define.md` -> reference update.
+- `plugins/launchpad/commands/lp-feature-video.md` -> reference update.
+- `plugins/launchpad/commands/lp-harden-plan.md` -> rename file + content per decision (4); update plan-path-resolution language per (5).
+- `plugins/launchpad/commands/lp-regenerate-backlog.md` -> reference update.
+
+**Tests (4)**:
+
+- `plugins/launchpad/scripts/tests/test_plan.py` -> rename to `test_design.py`; rename `test_lp_plan_command_has_step0` function to `test_lp_design_command_has_step0`; update the file-path constant at line 306 (`REPO_ROOT / "plugins" / "launchpad" / "commands" / "lp-plan.md"` -> `"lp-design.md"`); update the test ID tuple at line 337.
+- `plugins/launchpad/scripts/tests/test_l2_commands.py` -> the command list at line 175 (`for cmd in ("lp-kickoff", "lp-define", "lp-plan", "lp-build")`) needs `lp-plan` -> `lp-design`.
+- `plugins/launchpad/scripts/tests/test_pipeline_matrix.py` -> docstring chain at line 4 needs update.
+- `plugins/launchpad/scripts/tests/test_autonomous_ack_gate_v216.py` -> verify references to `/lp-plan` in the refuse-message contract still resolve after `autonomous_guard.py` updates per below.
+
+**Scripts (2)**:
+
+- `plugins/launchpad/scripts/lp_preflight.py:902` -> single-line comment ("/lp-plan + /lp-pnf conventions") needs `/lp-plan` -> `/lp-design`.
+- `plugins/launchpad/scripts/plugin_stack_adapters/autonomous_guard.py` -> 5+ docstring/comment references (lines 14, 43, 71, 94, 132). Note: the canonical refuse-text body at `AUTONOMOUS_ACK_DESCRIPTION` / `AUTONOMOUS_ACK_TEMPLATE` constants may name `/lp-plan` explicitly; renaming changes the refuse-message text emitted to users on the autonomous-ack gate. Update `test_autonomous_ack_gate_v216.py` assertions accordingly.
+
+**Default generators (2)**:
+
+- `plugins/launchpad/scripts/plugin_default_generators/config.yml.j2:49` -> `plans_file_pattern` key name. Either rename to `designs_file_pattern` (full rename) or keep the key name as-is and only update the default value to `{section_name}-design.md` (back-compat-friendly). The key is read by `plugin-config-loader.py`; renaming the key forces a coordinated update there.
+- `plugins/launchpad/scripts/plugin_default_generators/SECTION_REGISTRY.md.j2:17` -> the status enum line `**Status:** shaped | designed | planned | built`. Update per option 1 decision.
+
+**Top-level docs (3)**:
+
+- `docs/guides/HOW_IT_WORKS.md` -> lifecycle line at `:254` + every `/lp-plan` reference in the pipeline-walk content.
+- `docs/guides/METHODOLOGY.md` -> lifecycle line at `:86` + every `/lp-plan` reference.
+- `docs/architecture/SCAFFOLD_HANDSHAKE.md` -> reference update.
+
+**Skill files (1)**:
+
+- `plugins/launchpad/skills/lp-step-zero/SKILL.md` -> reference update.
+
+**Agent files (3 in agents/design/)**:
+
+- Three agents currently mention `/lp-plan` in their docstrings (likely as "invoked from /lp-plan" or as part of dispatch documentation). Update the references. Per decision (3), the agents themselves may be renamed too.
+
+**Generators side**: the `config.yml.j2` default value flows into every greenfield scaffold via `/lp-bootstrap`. Existing projects that scaffolded before this rename keep their `-plan.md` artifacts and `paths.plans_file_pattern: ...` config key. Backward-compat shim required (see option 5).
+
+**Historical archives NOT renamed**: `docs/reports/launchpad_reports/*` (7 files) and `docs/handoffs/launchpad_handoffs/*` (4 files) and `docs/releases/v*.md` (2 files) reference `/lp-plan` in historical context. These are SHIP RECORDS and should NOT be edited (would falsify the git-blame-of-record). The rename applies to LIVE surfaces only.
+
+**Tests that pin filename suffixes** (8 files): `test_lp_preflight.py`, `test_v2_1_0_release_artifacts.py`, `test_phase8_5_decommission.py`, `test_atomic_io_symlink.py`, `test_kernel_renderer_missing_on_disk.py`, `test_dispatch_by_stack_ids_smoke.py`, `test_plan.py`, plus `plugin-config-loader.py` itself. All assert the literal `-plan.md` suffix somewhere; per option (5) decision, update each.
+
+---
+
+**Migration / deprecation strategy** (decide before implementing):
+
+- **Hard cut**: `/lp-plan` command file deleted in v2.2; users invoking `/lp-plan` get "command not found." Existing projects with `*-plan.md` artifacts get a config-loader warning + auto-fall-back to legacy suffix.
+- **Alias period**: `/lp-plan.md` becomes a thin shim that prints a one-line deprecation banner and delegates to `/lp-design`. Removed in v2.3. Lower disruption.
+- **Recommendation**: alias period for at least one minor release (v2.2.x). The cost is one extra command markdown file; the benefit is anyone running `/lp-plan` from muscle memory gets a clear "renamed; use `/lp-design` instead" message.
+
+---
+
+**Test plan**:
+
+- Per-affected-test-file update + green re-run.
+- New test asserting the legacy alias (if shipped) prints the deprecation banner and successfully invokes the rename target.
+- New test asserting the config-loader back-compat shim recognizes both `-plan.md` and `-design.md` suffixes (or only `-design.md` under hard-cut).
+- Pipeline-matrix smoke test runs the full `/lp-define -> /lp-design -> /lp-build` chain end-to-end on a tempdir scaffold to confirm no broken references.
+- Test count delta: ~5-10 net new (alias test + back-compat test + per-affected-callsite assertion). Suite runtime impact under 100 ms.
+
+---
+
+**Default decision**: ship in **v2.2** as a coordinated rename. The blast radius (~38 reference sites + 7 command files + 4 lifecycle-status decisions + 1 artifact-filename decision) exceeds v2.1.x patch scope. v2.2 is the right home: minor-version bump signals user-visible rename, gives room for the alias-period shim, and lets the lifecycle-status change land alongside other v2.2 surface stabilization work.
+
+**Sub-decisions to lock at v2.2 plan-authoring time**:
+
+1. Lifecycle: option (a), (b), (c), or (d) above. Recommendation: (b) (rename `planned` -> `design-locked`).
+2. Existing `/lp-design-*` commands: rename to `/lp-ui-*`? Recommendation: yes.
+3. Design agents: move + rename to `agents/ui/`? Recommendation: yes (bundled with (2)).
+4. `/lp-harden-plan`: rename to `/lp-harden-design`? Recommendation: yes.
+5. Plan-artifact filename: `-plan.md` -> `-design.md`? Recommendation: yes, with config-loader back-compat shim for one minor release.
+6. Alias period vs hard cut: alias for v2.2.x. Recommendation: alias.
+
+**Out of scope for this BL**: re-shaping the lifecycle to drop one of the design/plan stages (option (a) above). That is a deeper architectural change and would warrant its own BL if pursued.
+
+---
+
+#### BL-370 - v2.1.8: Preflight config bootstrapping (auto-detect deploy targets at /lp-bootstrap; propose `.launchpad/preflight.config.yaml`) (P1)
+
+**Filed by**: post-v2.1.7 scope-review reproduction (real-world greenfield dogfood), 2026-05-17. Closes the BL-364 invisibility gap: greenfield consumers never see the preflight gate fire because nothing in the workflow creates `.launchpad/preflight.config.yaml` for them. The rule at `plugins/launchpad/commands/lp-build.md:89` and `plugins/launchpad/commands/lp-ship.md:38` ("if preflight config is missing, skip silently; opt-out by omitting the file") was sensible as a contract but defeats the gate in practice for default greenfield setups.
+
+**Status (2026-05-17)**: NEW. Headline user-impact BL of v2.1.8. Without this, BL-364 ships invisibly for the majority of consumers; users lose 30+ minutes of `/lp-inf` time and only discover the missing Cloudflare / DNS / secret setup at deploy time, exactly the failure mode BL-364 was supposed to prevent.
+
+**Impact**: every greenfield consumer that does not manually author the preflight config bypasses the v2.1.7 gate. The two narrow workarounds (hand-author the config; or run `/lp-preflight` standalone) require pre-existing knowledge of BL-364's surface, which new users do not have.
+
+**Solution shape: detect-and-propose during `/lp-bootstrap`**
+
+After existing bootstrap steps complete, add a step that:
+
+1. Scans the repo for deploy-target signals:
+   - `wrangler.jsonc` or `wrangler.toml` -> `cloudflare-pages` or `cloudflare-workers`
+   - `vercel.json` or `.vercel/project.json` -> `vercel`
+   - `netlify.toml` -> `netlify`
+   - `.github/workflows/*.yml` containing `cloudflare/pages-action` or `actions/upload-pages-artifact` -> `cloudflare-pages` or `github-pages`
+2. If any signal detected AND `.launchpad/preflight.config.yaml` does NOT exist, propose a starter config (interactive prompt) with the detected providers pre-populated plus `spec-completeness`.
+3. On user "yes", write `.launchpad/preflight.config.yaml`.
+4. On user "no", write a one-line stub at `.launchpad/preflight.config.skipped` so future bootstrap runs do not re-prompt.
+5. Never auto-create without confirmation. Idempotent: if the file already exists, do nothing.
+
+**Pseudocode**:
+
+```python
+def maybe_propose_preflight_config(repo_root: Path) -> None:
+    target = repo_root / ".launchpad" / "preflight.config.yaml"
+    if target.exists():
+        return  # already configured
+
+    detected = detect_deploy_providers(repo_root)
+    if not detected:
+        return  # no deploy target signals
+
+    profiles_proposed = sorted(set(detected) | {"spec-completeness"})
+    if prompt_user(f"Detected deploy provider(s): {', '.join(detected)}. "
+                   f"Create preflight config covering {profiles_proposed}? [y/N]"):
+        write_preflight_config(target, profiles_proposed)
+        log_audit("lp-bootstrap preflight-config-created")
+    else:
+        target.with_suffix(".skipped").write_text(
+            "# user opted out at /lp-bootstrap\n"
+        )
+        log_audit("lp-bootstrap preflight-config-skipped-by-user")
+```
+
+**Generated config shape (for Cloudflare Pages detection)**:
+
+```yaml
+# Generated by /lp-bootstrap on <ISO-8601 UTC>
+# Edit freely; .launchpad/ files are gitignored by default.
+
+providers:
+  - spec-completeness
+  - cloudflare-pages
+  - cloudflare-dns # remove if no custom domain
+```
+
+For Vercel: substitute `vercel` for `cloudflare-pages` and drop `cloudflare-dns`. For Netlify: same pattern. For multi-target detection: include all detected.
+
+**Secondary surface (defer to v2.1.x if scope tight)**: when `/lp-define` runs and updates `config.yml`, check the same deploy-target signals and emit a one-line non-blocking advisory if `.launchpad/preflight.config.yaml` is missing: "Detected Cloudflare Pages config; run /lp-preflight-init to enable the v2.1.7 external-infrastructure gate."
+
+**Files to modify**:
+
+- `plugins/launchpad/commands/lp-bootstrap.md`: add the new step in the prose.
+- `plugins/launchpad/scripts/lp_bootstrap_runner.py` (or equivalent; consult current bootstrap implementation): add `maybe_propose_preflight_config()` call.
+- `plugins/launchpad/scripts/plugin_stack_adapters/deploy_target_detector.py`: NEW module. Pure-function `detect_deploy_providers()` with tests.
+
+**Tests to add** (in `plugins/launchpad/scripts/tests/test_lp_bootstrap.py` or new `test_deploy_target_detector.py`):
+
+- `test_detect_cloudflare_from_wrangler_jsonc`
+- `test_detect_cloudflare_from_wrangler_toml`
+- `test_detect_cloudflare_from_github_workflow`
+- `test_detect_vercel_from_vercel_json`
+- `test_detect_netlify_from_netlify_toml`
+- `test_detect_none_returns_empty`
+- `test_detect_multi_target_returns_all`
+- `test_proposes_config_when_signals_present_and_no_config`
+- `test_skips_proposal_when_config_already_exists`
+- `test_respects_skipped_marker`
+- `test_writes_skipped_marker_on_user_no`
+
+**Acceptance criteria**:
+
+- A greenfield project with `wrangler.jsonc` (or any other deploy signal) gets prompted to create `preflight.config.yaml` at `/lp-bootstrap` time.
+- User can say no; opt-out marker prevents re-prompting on future bootstrap runs.
+- Existing projects with the config in place are not re-prompted.
+- The generated config matches the bundled provider profiles (`cloudflare-pages`, `vercel`, `netlify`, etc.) without manual editing.
+- `/lp-build` Step 0.6 and `/lp-ship` Step 0.6 now actually fire probes on default greenfield setups (verifiable via integration test).
+
+**Default decision**: ship in v2.1.8 as the headline user-impact BL. Order: land before BL-371 so memoization has a populated pipeline to memoize. Total scope ~120-180 LOC of code + tests + 11 net new tests. Self-contained.
+
+---
+
+#### BL-371 - v2.1.8: Preflight memoization between `/lp-build` and `/lp-ship` (receipt-based skip with freshness window) (P1)
+
+**Filed by**: post-v2.1.7 scope-review reproduction (real-world greenfield dogfood), 2026-05-17. Closes the duplicate-pause gap when preflight IS configured: `/lp-build` Step 0.6 runs probes; then `/lp-ship` Step 0.6 runs the same probes again at ship-time, with a risk of re-prompting the user on any C1/C2 confirmation whose stale window expires during the `/lp-inf` + `/lp-review` + `/lp-resolve-todo-parallel` + `/lp-test-browser` duration.
+
+**Status (2026-05-17)**: NEW. P1 because the duplicate pause defeats the "autonomous execution pipeline" advertised at `plugins/launchpad/commands/lp-build.md:3`.
+
+**Impact**: `/lp-build` Step 0.6 runs probes at `lp-build.md:73-93`. `/lp-ship` Step 0.6 runs probes again at `lp-ship.md:26-40`. Duplicate work; user mental model is that `/lp-ship` "owns" preflight, but if `/lp-build` already passed it within a freshness window with unchanged config and checklist, `/lp-ship` should trust the receipt and skip.
+
+**Solution shape: write-and-trust receipt artifact**
+
+New artifact: `.launchpad/preflight-receipt.json` (gitignored by default).
+
+```json
+{
+  "version": 1,
+  "timestamp_utc": "2026-05-17T14:23:45Z",
+  "exit_code": 0,
+  "config_sha256": "<sha256 of .launchpad/preflight.config.yaml>",
+  "checklist_sha256": "<sha256 of .launchpad/preflight-checklist.md OR null if checklist missing>",
+  "section_path": "docs/tasks/sections/hero.md OR null if project-wide",
+  "writer_command": "/lp-build",
+  "freshness_window_seconds": 3600
+}
+```
+
+**Engine changes** (`plugins/launchpad/scripts/lp_preflight.py`):
+
+- Add a `--write-receipt` flag. When passed, on exit 0 the engine writes `.launchpad/preflight-receipt.json` with the schema above. On nonzero exit, receipt is NOT written; any existing receipt is removed to prevent stale-pass.
+- Add a `--read-receipt` flag. When passed, BEFORE running any probes: read the receipt if present; compute current SHA-256 of `.launchpad/preflight.config.yaml` (always) and `.launchpad/preflight-checklist.md` (if exists). If `exit_code == 0` AND `(now - timestamp_utc) < freshness_window_seconds` AND `config_sha256` matches AND `checklist_sha256` matches (or both null) -> print "preflight receipt valid; skipping probes (issued {N}m ago by {writer_command})" to stdout, write an audit-log line, exit 0 WITHOUT running probes. Else run probes as normal (stale receipt overwritten by `--write-receipt` on success).
+- Both flags can combine: `--write-receipt --read-receipt` means "try to read first; if invalid, run probes; on pass, write a new receipt." This is the normal `/lp-build` pattern.
+
+**Freshness window**: default 3600 seconds (60 min). Configurable per-project in `.launchpad/preflight.config.yaml` via top-level key:
+
+```yaml
+freshness_window_seconds: 3600  # optional; default 3600
+providers:
+  - cloudflare-pages
+  ...
+```
+
+**Command file changes**:
+
+- `plugins/launchpad/commands/lp-build.md` Step 0.6 invocation: append `--write-receipt --read-receipt`.
+- `plugins/launchpad/commands/lp-ship.md` Step 0.6 invocation: append `--read-receipt --write-receipt` (also writes on its own pass for later `/lp-ship` invocations).
+- `plugins/launchpad/commands/lp-preflight.md` Step 1 invocation: append `--write-receipt` (standalone runs produce a fresh receipt).
+
+**Gitignore**: add `.launchpad/preflight-receipt.json` to LaunchPad's shipped gitignore additions in `plugins/launchpad/templates/`. Receipts are local-only.
+
+**Audit-log integration**:
+
+- When `/lp-ship` skips probes via valid receipt, append: `<ISO-8601 UTC> lp-ship preflight-skipped-via-receipt receipt_age_seconds=<N> writer=<command>`.
+- When `/lp-build` invalidates a stale receipt and re-runs probes, log: `<ISO-8601 UTC> lp-build preflight-receipt-stale reason=<config_changed|checklist_changed|stale|missing|prior_failed>`.
+
+**Tests to add** (in `plugins/launchpad/scripts/tests/test_lp_preflight.py`):
+
+- `test_write_receipt_on_pass`
+- `test_no_write_receipt_on_fail`
+- `test_write_receipt_removes_stale_on_fail`
+- `test_read_receipt_skip_when_fresh_and_matching`
+- `test_read_receipt_runs_probes_when_stale`
+- `test_read_receipt_runs_probes_when_config_sha_changed`
+- `test_read_receipt_runs_probes_when_checklist_sha_changed`
+- `test_read_receipt_runs_probes_when_receipt_missing`
+- `test_read_receipt_runs_probes_when_prior_exit_nonzero`
+- `test_freshness_window_override_from_config`
+- `test_combined_write_and_read_flow`
+
+**Acceptance criteria**:
+
+- `/lp-build` -> ... -> `/lp-ship` full chain on a fresh-config project runs probes only at `/lp-build` Step 0.6; `/lp-ship` Step 0.6 trusts the receipt and skips probes.
+- `/lp-ship` invoked directly (without going through `/lp-build`) on a stale or missing receipt still runs probes correctly.
+- Existing 91 preflight tests continue to pass; ~11 new tests added for memoization.
+- BL-364 invariants preserved: preflight logic remains in `lp_preflight.py` only; command markdown files reference the script and flags.
+
+**Out of scope**:
+
+- Cross-machine receipt sharing (receipts are local-only).
+- Receipt signing or tamper-resistance.
+- Auto-renewal of expired C1/C2 confirmations.
+- Schema versioning for `.launchpad/preflight-receipt.json` (v2 schema reserved).
+
+**Default decision**: ship in v2.1.8 after BL-370 (memoization needs a populated pipeline to memoize). Total scope ~100-150 LOC of engine code + 3 command markdown edits + gitignore tweak + ~11 net new tests. Self-contained.
+
+---
+
+#### BL-372 - v2.1.8: Claude Code permission-mode autonomy (ship `.claude/settings.json` template; place at `/lp-bootstrap` when autonomous-ack exists) (P1)
+
+**Filed by**: post-v2.1.7 scope-review reproduction (real-world greenfield dogfood), 2026-05-17. Closes the per-Skill-invocation permission-prompt gap that breaks `/lp-build`'s "autonomous execution pipeline" contract.
+
+**Status (2026-05-17)**: NEW. Highest-risk of the three v2.1.8 autonomy BLs because it touches a user-owned file (`.claude/settings.json`); the merger logic needs careful review.
+
+**Impact**: when `/lp-build` chains through `/lp-inf` -> `/lp-review` -> `/lp-resolve-todo-parallel` -> `/lp-test-browser` -> `/lp-ship` -> `/lp-learn`, Claude Code's default permission model prompts the user for each Skill invocation transition. The `Monitor` tool (used by `/lp-test-browser` and `/lp-ship` CI polling) also prompts. LaunchPad's `.launchpad/autonomous-ack.md` is a LaunchPad-internal gate (BL-356); it does NOT register pre-approvals with Claude Code's permission system. Users hit 5-7+ permission prompts per `/lp-build` run.
+
+**Solution shape: shipped settings template + bootstrap placement**
+
+Ship a `.claude/settings.json` template that pre-approves the LaunchPad-specific skills and tools. `/lp-bootstrap` places it (with user confirmation) when the user has opted into autonomous mode via `autonomous-ack.md`.
+
+**New artifact**: `plugins/launchpad/templates/claude-settings-autonomous.json`. Suggested content (verify exact syntax against current Claude Code settings schema at implementation time via Context7 MCP; the schema has evolved):
+
+```json
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Skill(launchpad:lp-inf)",
+      "Skill(launchpad:lp-review)",
+      "Skill(launchpad:lp-resolve-todo-parallel)",
+      "Skill(launchpad:lp-test-browser)",
+      "Skill(launchpad:lp-ship)",
+      "Skill(launchpad:lp-learn)",
+      "Skill(launchpad:lp-preflight)",
+      "Skill(launchpad:lp-commit)",
+      "Skill(launchpad:lp-resolve-pr-comments)",
+      "Skill(launchpad:lp-regenerate-backlog)",
+      "Skill(launchpad:lp-triage)",
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Monitor",
+      "TodoWrite",
+      "WebFetch",
+      "WebSearch"
+    ]
+  }
+}
+```
+
+**Critical caveats to research before finalizing**:
+
+1. Exact Skill-namespace syntax: `Skill(launchpad:lp-inf)` vs `Skill(lp-inf)` vs `Skill(launchpad/lp-inf)`. Use Context7 to fetch current Claude Code settings docs at implementation time.
+2. Whether `Bash` should be unrestricted (broad attack surface) or scoped to specific commands (`Bash(git*)`, `Bash(pnpm*)`, etc.) for safer auto-approval. Recommendation: scoped allowlist; needs spec discussion in the implementing PR.
+3. Whether the bundled MCP tools used by `/lp-test-browser` (Playwright MCP) need explicit allowlist entries.
+4. Whether `WebFetch` / `WebSearch` belong in the autonomous-mode allowlist (could fetch malicious URLs unwittingly). Recommendation: yes for `/lp-test-browser` flexibility but document the trade-off.
+
+**`/lp-bootstrap` integration**: when user has `.launchpad/autonomous-ack.md`, check if `.claude/settings.json` exists:
+
+- If absent: offer to copy `claude-settings-autonomous.json` template (interactive prompt).
+- If present: diff against template; offer to merge missing permissions (preserve existing user customizations; do NOT overwrite).
+- Never overwrite an existing `settings.json` without explicit user confirmation.
+- Whatever lands in `.claude/settings.json` stays gitignored (already covered by recent privacy-audit additions).
+
+**Files to modify**:
+
+- `plugins/launchpad/templates/claude-settings-autonomous.json`: NEW template file.
+- `plugins/launchpad/commands/lp-bootstrap.md`: add the new step in the prose.
+- `plugins/launchpad/scripts/lp_bootstrap_runner.py` (or equivalent): add `maybe_propose_claude_settings()` call.
+- `plugins/launchpad/scripts/plugin_stack_adapters/claude_settings_merger.py`: NEW module. Deep-merge logic that preserves user customizations.
+- `autonomous-ack.md` template: append a new section explaining the Claude Code permission allowlist requirement (so users understand why they should accept the `.claude/settings.json` prompt).
+
+**Tests to add**:
+
+- `test_claude_settings_template_valid_json`
+- `test_claude_settings_template_matches_schema`
+- `test_lp_bootstrap_proposes_template_when_ack_present_and_no_settings`
+- `test_lp_bootstrap_offers_merge_when_settings_exist`
+- `test_merge_preserves_user_customizations`
+- `test_merge_adds_missing_lp_permissions`
+- `test_lp_bootstrap_skips_when_no_ack`
+
+**Acceptance criteria**:
+
+- After `/lp-bootstrap` + `autonomous-ack.md` + `settings.json` placement, a `/lp-build` run completes end-to-end without ANY Skill or Monitor permission prompts.
+- The `settings.json` template ships with the plugin and is discoverable.
+- Users without `autonomous-ack.md` continue to see prompts (correct fallback).
+- Existing user `.claude/settings.json` customizations are preserved on merge.
+
+**Out of scope**:
+
+- Cross-IDE permission sync (Cursor, JetBrains, etc.); scope is Claude Code only.
+- Per-skill granular permissioning (e.g., "allow Skill(lp-inf) but NOT Skill(lp-ship)").
+- Auto-detecting whether the user wants autonomy at `/lp-bootstrap` time (continue to require explicit ack file).
+
+**Default decision**: ship in v2.1.8 as the third autonomy BL. Orthogonal to BL-370 / BL-371 (touches different files); can land in parallel. Total scope ~80-120 LOC + new template + 7 net new tests. Medium risk: touches user-owned `.claude/settings.json`; merger logic must preserve customizations.
+
+---
+
+**v2.1.8 release coordination (BL-370 + BL-371 + BL-372)**:
+
+**Implementation order**: BL-370 -> BL-371 -> BL-372 (can also be parallel; they touch different files). Rationale:
+
+- BL-370 first because it makes the preflight system actually useful for default greenfield projects. Without BL-370, BL-371's memoization optimizes nothing for the majority of users.
+- BL-371 second to land on top of the now-populated preflight pipeline.
+- BL-372 third because it's orthogonal (does not touch preflight). Can land in parallel with either of the others.
+
+**Parallel option**: assign BL-370 + BL-372 in parallel (no file overlap); BL-371 waits on BL-370 for cleaner end-to-end testing.
+
+**Combined v2.1.8 release scope** (joining the autonomy BLs to the existing v2.1.8 lane):
+
+| BL     | Theme                                       | New tests (est) | Risk   |
+| ------ | ------------------------------------------- | --------------- | ------ |
+| BL-365 | Parallelize preflight probes (existing)     | ~5              | Low    |
+| BL-367 | GitHub-repo linkage verification (existing) | ~12             | Low    |
+| BL-368 | DNS `dig` sentinel P1 fix (existing)        | ~5              | Low    |
+| BL-370 | Preflight config bootstrapping              | ~11             | Low    |
+| BL-371 | Preflight memoization                       | ~11             | Low    |
+| BL-372 | Claude Code permission autonomy             | ~7              | Medium |
+
+**Total new tests across all six v2.1.8 BLs**: ~51. Combined with existing 91 preflight tests and ~1800 other LaunchPad tests, all should remain green.
+
+**Combined autonomy acceptance criterion**: a greenfield consumer's flow should look like:
+
+1. `/lp-bootstrap` detects deploy target, prompts to create preflight config + Claude settings template; user accepts both. Files written: `.launchpad/preflight.config.yaml`, `.claude/settings.json`.
+2. `/lp-build` Step 0.6 preflight executes probes, user-confirms any C1/C2 items once, writes receipt. All subsequent Skill invocations auto-approve.
+3. `/lp-ship` Step 0.6 reads valid receipt, skips probes. All subsequent Skill invocations auto-approve.
+4. End-to-end `/lp-build` -> `/lp-ship` completes with ZERO permission prompts after the initial `/lp-bootstrap` confirmations.
+
+**Stop conditions** (pause and report if any):
+
+- Existing preflight tests fail after BL-371 changes.
+- Existing bootstrap tests fail after BL-370 changes.
+- The Claude Code settings.json schema differs materially from the suggested template (e.g., `Skill(...)` syntax is wrong); research current schema before finalizing BL-372.
+- The settings.json merger breaks any user's existing customizations in dogfood testing.
+- Receipt-based skip causes `/lp-ship` to ship despite real infrastructure regressions (defeats the gate's purpose).
+
+**Out of scope for v2.1.8** (defer to v2.1.9 / v2.2):
+
+- Auto-rotation of expired C1/C2 confirmations.
+- `/lp-define` preflight advisory (BL-370 secondary surface; can land in v2.1.x patch).
+- Multi-target detection edge cases (project with both `wrangler.jsonc` AND `vercel.json`; pick one or warn).
+- Schema versioning for `.launchpad/preflight-receipt.json` (v2 schema reserved).
+
+---
+
+#### BL-373 - v2.1.8: Build-time API auth preflight probe (detect missing GITHUB_TOKEN / GITLAB_TOKEN before shared-IP rate-limit failures) (P1)
+
+**Filed by**: post-v2.1.7 real-world dogfood (Cloudflare Pages + Astro 6 JAMstack site, 2026-05-17). Build-time `fetch('https://api.github.com/repos/.../releases')` from a static-prerender step hit a 403 rate-limit failure on a shared-IP build runner because `GITHUB_TOKEN` was never set in the deploy environment. v2.1.7 preflight had no probe for this class of misconfiguration.
+
+**Status (2026-05-17)**: NEW. Addendum to the v2.1.8 lane. Implementation is fully additive (new profile + new probe); does NOT modify BL-370 / BL-371 / BL-372 work already on `feat/v2.1.8-autonomy`.
+
+**Impact**: ANY build-time API call to a rate-limited public service (`api.github.com`, `api.gitlab.com`, ...) from a shared-IP build runner (Cloudflare Pages, Vercel, Netlify, GitHub Pages, Render, Fly, ...) can hit the per-IP anonymous rate limit (typically 60/hour) and fail unpredictably. With the auth env var set, the limit rises ~33-83x (5000/hour GitHub, 2000/hour GitLab). The failure is invisible to the consumer until a deploy fails; preflight should surface it before `/lp-build` even starts.
+
+**Solution shape: new `build-time-api-auth` provider profile**
+
+A new profile ships alongside the existing 6 v2.1.7 profiles (`cloudflare-pages`, `vercel`, `netlify`, `cloudflare-dns`, `namecheap-dns`, `spec-completeness`):
+
+- `plugins/launchpad/preflight-profiles/build-time-api-auth.yaml`: NEW. One Category B check per known rate-limited host (initial: `github-api-token`, `gitlab-api-token`).
+- `plugins/launchpad/scripts/lp_preflight.py`: NEW probe `build-time-api-auth`. Scans the project for evidence the host is called at build time (greps `src/**/*.{ts,tsx,js,mjs,astro,vue,svelte}` and `dist/.prerender/**/*.mjs`); if host detected AND auth env var NOT set, FAIL with remediation; if host detected AND env var set, PASS; if host NOT detected, PASS-with-skip-message (probe only fires when relevant).
+- BL-370 integration: when any deploy target is detected, include `build-time-api-auth` in the proposed starter `preflight.config.yaml` so the probe is opt-in-by-default for new projects.
+
+**Critical design choice (Strategy A vs Strategy B)**:
+
+- Strategy A (ship in v2.1.8): probe checks LOCAL env for the variable. If set locally, assume the user has also configured it in the deploy environment. Remediation tells the user to set it BOTH locally (for /lp-preflight verification) AND in the deploy environment dashboard. Trade-off: trust-based, not verified against Cloudflare/Vercel API. Document the trust-based check in the FAIL text.
+- Strategy B (v2.2 BL, out of scope here): provider-aware probe using Cloudflare/Vercel/Netlify APIs to verify the deploy environment directly. Requires per-provider integration; meaningfully larger scope.
+
+**Initial host catalog (ship in v2.1.8)**:
+
+| Host             | Env var        | Anon limit/hour | Auth limit/hour |
+| ---------------- | -------------- | --------------- | --------------- |
+| `api.github.com` | `GITHUB_TOKEN` | 60              | 5000            |
+| `api.gitlab.com` | `GITLAB_TOKEN` | 60              | 2000            |
+
+Future hosts (v2.2 BL): `registry.npmjs.org`, `pypi.org/simple/`, `crates.io`, per-customer additions.
+
+**Files to modify**:
+
+- `plugins/launchpad/preflight-profiles/build-time-api-auth.yaml`: NEW profile.
+- `plugins/launchpad/scripts/lp_preflight.py`: register `build-time-api-auth` probe.
+- `plugins/launchpad/scripts/tests/test_lp_preflight.py`: add ~10 new tests.
+- `plugins/launchpad/scripts/lp_bootstrap/preflight_proposer.py`: include `build-time-api-auth` in `proposed_profiles()` when any deploy target detected.
+- `docs/releases/v2.1.8.md`: append BL-373 section.
+- `CHANGELOG.md`: append BL-373 bullet under `[v2.1.8]`.
+
+**Tests to add**:
+
+- `test_build_time_api_auth_github_skipped_when_no_call_detected`
+- `test_build_time_api_auth_github_ok_when_call_detected_and_token_set`
+- `test_build_time_api_auth_github_fail_when_call_detected_and_token_missing`
+- `test_build_time_api_auth_github_finds_call_in_astro_file`
+- `test_build_time_api_auth_github_finds_call_in_prerender_chunk`
+- `test_build_time_api_auth_github_caps_file_list_at_5`
+- `test_build_time_api_auth_handles_unreadable_file_gracefully`
+- `test_build_time_api_auth_gitlab_symmetric_to_github`
+- `test_build_time_api_auth_remediation_text_includes_token_url`
+- `test_bl370_proposed_config_includes_build_time_api_auth_when_any_deploy_target_detected`
+
+**Acceptance criteria**:
+
+- Project with build-time `fetch('https://api.github.com/...')` AND no `GITHUB_TOKEN` env var: `/lp-preflight` FAILs with clear remediation.
+- Same project with `GITHUB_TOKEN` set in local env: `/lp-preflight` passes with reminder to set in deploy env too.
+- Project with no GitHub API calls: probe returns PASS-with-skip-message (no FAIL).
+- BL-370's starter config includes `build-time-api-auth` by default when any deploy target detected.
+- All existing 91 preflight tests continue to pass; ~10 new tests added.
+
+**Stop conditions** (pause + report):
+
+- Detection grep produces false-positives (e.g., matches `api.github.com` inside a comment). ACCEPTABLE for v2.1.8: over-matching is safer than under-matching, defers to user judgment. v2.2 BL can add AST-aware detection if false-positives become noisy.
+- Remediation URLs 404: verify at implementation time that both `github.com/settings/tokens?type=beta` and `gitlab.com/-/user_settings/personal_access_tokens` resolve.
+
+**Out of scope for v2.1.8** (defer to v2.2 / v2.x):
+
+- Strategy B (direct verification against Cloudflare/Vercel/Netlify env var APIs).
+- AST-aware fetch-call detection (replace literal-grep with proper code parsing).
+- More hosts (npmjs, pypi, crates.io); ship just GitHub + GitLab in v2.1.8.
+- User-configurable host catalog via project-local override.
+- Auto-rotation reminders for tokens approaching expiration.
+
+**Default decision**: ship in v2.1.8 as a fourth additive BL on the autonomy lane. Touches different files from BL-370 / BL-371 / BL-372, so no merge-time interaction. Total scope ~150-200 LOC + new profile + ~10 net new tests.
