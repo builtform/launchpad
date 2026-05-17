@@ -140,7 +140,7 @@ def test_plan_merge_idempotent(tmp_path: Path) -> None:
 def test_plan_merge_rejects_existing_non_dict_root(tmp_path: Path) -> None:
     settings_path = claude_settings_path(tmp_path)
     settings_path.parent.mkdir(parents=True, exist_ok=True)
-    settings_path.write_text("[\"not\", \"a\", \"dict\"]\n", encoding="utf-8")
+    settings_path.write_text('["not", "a", "dict"]\n', encoding="utf-8")
     with pytest.raises(ValueError, match="must be a JSON object"):
         plan_merge(tmp_path)
 
@@ -253,3 +253,116 @@ def test_cli_human_output_when_no_ack(
     assert rc == 0
     out = capsys.readouterr().out
     assert "autonomous-ack absent" in out
+
+
+# --- BL-372 v2 (PR #76 review) test additions -------------------------------
+
+
+def test_merger_does_not_contradict_user_deny(tmp_path: Path) -> None:
+    # BL-372 v2 (PR #76 Codex P2): if user has `WebFetch` in `deny`,
+    # the merger must NOT add `WebFetch` to `allow` from the template.
+    from lp_bootstrap.claude_settings_merger import plan_merge as _plan_merge
+
+    _seed_ack(tmp_path)
+    _write_existing_settings(tmp_path, {"permissions": {"deny": ["WebFetch"]}})
+    merged, _, _ = _plan_merge(tmp_path)
+    allow = merged["permissions"]["allow"]
+    deny = merged["permissions"]["deny"]
+    assert "WebFetch" not in allow
+    assert "WebFetch" in deny
+
+
+def test_merger_honors_scoped_user_deny_against_bare_template_entry(
+    tmp_path: Path,
+) -> None:
+    # Sibling-list cross-check uses bare-name prefix matching so a
+    # scoped user rule (WebFetch(read:*)) suppresses the template's
+    # bare WebFetch entry.
+    from lp_bootstrap.claude_settings_merger import plan_merge as _plan_merge
+
+    _seed_ack(tmp_path)
+    _write_existing_settings(tmp_path, {"permissions": {"deny": ["WebFetch(read:*)"]}})
+    merged, _, _ = _plan_merge(tmp_path)
+    allow = merged["permissions"]["allow"]
+    assert "WebFetch" not in allow
+    assert "WebFetch(read:*)" in merged["permissions"]["deny"]
+
+
+def test_permission_scope_rule_exact_match_only(tmp_path: Path) -> None:
+    # BL-372 v2 (PR #76 Greptile P2 + testing-reviewer P2-5): the
+    # do-not-broaden rule applies ONLY to top-level `permissions.<key>`
+    # lists, not to any ancestor key ending in `permissions`. A nested
+    # `customPermissions.allow` must merge as a generic list-union.
+    from lp_bootstrap.claude_settings_merger import _merge_dicts as _md
+
+    existing = {"customPermissions": {"allow": ["Bash(git:*)"]}}
+    template = {"customPermissions": {"allow": ["Bash"]}}
+    merged, _ = _md(existing, template)
+    # Because `customPermissions` is NOT the canonical `permissions`
+    # key, the do-not-broaden rule does NOT fire and the generic
+    # exact-match union adds bare Bash.
+    assert merged["customPermissions"]["allow"] == ["Bash(git:*)", "Bash"]
+
+
+# --- BL-372 v2 (PR #76 Greptile P2): write-skipped opt-out marker -----------
+
+
+def test_write_skipped_marker_creates_file(tmp_path: Path) -> None:
+    from lp_bootstrap.claude_settings_merger import (
+        skipped_marker_path,
+        skipped_marker_present,
+        write_skipped_marker,
+    )
+
+    target = write_skipped_marker(tmp_path)
+    assert target == skipped_marker_path(tmp_path)
+    assert skipped_marker_present(tmp_path) is True
+    body = target.read_text(encoding="utf-8")
+    assert "declined" in body
+
+
+def test_summarize_short_circuits_on_skipped_marker(tmp_path: Path) -> None:
+    from lp_bootstrap.claude_settings_merger import write_skipped_marker
+
+    _seed_ack(tmp_path)
+    write_skipped_marker(tmp_path)
+    summary = summarize(tmp_path)
+    assert summary["skipped_marker_present"] is True
+    # When the user has opted out, the merger must NOT compute
+    # additions (no re-prompt loop on subsequent /lp-bootstrap runs).
+    assert summary["additions"] == []
+    assert summary["already_satisfied"] is False
+
+
+def test_cli_write_skipped_marker(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(["--repo-root", str(tmp_path), "--write-skipped"])
+    assert rc == 0
+    out = capsys.readouterr().out.strip()
+    assert out.endswith("autonomous-settings-merge.skipped")
+
+
+# --- BL-372 v2 (PR #76 pattern-finder P2): --repo-root flag rename ----------
+
+
+def test_cli_repo_root_flag_matches_repo_convention(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _seed_ack(tmp_path)
+    rc = main(["--repo-root", str(tmp_path), "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ack_present"] is True
+
+
+def test_cli_cwd_alias_still_works(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Compatibility alias for out-of-tree callers during the v2.1.8
+    # cycle. v2.2 BL candidate to deprecate.
+    _seed_ack(tmp_path)
+    rc = main(["--cwd", str(tmp_path), "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ack_present"] is True

@@ -52,6 +52,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -75,6 +76,7 @@ _TEMPLATE_PATH = (
 
 _AUTONOMOUS_ACK_PATH = ".launchpad/autonomous-ack.md"
 _CLAUDE_SETTINGS_PATH = ".claude/settings.json"
+_SKIPPED_MARKER_PATH = ".launchpad/autonomous-settings-merge.skipped"
 
 # Permission-allowlist keys that share the "do-not-broaden" rule.
 _PERMISSION_KEYS = frozenset({"allow", "ask", "deny"})
@@ -95,8 +97,16 @@ def claude_settings_path(repo_root: Path) -> Path:
     return repo_root / _CLAUDE_SETTINGS_PATH
 
 
+def skipped_marker_path(repo_root: Path) -> Path:
+    return repo_root / _SKIPPED_MARKER_PATH
+
+
 def autonomous_ack_present(repo_root: Path) -> bool:
     return autonomous_ack_path(repo_root).is_file()
+
+
+def skipped_marker_present(repo_root: Path) -> bool:
+    return skipped_marker_path(repo_root).is_file()
 
 
 def claude_settings_present(repo_root: Path) -> bool:
@@ -137,21 +147,53 @@ def _bare_tool_name(entry: str) -> str | None:
 
 
 def _merge_permission_list(
-    existing: list[Any], incoming: list[Any]
+    existing: list[Any],
+    incoming: list[Any],
+    *,
+    sibling_lists: dict[str, list[Any]] | None = None,
 ) -> tuple[list[Any], list[str]]:
     """Union ``incoming`` into ``existing`` without broadening user rules.
 
     Returns the merged list AND the entries actually added (in template
     order) so the proposer can show the user exactly what will change.
+
+    Two suppression rules apply (BL-372 v2, PR #76 review):
+
+    1. **Do-not-broaden** (original v1): if the user already pinned a
+       scoped form like ``Bash(git:*)``, do NOT add the bare ``Bash``
+       from the template (which would broaden permissions).
+    2. **Cross-list contradiction guard** (Codex P2 PR #76): if the
+       user explicitly listed an entry under a sibling permission key
+       (e.g. ``deny: ["WebFetch"]``), do NOT add the same entry under
+       ``allow`` even if the template ships it. Adding ``WebFetch`` to
+       ``allow`` while the user has it in ``deny`` produces a
+       contradictory policy whose resolution depends on Claude Code's
+       precedence semantics, which the merger should NEVER force.
+       Matching is by bare-tool prefix (``WebFetch(read:*)`` in ``deny``
+       suppresses bare ``WebFetch`` in ``allow``) so scoped sibling
+       rules still win.
     """
     out = list(existing)
     existing_strs = [e for e in out if isinstance(e, str)]
     pinned_tools = {
         _bare_tool_name(e)
         for e in existing_strs
+        # Only the comprehension's filter is needed; the
+        # ``_bare_tool_name`` helper never returns ``None`` for a string
+        # starting with a tool-name char (the v1 ``pinned_tools.discard(None)``
+        # call was unreachable per simplicity-reviewer P1 PR #76).
         if "(" in e and _bare_tool_name(e) is not None
     }
-    pinned_tools.discard(None)
+    sibling_bare_names: set[str] = set()
+    sibling_exact: set[str] = set()
+    for entries in (sibling_lists or {}).values():
+        for entry in entries:
+            if not isinstance(entry, str):
+                continue
+            sibling_exact.add(entry)
+            bare = _bare_tool_name(entry)
+            if bare is not None:
+                sibling_bare_names.add(bare)
     added: list[str] = []
     for entry in incoming:
         if not isinstance(entry, str):
@@ -161,10 +203,17 @@ def _merge_permission_list(
         if entry in out:
             continue
         bare = _bare_tool_name(entry)
-        # Refuse to add a bare tool entry when the user already has a
-        # tightened form for the same tool, e.g. "Bash(git:*)" already
-        # present -> do not add bare "Bash".
+        # Rule 1: refuse to add a bare tool entry when the user already
+        # has a tightened form for the same tool.
         if "(" not in entry and bare in pinned_tools:
+            continue
+        # Rule 2: refuse to add an entry that is contradicted by a
+        # sibling permission key (typical case: template wants
+        # ``allow: ["WebFetch"]`` but the user has ``deny: ["WebFetch"]``
+        # or ``deny: ["WebFetch(read:*)"]``).
+        if entry in sibling_exact:
+            continue
+        if bare is not None and bare in sibling_bare_names:
             continue
         out.append(entry)
         added.append(entry)
@@ -179,6 +228,37 @@ def _merge_dicts(
     additions: list[str] = []
     for key, tmpl_val in template.items():
         sub_path = f"{path}.{key}" if path else key
+
+        # BL-372 v2 (PR #76 review): the permission-list contract is the
+        # same whether the user already has the list or the template is
+        # introducing it. Both cases need the cross-list contradiction
+        # guard so a template entry the user has denied is not silently
+        # added, AND both cases must use exact-match `path == "permissions"`
+        # so future nested keys (e.g. `hooks.permissions.allow`) do not
+        # trigger this rule. Collapsed into a single branch in cycle 2
+        # (simplicity-reviewer P2 PR #76) so the contract is expressed
+        # once, not twice.
+        if (
+            key in _PERMISSION_KEYS
+            and path == "permissions"
+            and isinstance(tmpl_val, list)
+        ):
+            cur_value = merged.get(key)
+            cur_list: list[Any] = list(cur_value) if isinstance(cur_value, list) else []
+            sibling_lists = {
+                other_key: merged[other_key]
+                for other_key in _PERMISSION_KEYS
+                if other_key != key
+                and other_key in merged
+                and isinstance(merged[other_key], list)
+            }
+            merged_list, added_entries = _merge_permission_list(
+                cur_list, tmpl_val, sibling_lists=sibling_lists
+            )
+            merged[key] = merged_list
+            additions.extend(f"{sub_path}[{entry!r}]" for entry in added_entries)
+            continue
+
         if key not in merged:
             merged[key] = copy.deepcopy(tmpl_val)
             additions.append(sub_path)
@@ -190,12 +270,7 @@ def _merge_dicts(
             additions.extend(sub_added)
             continue
         if isinstance(cur, list) and isinstance(tmpl_val, list):
-            if key in _PERMISSION_KEYS and path.endswith("permissions"):
-                merged_list, added_entries = _merge_permission_list(cur, tmpl_val)
-                merged[key] = merged_list
-                additions.extend(f"{sub_path}[{entry!r}]" for entry in added_entries)
-                continue
-            # Generic list-merge by exact-match union.
+            # Generic list-merge by exact-match union (non-permission lists).
             extras: list[Any] = [item for item in tmpl_val if item not in cur]
             if extras:
                 merged[key] = [*cur, *extras]
@@ -242,17 +317,39 @@ def apply_merge(repo_root: Path) -> Path:
     return target
 
 
+def write_skipped_marker(repo_root: Path) -> Path:
+    """Write the permanent opt-out sentinel (BL-372 v2, Greptile P2).
+
+    Mirrors BL-370's ``preflight.config.skipped`` pattern so a user who
+    declines the settings merge can stop the re-prompt loop on future
+    ``/lp-bootstrap`` runs without removing ``autonomous-ack.md``
+    (which would also disable autonomous-mode entirely). Removing the
+    sentinel re-opens the prompt.
+    """
+    target = skipped_marker_path(repo_root)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    body = (
+        b"# User declined the LaunchPad autonomous-mode settings merge at\n"
+        b"# /lp-bootstrap. Delete this file to be re-prompted on the next\n"
+        b"# /lp-bootstrap run.\n"
+    )
+    atomic_write_replace(target, body, trusted_root=repo_root)
+    return target
+
+
 def summarize(repo_root: Path) -> dict[str, Any]:
     """Structured-output entry point for ``/lp-bootstrap`` to consume."""
     ack = autonomous_ack_present(repo_root)
     has_settings = claude_settings_present(repo_root)
+    skipped = skipped_marker_present(repo_root)
     summary: dict[str, Any] = {
         "ack_present": ack,
         "settings_present": has_settings,
+        "skipped_marker_present": skipped,
         "template_path": str(_TEMPLATE_PATH),
         "settings_path": str(claude_settings_path(repo_root)),
     }
-    if not ack:
+    if not ack or skipped:
         summary["additions"] = []
         summary["already_satisfied"] = False
         return summary
@@ -276,11 +373,21 @@ def _parser() -> argparse.ArgumentParser:
             "`.claude/settings.json`. Invoked by /lp-bootstrap; see BL-372."
         ),
     )
+    # BL-372 v2 (PR #76 review, pattern-finder P2): use the same
+    # `--repo-root` + `LP_REPO_ROOT` env-var fallback as the rest of the
+    # LaunchPad CLI surface. `--cwd` remains as a hidden compatibility
+    # alias for out-of-tree callers.
+    p.add_argument(
+        "--repo-root",
+        type=Path,
+        default=Path(os.environ.get("LP_REPO_ROOT", os.getcwd())),
+        help=("Project root (default: $LP_REPO_ROOT or current working directory)."),
+    )
     p.add_argument(
         "--cwd",
         type=Path,
-        default=Path.cwd(),
-        help="Project root (default: current working directory).",
+        default=None,
+        help=argparse.SUPPRESS,
     )
     group = p.add_mutually_exclusive_group()
     group.add_argument(
@@ -293,12 +400,22 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Merge the template into `.claude/settings.json` atomically.",
     )
+    group.add_argument(
+        "--write-skipped",
+        action="store_true",
+        help=(
+            "Write the permanent opt-out marker so future bootstrap "
+            "runs do not re-prompt. Mirrors BL-370's "
+            "`preflight.config.skipped` pattern."
+        ),
+    )
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    repo_root: Path = args.cwd.resolve()
+    raw_root = args.cwd if args.cwd is not None else args.repo_root
+    repo_root: Path = raw_root.resolve()
 
     if args.apply:
         try:
@@ -309,6 +426,11 @@ def main(argv: list[str] | None = None) -> int:
         except (ValueError, FileNotFoundError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 65
+        print(str(target))
+        return 0
+
+    if args.write_skipped:
+        target = write_skipped_marker(repo_root)
         print(str(target))
         return 0
 

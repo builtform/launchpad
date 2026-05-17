@@ -1765,9 +1765,24 @@ def _format_refuse(report: PreflightReport) -> str:
 class ReceiptCheckResult:
     """Verdict on whether an on-disk receipt licenses skipping probes.
 
-    `reason` is one of: ``valid``, ``missing``, ``corrupt``, ``stale``,
-    ``config_changed``, ``checklist_changed``, ``prior_failed``. Audit-log
-    lines on stale-receipt invalidation include this reason verbatim.
+    ``reason`` is one of: ``valid``, ``missing``, ``corrupt``, ``stale``,
+    ``config_changed``, ``checklist_changed``, ``prior_failed``,
+    ``scope_changed``, ``future_version``. Audit-log lines on
+    stale-receipt invalidation include this reason verbatim.
+
+    BL-371 v2 (PR #76 review):
+
+    * ``scope_changed`` — receipt was written for a different section
+      scope than the caller's. A receipt written by
+      ``/lp-build --section docs/tasks/sections/hero.md`` does NOT
+      satisfy a project-wide ``/lp-ship`` invocation (project-wide
+      probes are weaker than section-scoped ones); a project-wide
+      receipt (``section_path == None``) DOES satisfy a section-scoped
+      caller (broader covers narrower).
+    * ``future_version`` — receipt was written by a newer LaunchPad and
+      its schema version exceeds this reader's ``RECEIPT_VERSION``.
+      Distinct from ``corrupt`` so audit-log telemetry surfaces the
+      upgrade path instead of pointing at a "broken" receipt.
     """
 
     valid: bool
@@ -1783,19 +1798,45 @@ def _sha256_of_file(path: Path) -> str | None:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _sanitize_log_field(value: object) -> str:
+    """Percent-escape control characters in a user-influenced log field.
+
+    Mirrors the guard in ``plugin-audit-log.py`` (PR #76 P1, pattern-finder
+    + security-auditor): newline / CR / NUL / DEL / ANSI escapes in
+    receipt fields (``writer_command``, ``verdict.reason``) or CLI args
+    (``--writer-command``) could otherwise smuggle forged audit events
+    onto subsequent lines or render as terminal control sequences when a
+    human ``tail``s the log. The chosen escape (``\\x{NN}``) preserves
+    grep-ability while neutralizing rendering.
+    """
+    text = str(value) if value is not None else ""
+    out: list[str] = []
+    for ch in text:
+        code = ord(ch)
+        if code < 0x20 or code == 0x7F:
+            out.append(f"\\x{code:02x}")
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
 def _audit_log_event(repo_root: Path, line: str) -> None:
     """Append a single event line to ``.launchpad/audit.log``.
 
-    Best-effort: write failures are swallowed so a log outage cannot block
-    the preflight gate. Format mirrors ``plugin-audit-log.py`` only in the
-    ISO-8601-UTC timestamp prefix; receipt events use the BL-371 token
-    shape ``<command> preflight-<action> <key>=<value> ...``.
+    Best-effort: write failures are swallowed so a log outage cannot
+    block the preflight gate. Format mirrors ``plugin-audit-log.py``: an
+    ISO-8601-UTC timestamp prefix in ``YYYY-MM-DDTHH:MM:SSZ`` form
+    matching the rest of the LaunchPad codebase (BL-371 v2 PR #76 P2,
+    pattern-finder); receipt events use the BL-371 token shape
+    ``<command> preflight-<action> <key>=<value> ...``. Callers MUST
+    feed already-sanitized field values via ``_sanitize_log_field`` for
+    any user-influenced interpolation.
     """
     log_dir = repo_root / ".launchpad"
     try:
         log_dir.mkdir(parents=True, exist_ok=True)
         log_path = log_dir / "audit.log"
-        timestamp = datetime.now(UTC).isoformat(timespec="seconds")
+        timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         with log_path.open("a", encoding="utf-8") as f:
             f.write(f"{timestamp} {line}\n")
     except OSError:
@@ -1842,27 +1883,65 @@ def _freshness_window_from_config(repo_root: Path) -> int | None:
     return val
 
 
+def _scope_satisfies(
+    receipt_section_path: object, caller_section_path: str | None
+) -> bool:
+    """Return True iff the receipt's section scope covers the caller's.
+
+    Rule (BL-371 v2, PR #76 P1):
+
+    * A project-wide receipt (``section_path == None``) covers BOTH a
+      project-wide caller AND any section-scoped caller. Broader covers
+      narrower; project-wide probes ran every check the section caller
+      needs plus some it does not.
+    * A section-scoped receipt only covers a caller asking for the
+      EXACT SAME section. Section-scoped probes are weaker than
+      project-wide probes (they scope ``section-specs-approved`` to one
+      file), so they do NOT license skipping the project-wide ship gate.
+    """
+    if receipt_section_path is None:
+        return True
+    if not isinstance(receipt_section_path, str):
+        return False
+    return receipt_section_path == caller_section_path
+
+
 def check_receipt_validity(
     repo_root: Path,
     *,
     freshness_window_seconds: int,
     now: datetime | None = None,
+    current_section_path: str | None = None,
 ) -> ReceiptCheckResult:
     """Decide whether the on-disk receipt licenses skipping probes.
 
     Validity requires ALL of:
 
-    * receipt file present, parses as JSON, and is a v1 dict
+    * receipt file present, parses as JSON, and version exactly equals
+      ``RECEIPT_VERSION`` (a newer schema returns ``future_version``;
+      truly malformed receipts return ``corrupt``)
     * ``exit_code == 0``
     * ``timestamp_utc`` parses; ``(now - timestamp) < freshness_window_seconds``
     * ``config_sha256`` matches the current preflight config (or both null)
     * ``checklist_sha256`` matches the current checklist (or both null)
+    * receipt's ``section_path`` covers ``current_section_path`` per the
+      ``_scope_satisfies`` rule (BL-371 v2, PR #76 P1)
     """
     now = now or datetime.now(UTC)
     receipt = _read_receipt(repo_root)
     if receipt is None:
         return ReceiptCheckResult(False, "missing", None, None)
-    if receipt.get("version") != RECEIPT_VERSION:
+    raw_version = receipt.get("version")
+    if isinstance(raw_version, bool) or not isinstance(raw_version, int):
+        return ReceiptCheckResult(False, "corrupt", None, None)
+    if raw_version > RECEIPT_VERSION:
+        writer_str = (
+            receipt.get("writer_command")
+            if isinstance(receipt.get("writer_command"), str)
+            else None
+        )
+        return ReceiptCheckResult(False, "future_version", None, writer_str)
+    if raw_version != RECEIPT_VERSION:
         return ReceiptCheckResult(False, "corrupt", None, None)
     writer = receipt.get("writer_command")
     writer_str = writer if isinstance(writer, str) else None
@@ -1886,6 +1965,8 @@ def check_receipt_validity(
         return ReceiptCheckResult(False, "config_changed", age, writer_str)
     if _sha256_of_file(repo_root / CHECKLIST_PATH) != receipt.get("checklist_sha256"):
         return ReceiptCheckResult(False, "checklist_changed", age, writer_str)
+    if not _scope_satisfies(receipt.get("section_path"), current_section_path):
+        return ReceiptCheckResult(False, "scope_changed", age, writer_str)
     return ReceiptCheckResult(True, "valid", age, writer_str)
 
 
@@ -2026,7 +2107,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     repo_root = Path(args.repo_root).resolve()
-    writer_command = args.writer_command or "/lp-preflight"
+    # BL-371 v2 (PR #76 P1, pattern-finder + security-auditor): reject
+    # writer-command values containing newlines / CR / NUL up-front so
+    # audit-log forging cannot reach the sanitizer's escape path. The
+    # sanitizer is a second line of defense; this is the first.
+    writer_command_raw = args.writer_command or "/lp-preflight"
+    if any(ch in writer_command_raw for ch in ("\n", "\r", "\x00")):
+        print(
+            "[preflight] CONFIG ERROR: --writer-command must not contain "
+            "newline or NUL characters",
+            file=sys.stderr,
+        )
+        return 2
+    writer_command = _sanitize_log_field(writer_command_raw)
     freshness = args.freshness_window_seconds
     if freshness is None:
         freshness = (
@@ -2041,9 +2134,18 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.read_receipt:
-        verdict = check_receipt_validity(repo_root, freshness_window_seconds=freshness)
+        verdict = check_receipt_validity(
+            repo_root,
+            freshness_window_seconds=freshness,
+            current_section_path=args.section,
+        )
         if verdict.valid:
-            issued_by = verdict.writer_command or "/lp-preflight"
+            # ``verdict.writer_command`` comes from on-disk receipt JSON,
+            # which an attacker with write access to ``.launchpad/`` could
+            # tamper with. Sanitize before interpolating into both stdout
+            # (which a tail-into-terminal would render) and the audit log
+            # (PR #76 P1, pattern-finder + security-auditor F1).
+            issued_by = _sanitize_log_field(verdict.writer_command or "/lp-preflight")
             print(
                 f"[preflight] receipt valid; skipping probes "
                 f"(issued {verdict.receipt_age_seconds}s ago by {issued_by})"
@@ -2056,9 +2158,14 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         if verdict.reason != "missing":
+            # ``verdict.reason`` is a fixed enum produced inside
+            # ``check_receipt_validity`` so does not require sanitization,
+            # but pass through ``_sanitize_log_field`` defensively in
+            # case a future refactor lets external data reach this slot.
+            reason = _sanitize_log_field(verdict.reason)
             _audit_log_event(
                 repo_root,
-                f"{writer_command} preflight-receipt-{verdict.reason}",
+                f"{writer_command} preflight-receipt-{reason}",
             )
 
     try:

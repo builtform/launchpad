@@ -62,6 +62,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -87,14 +88,6 @@ KNOWN_PROFILES: frozenset[str] = frozenset(
     }
 )
 
-# Workflow-action -> provider-profile mapping. Action references that map
-# to providers without a profile (e.g. github-pages) are intentionally
-# absent so the generated config never names a profile we cannot load.
-_WORKFLOW_ACTION_HINTS: dict[str, str] = {
-    "cloudflare/pages-action": "cloudflare-pages",
-    "cloudflare/wrangler-action": "cloudflare-pages",
-}
-
 _LAUNCHPAD_DIR = ".launchpad"
 _PREFLIGHT_CONFIG_NAME = "preflight.config.yaml"
 _SKIPPED_MARKER_NAME = "preflight.config.skipped"
@@ -116,10 +109,63 @@ def skipped_marker_present(repo_root: Path) -> bool:
     return skipped_marker_path(repo_root).exists()
 
 
-def _detect_cloudflare(repo_root: Path) -> str | None:
+# BL-370 v2 (PR #76 security-auditor F2): hard cap on per-file size for
+# any reader that can hit attacker-influenceable files in the workflows
+# scanner. A workflow file symlinked at `/dev/zero` or a 5 GB log would
+# otherwise hang the post-bootstrap step.
+_MAX_WORKFLOW_BYTES = 1_000_000
+
+# BL-370 v2 (PR #76 Codex P2): wrangler.* is shared by Cloudflare Pages
+# AND Cloudflare Workers. Pages-specific markers narrow detection so a
+# Workers-only project does not silently propose a Pages preflight
+# config. Any of these key substrings inside wrangler config (case-
+# insensitive) is sufficient to classify as Pages.
+_WRANGLER_PAGES_MARKERS = (
+    "pages_build_output_dir",
+    "[pages]",
+    '"pages":',
+    "[[pages",
+    '"pages_build_output_dir"',
+)
+
+
+def _read_text_capped(path: Path, *, limit: int = _MAX_WORKFLOW_BYTES) -> str | None:
+    """Read text from ``path``; reject symlinks and any file over ``limit`` bytes.
+
+    Returns ``None`` on rejection or read failure so callers can treat
+    the file as absent. Symlink rejection prevents a deploy-target
+    scanner from walking onto `/dev/zero` or `/proc/self/mem`; the
+    size cap prevents a multi-gigabyte log from blocking bootstrap.
+    """
+    try:
+        if path.is_symlink() or not path.is_file():
+            return None
+        if path.stat().st_size > limit:
+            return None
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def _wrangler_signals_pages(repo_root: Path) -> bool:
+    """Return True iff a present `wrangler.*` config has Pages markers."""
     for name in ("wrangler.jsonc", "wrangler.toml", "wrangler.json"):
-        if (repo_root / name).is_file():
-            return "cloudflare-pages"
+        text = _read_text_capped(repo_root / name)
+        if text is None:
+            continue
+        lowered = text.lower()
+        if any(marker in lowered for marker in _WRANGLER_PAGES_MARKERS):
+            return True
+    return False
+
+
+def _detect_cloudflare(repo_root: Path) -> str | None:
+    # Only classify as cloudflare-pages when a wrangler config is present
+    # AND contains a Pages-specific marker. Wrangler-without-marker is a
+    # Workers project and gets no Pages profile (avoids generating a
+    # Pages preflight config for a non-Pages deploy target).
+    if _wrangler_signals_pages(repo_root):
+        return "cloudflare-pages"
     return None
 
 
@@ -141,19 +187,24 @@ def _detect_from_workflows(repo_root: Path) -> set[str]:
     workflows_dir = repo_root / ".github" / "workflows"
     if not workflows_dir.is_dir():
         return set()
+    # Mirror the Pages-vs-Workers narrowing on workflow refs: only the
+    # `cloudflare/pages-action` invocation classifies as Pages.
+    # `cloudflare/wrangler-action` is shared by Pages and Workers and
+    # is dropped here (BL-370 v2 PR #76 Codex P2). If a future profile
+    # for Workers lands, this set extends rather than re-classifies.
+    pages_actions = {"cloudflare/pages-action"}
     found: set[str] = set()
     for entry in sorted(workflows_dir.iterdir()):
-        if not entry.is_file():
+        if entry.is_symlink() or not entry.is_file():
             continue
         if entry.suffix.lower() not in {".yml", ".yaml"}:
             continue
-        try:
-            text = entry.read_text(encoding="utf-8", errors="replace")
-        except OSError:
+        text = _read_text_capped(entry)
+        if text is None:
             continue
-        for action, provider in _WORKFLOW_ACTION_HINTS.items():
+        for action in pages_actions:
             if action in text:
-                found.add(provider)
+                found.add("cloudflare-pages")
     return found
 
 
@@ -188,9 +239,19 @@ def proposed_profiles(detected: list[str]) -> list[str]:
 
 def _render_yaml(providers: list[str]) -> str:
     timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # PR #76 Codex P3: the prior comment claimed `.launchpad/ files are
+    # gitignored by default`, but this config file is NOT in either
+    # LaunchPad's root `.gitignore` or the plugin's shipped gitignore
+    # template (the runtime artifacts `audit.log`, `preflight-checklist.md`,
+    # `preflight-receipt.json`, and the opt-out markers ARE; the config
+    # is meant to be either committed or gitignored at the team's
+    # discretion). State that explicitly so a reader does not assume
+    # the file is gitignored when it is not.
     lines = [
         f"# Generated by /lp-bootstrap on {timestamp}",
-        "# Edit freely; .launchpad/ files are gitignored by default.",
+        "# Commit or gitignore at your team's discretion; see",
+        "# `plugins/launchpad/scripts/plugin_default_generators/infrastructure/gitignore.j2`",
+        "# for the LaunchPad-shipped `.launchpad/` ignore entries.",
         "",
         "providers:",
     ]
@@ -258,11 +319,23 @@ def _parser() -> argparse.ArgumentParser:
             "Invoked by /lp-bootstrap; see BL-370."
         ),
     )
+    # BL-370 v2 (PR #76 review, pattern-finder P2): match the rest of the
+    # LaunchPad CLI surface (`lp_preflight`, `lp_define_runner`,
+    # `plugin-build-runner`, `plugin-config-loader`, `plugin-audit-log`,
+    # `plugin-config-hash`) by using `--repo-root` with an `LP_REPO_ROOT`
+    # env-var fallback. `--cwd` remains as a hidden compatibility alias
+    # so out-of-tree callers do not break mid-cycle.
+    p.add_argument(
+        "--repo-root",
+        type=Path,
+        default=Path(os.environ.get("LP_REPO_ROOT", os.getcwd())),
+        help=("Project root (default: $LP_REPO_ROOT or current working directory)."),
+    )
     p.add_argument(
         "--cwd",
         type=Path,
-        default=Path.cwd(),
-        help="Project root (default: current working directory).",
+        default=None,
+        help=argparse.SUPPRESS,
     )
     group = p.add_mutually_exclusive_group()
     group.add_argument(
@@ -291,7 +364,11 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    repo_root: Path = args.cwd.resolve()
+    # `--cwd` (compat alias) wins over `--repo-root` only when explicitly
+    # passed by an out-of-tree caller; the new canonical flag is
+    # `--repo-root` (matches the rest of the LaunchPad CLI surface).
+    raw_root = args.cwd if args.cwd is not None else args.repo_root
+    repo_root: Path = raw_root.resolve()
 
     if args.write_config:
         providers = _parse_providers(args.providers)

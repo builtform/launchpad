@@ -205,17 +205,24 @@ See https://github.com/builtform/launchpad/blob/main/docs/architecture/CI_CD.md#
 
 ## Post-bootstrap follow-up: Claude Code permission mode (BL-372, v2.1.8)
 
-When the user has opted into autonomous mode by creating
-`.launchpad/autonomous-ack.md` (BL-356), also propose merging the bundled
-autonomous-mode template into `.claude/settings.json` so the
-`/lp-build` -> `/lp-inf` -> `/lp-review` -> `/lp-resolve-todo-parallel` ->
-`/lp-test-browser` -> `/lp-ship` chain does not hit a Skill or Monitor
-permission prompt at every transition (5-7+ prompts per `/lp-build` run).
+After the engine returns `BootstrapStatus.SUCCESS` AND the user has opted
+into autonomous mode by creating `.launchpad/autonomous-ack.md` (BL-356),
+also propose merging the bundled autonomous-mode template into
+`.claude/settings.json` so the `/lp-build` -> `/lp-inf` -> `/lp-review`
+-> `/lp-resolve-todo-parallel` -> `/lp-test-browser` -> `/lp-ship` chain
+does not hit a Skill or Monitor permission prompt at every transition
+(5-7+ prompts per `/lp-build` run). The `BootstrapStatus.SUCCESS` gate
+matches the BL-370 preflight follow-up below; both follow-ups are
+skipped on any non-success bootstrap outcome.
 
-Run the merger in `--json` mode and decide from the structured output:
+The `lp_bootstrap` package lives under `${CLAUDE_PLUGIN_ROOT}/scripts/`,
+not on the consumer repo's default `PYTHONPATH`. Every invocation in
+this section MUST prepend that path (BL-371/BL-372 PR #76 review, Codex
+P1):
 
 ```bash
-python -m lp_bootstrap.claude_settings_merger --json --cwd "$PWD"
+PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/scripts" \
+  python -m lp_bootstrap.claude_settings_merger --json --repo-root "$PWD"
 ```
 
 Returned JSON:
@@ -224,6 +231,7 @@ Returned JSON:
 {
   "ack_present": true,
   "settings_present": true,
+  "skipped_marker_present": false,
   "additions": ["permissions.allow['Skill']", "permissions.allow['Monitor']"],
   "already_satisfied": false,
   "template_path": "<plugin root>/templates/claude-settings-autonomous.json",
@@ -233,11 +241,12 @@ Returned JSON:
 
 Decision matrix:
 
-| `ack_present` | `already_satisfied` | Action                                                                                                     |
-| ------------- | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| false         | n/a                 | No action. The user has not opted into autonomous mode; prompts at runtime are the correct UX.             |
-| true          | true                | No action. Existing `.claude/settings.json` already covers the autonomous-mode template.                   |
-| true          | false               | Prompt the user with the additions list (see template below). On accept, run `--apply`. On decline, no-op. |
+| `ack_present` | `skipped_marker_present` | `already_satisfied` | Action                                                                                                     |
+| ------------- | ------------------------ | ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| false         | n/a                      | n/a                 | No action. The user has not opted into autonomous mode; prompts at runtime are the correct UX.             |
+| true          | true                     | n/a                 | No action. User previously declined the settings merge; do not re-prompt.                                  |
+| true          | false                    | true                | No action. Existing `.claude/settings.json` already covers the autonomous-mode template.                   |
+| true          | false                    | false               | Prompt the user with the additions list (see template below). On accept, run `--apply`. On decline, no-op. |
 
 Prompt template (only fires on the last row):
 
@@ -251,15 +260,25 @@ Prompt template (only fires on the last row):
 On accept:
 
 ```bash
-python -m lp_bootstrap.claude_settings_merger --apply --cwd "$PWD"
+PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/scripts" \
+  python -m lp_bootstrap.claude_settings_merger --apply --repo-root "$PWD"
+```
+
+On decline (permanent opt-out marker, mirrors BL-370's
+`preflight.config.skipped`):
+
+```bash
+PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/scripts" \
+  python -m lp_bootstrap.claude_settings_merger --write-skipped --repo-root "$PWD"
 ```
 
 The `--apply` invocation refuses with exit 65 if `.launchpad/autonomous-ack.md`
 is absent (the gate cannot be bypassed implicitly), and atomically writes
-the merged JSON via `atomic_write_replace`. On decline, do nothing: the
-user keeps the prompts. Future bootstrap runs will re-offer the prompt
-as long as the settings file remains incomplete; the user can opt out
-permanently by NOT creating `autonomous-ack.md`.
+the merged JSON via `atomic_write_replace`. The `--write-skipped`
+invocation writes a one-line `.launchpad/autonomous-settings-merge.skipped`
+sentinel so future bootstrap runs do not re-prompt; the user can delete
+the sentinel to opt back in. The user can also opt out permanently by
+NOT creating `autonomous-ack.md`.
 
 The shipped template uses TOOL-level entries (`"Skill"`, `"Bash"`, `"Edit"`,
 `"Monitor"`, ...). Per-skill granularity (e.g. `"Skill(launchpad:lp-inf)"`)
@@ -276,10 +295,14 @@ Step 0.6 silently skip preflight and the user only discovers missing
 Cloudflare / DNS / secret setup at deploy time, ~30 min into autonomous
 `/lp-inf` work.
 
-Run the proposer in `--json` mode and decide from the structured output:
+Run the proposer in `--json` mode and decide from the structured output.
+The `lp_bootstrap` package lives under `${CLAUDE_PLUGIN_ROOT}/scripts/`,
+not on the consumer repo's default `PYTHONPATH`. Every invocation in
+this section MUST prepend that path (BL-370 PR #76 review, Codex P1):
 
 ```bash
-python -m lp_bootstrap.preflight_proposer --json --cwd "$PWD"
+PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/scripts" \
+  python -m lp_bootstrap.preflight_proposer --json --repo-root "$PWD"
 ```
 
 Returned JSON:
@@ -312,14 +335,16 @@ Prompt template (only fires on the last row of the matrix):
 On accept:
 
 ```bash
-python -m lp_bootstrap.preflight_proposer --write-config \
-  --providers "<comma-joined proposed_profiles>" --cwd "$PWD"
+PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/scripts" \
+  python -m lp_bootstrap.preflight_proposer --write-config \
+    --providers "<comma-joined proposed_profiles>" --repo-root "$PWD"
 ```
 
 On decline:
 
 ```bash
-python -m lp_bootstrap.preflight_proposer --write-skipped --cwd "$PWD"
+PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/scripts" \
+  python -m lp_bootstrap.preflight_proposer --write-skipped --repo-root "$PWD"
 ```
 
 The `--write-config` invocation atomically writes the YAML via

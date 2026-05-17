@@ -84,8 +84,35 @@ def test_detect_none_returns_empty(tmp_path: Path) -> None:
     assert detect_deploy_providers(tmp_path) == []
 
 
+def test_detect_skips_wrangler_without_pages_marker(tmp_path: Path) -> None:
+    # BL-370 v2 (PR #76 Codex P2): a Workers-only wrangler config (no
+    # `pages_build_output_dir` key) must NOT be classified as
+    # cloudflare-pages. Generating a Pages preflight config for a
+    # Workers project would block /lp-build on irrelevant probes.
+    (tmp_path / "wrangler.toml").write_text(
+        'name = "worker-only"\nmain = "src/index.ts"\n', encoding="utf-8"
+    )
+    assert detect_deploy_providers(tmp_path) == []
+
+
+def test_detect_skips_wrangler_action_without_pages_action(tmp_path: Path) -> None:
+    # BL-370 v2 (PR #76 Codex P2): `cloudflare/wrangler-action` is shared
+    # by Pages and Workers; only `cloudflare/pages-action` classifies
+    # as Pages.
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    (workflows / "deploy.yml").write_text(
+        "jobs:\n  deploy:\n    steps:\n      - uses: cloudflare/wrangler-action@v3\n",
+        encoding="utf-8",
+    )
+    assert detect_deploy_providers(tmp_path) == []
+
+
 def test_detect_multi_target_returns_all(tmp_path: Path) -> None:
-    (tmp_path / "wrangler.jsonc").write_text("{}\n", encoding="utf-8")
+    (tmp_path / "wrangler.jsonc").write_text(
+        '{"name": "site", "pages_build_output_dir": "dist"}\n',
+        encoding="utf-8",
+    )
     (tmp_path / "vercel.json").write_text("{}\n", encoding="utf-8")
     (tmp_path / "netlify.toml").write_text("[build]\n", encoding="utf-8")
     assert detect_deploy_providers(tmp_path) == [
@@ -101,6 +128,51 @@ def test_detect_ignores_non_yaml_workflow_files(tmp_path: Path) -> None:
     # A README inside the workflows dir mentions the action; must NOT trigger.
     (workflows / "README.md").write_text(
         "We use cloudflare/pages-action.\n", encoding="utf-8"
+    )
+    assert detect_deploy_providers(tmp_path) == []
+
+
+def test_detect_uppercase_yaml_workflow_extension(tmp_path: Path) -> None:
+    # BL-370 v2 (PR #76 testing-reviewer P2-6): the suffix check uses
+    # `.lower()`; pin the case-insensitive contract.
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    (workflows / "deploy.YAML").write_text(
+        "jobs:\n  deploy:\n    steps:\n      - uses: cloudflare/pages-action@v1\n",
+        encoding="utf-8",
+    )
+    assert detect_deploy_providers(tmp_path) == ["cloudflare-pages"]
+
+
+def test_detect_rejects_symlinked_workflow(tmp_path: Path) -> None:
+    # BL-370 v2 (PR #76 security-auditor F2): symlinks in the workflows
+    # dir are rejected so a symlink to /dev/zero or a multi-GB log
+    # cannot hang the bootstrap step.
+    import os as _os
+
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    real = tmp_path / "real-workflow.yml"
+    real.write_text(
+        "jobs:\n  deploy:\n    steps:\n      - uses: cloudflare/pages-action@v1\n",
+        encoding="utf-8",
+    )
+    link = workflows / "deploy.yml"
+    _os.symlink(real, link)
+    # Symlink rejection: the symlinked workflow contents must NOT register.
+    assert detect_deploy_providers(tmp_path) == []
+
+
+def test_detect_skips_oversized_workflow(tmp_path: Path) -> None:
+    # BL-370 v2 (PR #76 security-auditor F2): a workflow file larger
+    # than the 1 MB cap is skipped to prevent DoS.
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    big = workflows / "deploy.yml"
+    # Pad past 1 MB; the marker still appears in the body so we
+    # would otherwise classify as Pages without the cap.
+    big.write_text(
+        "# cloudflare/pages-action\n" + ("# pad\n" * 200_000), encoding="utf-8"
     )
     assert detect_deploy_providers(tmp_path) == []
 
@@ -185,7 +257,10 @@ def test_summarize_no_signals(tmp_path: Path) -> None:
 
 
 def test_summarize_signals_and_existing_config(tmp_path: Path) -> None:
-    (tmp_path / "wrangler.jsonc").write_text("{}\n", encoding="utf-8")
+    (tmp_path / "wrangler.jsonc").write_text(
+        '{"name": "site", "pages_build_output_dir": "dist"}\n',
+        encoding="utf-8",
+    )
     write_preflight_config(
         tmp_path, ["spec-completeness", "cloudflare-pages", "cloudflare-dns"]
     )
@@ -271,3 +346,30 @@ def test_cli_write_skipped_creates_marker(
     out = capsys.readouterr().out.strip()
     assert out.endswith("preflight.config.skipped")
     assert skipped_marker_present(tmp_path) is True
+
+
+# --- BL-370 v2 (PR #76 pattern-finder P2): --repo-root flag parity ----------
+
+
+def test_cli_repo_root_flag_matches_repo_convention(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # BL-370 v2 cycle-2 patch: mirror the BL-372 merger test that pins
+    # the canonical `--repo-root` flag (consistent with the rest of the
+    # LaunchPad CLI surface).
+    rc = main(["--repo-root", str(tmp_path), "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["detected"] == []
+
+
+def test_cli_cwd_alias_still_works(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Compatibility alias for out-of-tree callers; the existing test
+    # suite uses `--cwd` throughout so this also documents the contract
+    # explicitly.
+    rc = main(["--cwd", str(tmp_path), "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["detected"] == []

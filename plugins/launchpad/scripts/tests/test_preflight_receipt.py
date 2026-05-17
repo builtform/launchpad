@@ -136,8 +136,30 @@ def test_check_receipt_corrupt_json(tmp_path: Path) -> None:
     assert result.reason == "missing"  # unparseable -> treated as missing
 
 
-def test_check_receipt_wrong_version(tmp_path: Path) -> None:
+def test_check_receipt_future_version_distinct_from_corrupt(
+    tmp_path: Path,
+) -> None:
+    # BL-371 v2 (PR #76 architecture-strategist F1): a receipt written
+    # by a newer LaunchPad (version > RECEIPT_VERSION) must surface as
+    # `future_version` so the audit log and telemetry can point the
+    # user at the upgrade path. "Corrupt" is reserved for actually
+    # malformed receipts.
     _seed_receipt(tmp_path, version=999)
+    result = check_receipt_validity(tmp_path, freshness_window_seconds=3600)
+    assert result.reason == "future_version"
+    assert result.writer_command == "/lp-build"
+
+
+def test_check_receipt_corrupt_for_non_int_version(tmp_path: Path) -> None:
+    _seed_receipt(tmp_path, version="not-a-number")
+    result = check_receipt_validity(tmp_path, freshness_window_seconds=3600)
+    assert result.reason == "corrupt"
+
+
+def test_check_receipt_corrupt_for_bool_version(tmp_path: Path) -> None:
+    # ``bool`` is a subclass of ``int`` in Python; ensure True/False are
+    # rejected rather than treated as version 1/0.
+    _seed_receipt(tmp_path, version=True)
     result = check_receipt_validity(tmp_path, freshness_window_seconds=3600)
     assert result.reason == "corrupt"
 
@@ -390,3 +412,170 @@ def test_cli_freshness_window_override_negative_rejected(
     )
     assert rc == 2
     assert "must be a positive integer" in capsys.readouterr().err
+
+
+# --- section_path scope validation (BL-371 v2, PR #76 P1) -------------------
+
+
+def test_check_receipt_scope_project_wide_covers_section_scoped(
+    tmp_path: Path,
+) -> None:
+    # A receipt written by a project-wide /lp-preflight (section_path=None)
+    # covers a subsequent section-scoped caller. Broader covers narrower.
+    _seed_checklist(tmp_path)
+    _seed_receipt(tmp_path, section_path=None)
+    result = check_receipt_validity(
+        tmp_path,
+        freshness_window_seconds=3600,
+        current_section_path="docs/tasks/sections/hero.md",
+    )
+    assert result.valid is True
+
+
+def test_check_receipt_scope_section_scoped_does_not_cover_project_wide(
+    tmp_path: Path,
+) -> None:
+    # The cloud-reviewer headline P1: a section-scoped receipt MUST NOT
+    # license skipping a project-wide /lp-ship gate. Section-scoped
+    # probes ran a weaker section-specs-approved check than the
+    # project-wide caller needs.
+    _seed_checklist(tmp_path)
+    _seed_receipt(tmp_path, section_path="docs/tasks/sections/hero.md")
+    result = check_receipt_validity(
+        tmp_path, freshness_window_seconds=3600, current_section_path=None
+    )
+    assert result.valid is False
+    assert result.reason == "scope_changed"
+
+
+def test_check_receipt_scope_mismatched_sections(tmp_path: Path) -> None:
+    _seed_checklist(tmp_path)
+    _seed_receipt(tmp_path, section_path="docs/tasks/sections/hero.md")
+    result = check_receipt_validity(
+        tmp_path,
+        freshness_window_seconds=3600,
+        current_section_path="docs/tasks/sections/footer.md",
+    )
+    assert result.valid is False
+    assert result.reason == "scope_changed"
+
+
+def test_check_receipt_scope_exact_section_match(tmp_path: Path) -> None:
+    _seed_checklist(tmp_path)
+    _seed_receipt(tmp_path, section_path="docs/tasks/sections/hero.md")
+    result = check_receipt_validity(
+        tmp_path,
+        freshness_window_seconds=3600,
+        current_section_path="docs/tasks/sections/hero.md",
+    )
+    assert result.valid is True
+
+
+def test_check_receipt_future_timestamp_is_corrupt(tmp_path: Path) -> None:
+    # BL-371 v2 (PR #76 testing-reviewer P2-1): a clock-skewed or
+    # hand-edited future timestamp must NOT silently pass as valid.
+    _seed_checklist(tmp_path)
+    future = (datetime.now(UTC) + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _seed_receipt(tmp_path, timestamp_utc=future)
+    result = check_receipt_validity(tmp_path, freshness_window_seconds=3600)
+    assert result.reason == "corrupt"
+    assert result.receipt_age_seconds is not None
+    assert result.receipt_age_seconds < 0
+
+
+def test_check_receipt_non_string_timestamp_is_corrupt(tmp_path: Path) -> None:
+    _seed_receipt(tmp_path, timestamp_utc=12345)
+    result = check_receipt_validity(tmp_path, freshness_window_seconds=3600)
+    assert result.reason == "corrupt"
+
+
+def test_check_receipt_invalid_iso_timestamp_is_corrupt(tmp_path: Path) -> None:
+    _seed_receipt(tmp_path, timestamp_utc="yesterday")
+    result = check_receipt_validity(tmp_path, freshness_window_seconds=3600)
+    assert result.reason == "corrupt"
+
+
+# --- audit-log sanitization (BL-371 v2, PR #76 P1) --------------------------
+
+
+def test_audit_log_event_swallows_oserror(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # BL-371 v2 (PR #76 testing-reviewer P2-4): the OSError swallow path
+    # must NOT propagate; an audit-log outage cannot block the gate.
+    import lp_preflight  # noqa: PLC0415
+
+    def _explode(*_a: object, **_k: object) -> None:
+        raise PermissionError("simulated audit-log outage")
+
+    monkeypatch.setattr(Path, "open", _explode)
+    # Should NOT raise even though every write attempt explodes.
+    _audit_log_event(tmp_path, "x")
+    # Reset for the next call so subsequent tests are not affected.
+    monkeypatch.undo()
+    assert lp_preflight  # silence unused-import linter
+
+
+def test_writer_command_with_newline_rejected_at_cli(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # BL-371 v2 (PR #76 pattern-finder + security-auditor): a newline
+    # in --writer-command must be rejected up-front so the sanitizer
+    # never has to handle a smuggling attempt.
+    rc = main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--writer-command",
+            "/lp-ship\nFORGED",
+            "--read-receipt",
+        ]
+    )
+    assert rc == 2
+    assert "newline" in capsys.readouterr().err
+
+
+def test_audit_log_writer_command_with_control_chars_sanitized(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # BL-371 v2 (PR #76 pattern-finder + security-auditor F1): when the
+    # receipt-on-disk has tampered writer_command field (control chars
+    # bypassing the CLI guard), the sanitizer escapes them before they
+    # land in the audit log.
+    _seed_checklist(tmp_path)
+    _seed_receipt(
+        tmp_path,
+        writer_command="/lp-build\x1b[31mFORGED\x1b[0m",
+    )
+    rc = main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--read-receipt",
+            "--writer-command",
+            "/lp-ship",
+        ]
+    )
+    assert rc == 0
+    audit = (tmp_path / AUDIT_LOG_PATH).read_text(encoding="utf-8")
+    # Escape sequences must be percent-escaped, not rendered literally.
+    assert "\x1b" not in audit
+    assert "\\x1b" in audit
+
+
+# --- receipt write determinism / scope round-trip ---------------------------
+
+
+def test_write_receipt_round_trips_section_path(tmp_path: Path) -> None:
+    _seed_config(tmp_path)
+    _seed_checklist(tmp_path)
+    target = write_receipt(
+        tmp_path,
+        exit_code=0,
+        section_path="docs/tasks/sections/hero.md",
+        writer_command="/lp-build",
+        freshness_window_seconds=DEFAULT_FRESHNESS_WINDOW_SECONDS,
+    )
+    assert target is not None
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    assert payload["section_path"] == "docs/tasks/sections/hero.md"
