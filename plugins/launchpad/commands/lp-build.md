@@ -78,10 +78,13 @@ If `.launchpad/preflight.config.yaml` exists, run the preflight gate. When Step 
 
 ```bash
 # CASE A or B: target resolved
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_preflight.py --repo-root . --section docs/tasks/sections/<name>.md
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_preflight.py --repo-root . \
+  --write-receipt --read-receipt --writer-command /lp-build \
+  --section docs/tasks/sections/<name>.md
 
 # CASE C: no target resolved
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_preflight.py --repo-root .
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_preflight.py --repo-root . \
+  --write-receipt --read-receipt --writer-command /lp-build
 ```
 
 Exit code 0 means proceed. Exit code 1 means one or more checks failed or are awaiting user confirmation; surface the script's stdout verbatim (the message names each failing item plus the path to `.launchpad/preflight-checklist.md`) and ABORT before Step 1 (/lp-inf). Exit code 2 indicates a config / profile load error; surface stderr and abort.
@@ -89,6 +92,8 @@ Exit code 0 means proceed. Exit code 1 means one or more checks failed or are aw
 If `.launchpad/preflight.config.yaml` does NOT exist, skip preflight silently. Projects that have not configured external-infrastructure prerequisites opt-out by omitting the file.
 
 This is the same gate `/lp-ship` runs at its Step 0.6. Running it here fails fast on ship blockers BEFORE entering autonomous implementation; running it again at `/lp-ship` Step 0.6 catches drift if the user invokes `/lp-ship` directly without going through `/lp-build`. `/lp-ship` does NOT pass `--section` (it gates the whole project at ship time); `/lp-build` passes it because it builds one section at a time.
+
+`--write-receipt --read-receipt` (BL-371) memoizes a successful pass to `.launchpad/preflight-receipt.json` with the config + checklist SHA-256 and the freshness window so the subsequent `/lp-ship` Step 0.6 invocation can skip probes when the receipt is still valid. Stale, mutated-config, or mutated-checklist receipts are invalidated automatically and probes re-run. The default freshness window is 3600s; override per-project by setting top-level `freshness_window_seconds:` in `.launchpad/preflight.config.yaml`.
 
 BL-364 invariant: preflight logic lives in exactly one module (`lp_preflight.py`). Do NOT inline an alternative gate here; call the script and surface its output.
 

@@ -30,12 +30,15 @@ BL-356 invariant: gate logic lives in exactly one module. Do NOT re-author the r
 If `.launchpad/preflight.config.yaml` exists, run the preflight gate:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_preflight.py --repo-root .
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_preflight.py --repo-root . \
+  --read-receipt --write-receipt --writer-command /lp-ship
 ```
 
 Exit code 0 means proceed. Exit code 1 means one or more checks failed or are awaiting user confirmation; surface the script's stdout to the user verbatim (the message names each failing item plus the path to `.launchpad/preflight-checklist.md`) and ABORT before Step 1. Exit code 2 indicates a config / profile load error; surface the script's stderr and abort.
 
 If `.launchpad/preflight.config.yaml` does NOT exist, skip preflight silently. Projects that have not configured external-infrastructure prerequisites opt-out by omitting the file.
+
+`--read-receipt --write-receipt` (BL-371) trusts a still-valid `.launchpad/preflight-receipt.json` from a recent `/lp-build` invocation: if the receipt was issued within the freshness window (default 3600s; override via top-level `freshness_window_seconds:` in `.launchpad/preflight.config.yaml`) AND the config + checklist SHA-256 still match, `/lp-ship` skips the probes entirely and emits a single `preflight-skipped-via-receipt` line to `.launchpad/audit.log`. When the receipt is stale or invalid, probes re-run and a fresh receipt is written; the user sees `preflight-receipt-<reason>` in the audit log when an invalidation happens. Direct `/lp-ship` invocations (without going through `/lp-build` first) still run probes normally.
 
 BL-364 invariant: preflight logic lives in exactly one module (`lp_preflight.py`). Do NOT inline an alternative gate here; call the script and surface its output.
 

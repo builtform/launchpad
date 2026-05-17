@@ -66,6 +66,7 @@ BL-356 invariant on `autonomous_guard.py`.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import ipaddress
 import json
 import os
@@ -80,6 +81,14 @@ from typing import Any
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 from urllib.parse import quote, urlsplit
+
+# Sibling-script imports (atomic-replace primitive for the receipt artifact;
+# allowlisted in plugin-v2-handshake-lint.py per BL-371).
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from atomic_io import atomic_write_replace  # noqa: E402
 
 # Vendor bootstrap for PyYAML (mirrors plugin-config-loader.py).
 _VENDOR = Path(__file__).resolve().parent / "plugin_stack_adapters" / "_vendor"
@@ -111,7 +120,16 @@ def _load_yaml(text: str) -> Any:
 
 CONFIG_PATH = ".launchpad/preflight.config.yaml"
 CHECKLIST_PATH = ".launchpad/preflight-checklist.md"
+RECEIPT_PATH = ".launchpad/preflight-receipt.json"
+AUDIT_LOG_PATH = ".launchpad/audit.log"
 PROFILE_DIR_NAME = "preflight-profiles"
+
+RECEIPT_VERSION = 1
+"""Schema version for `.launchpad/preflight-receipt.json` (BL-371). v2 reserved."""
+
+DEFAULT_FRESHNESS_WINDOW_SECONDS = 3600
+"""Default receipt freshness window (1 hour) used when neither the CLI
+flag nor the config's top-level `freshness_window_seconds` is set."""
 
 DEFAULT_STALE_WINDOW_DAYS = 30
 """Default stale window if neither the profile nor the override sets one."""
@@ -1739,6 +1757,176 @@ def _format_refuse(report: PreflightReport) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Receipt artifact (BL-371: memoization between /lp-build and /lp-ship).
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ReceiptCheckResult:
+    """Verdict on whether an on-disk receipt licenses skipping probes.
+
+    `reason` is one of: ``valid``, ``missing``, ``corrupt``, ``stale``,
+    ``config_changed``, ``checklist_changed``, ``prior_failed``. Audit-log
+    lines on stale-receipt invalidation include this reason verbatim.
+    """
+
+    valid: bool
+    reason: str
+    receipt_age_seconds: int | None
+    writer_command: str | None
+
+
+def _sha256_of_file(path: Path) -> str | None:
+    """Return hex SHA-256 of ``path``, or ``None`` if the file is missing."""
+    if not path.is_file():
+        return None
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _audit_log_event(repo_root: Path, line: str) -> None:
+    """Append a single event line to ``.launchpad/audit.log``.
+
+    Best-effort: write failures are swallowed so a log outage cannot block
+    the preflight gate. Format mirrors ``plugin-audit-log.py`` only in the
+    ISO-8601-UTC timestamp prefix; receipt events use the BL-371 token
+    shape ``<command> preflight-<action> <key>=<value> ...``.
+    """
+    log_dir = repo_root / ".launchpad"
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / "audit.log"
+        timestamp = datetime.now(UTC).isoformat(timespec="seconds")
+        with log_path.open("a", encoding="utf-8") as f:
+            f.write(f"{timestamp} {line}\n")
+    except OSError:
+        pass
+
+
+def _read_receipt(repo_root: Path) -> dict[str, Any] | None:
+    path = repo_root / RECEIPT_PATH
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
+def _freshness_window_from_config(repo_root: Path) -> int | None:
+    """Read top-level ``freshness_window_seconds`` from preflight.config.yaml.
+
+    Returns ``None`` if the key is unset, malformed, or the config is
+    absent / unparseable. Errors do NOT raise: the receipt path must be
+    resilient to config-load failures, and ``load_preflight_config`` will
+    re-surface real errors on the probe path.
+    """
+    cfg = repo_root / CONFIG_PATH
+    if not cfg.is_file():
+        return None
+    try:
+        raw = _load_yaml(cfg.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return None
+    if not isinstance(raw, dict):
+        return None
+    val = raw.get("freshness_window_seconds")
+    # ``bool`` is a subclass of ``int``; reject explicitly so ``True`` is
+    # not silently treated as ``1``.
+    if isinstance(val, bool):
+        return None
+    if not isinstance(val, int) or val <= 0:
+        return None
+    return val
+
+
+def check_receipt_validity(
+    repo_root: Path,
+    *,
+    freshness_window_seconds: int,
+    now: datetime | None = None,
+) -> ReceiptCheckResult:
+    """Decide whether the on-disk receipt licenses skipping probes.
+
+    Validity requires ALL of:
+
+    * receipt file present, parses as JSON, and is a v1 dict
+    * ``exit_code == 0``
+    * ``timestamp_utc`` parses; ``(now - timestamp) < freshness_window_seconds``
+    * ``config_sha256`` matches the current preflight config (or both null)
+    * ``checklist_sha256`` matches the current checklist (or both null)
+    """
+    now = now or datetime.now(UTC)
+    receipt = _read_receipt(repo_root)
+    if receipt is None:
+        return ReceiptCheckResult(False, "missing", None, None)
+    if receipt.get("version") != RECEIPT_VERSION:
+        return ReceiptCheckResult(False, "corrupt", None, None)
+    writer = receipt.get("writer_command")
+    writer_str = writer if isinstance(writer, str) else None
+    if receipt.get("exit_code") != 0:
+        return ReceiptCheckResult(False, "prior_failed", None, writer_str)
+    ts_raw = receipt.get("timestamp_utc")
+    if not isinstance(ts_raw, str):
+        return ReceiptCheckResult(False, "corrupt", None, writer_str)
+    try:
+        ts = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
+    except ValueError:
+        return ReceiptCheckResult(False, "corrupt", None, writer_str)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=UTC)
+    age = int((now - ts).total_seconds())
+    if age < 0:
+        return ReceiptCheckResult(False, "corrupt", age, writer_str)
+    if age >= freshness_window_seconds:
+        return ReceiptCheckResult(False, "stale", age, writer_str)
+    if _sha256_of_file(repo_root / CONFIG_PATH) != receipt.get("config_sha256"):
+        return ReceiptCheckResult(False, "config_changed", age, writer_str)
+    if _sha256_of_file(repo_root / CHECKLIST_PATH) != receipt.get("checklist_sha256"):
+        return ReceiptCheckResult(False, "checklist_changed", age, writer_str)
+    return ReceiptCheckResult(True, "valid", age, writer_str)
+
+
+def write_receipt(
+    repo_root: Path,
+    *,
+    exit_code: int,
+    section_path: str | None,
+    writer_command: str,
+    freshness_window_seconds: int,
+) -> Path | None:
+    """Write a fresh receipt on success; remove any stale receipt on failure.
+
+    Returns the receipt path when written, ``None`` when the file was
+    removed or no action was needed. Atomic-replace prevents partial-write
+    races with a concurrent ``--read-receipt`` reader.
+    """
+    path = repo_root / RECEIPT_PATH
+    if exit_code != 0:
+        try:
+            path.unlink()
+        except (FileNotFoundError, OSError):
+            return None
+        return None
+    payload = {
+        "version": RECEIPT_VERSION,
+        "timestamp_utc": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "exit_code": exit_code,
+        "config_sha256": _sha256_of_file(repo_root / CONFIG_PATH),
+        "checklist_sha256": _sha256_of_file(repo_root / CHECKLIST_PATH),
+        "section_path": section_path,
+        "writer_command": writer_command,
+        "freshness_window_seconds": freshness_window_seconds,
+    }
+    body = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_replace(path, body, trusted_root=repo_root)
+    return path
+
+
+# ---------------------------------------------------------------------------
 # CLI.
 # ---------------------------------------------------------------------------
 
@@ -1797,8 +1985,82 @@ def main(argv: list[str] | None = None) -> int:
             "standalone runs leave it unset (all-sections semantic)."
         ),
     )
+    parser.add_argument(
+        "--write-receipt",
+        action="store_true",
+        help=(
+            "On exit 0, write `.launchpad/preflight-receipt.json` with the "
+            "config + checklist SHA-256 plus the freshness window so a "
+            "subsequent /lp-ship or /lp-build invocation can skip probes "
+            "when the receipt is still valid. On nonzero exit, any "
+            "existing receipt is removed. BL-371."
+        ),
+    )
+    parser.add_argument(
+        "--read-receipt",
+        action="store_true",
+        help=(
+            "Before running probes, check `.launchpad/preflight-receipt.json` "
+            "and skip probes when `exit_code == 0`, the timestamp is within "
+            "the freshness window, and the recorded config + checklist "
+            "SHA-256 still match the on-disk files. BL-371."
+        ),
+    )
+    parser.add_argument(
+        "--writer-command",
+        default=None,
+        help=(
+            "Identifier of the command writing the receipt "
+            "(e.g., /lp-build, /lp-ship). Default: /lp-preflight. BL-371."
+        ),
+    )
+    parser.add_argument(
+        "--freshness-window-seconds",
+        type=int,
+        default=None,
+        help=(
+            "Override the receipt freshness window. Default: top-level "
+            f"`freshness_window_seconds` in {CONFIG_PATH}, else "
+            f"{DEFAULT_FRESHNESS_WINDOW_SECONDS}. Must be positive. BL-371."
+        ),
+    )
     args = parser.parse_args(argv)
     repo_root = Path(args.repo_root).resolve()
+    writer_command = args.writer_command or "/lp-preflight"
+    freshness = args.freshness_window_seconds
+    if freshness is None:
+        freshness = (
+            _freshness_window_from_config(repo_root) or DEFAULT_FRESHNESS_WINDOW_SECONDS
+        )
+    elif freshness <= 0:
+        print(
+            "[preflight] CONFIG ERROR: --freshness-window-seconds must be "
+            f"a positive integer; got {args.freshness_window_seconds}",
+            file=sys.stderr,
+        )
+        return 2
+
+    if args.read_receipt:
+        verdict = check_receipt_validity(repo_root, freshness_window_seconds=freshness)
+        if verdict.valid:
+            issued_by = verdict.writer_command or "/lp-preflight"
+            print(
+                f"[preflight] receipt valid; skipping probes "
+                f"(issued {verdict.receipt_age_seconds}s ago by {issued_by})"
+            )
+            _audit_log_event(
+                repo_root,
+                f"{writer_command} preflight-skipped-via-receipt "
+                f"receipt_age_seconds={verdict.receipt_age_seconds} "
+                f"writer={issued_by}",
+            )
+            return 0
+        if verdict.reason != "missing":
+            _audit_log_event(
+                repo_root,
+                f"{writer_command} preflight-receipt-{verdict.reason}",
+            )
+
     try:
         report = run_preflight(
             repo_root,
@@ -1807,13 +2069,29 @@ def main(argv: list[str] | None = None) -> int:
         )
     except PreflightConfigError as exc:
         print(f"[preflight] CONFIG ERROR: {exc}", file=sys.stderr)
+        if args.write_receipt:
+            write_receipt(
+                repo_root,
+                exit_code=2,
+                section_path=args.section,
+                writer_command=writer_command,
+                freshness_window_seconds=freshness,
+            )
         return 2
     print(_format_summary(report))
+    exit_code = 0 if report.ok else 1
     if not report.ok:
         print("")
         print(_format_refuse(report))
-        return 1
-    return 0
+    if args.write_receipt:
+        write_receipt(
+            repo_root,
+            exit_code=exit_code,
+            section_path=args.section,
+            writer_command=writer_command,
+            freshness_window_seconds=freshness,
+        )
+    return exit_code
 
 
 if __name__ == "__main__":

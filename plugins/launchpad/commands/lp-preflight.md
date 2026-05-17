@@ -39,8 +39,11 @@ overrides:
 ## Step 1: Run Preflight
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_preflight.py --repo-root .
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_preflight.py --repo-root . \
+  --write-receipt --writer-command /lp-preflight
 ```
+
+`--write-receipt` (BL-371) seals a successful pass to `.launchpad/preflight-receipt.json` so a subsequent `/lp-build` or `/lp-ship` invocation can skip probes (via `--read-receipt`) while the receipt is within its freshness window (default 3600s; override via top-level `freshness_window_seconds:` in `.launchpad/preflight.config.yaml`). On nonzero exit the receipt is removed so the next memoization-aware caller re-runs probes against a now-broken environment.
 
 The script writes `.launchpad/preflight-checklist.md` and prints a one-screen summary:
 
