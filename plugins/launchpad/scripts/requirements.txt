@@ -48,7 +48,7 @@ attrs==26.1.0 \
 bandit==1.9.4 \
     --hash=sha256:b589e5de2afe70bd4d53fa0c1da6199f4085af666fde00e8a034f152a52cd628 \
     --hash=sha256:f89ffa663767f5a0585ea075f01020207e966a9c0f2b9ef56a57c7963a3f6f8e
-    # via -r plugins/launchpad/scripts/requirements.in
+    # via -r requirements.in
 boltons==21.0.0 \
     --hash=sha256:65e70a79a731a7fe6e98592ecfb5ccf2115873d01dbc576079874629e5c90f13 \
     --hash=sha256:b9bb7b58b2b420bbe11a6025fdef6d3e5edc9f76a42fb467afe7ca212ef9948b
@@ -402,7 +402,7 @@ iniconfig==2.3.0 \
 jinja2==3.1.6 \
     --hash=sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d \
     --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
-    # via -r plugins/launchpad/scripts/requirements.in
+    # via -r requirements.in
 jsonschema==4.25.1 \
     --hash=sha256:3fba0169e345c7175110351d456342c364814cfcf3b964ba4587f22915230a63 \
     --hash=sha256:e4a9655ce0da0c0b67a085847e00a3a51449e1157f4f75e9fb5aa545e122eb85
@@ -508,7 +508,7 @@ markupsafe==3.0.3 \
     --hash=sha256:f9e130248f4462aaa8e2552d547f36ddadbeaa573879158d721bbd33dfe4743a \
     --hash=sha256:fed51ac40f757d41b7c48425901843666a6677e3e8eb0abcff09e4ba6e664f50
     # via
-    #   -r plugins/launchpad/scripts/requirements.in
+    #   -r requirements.in
     #   jinja2
 mcp==1.23.3 \
     --hash=sha256:32768af4b46a1b4f7df34e2bfdf5c6011e7b63d7f1b0e321d0fdef4cd6082031 \
@@ -629,7 +629,7 @@ psutil==7.2.2 \
     --hash=sha256:ed0cace939114f62738d808fdcecd4c869222507e266e574799e9c0faa17d486 \
     --hash=sha256:eed63d3b4d62449571547b60578c5b2c4bcccc5387148db46e0c2313dad0ee00 \
     --hash=sha256:fd04ef36b4a6d599bbdb225dd1d3f51e00105f6d48a28f006da7f9822f2606d8
-    # via -r plugins/launchpad/scripts/requirements.in
+    # via -r requirements.in
 pycparser==3.0 \
     --hash=sha256:600f49d217304a5902ac3c37e1281c9fe94e4d0489de643a9504c5cdfdfc6b29 \
     --hash=sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992
@@ -779,11 +779,11 @@ pyjwt[crypto]==2.12.1 \
 pyright==1.1.409 \
     --hash=sha256:986ee05beca9e077c165758ad123667c679e050059a2546aa02473930394bc93 \
     --hash=sha256:aa3ea228cab90c845c7a60d28db7a844c04315356392aa09fafcee98c8c22fb3
-    # via -r plugins/launchpad/scripts/requirements.in
+    # via -r requirements.in
 pytest==7.4.4 \
     --hash=sha256:2cf0005922c6ace4a3e2ec8b4080eb0d9753fdc93107415332f50ce9e7994280 \
     --hash=sha256:b090cdf5ed60bf4c45261be03239c2c1c22df034fbffe691abe93cd80cea01d8
-    # via -r plugins/launchpad/scripts/requirements.in
+    # via -r requirements.in
 python-dotenv==1.2.2 \
     --hash=sha256:1d8214789a24de455a8b8bd8ae6fe3c6b69a5e3d64aa8a8e5d68e694bbcb285a \
     --hash=sha256:2c371a91fbd7ba082c2c1dc1f8bf89ca22564a087c2c287cd9b662adde799cf3
@@ -867,7 +867,7 @@ pyyaml==6.0.3 \
     --hash=sha256:fa160448684b4e94d80416c0fa4aac48967a969efe22931448d853ada8baf926 \
     --hash=sha256:fc09d0aa354569bc501d4e787133afc08552722d3ab34836a80547331bb5d4a0
     # via
-    #   -r plugins/launchpad/scripts/requirements.in
+    #   -r requirements.in
     #   bandit
 referencing==0.37.0 \
     --hash=sha256:381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231 \
@@ -1092,21 +1092,21 @@ ruff==0.11.12 \
     --hash=sha256:d05d6a78a89166f03f03a198ecc9d18779076ad0eec476819467acb401028c0c \
     --hash=sha256:f5a07f49767c4be4772d161bfc049c1f242db0cfe1bd976e0f0886732a4765d6 \
     --hash=sha256:f97fdbc2549f456c65b3b0048560d44ddd540db1f27c778a938371424b49fe4a
-    # via -r plugins/launchpad/scripts/requirements.in
+    # via -r requirements.in
 semantic-version==2.10.0 \
     --hash=sha256:bdabb6d336998cbb378d4b9db3a4b56a1e3235701dc05ea2690d9a997ed5041c \
     --hash=sha256:de78a3b8e0feda74cabc54aab2da702113e33ac9d9eb9d2389bcf1f58b7d9177
     # via semgrep
-semgrep==1.162.0 \
-    --hash=sha256:14b3a7e6f92ca85d56ebe8338e3122cc497708c4cb9c4317be8b3ad361fd9495 \
-    --hash=sha256:33074ee4d7cb795916ee562724ab1fbb246005ef96328e29358eb8dfbfdb2e9e \
-    --hash=sha256:3e1f379c27701786f830f6ade4afbd535f38d4137cdbf24c5969d246809ccbeb \
-    --hash=sha256:50c03d15add3b9eddc800eeecda5cf69141ecbf03a0910dec9dc327862aa9baa \
-    --hash=sha256:9659a014a688676a4ac9bd14b71ff049ef819f779f08ce57df7d337709096322 \
-    --hash=sha256:a0d3be52605726732281265d1a59745cdaf4248d5b3268b8118f8e1d4584131a \
-    --hash=sha256:a7e54f83d2b0c9c1a939b71e317a75eea2f8564427beb0ad637ac04dc5e69b61 \
-    --hash=sha256:d920329b7f54535df2142044953de17168adae7f9979b350a8c2d12082aeb135
-    # via -r plugins/launchpad/scripts/requirements.in
+semgrep==1.163.0 \
+    --hash=sha256:10240148f690e3ae384e67afa7a51456bcb881781281b02f76379a698ca8bdbc \
+    --hash=sha256:2c217f08776793ebf57f233a1285cbc6e8468464e410574d78177f3a3d635473 \
+    --hash=sha256:3b54184862790b751c85a886d0efba0e5e9b7f7a1521eb60dbd3a244911798e8 \
+    --hash=sha256:42adb798a1850e76dd417e136df1107682dc6eda78e87ea6c8246596b28fe362 \
+    --hash=sha256:6c0c7f89e1638ae94308c6554706c0ec23a2381531f5bb78fa6c2a74de3d315d \
+    --hash=sha256:768166fe64a2bf75e1e9f007b75350b136d5e56d87fd322b9fcffe16797c6b21 \
+    --hash=sha256:c268ed2671eb47b33ab4007972365a5a5f8d3c760315ca3850b186936a7b668c \
+    --hash=sha256:d689d75e75721d8899e3cfe40d89aef8eaea35c2186d59ca36904f0f429f032d
+    # via -r requirements.in
 sse-starlette==3.4.2 \
     --hash=sha256:2f9a7f51ed84395a0427fb9f66cb1ec11f7899d977a72cbc9070b962a2e14489 \
     --hash=sha256:6ea5d35b7ce979a3de5a0db5f77fe886b1616e4b3e1ad93fba502bd9b5fb662f
