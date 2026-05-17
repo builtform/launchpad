@@ -1,0 +1,273 @@
+"""Tests for ``lp_bootstrap.preflight_proposer`` (BL-370).
+
+Covers deploy-target detection signals, profile proposal, atomic writes,
+overwrite refusal, opt-out marker, and the CLI surface invoked by the
+``/lp-bootstrap`` slash command.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+_SCRIPTS = Path(__file__).resolve().parent.parent
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
+
+from lp_bootstrap.preflight_proposer import (  # noqa: E402
+    KNOWN_PROFILES,
+    config_present,
+    detect_deploy_providers,
+    main,
+    preflight_config_path,
+    proposed_profiles,
+    skipped_marker_path,
+    skipped_marker_present,
+    summarize,
+    write_preflight_config,
+    write_skipped_marker,
+)
+
+# --- detect_deploy_providers ------------------------------------------------
+
+
+def test_detect_cloudflare_from_wrangler_jsonc(tmp_path: Path) -> None:
+    (tmp_path / "wrangler.jsonc").write_text(
+        '{"name": "site", "pages_build_output_dir": "dist"}\n',
+        encoding="utf-8",
+    )
+    assert detect_deploy_providers(tmp_path) == ["cloudflare-pages"]
+
+
+def test_detect_cloudflare_from_wrangler_toml(tmp_path: Path) -> None:
+    (tmp_path / "wrangler.toml").write_text(
+        'name = "site"\npages_build_output_dir = "dist"\n',
+        encoding="utf-8",
+    )
+    assert detect_deploy_providers(tmp_path) == ["cloudflare-pages"]
+
+
+def test_detect_cloudflare_from_github_workflow(tmp_path: Path) -> None:
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    (workflows / "deploy.yml").write_text(
+        "jobs:\n  deploy:\n    steps:\n      - uses: cloudflare/pages-action@v1\n",
+        encoding="utf-8",
+    )
+    assert detect_deploy_providers(tmp_path) == ["cloudflare-pages"]
+
+
+def test_detect_vercel_from_vercel_json(tmp_path: Path) -> None:
+    (tmp_path / "vercel.json").write_text("{}\n", encoding="utf-8")
+    assert detect_deploy_providers(tmp_path) == ["vercel"]
+
+
+def test_detect_vercel_from_dotvercel_project_json(tmp_path: Path) -> None:
+    dotvercel = tmp_path / ".vercel"
+    dotvercel.mkdir()
+    (dotvercel / "project.json").write_text('{"projectId": "abc"}\n', encoding="utf-8")
+    assert detect_deploy_providers(tmp_path) == ["vercel"]
+
+
+def test_detect_netlify_from_netlify_toml(tmp_path: Path) -> None:
+    (tmp_path / "netlify.toml").write_text(
+        '[build]\ncommand = "build"\n', encoding="utf-8"
+    )
+    assert detect_deploy_providers(tmp_path) == ["netlify"]
+
+
+def test_detect_none_returns_empty(tmp_path: Path) -> None:
+    (tmp_path / "package.json").write_text("{}\n", encoding="utf-8")
+    assert detect_deploy_providers(tmp_path) == []
+
+
+def test_detect_multi_target_returns_all(tmp_path: Path) -> None:
+    (tmp_path / "wrangler.jsonc").write_text("{}\n", encoding="utf-8")
+    (tmp_path / "vercel.json").write_text("{}\n", encoding="utf-8")
+    (tmp_path / "netlify.toml").write_text("[build]\n", encoding="utf-8")
+    assert detect_deploy_providers(tmp_path) == [
+        "cloudflare-pages",
+        "netlify",
+        "vercel",
+    ]
+
+
+def test_detect_ignores_non_yaml_workflow_files(tmp_path: Path) -> None:
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    # A README inside the workflows dir mentions the action; must NOT trigger.
+    (workflows / "README.md").write_text(
+        "We use cloudflare/pages-action.\n", encoding="utf-8"
+    )
+    assert detect_deploy_providers(tmp_path) == []
+
+
+# --- proposed_profiles ------------------------------------------------------
+
+
+def test_proposed_profiles_always_includes_spec_completeness() -> None:
+    assert proposed_profiles([]) == ["spec-completeness"]
+
+
+def test_proposed_profiles_auto_adds_cloudflare_dns() -> None:
+    assert proposed_profiles(["cloudflare-pages"]) == [
+        "cloudflare-dns",
+        "cloudflare-pages",
+        "spec-completeness",
+    ]
+
+
+def test_proposed_profiles_for_vercel_does_not_add_dns() -> None:
+    assert proposed_profiles(["vercel"]) == ["spec-completeness", "vercel"]
+
+
+def test_proposed_profiles_filters_unknown_inputs() -> None:
+    # Defensive: if a future caller feeds a profile we do not bundle yet,
+    # it must be dropped rather than appearing in the YAML.
+    out = proposed_profiles(["cloudflare-pages", "imaginary-cdn"])
+    assert "imaginary-cdn" not in out
+    assert set(out) <= KNOWN_PROFILES
+
+
+# --- write_preflight_config + write_skipped_marker --------------------------
+
+
+def test_write_preflight_config_creates_yaml(tmp_path: Path) -> None:
+    target = write_preflight_config(
+        tmp_path, ["spec-completeness", "cloudflare-pages", "cloudflare-dns"]
+    )
+    assert target == preflight_config_path(tmp_path)
+    body = target.read_text(encoding="utf-8")
+    assert "providers:" in body
+    assert "- cloudflare-pages" in body
+    assert "- cloudflare-dns  # remove if no custom domain" in body
+    assert body.startswith("# Generated by /lp-bootstrap on ")
+
+
+def test_write_preflight_config_refuses_overwrite(tmp_path: Path) -> None:
+    write_preflight_config(tmp_path, ["spec-completeness", "vercel"])
+    with pytest.raises(FileExistsError):
+        write_preflight_config(tmp_path, ["spec-completeness", "vercel"])
+
+
+def test_write_preflight_config_rejects_empty_providers(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="providers list is empty"):
+        write_preflight_config(tmp_path, [])
+
+
+def test_write_preflight_config_rejects_unknown_provider(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="unknown provider"):
+        write_preflight_config(tmp_path, ["spec-completeness", "not-a-profile"])
+
+
+def test_write_skipped_marker_creates_file(tmp_path: Path) -> None:
+    target = write_skipped_marker(tmp_path)
+    assert target == skipped_marker_path(tmp_path)
+    body = target.read_text(encoding="utf-8")
+    assert "opted out" in body
+    assert skipped_marker_present(tmp_path) is True
+
+
+# --- summarize --------------------------------------------------------------
+
+
+def test_summarize_no_signals(tmp_path: Path) -> None:
+    summary = summarize(tmp_path)
+    assert summary == {
+        "detected": [],
+        "proposed_profiles": ["spec-completeness"],
+        "config_present": False,
+        "skipped_marker_present": False,
+    }
+
+
+def test_summarize_signals_and_existing_config(tmp_path: Path) -> None:
+    (tmp_path / "wrangler.jsonc").write_text("{}\n", encoding="utf-8")
+    write_preflight_config(
+        tmp_path, ["spec-completeness", "cloudflare-pages", "cloudflare-dns"]
+    )
+    summary = summarize(tmp_path)
+    assert summary["detected"] == ["cloudflare-pages"]
+    assert summary["config_present"] is True
+    assert summary["skipped_marker_present"] is False
+
+
+def test_summarize_signals_and_skipped_marker(tmp_path: Path) -> None:
+    (tmp_path / "vercel.json").write_text("{}\n", encoding="utf-8")
+    write_skipped_marker(tmp_path)
+    summary = summarize(tmp_path)
+    assert summary["detected"] == ["vercel"]
+    assert summary["config_present"] is False
+    assert summary["skipped_marker_present"] is True
+
+
+# --- CLI --------------------------------------------------------------------
+
+
+def test_cli_json_emits_summary(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "netlify.toml").write_text("[build]\n", encoding="utf-8")
+    rc = main(["--cwd", str(tmp_path), "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["detected"] == ["netlify"]
+    assert "spec-completeness" in payload["proposed_profiles"]
+    assert payload["config_present"] is False
+    assert payload["skipped_marker_present"] is False
+
+
+def test_cli_write_config_then_present(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(
+        [
+            "--cwd",
+            str(tmp_path),
+            "--write-config",
+            "--providers",
+            "spec-completeness,vercel",
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr().out.strip()
+    assert out.endswith("preflight.config.yaml")
+    assert config_present(tmp_path) is True
+
+
+def test_cli_write_config_requires_providers(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(["--cwd", str(tmp_path), "--write-config"])
+    assert rc == 64
+    assert "requires --providers" in capsys.readouterr().err
+
+
+def test_cli_write_config_refuses_overwrite(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_preflight_config(tmp_path, ["spec-completeness", "vercel"])
+    rc = main(
+        [
+            "--cwd",
+            str(tmp_path),
+            "--write-config",
+            "--providers",
+            "spec-completeness,vercel",
+        ]
+    )
+    assert rc == 65
+    assert "refusing to overwrite" in capsys.readouterr().err
+
+
+def test_cli_write_skipped_creates_marker(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(["--cwd", str(tmp_path), "--write-skipped"])
+    assert rc == 0
+    out = capsys.readouterr().out.strip()
+    assert out.endswith("preflight.config.skipped")
+    assert skipped_marker_present(tmp_path) is True

@@ -734,6 +734,12 @@ ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS = (
     # Engine no longer holds the primitive directly; the decision_writer
     # entry below covers the resealed scaffold-decision write.
     "plugins/launchpad/scripts/lp_bootstrap/manifest_writer.py",  # bootstrap manifest writer
+    # v2.1.8 BL-370: post-bootstrap preflight-config proposer writes
+    # `.launchpad/preflight.config.yaml` (and the opt-out marker) so the
+    # v2.1.7 external-infrastructure gate actually fires for default
+    # greenfield setups. Sibling of manifest_writer.py; covered by the
+    # `/lp_bootstrap/` directory CODEOWNERS rule.
+    "plugins/launchpad/scripts/lp_bootstrap/preflight_proposer.py",
     # Phase 10 v2.1: scaffold-decision atomic re-seal lives in decision_writer
     # (re_seal_decision_atomic) so /lp-update-identity inherits the same
     # atomic-replace primitive used by /lp-pick-stack's first-write path.

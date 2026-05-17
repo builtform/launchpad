@@ -203,6 +203,74 @@ Tooling notes:
 
 See https://github.com/builtform/launchpad/blob/main/docs/architecture/CI_CD.md#consumer-python-gates
 
+## Post-bootstrap follow-up: preflight config (BL-370, v2.1.8)
+
+After the engine returns `BootstrapStatus.SUCCESS`, scan for deploy-target
+signals so the v2.1.7 external-infrastructure preflight gate actually
+fires for default greenfield setups. The gap this closes: without a
+`.launchpad/preflight.config.yaml`, `/lp-build` Step 0.6 and `/lp-ship`
+Step 0.6 silently skip preflight and the user only discovers missing
+Cloudflare / DNS / secret setup at deploy time, ~30 min into autonomous
+`/lp-inf` work.
+
+Run the proposer in `--json` mode and decide from the structured output:
+
+```bash
+python -m lp_bootstrap.preflight_proposer --json --cwd "$PWD"
+```
+
+Returned JSON:
+
+```json
+{
+  "detected": ["cloudflare-pages"],
+  "proposed_profiles": ["cloudflare-dns", "cloudflare-pages", "spec-completeness"],
+  "config_present": false,
+  "skipped_marker_present": false
+}
+```
+
+Decision matrix:
+
+| Detected  | `config_present` | `skipped_marker_present` | Action                                                                                                    |
+| --------- | ---------------- | ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| empty     | any              | any                      | No action. Repo has no deploy target yet.                                                                 |
+| non-empty | true             | any                      | No action. Config already authored; respect user edits.                                                   |
+| non-empty | false            | true                     | No action. User previously opted out; do not re-prompt.                                                   |
+| non-empty | false            | false                    | Prompt the user (see template below). On accept, run `--write-config`. On decline, run `--write-skipped`. |
+
+Prompt template (only fires on the last row of the matrix):
+
+> Detected deploy provider(s): **`<comma-joined detected>`**.
+> Create `.launchpad/preflight.config.yaml` covering
+> **`<comma-joined proposed_profiles>`** so `/lp-build` and `/lp-ship` can
+> probe these prerequisites before deploy time? \[y/N]
+
+On accept:
+
+```bash
+python -m lp_bootstrap.preflight_proposer --write-config \
+  --providers "<comma-joined proposed_profiles>" --cwd "$PWD"
+```
+
+On decline:
+
+```bash
+python -m lp_bootstrap.preflight_proposer --write-skipped --cwd "$PWD"
+```
+
+The `--write-config` invocation atomically writes the YAML via
+`atomic_write_replace` and refuses to overwrite an existing config (exit
+65). The `--write-skipped` invocation writes a one-line
+`.launchpad/preflight.config.skipped` sentinel so future bootstrap runs
+do not re-prompt; the user can delete the sentinel to opt back in.
+
+The detector currently covers `cloudflare-pages` (from `wrangler.{jsonc,toml,json}`
+or `cloudflare/pages-action` / `cloudflare/wrangler-action` workflow refs),
+`vercel` (from `vercel.json` or `.vercel/project.json`), and `netlify`
+(from `netlify.toml`). Additional providers join as their profile lands
+in `plugins/launchpad/preflight-profiles/`.
+
 ## Examples
 
 ```bash
