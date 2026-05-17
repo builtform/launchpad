@@ -6,7 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Tracked in [ROADMAP.md](ROADMAP.md). v2.1.8 candidates include BL-365 (parallelize preflight probe dispatch + short-TTL cache), BL-367 (programmatic GitHub-repo linkage verification for provider project probes), and setup-action step rewrites in ci.yml for non-TS stacks. v2.1.x bundles BL-366 (18-item preflight polish). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
+Tracked in [ROADMAP.md](ROADMAP.md). v2.1.9 candidates include BL-365 (parallelize preflight probe dispatch + short-TTL cache), BL-367 (programmatic GitHub-repo linkage verification for provider project probes), and BL-368 (DNS `dig +short --` sentinel bug). v2.1.x bundles BL-366 (18-item preflight polish). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
+
+## [v2.1.8]
+
+Autonomous-execution polish (BL-370 + BL-371 + BL-372). v2.1.8 closes three gaps that turned "autonomous /lp-build" into an interactive flow in practice. Each gap surfaced from post-v2.1.7 scope-review reproduction on a real-world greenfield site build: the v2.1.7 preflight gate (BL-364) was invisible to users who never authored `.launchpad/preflight.config.yaml` by hand; configured preflight ran twice (once at /lp-build, again at /lp-ship) with no memoization; and Claude Code prompted the user for every Skill or Monitor invocation during the /lp-build chain because LaunchPad's autonomous-ack.md gate was independent of Claude Code's permission system.
+
+### For LaunchPad users (downstream behavior changes)
+
+- **`/lp-bootstrap` proposes a preflight config when deploy signals exist (BL-370, P1).** After the engine returns success, /lp-bootstrap scans the repo for `wrangler.{jsonc,toml,json}`, `vercel.json`, `.vercel/project.json`, `netlify.toml`, and `cloudflare/pages-action` / `cloudflare/wrangler-action` workflow references. When any signal is present AND `.launchpad/preflight.config.yaml` is absent AND the opt-out marker is absent, the user gets a single y/N prompt to create the config with the detected providers plus `spec-completeness`. On accept, the config lands at `.launchpad/preflight.config.yaml` and subsequent `/lp-build` + `/lp-ship` invocations actually probe Cloudflare / DNS / secrets. On decline, a skipped-marker file is written so future bootstrap runs do not re-prompt.
+- **Preflight receipt memoization between `/lp-build` and `/lp-ship` (BL-371, P1).** A successful `/lp-build` Step 0.6 pass writes `.launchpad/preflight-receipt.json` with the config + checklist SHA-256 and the freshness window (default 3600s; override via top-level `freshness_window_seconds:` in `.launchpad/preflight.config.yaml`). `/lp-ship` Step 0.6 trusts a still-valid receipt and skips probes, emitting one `preflight-skipped-via-receipt` line to `.launchpad/audit.log`. Stale, mutated-config, mutated-checklist, prior-failed, or corrupt receipts are invalidated automatically and probes re-run; the invalidation reason is recorded as `preflight-receipt-<reason>` in the audit log.
+- **Claude Code permission-mode autonomy via `.claude/settings.json` merger (BL-372, P1).** When `.launchpad/autonomous-ack.md` exists, `/lp-bootstrap` proposes merging a bundled tool-level allowlist template (`Skill`, `Bash`, `Read`, `Write`, `Edit`, `Grep`, `Glob`, `Monitor`, `TodoWrite`, `WebFetch`, `WebSearch`) into the user's `.claude/settings.json`. The merger preserves existing customizations: tightened `Bash(git:*)` rules are NOT broadened to bare `Bash`; scalar values and unrelated dicts pass through unchanged. After acceptance, the `/lp-build` -> `/lp-inf` -> `/lp-review` -> `/lp-resolve-todo-parallel` -> `/lp-test-browser` -> `/lp-ship` -> `/lp-learn` chain runs without per-Skill or per-Monitor permission prompts.
+
+### Plugin-internal changes
+
+See `docs/releases/v2.1.8.md` for full file-by-file breakdown.
+
+### Scope deferred from v2.1.8
+
+The following v2.1.8 candidates ship in v2.1.9 instead so the autonomy lane could ship as a coherent unit:
+
+- **BL-365 (v2.1.9, P2)**: parallelize preflight probe dispatch + short-TTL cache.
+- **BL-367 (v2.1.9, P2)**: programmatic GitHub-repo linkage verification.
+- **BL-368 (v2.1.9, P1)**: DNS `dig +short --` sentinel bug. The workaround documented under BL-368 remains: untick the C1 box after probe false-fail OR drop the DNS profile from `.launchpad/preflight.config.yaml`.
+
+### Test count
+
+1827 passing + 4 skipped (+68 across three new test files spanning preflight-proposer, preflight-receipt, and claude-settings-merger surfaces).
 
 ## [v2.1.7]
 

@@ -154,11 +154,22 @@ def test_allowlist_constant_byte_for_byte_match() -> None:
     # `re_seal_decision_atomic` in `lp_pick_stack.decision_writer`. The
     # decision_writer entry (already in the list) covers the resealed
     # scaffold-decision write; engine.py no longer holds the primitive.
+    #
+    # v2.1.8 BL-370 / BL-371 / BL-372: three new entries cover the
+    # autonomy-polish lane (preflight-config proposer, preflight receipt
+    # writer, Claude Code settings merger). All three are
+    # bootstrap-tier writers covered by the `/lp_bootstrap/` CODEOWNERS
+    # rule (the lp_preflight.py addition is module-local rather than
+    # under lp_bootstrap/ but still requires the same review gate via
+    # the line-level entry below).
     expected = (
         "plugins/launchpad/scripts/atomic_io.py",
         "plugins/launchpad/scripts/plugin_default_generators/_renderer_base.py",
         "plugins/launchpad/scripts/lp_bootstrap/policy.py",
         "plugins/launchpad/scripts/lp_bootstrap/manifest_writer.py",
+        "plugins/launchpad/scripts/lp_bootstrap/preflight_proposer.py",
+        "plugins/launchpad/scripts/lp_preflight.py",
+        "plugins/launchpad/scripts/lp_bootstrap/claude_settings_merger.py",
         "plugins/launchpad/scripts/lp_pick_stack/decision_writer.py",
         # v2.1 Codex PR #50 Slice E: pre-squash audit-log filter.
         "plugins/launchpad/scripts/plugin-restamp-redact-wip.py",
