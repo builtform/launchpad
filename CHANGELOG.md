@@ -23,6 +23,17 @@ External-infrastructure preflight gate (BL-364). v2.1.7 ships `lp_preflight.py` 
 
 See `docs/releases/v2.1.7.md` for full file-by-file breakdown.
 
+### Scope deferred from v2.1.7
+
+The following BLs were labeled v2.1.7 in `docs/tasks/BACKLOG.md` but ship in v2.1.8 instead. v2.1.7 is single-feature focused on BL-364 (preflight gate) plus the 5 follow-up review-iterate fixes; the items below either depend on unrelated stack-aware work or are independent polish that didn't make the v2.1.7 batch:
+
+- **BL-357 (`/lp-shape-section --auto` synthesize-from-artifacts mode, P2)**: deferred to v2.1.8.
+- **BL-359 (Hugo stack missing from `STACK_FAMILY` map, P1)**: deferred to v2.1.8.
+- **BL-360 (CI workflow `pnpm/action-setup` + `actions/setup-node` for non-TS stacks, P1)**: deferred to v2.1.8.
+- **BL-361 (v2.1.6 release notes claim `generic` renders "static site, no backend" but round-2 fix flipped `static_capable=False`, P3)**: deferred to v2.1.8.
+- **BL-362 (v2.1.6 release notes claim non-TS prettier-fix/eslint-fix hooks are "inert and deferred" but round-1 strips them, P3)**: deferred to v2.1.8.
+- **BL-363 (`ts_python` family loses `prettier-fix` / `eslint-fix` lefthook auto-fixers, P1)**: deferred to v2.1.8.
+
 ### Test count
 
 1937 passing + 4 skipped (was 1854 at v2.1.6 squash; +91 across the new `tests/test_lp_preflight.py` suite).
