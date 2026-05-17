@@ -60,6 +60,24 @@ Gitignored by default. Teams who want PR visibility can opt in via `audit: { com
 
 Load `pipeline.build.test_browser` from `config.yml`. If it's `skipped`, Step 3 (/lp-test-browser) is skipped entirely. Backend-only projects bypass browser testing by configuration, not by ad-hoc detection.
 
+### 0.6 — External-infrastructure preflight (BL-364)
+
+`/lp-build` chains through `/lp-inf` (autonomous implementation, can run 30+ minutes) before reaching `/lp-ship` (which deploys). If the external infrastructure prerequisites (provider account, deploy project, GitHub Secrets, DNS, etc.) are missing, the run wastes the autonomous implementation budget before failing at the ship-time network wall. Fail-fast here instead.
+
+If `.launchpad/preflight.config.yaml` exists, run the preflight gate:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_preflight.py --repo-root .
+```
+
+Exit code 0 means proceed. Exit code 1 means one or more checks failed or are awaiting user confirmation; surface the script's stdout verbatim (the message names each failing item plus the path to `.launchpad/preflight-checklist.md`) and ABORT before Step 1 (/lp-inf). Exit code 2 indicates a config / profile load error; surface stderr and abort.
+
+If `.launchpad/preflight.config.yaml` does NOT exist, skip preflight silently. Projects that have not configured external-infrastructure prerequisites opt-out by omitting the file.
+
+This is the same gate `/lp-ship` runs at its Step 0.6. Running it here fails fast on ship blockers BEFORE entering autonomous implementation; running it again at `/lp-ship` Step 0.6 catches drift if the user invokes `/lp-ship` directly without going through `/lp-build`.
+
+BL-364 invariant: preflight logic lives in exactly one module (`lp_preflight.py`). Do NOT inline an alternative gate here; call the script and surface its output.
+
 ---
 
 ## Guard: Status Check + Resolve Target

@@ -23,6 +23,22 @@ Call `assert_autonomous_ack(repo_root)` from `${CLAUDE_PLUGIN_ROOT}/scripts/plug
 
 BL-356 invariant: gate logic lives in exactly one module. Do NOT re-author the refuse-text in this command file, and do NOT inline a markdown-only absence check — the shared helper is the single source of truth.
 
+## Step 0.6: External-infrastructure preflight (BL-364)
+
+`/lp-ship` writes deploy workflow files and may attempt to deploy. If the external infrastructure (provider account, deploy project, GitHub Secrets, DNS, custom domain) is missing or misconfigured, the ship attempt fails at the network wall AFTER quality gates have already run. Catching that up-front is cheaper than rolling back a failed deploy.
+
+If `.launchpad/preflight.config.yaml` exists, run the preflight gate:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_preflight.py --repo-root .
+```
+
+Exit code 0 means proceed. Exit code 1 means one or more checks failed or are awaiting user confirmation; surface the script's stdout to the user verbatim (the message names each failing item plus the path to `.launchpad/preflight-checklist.md`) and ABORT before Step 1. Exit code 2 indicates a config / profile load error; surface the script's stderr and abort.
+
+If `.launchpad/preflight.config.yaml` does NOT exist, skip preflight silently. Projects that have not configured external-infrastructure prerequisites opt-out by omitting the file.
+
+BL-364 invariant: preflight logic lives in exactly one module (`lp_preflight.py`). Do NOT inline an alternative gate here; call the script and surface its output.
+
 ---
 
 ## Step 1: Branch Guard

@@ -365,6 +365,7 @@ Presents plan summary with hardening notes and design status. Four options:
 - **Integrity guard**: refuses to run if the section spec and `autonomous-ack.md` were introduced in the same commit (the exact pattern a hostile PR would use to bypass review).
 - **Audit entry**: appends one line to `.launchpad/audit.log` with ISO timestamp, git user, commit SHA, content-hash of commands, and the invoking command name.
 - **Pipeline skip gates**: honors `pipeline.build.test_browser: skipped` from config for backend-only projects.
+- **External-infrastructure preflight (BL-364, v2.1.7)**: if `.launchpad/preflight.config.yaml` exists, runs `python3 plugins/launchpad/scripts/lp_preflight.py` to verify provider account / deploy project / GitHub Secrets / DNS / spec-completeness prerequisites before entering the autonomous loop. Profile-driven; checks are sourced from `plugins/launchpad/preflight-profiles/<name>.yaml` (cloudflare-pages, vercel, netlify, cloudflare-dns, namecheap-dns, spec-completeness). Four check categories: auto-detect-silent (A), API-verified-with-credentials (B), user-confirmed-with-probe (C1), user-confirmed-trust-only (C2). The user-facing surface is `.launchpad/preflight-checklist.md` (gitignored by default); tick the `- [ ]` boxes for C1/C2 items, re-run preflight, fix failures, repeat until all checks pass. The same gate runs at `/lp-ship` Step 0.6 if `/lp-ship` is invoked directly, so the bypass path through `/lp-build` cannot avoid the prerequisite verification. Standalone usage: `/lp-preflight`.
 
 ### Execution steps
 

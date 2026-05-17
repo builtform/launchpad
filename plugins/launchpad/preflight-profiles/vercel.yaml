@@ -1,0 +1,68 @@
+# Vercel deployment preflight profile.
+#
+# Covers: account existence, API token validity, project existence,
+# GitHub Secrets for the deploy workflow.
+#
+# Required env vars:
+#   - VERCEL_TOKEN          (personal access token with project scope)
+#   - VERCEL_ORG_ID         (team or personal org id)
+#   - VERCEL_PROJECT_ID     (project id, NOT the project slug)
+
+name: vercel
+description: Vercel deploy prerequisites
+
+checks:
+  - id: vercel.account-exists
+    category: C2
+    title: Vercel account exists at vercel.com
+    setup_hint: |
+      Sign up at https://vercel.com/signup. Connect a GitHub account
+      during the flow so projects can be imported from GitHub directly.
+    stale_window_days: 365
+
+  - id: vercel.api-token-valid
+    category: B
+    title: VERCEL_TOKEN is set and valid
+    setup_hint: |
+      1. Visit https://vercel.com/account/tokens.
+      2. Create a token, scope: Full Account (or Project-scoped if you
+         prefer least-privilege; ensure project-create permission is
+         granted).
+      3. Export: `export VERCEL_TOKEN=...` (or add to .env).
+    stale_window_days: 60
+    probe: vercel-api-token-valid
+    args:
+      token_env: VERCEL_TOKEN
+
+  - id: vercel.project-exists
+    category: C1
+    title: Vercel project exists and references the GitHub repo
+    setup_hint: |
+      1. Visit https://vercel.com/new and import the repo from GitHub.
+      2. Set framework preset, build command, output dir, install
+         command per your stack.
+      3. After import, find the project id in the project's
+         Settings -> General page (NOT the slug). Set VERCEL_PROJECT_ID.
+      4. Find the org id in Account Settings -> General. Set
+         VERCEL_ORG_ID.
+    stale_window_days: 90
+    probe: vercel-project-exists
+    args:
+      token_env: VERCEL_TOKEN
+      project_env: VERCEL_PROJECT_ID
+
+  - id: vercel.github-secrets-populated
+    category: C1
+    title: GitHub Secrets VERCEL_TOKEN + VERCEL_ORG_ID + VERCEL_PROJECT_ID are set
+    setup_hint: |
+      1. Visit https://github.com/<owner>/<repo>/settings/secrets/actions.
+      2. Add VERCEL_TOKEN (paste the token from api-token-valid above).
+      3. Add VERCEL_ORG_ID (team or personal org id).
+      4. Add VERCEL_PROJECT_ID (project id, not slug).
+    stale_window_days: 60
+    probe: github-secrets-populated
+    args:
+      required_secrets:
+        - VERCEL_TOKEN
+        - VERCEL_ORG_ID
+        - VERCEL_PROJECT_ID

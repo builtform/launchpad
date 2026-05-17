@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Tracked in [ROADMAP.md](ROADMAP.md). v2.1.7 candidates include BL-357 (`/lp-shape-section --auto` synthesize-from-artifacts mode), setup-action step rewrites in ci.yml for non-TS stacks, and astro.config content-grep for output-mode detection. v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
+Tracked in [ROADMAP.md](ROADMAP.md). v2.1.7 candidates include BL-357 (`/lp-shape-section --auto` synthesize-from-artifacts mode), BL-364 (`/lp-preflight` external-infrastructure preflight gate + 6 provider profiles, wired into `/lp-ship` Step 0.6 + `/lp-build` Step 0.6), setup-action step rewrites in ci.yml for non-TS stacks, and astro.config content-grep for output-mode detection. v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
 
 ## [v2.1.6]
 

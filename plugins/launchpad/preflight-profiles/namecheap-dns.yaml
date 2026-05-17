@@ -1,0 +1,64 @@
+# Namecheap DNS preflight profile (registrar-as-DNS-host pattern).
+#
+# Use when the project keeps DNS at Namecheap's Advanced DNS rather than
+# delegating to the deploy provider's nameservers. Most useful for users
+# who want registrar-DNS independence from the deploy provider.
+#
+# Required:
+#   - args.domain (set per-project) OR PREFLIGHT_DOMAIN env var
+#   - args.expected_suffix (the CNAME suffix the apex / www flattens to,
+#     e.g., `.pages.dev` for Cloudflare Pages, `.vercel.app` for Vercel,
+#     `.netlify.app` for Netlify) — set per-project to match the deploy
+#     target
+
+name: namecheap-dns
+description: Namecheap-hosted DNS prerequisites for the project's custom domain
+
+checks:
+  - id: namecheap-dns.account-exists
+    category: C2
+    title: Namecheap account exists and the domain is registered there
+    setup_hint: |
+      Sign up / sign in at https://www.namecheap.com and confirm the
+      domain is in the account's domain list.
+    stale_window_days: 365
+
+  - id: namecheap-dns.advanced-dns-configured
+    category: C2
+    title: Namecheap Advanced DNS has CNAME flatten at apex pointing to deploy provider
+    setup_hint: |
+      1. Sign in to Namecheap, go to Domain List, click "Manage" on
+         the domain.
+      2. Open the "Advanced DNS" tab.
+      3. Add records:
+           - Type: CNAME (Alias) Record
+             Host: @
+             Value: <project-slug>.pages.dev   (or .vercel.app, .netlify.app)
+             TTL: Automatic
+           - Type: CNAME Record
+             Host: www
+             Value: <project-slug>.pages.dev
+             TTL: Automatic
+      4. Remove any conflicting A / URL Redirect records on the same hosts.
+      Namecheap's "URL Redirect Record" type does NOT work with HTTPS-only
+      deploy targets; prefer CNAME flatten + a redirect rule on the
+      deploy provider.
+    stale_window_days: 365
+
+  - id: namecheap-dns.apex-resolves-via-cname
+    category: C1
+    title: Custom domain resolves through the deploy provider's CNAME target
+    setup_hint: |
+      Override args in .launchpad/preflight.config.yaml so this probe
+      knows the domain and which CNAME suffix to expect:
+          overrides:
+            namecheap-dns.apex-resolves-via-cname:
+              args:
+                domain: example.com
+                expected_suffix: .pages.dev   # or .vercel.app, .netlify.app
+      The probe runs `dig +short <domain>` and asserts the answer chain
+      ends with the configured suffix.
+    stale_window_days: 365
+    probe: dns-resolves-via-cname
+    args:
+      domain_env: PREFLIGHT_DOMAIN
