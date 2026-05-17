@@ -38,8 +38,10 @@ checks:
                 domain: example.com
       or export PREFLIGHT_DOMAIN=example.com before running preflight.
       The probe runs `dig +short <domain>` and asserts the answer
-      starts with a Cloudflare edge prefix (104.16.*, 104.17.*, 104.18.*,
-      172.64.*, 172.67.*) or is a CNAME to *.cloudflare.com / *.pages.dev.
+      starts with a Cloudflare edge prefix (the full 104.16.0.0/12 block,
+      i.e., 104.16.* through 104.31.*, AND the full 172.64.0.0/13 block,
+      i.e., 172.64.* through 172.71.*) or is a CNAME to
+      *.cloudflare.com / *.pages.dev.
     stale_window_days: 365
     probe: dns-resolves-to-cloudflare
     args:

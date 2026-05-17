@@ -860,16 +860,41 @@ def _probe_section_specs_approved(
     `docs/tasks/sections/*.md`) controls which files are inspected.
     Missing directory means no sections to check (pass with a note).
     """
-    glob = chk.args.get("section_glob", "docs/tasks/sections/*.md")
+    glob = str(chk.args.get("section_glob", "docs/tasks/sections/*.md"))
+    # Validate the glob is a repo-root-relative pattern. Absolute patterns
+    # raise NotImplementedError from Path.glob; `..` segments would scan
+    # outside the repo. Codex round-4 P1.
+    if glob.startswith("/") or ".." in Path(glob).parts:
+        return _fail(
+            chk,
+            f"`args.section_glob` {glob!r} must be a repo-root-relative pattern "
+            f"(no absolute paths, no `..` segments). Default is "
+            f"`docs/tasks/sections/*.md`.",
+        )
     # Exclude implementation plan files which live alongside section specs
     # at `docs/tasks/sections/<name>-plan.md` per /lp-plan + /lp-pnf
     # conventions. Plan files have NO `status:` frontmatter, so including
     # them would false-fail the probe with "no status field" on a fully
     # approved section. Codex round-3 P1.
     plan_suffix = "-plan.md"
-    matches = sorted(
-        p for p in repo_root.glob(glob) if not p.name.endswith(plan_suffix)
-    )
+    try:
+        matched_paths = list(repo_root.glob(glob))
+    except (NotImplementedError, OSError) as exc:
+        return _fail(chk, f"`args.section_glob` {glob!r} failed to glob: {exc}")
+    # Confine each match under repo_root (defense-in-depth even though
+    # the pattern is pre-validated above; symlink under repo could still
+    # point outside).
+    root_resolved = repo_root.resolve()
+    confined: list[Path] = []
+    for p in matched_paths:
+        if p.name.endswith(plan_suffix):
+            continue
+        try:
+            p.resolve().relative_to(root_resolved)
+        except (OSError, ValueError):
+            continue
+        confined.append(p)
+    matches = sorted(confined)
     if not matches:
         return _pass(chk, f"no section specs found at {glob}")
     bad: list[str] = []
@@ -1134,6 +1159,15 @@ _GH_REPO_SLUG_RE = re.compile(
     r"github\.com[:/](?P<owner>[A-Za-z0-9_.-]+)/(?P<repo>[A-Za-z0-9_.-]+?)(?:\.git)?/?$"
 )
 
+_GH_OWNER_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+"""Strict charset for `args.repo` overrides on github-secrets probes.
+
+Validates `<owner>/<repo>` shape: alphanumerics, `.`, `_`, `-`, with a
+single `/` separator. Codex round-4 P2: a typo or path-style value
+would silently let gh fall back to cwd-ambient resolution, defeating
+the fail-closed origin-derived slug.
+"""
+
 
 def _derive_gh_repo_slug(repo_root: Path, clients: ProbeClients) -> str | None:
     """Derive an `owner/repo` slug from the repo's origin remote URL.
@@ -1157,7 +1191,25 @@ def _derive_gh_repo_slug(repo_root: Path, clients: ProbeClients) -> str | None:
 def _probe_github_secrets(
     repo_root: Path, chk: CheckDefinition, clients: ProbeClients
 ) -> CheckResult:
-    required = list(chk.args.get("required_secrets", []))
+    raw_required = chk.args.get("required_secrets", [])
+    # Validate required_secrets is a list of strings. A scalar value like
+    # `required_secrets: VERCEL_TOKEN` (missing the YAML list brackets)
+    # would otherwise iterate character-by-character and report missing
+    # secrets named "V", "E", "R", etc. Codex round-4 P2.
+    if not isinstance(raw_required, list):
+        return _fail(
+            chk,
+            f"`args.required_secrets` must be a list of secret-name strings; "
+            f"got {type(raw_required).__name__} ({raw_required!r:.60}). Use "
+            f"YAML list syntax: `required_secrets: [SECRET_A, SECRET_B]`.",
+        )
+    if not all(isinstance(s, str) for s in raw_required):
+        return _fail(
+            chk,
+            "`args.required_secrets` must be a list of STRINGS; "
+            "non-string entries detected",
+        )
+    required = list(raw_required)
     if not required:
         return _fail(chk, "`required_secrets` arg list is empty")
     # Use the gh CLI rather than the raw GitHub API: gh auth handles token
@@ -1175,6 +1227,20 @@ def _probe_github_secrets(
     # an override in .launchpad/preflight.config.yaml OR remove the
     # github-secrets-populated check from their profile config.
     explicit_repo = chk.args.get("repo")
+    if explicit_repo is not None:
+        # Validate owner/repo shape before passing to gh. A typo like
+        # `repo: just-the-name` would let gh fall back to its own
+        # resolution (cwd-ambient), defeating the fail-closed origin
+        # derivation. Codex round-4 P2.
+        if not isinstance(explicit_repo, str) or not _GH_OWNER_REPO_RE.fullmatch(
+            explicit_repo
+        ):
+            return _fail(
+                chk,
+                f"`args.repo` override {explicit_repo!r} must match "
+                f"`<owner>/<repo>` (alphanumerics, `.`, `_`, `-`; single `/`). "
+                f"Refusing to pass to `gh --repo`.",
+            )
     slug = explicit_repo if explicit_repo else _derive_gh_repo_slug(repo_root, clients)
     if slug is None:
         return _fail(

@@ -2337,3 +2337,88 @@ def test_expected_prefixes_string_refused(tmp_path: Path, monkeypatch):
     res = lp_preflight._PROBE_REGISTRY["dns-resolves-via-cname"](tmp_path, chk, clients)
     assert res.status == "fail"
     assert "list of strings" in res.message
+
+
+# ---------------------------------------------------------------------------
+# Codex round-4 review fixes: section_glob validation, required_secrets
+# list shape, args.repo owner/repo regex.
+# ---------------------------------------------------------------------------
+
+
+def test_section_glob_absolute_path_refused(tmp_path: Path, monkeypatch):
+    """Absolute glob paths raise NotImplementedError from Path.glob. The
+    probe must validate and return a clean fail. Codex round-4 P1."""
+    chk = lp_preflight.CheckDefinition(
+        item_id="test.absolute-glob",
+        category="A",
+        title="abs glob",
+        setup_hint="",
+        stale_window_days=30,
+        probe="section-specs-approved",
+        args={"section_glob": "/etc/*.md"},
+    )
+    res = lp_preflight._PROBE_REGISTRY["section-specs-approved"](
+        tmp_path, chk, _make_clients()
+    )
+    assert res.status == "fail"
+    assert "repo-root-relative" in res.message
+
+
+def test_section_glob_traversal_refused(tmp_path: Path, monkeypatch):
+    """`../` segments in section_glob must be refused before globbing."""
+    chk = lp_preflight.CheckDefinition(
+        item_id="test.traversal-glob",
+        category="A",
+        title="traversal",
+        setup_hint="",
+        stale_window_days=30,
+        probe="section-specs-approved",
+        args={"section_glob": "../../etc/*.md"},
+    )
+    res = lp_preflight._PROBE_REGISTRY["section-specs-approved"](
+        tmp_path, chk, _make_clients()
+    )
+    assert res.status == "fail"
+    assert "repo-root-relative" in res.message
+
+
+def test_required_secrets_string_refused(tmp_path: Path, monkeypatch):
+    """`required_secrets: VERCEL_TOKEN` (scalar instead of list) must be
+    refused rather than iterated char-by-char. Codex round-4 P2."""
+    chk = lp_preflight.CheckDefinition(
+        item_id="test.bad-required-secrets",
+        category="C1",
+        title="bad shape",
+        setup_hint="",
+        stale_window_days=30,
+        probe="github-secrets-populated",
+        args={"required_secrets": "VERCEL_TOKEN"},
+    )
+    res = lp_preflight._PROBE_REGISTRY["github-secrets-populated"](
+        tmp_path, chk, _make_clients()
+    )
+    assert res.status == "fail"
+    assert "list of secret-name strings" in res.message
+
+
+def test_args_repo_with_invalid_shape_refused(tmp_path: Path, monkeypatch):
+    """`args.repo: just-the-name` (missing `/`) must be refused before
+    being passed to gh, so the cwd-ambient fallback can't sneak through.
+    Codex round-4 P2."""
+    chk = lp_preflight.CheckDefinition(
+        item_id="test.bad-args-repo",
+        category="C1",
+        title="bad args.repo",
+        setup_hint="",
+        stale_window_days=30,
+        probe="github-secrets-populated",
+        args={
+            "required_secrets": ["FOO"],
+            "repo": "just-the-name-no-slash",
+        },
+    )
+    res = lp_preflight._PROBE_REGISTRY["github-secrets-populated"](
+        tmp_path, chk, _make_clients()
+    )
+    assert res.status == "fail"
+    assert "<owner>/<repo>" in res.message
