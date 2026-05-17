@@ -44,9 +44,9 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lp_preflight.py --repo-root .
 
 The script writes `.launchpad/preflight-checklist.md` and prints a one-screen summary:
 
-- `OK: <N>` — auto-detected (category A) or API-verified (category B) checks that passed, plus user-confirmed (category C1) probes that passed and user-trusted (category C2) items confirmed within the stale window.
-- `AWAITING CONFIRMATION: <N>` — C1 / C2 items where the user has not ticked the box yet, or where a previously-ticked confirmation has expired its stale window.
-- `FAIL: <N>` — auto-detect or probe failures with the specific reason (env var missing, API returned 404, file not found, etc.).
+- `OK: <N>`: auto-detected (category A) or API-verified (category B) checks that passed, plus user-confirmed (category C1) probes that passed and user-trusted (category C2) items confirmed within the stale window.
+- `AWAITING CONFIRMATION: <N>`: C1 / C2 items where the user has not ticked the box yet, or where a previously-ticked confirmation has expired its stale window.
+- `FAIL: <N>`: auto-detect or probe failures with the specific reason (env var missing, API returned 404, file not found, etc.).
 
 Exit code 0 if all checks pass; 1 if any check fails or is awaiting confirmation; 2 on config / profile load errors (malformed YAML, profile-file-not-found, etc.).
 
@@ -56,10 +56,10 @@ Exit code 0 if all checks pass; 1 if any check fails or is awaiting confirmation
 
 `.launchpad/preflight-checklist.md` is gitignored by default (per `.gitignore`); it's a user-local working file. Each item has a setup hint inline. To resolve:
 
-- **Auto-detect (A) failures** — take the action named in the setup hint (e.g., create the missing file, remove the `[TBD]` marker, add the CHANGELOG entry). Re-run `/lp-preflight`.
-- **API-verified (B) failures** — export the missing env var or fix the credential; re-run `/lp-preflight`.
-- **C1 user-confirmation items** — read the setup hint, take the external action (e.g., create the Cloudflare Pages project, configure Namecheap DNS), tick the `- [ ]` box to `- [x]`, save the file, re-run `/lp-preflight`. The probe runs after your tick; probe failure blocks until the probe passes.
-- **C2 trust-only items** — read the setup hint, take the action, tick the box. No probe runs; preflight trusts the confirmation. Failures will surface at the actual deploy step.
+- **Auto-detect (A) failures**: take the action named in the setup hint (e.g., create the missing file, remove the `[TBD]` marker, add the CHANGELOG entry). Re-run `/lp-preflight`.
+- **API-verified (B) failures**: export the missing env var or fix the credential; re-run `/lp-preflight`.
+- **C1 user-confirmation items**: read the setup hint, take the external action (e.g., create the Cloudflare Pages project, configure Namecheap DNS), tick the `- [ ]` box to `- [x]`, save the file, re-run `/lp-preflight`. The probe runs after your tick; probe failure blocks until the probe passes.
+- **C2 trust-only items**: read the setup hint, take the action, tick the box. No probe runs; preflight trusts the confirmation. Failures will surface at the actual deploy step.
 
 ---
 

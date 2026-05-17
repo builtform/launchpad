@@ -8,7 +8,7 @@
 #   - args.domain (set per-project) OR PREFLIGHT_DOMAIN env var
 #   - args.expected_suffix (the CNAME suffix the apex / www flattens to,
 #     e.g., `.pages.dev` for Cloudflare Pages, `.vercel.app` for Vercel,
-#     `.netlify.app` for Netlify) — set per-project to match the deploy
+#     `.netlify.app` for Netlify). Set per-project to match the deploy
 #     target
 
 name: namecheap-dns

@@ -60,7 +60,7 @@ Gitignored by default. Teams who want PR visibility can opt in via `audit: { com
 
 Load `pipeline.build.test_browser` from `config.yml`. If it's `skipped`, Step 3 (/lp-test-browser) is skipped entirely. Backend-only projects bypass browser testing by configuration, not by ad-hoc detection.
 
-### 0.6 — External-infrastructure preflight (BL-364)
+### 0.6: External-infrastructure preflight (BL-364)
 
 `/lp-build` chains through `/lp-inf` (autonomous implementation, can run 30+ minutes) before reaching `/lp-ship` (which deploys). If the external infrastructure prerequisites (provider account, deploy project, GitHub Secrets, DNS, etc.) are missing, the run wastes the autonomous implementation budget before failing at the ship-time network wall. Fail-fast here instead.
 

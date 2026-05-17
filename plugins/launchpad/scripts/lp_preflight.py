@@ -78,22 +78,29 @@ from pathlib import Path
 from typing import Any
 from urllib import error as urllib_error
 from urllib import request as urllib_request
+from urllib.parse import quote, urlsplit
 
 # Vendor bootstrap for PyYAML (mirrors plugin-config-loader.py).
 _VENDOR = Path(__file__).resolve().parent / "plugin_stack_adapters" / "_vendor"
 if _VENDOR.is_dir() and str(_VENDOR) not in sys.path:
     sys.path.insert(0, str(_VENDOR))
 
+try:
+    import yaml  # type: ignore
+
+    _YAMLError: type[Exception] = yaml.YAMLError
+except ImportError:  # pragma: no cover - vendor bootstrap covers this
+    yaml = None  # type: ignore[assignment]
+    _YAMLError = Exception  # fallback unreachable: _load_yaml raises first
+
 
 def _load_yaml(text: str) -> Any:
-    try:
-        import yaml  # type: ignore
-    except ImportError as err:  # pragma: no cover - vendor bootstrap covers this
+    if yaml is None:  # pragma: no cover - vendor bootstrap covers this
         raise PreflightConfigError(
             "PyYAML not available; vendor it into "
             "plugins/launchpad/scripts/plugin_stack_adapters/_vendor/ "
             "or install system-wide."
-        ) from err
+        )
     return yaml.safe_load(text)
 
 
@@ -227,12 +234,19 @@ def default_clients() -> ProbeClients:
         # profiles construct fixed-shape API endpoints (api.cloudflare.com,
         # api.vercel.com, api.netlify.com), all HTTPS; rejecting non-https
         # closes the file:/ and custom-scheme attack surface even though
-        # the URL never comes from end-user input.
-        if not url.startswith("https://"):
+        # the URL never comes from end-user input. Two-layer check:
+        # `urlsplit(url).scheme.lower() == "https"` is the primary gate
+        # (robust against weird inputs, semantically correct per RFC 3986
+        # where schemes are case-insensitive), while the case-sensitive
+        # `url.startswith("https://")` guard refuses non-canonical case
+        # variants like `HTTPS://` so a typo'd profile is caught at the
+        # gate rather than silently issuing a request via urllib (which
+        # normalizes case itself).
+        if not url.startswith("https://") or urlsplit(url).scheme.lower() != "https":
             return HttpResponse(status=0, body=f"refused non-https URL: {url[:64]}")
         req = urllib_request.Request(url, headers=headers, method="GET")
         try:
-            with urllib_request.urlopen(req, timeout=10) as resp:  # nosec B310 - https scheme enforced above
+            with urllib_request.urlopen(req, timeout=10) as resp:  # nosec B310 - canonical https:// prefix + urlsplit().scheme.lower() == "https" enforced above
                 body_bytes = resp.read()
                 return HttpResponse(
                     status=resp.status,
@@ -329,7 +343,7 @@ def load_profile(
         raise PreflightConfigError(f"profile file not found: {profile_path}")
     try:
         raw = _load_yaml(profile_path.read_text(encoding="utf-8"))
-    except Exception as exc:  # noqa: BLE001
+    except _YAMLError as exc:
         raise PreflightConfigError(f"failed to parse {profile_path}: {exc}") from exc
     if not isinstance(raw, dict):
         raise PreflightConfigError(
@@ -367,7 +381,7 @@ def load_preflight_config(
         )
     try:
         raw = _load_yaml(cfg_path.read_text(encoding="utf-8"))
-    except Exception as exc:  # noqa: BLE001
+    except _YAMLError as exc:
         raise PreflightConfigError(f"failed to parse {CONFIG_PATH}: {exc}") from exc
     if not isinstance(raw, dict):
         raise PreflightConfigError(
@@ -411,11 +425,12 @@ def load_preflight_config(
 
 
 _CHECKLIST_ITEM_RE = re.compile(
-    r"^- \[(?P<box>[ xX])\] (?P<title>.+?)(?: \(id: (?P<id>[^)]+)\))?$",
+    r"^\s*-\s+\[(?P<box>[ xX])\]\s+(?P<title>.+?)"
+    r"(?:\s+\(id:\s*(?P<id>[^)]+)\))?\s*$",
     re.MULTILINE,
 )
 _CHECKLIST_LAST_CONFIRMED_RE = re.compile(
-    r"^  Last confirmed: (?P<ts>[^\s]+)$", re.MULTILINE
+    r"^\s+Last confirmed:\s+(?P<ts>\S+)", re.MULTILINE
 )
 
 
@@ -483,17 +498,19 @@ def _render_check_block(
 
     Box state mirrors the gating decision rather than the user's raw
     tick: stale-expired confirmations render as unticked so the user
-    knows they need to re-confirm. C1/C2 items where the user ticked
-    but the probe failed render as ticked + an explicit FAIL status,
-    so the user's prior confirmation is preserved while the failure is
-    surfaced.
+    knows they need to re-confirm. C1 confirmed-but-probe-failed items
+    render as ticked + an explicit FAIL status, so the user's prior
+    confirmation is preserved while the failure is surfaced (C2 never
+    runs a probe, so this combination is C1-only).
     """
     if result.status == "pass":
         box = "x"
     elif result.status == "needs-confirmation":
         box = " "
-    else:  # fail
-        box = "x" if chk.category in ("C1", "C2") and confirmation.confirmed else " "
+    elif result.status == "fail":
+        box = "x" if chk.category == "C1" and confirmation.confirmed else " "
+    else:
+        raise ValueError(f"unknown status {result.status!r} for {chk.item_id}")
     last = confirmation.last_confirmed or "never"
     window = _stale_window_label(chk.stale_window_days)
     lines = [
@@ -724,6 +741,30 @@ def _resolve_env(key: str) -> str | None:
     return val or None
 
 
+_URL_SEGMENT_RE = re.compile(r"[A-Za-z0-9_-]+")
+
+
+def _validated_segment(name: str, value: str) -> str | None:
+    """Return a URL-quoted path segment iff `value` is a safe identifier.
+
+    Defense-in-depth around B-probe URL construction: env-supplied
+    identifiers (`account`, `slug`, `project`, `site`) are interpolated
+    into provider API URLs via f-strings, so a stray `/`, `?`, `#`, `..`,
+    newline, or whitespace would silently rewrite the URL path or query.
+    A strict `[A-Za-z0-9_-]+` charset matches the documented shapes for
+    Cloudflare account IDs + Pages project slugs, Vercel project IDs /
+    names, and Netlify site IDs; anything else is rejected at the gate
+    rather than producing a 404 from the provider with no warning.
+
+    Returns the percent-encoded segment on success, or None when `value`
+    contains characters outside the allowed charset (callers surface
+    that as a `_fail(...)` with a precise message).
+    """
+    if not _URL_SEGMENT_RE.fullmatch(value):
+        return None
+    return quote(value, safe="")
+
+
 @register_probe("cloudflare-api-token-valid")
 def _probe_cf_token(
     repo_root: Path, chk: CheckDefinition, clients: ProbeClients
@@ -740,6 +781,11 @@ def _probe_cf_token(
         "https://api.cloudflare.com/client/v4/user/tokens/verify",
         {"Authorization": f"Bearer {token}", "Accept": "application/json"},
     )
+    if resp.status == 0:
+        return _fail(
+            chk,
+            f"network error talking to Cloudflare: {resp.body.removeprefix('network error: ')}",
+        )
     if resp.status != 200:
         return _fail(chk, f"Cloudflare token verify failed: HTTP {resp.status}")
     try:
@@ -764,12 +810,32 @@ def _probe_cf_pages(
             "missing one of CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID / "
             "CLOUDFLARE_PAGES_PROJECT_SLUG env vars",
         )
+    account_seg = _validated_segment("CLOUDFLARE_ACCOUNT_ID", account)
+    slug_seg = _validated_segment("CLOUDFLARE_PAGES_PROJECT_SLUG", slug)
+    if account_seg is None:
+        return _fail(
+            chk,
+            f"CLOUDFLARE_ACCOUNT_ID {account!r} must match [A-Za-z0-9_-]+; "
+            "refusing to construct request URL",
+        )
+    if slug_seg is None:
+        return _fail(
+            chk,
+            f"CLOUDFLARE_PAGES_PROJECT_SLUG {slug!r} must match [A-Za-z0-9_-]+; "
+            "refusing to construct request URL",
+        )
     url = (
-        f"https://api.cloudflare.com/client/v4/accounts/{account}/pages/projects/{slug}"
+        f"https://api.cloudflare.com/client/v4/accounts/{account_seg}"
+        f"/pages/projects/{slug_seg}"
     )
     resp = clients.http_get(
         url, {"Authorization": f"Bearer {token}", "Accept": "application/json"}
     )
+    if resp.status == 0:
+        return _fail(
+            chk,
+            f"network error talking to Cloudflare: {resp.body.removeprefix('network error: ')}",
+        )
     if resp.status == 200:
         return _pass(chk, f"Cloudflare Pages project {slug!r} exists")
     if resp.status == 404:
@@ -792,6 +858,11 @@ def _probe_vercel_token(
         "https://api.vercel.com/v2/user",
         {"Authorization": f"Bearer {token}", "Accept": "application/json"},
     )
+    if resp.status == 0:
+        return _fail(
+            chk,
+            f"network error talking to Vercel: {resp.body.removeprefix('network error: ')}",
+        )
     if resp.status == 200:
         return _pass(chk, "Vercel API token verified")
     return _fail(chk, f"Vercel token verify failed: HTTP {resp.status}")
@@ -805,10 +876,22 @@ def _probe_vercel_project(
     project = _resolve_env(chk.args.get("project_env", "VERCEL_PROJECT_ID"))
     if not token or not project:
         return _fail(chk, "missing VERCEL_TOKEN or VERCEL_PROJECT_ID env var")
+    project_seg = _validated_segment("VERCEL_PROJECT_ID", project)
+    if project_seg is None:
+        return _fail(
+            chk,
+            f"VERCEL_PROJECT_ID {project!r} must match [A-Za-z0-9_-]+; "
+            "refusing to construct request URL",
+        )
     resp = clients.http_get(
-        f"https://api.vercel.com/v9/projects/{project}",
+        f"https://api.vercel.com/v9/projects/{project_seg}",
         {"Authorization": f"Bearer {token}", "Accept": "application/json"},
     )
+    if resp.status == 0:
+        return _fail(
+            chk,
+            f"network error talking to Vercel: {resp.body.removeprefix('network error: ')}",
+        )
     if resp.status == 200:
         return _pass(chk, f"Vercel project {project!r} exists")
     if resp.status == 404:
@@ -827,6 +910,11 @@ def _probe_netlify_token(
         "https://api.netlify.com/api/v1/user",
         {"Authorization": f"Bearer {token}", "Accept": "application/json"},
     )
+    if resp.status == 0:
+        return _fail(
+            chk,
+            f"network error talking to Netlify: {resp.body.removeprefix('network error: ')}",
+        )
     if resp.status == 200:
         return _pass(chk, "Netlify API token verified")
     return _fail(chk, f"Netlify token verify failed: HTTP {resp.status}")
@@ -840,10 +928,22 @@ def _probe_netlify_site(
     site = _resolve_env(chk.args.get("site_env", "NETLIFY_SITE_ID"))
     if not token or not site:
         return _fail(chk, "missing NETLIFY_AUTH_TOKEN or NETLIFY_SITE_ID env var")
+    site_seg = _validated_segment("NETLIFY_SITE_ID", site)
+    if site_seg is None:
+        return _fail(
+            chk,
+            f"NETLIFY_SITE_ID {site!r} must match [A-Za-z0-9_-]+; "
+            "refusing to construct request URL",
+        )
     resp = clients.http_get(
-        f"https://api.netlify.com/api/v1/sites/{site}",
+        f"https://api.netlify.com/api/v1/sites/{site_seg}",
         {"Authorization": f"Bearer {token}", "Accept": "application/json"},
     )
+    if resp.status == 0:
+        return _fail(
+            chk,
+            f"network error talking to Netlify: {resp.body.removeprefix('network error: ')}",
+        )
     if resp.status == 200:
         return _pass(chk, f"Netlify site {site!r} exists")
     if resp.status == 404:
@@ -941,7 +1041,7 @@ def _probe_dns_cname(
             chk,
             "probe requires either `args.expected_suffix` or `args.expected_prefixes`",
         )
-    result = clients.run_command(["dig", "+short", str(domain)])
+    result = clients.run_command(["dig", "+short", "--", str(domain)])
     if result.returncode == 127:
         return _fail(chk, "the `dig` CLI is not installed; install BIND tools")
     if result.returncode != 0:
@@ -979,7 +1079,7 @@ def _probe_dns_cloudflare(
             "no domain configured; set `args.domain` in your preflight "
             "config override or export PREFLIGHT_DOMAIN",
         )
-    result = clients.run_command(["dig", "+short", str(domain)])
+    result = clients.run_command(["dig", "+short", "--", str(domain)])
     if result.returncode == 127:
         return _fail(
             chk,
@@ -994,7 +1094,7 @@ def _probe_dns_cloudflare(
         return _fail(chk, f"no DNS A records for {domain}")
     # Cloudflare's published edge ranges are sparse; we use a loose heuristic
     # (104.16.0.0/12 + 172.64.0.0/13 + CNAME ending in .cloudflare.com or
-    # .pages.dev). The probe is C1 — user has already confirmed the
+    # .pages.dev). The probe is C1; user has already confirmed the
     # configuration; we just need to verify it resolves to Cloudflare's
     # surface, not a third-party CDN.
     cloudflare_signals = ("104.16.", "104.17.", "104.18.", "172.64.", "172.67.")
@@ -1019,8 +1119,19 @@ def _is_stale(confirmation: CheckConfirmation, stale_window_days: int) -> bool:
     if confirmation.last_confirmed is None:
         return True
     try:
-        ts = datetime.fromisoformat(confirmation.last_confirmed.replace("Z", "+00:00"))
+        # py311+ `fromisoformat` parses `Z` natively; no `.replace()` needed.
+        ts = datetime.fromisoformat(confirmation.last_confirmed)
     except ValueError:
+        # Distinguish a corrupt timestamp from a genuinely stale one: log to
+        # stderr so a user who hand-edited the checklist into an unparseable
+        # state sees feedback, then return True (safe-by-default) so the gate
+        # still re-prompts for confirmation rather than masking the corruption.
+        print(
+            f"[preflight] WARNING: corrupt last_confirmed timestamp "
+            f"{confirmation.last_confirmed!r} for item {confirmation.item_id!r}; "
+            f"treating as stale and prompting re-confirmation.",
+            file=sys.stderr,
+        )
         return True
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=UTC)

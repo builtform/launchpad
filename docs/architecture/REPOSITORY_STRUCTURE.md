@@ -425,6 +425,7 @@ Create `packages/<name>/` with `package.json` (`@repo/<name>`), `tsconfig.json`,
 
 - Agent → `plugins/launchpad/agents/<namespace>/<name>.md`
 - Command → `plugins/launchpad/commands/<name>.md`
+- Preflight profile → `plugins/launchpad/preflight-profiles/<provider>.yaml` (provider profile YAMLs consumed by `lp_preflight.py`; BL-364, v2.1.7). Adding a new provider equals adding a YAML; the engine knows nothing provider-specific.
 - Skill → `plugins/launchpad/skills/<skill-name>/SKILL.md`
 - Skill references → `plugins/launchpad/skills/<skill-name>/references/` (one level deep only)
 - Skill evals → `plugins/launchpad/skills/<skill-name>/evals/`
