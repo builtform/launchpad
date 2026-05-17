@@ -747,6 +747,12 @@ ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS = (
     # atomic-replace surface in lp_preflight; the existing checklist
     # writer remains a plain write (no concurrent-reader contract).
     "plugins/launchpad/scripts/lp_preflight.py",
+    # v2.1.8 BL-372: Claude Code permission-mode autonomy merger writes
+    # `.claude/settings.json` atomically after deep-merging the bundled
+    # autonomous-mode template into the user's existing settings.
+    # Sibling of preflight_proposer.py; covered by the `/lp_bootstrap/`
+    # directory CODEOWNERS rule.
+    "plugins/launchpad/scripts/lp_bootstrap/claude_settings_merger.py",
     # Phase 10 v2.1: scaffold-decision atomic re-seal lives in decision_writer
     # (re_seal_decision_atomic) so /lp-update-identity inherits the same
     # atomic-replace primitive used by /lp-pick-stack's first-write path.

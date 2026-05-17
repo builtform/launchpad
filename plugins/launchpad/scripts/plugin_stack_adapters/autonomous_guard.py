@@ -113,7 +113,25 @@ repository.
 
 **Authorized by:** <Your Name> <your-email@example.com>
 **Authorized on:** <YYYY-MM-DD>
-**Scope:** <optional — e.g., "all sections" or "only sections under docs/marketing/">
+**Scope:** <optional, e.g. "all sections" or "only sections under docs/marketing/">
+
+## Claude Code permission mode (BL-372)
+
+Autonomous mode also requires Claude Code's permission allowlist to
+pre-approve the `Skill` tool plus the tools each step of the
+`/lp-build` chain uses (`Bash`, `Read`, `Write`, `Edit`, `Grep`, `Glob`,
+`Monitor`, `TodoWrite`, `WebFetch`, `WebSearch`). After this file
+exists, accept the `/lp-bootstrap` prompt to merge the bundled
+`claude-settings-autonomous.json` template into `.claude/settings.json`.
+Without it, the harness still works but you will see one permission
+prompt per Skill transition during `/lp-build`, defeating the
+autonomous-mode contract.
+
+The merger preserves your existing customizations:
+
+- It does NOT broaden a tightened `Bash(git:*)` to bare `Bash`
+- It does NOT replace your scalar values (model, hooks, etc.)
+- It only adds entries the template needs and your file is missing
 """
 """Copy-pasteable starter template for `.launchpad/autonomous-ack.md`.
 

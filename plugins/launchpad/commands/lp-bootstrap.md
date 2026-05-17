@@ -203,6 +203,69 @@ Tooling notes:
 
 See https://github.com/builtform/launchpad/blob/main/docs/architecture/CI_CD.md#consumer-python-gates
 
+## Post-bootstrap follow-up: Claude Code permission mode (BL-372, v2.1.8)
+
+When the user has opted into autonomous mode by creating
+`.launchpad/autonomous-ack.md` (BL-356), also propose merging the bundled
+autonomous-mode template into `.claude/settings.json` so the
+`/lp-build` -> `/lp-inf` -> `/lp-review` -> `/lp-resolve-todo-parallel` ->
+`/lp-test-browser` -> `/lp-ship` chain does not hit a Skill or Monitor
+permission prompt at every transition (5-7+ prompts per `/lp-build` run).
+
+Run the merger in `--json` mode and decide from the structured output:
+
+```bash
+python -m lp_bootstrap.claude_settings_merger --json --cwd "$PWD"
+```
+
+Returned JSON:
+
+```json
+{
+  "ack_present": true,
+  "settings_present": true,
+  "additions": ["permissions.allow['Skill']", "permissions.allow['Monitor']"],
+  "already_satisfied": false,
+  "template_path": "<plugin root>/templates/claude-settings-autonomous.json",
+  "settings_path": "<cwd>/.claude/settings.json"
+}
+```
+
+Decision matrix:
+
+| `ack_present` | `already_satisfied` | Action                                                                                                     |
+| ------------- | ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| false         | n/a                 | No action. The user has not opted into autonomous mode; prompts at runtime are the correct UX.             |
+| true          | true                | No action. Existing `.claude/settings.json` already covers the autonomous-mode template.                   |
+| true          | false               | Prompt the user with the additions list (see template below). On accept, run `--apply`. On decline, no-op. |
+
+Prompt template (only fires on the last row):
+
+> Detected `.launchpad/autonomous-ack.md`. Merge the LaunchPad
+> autonomous-mode permission template into `.claude/settings.json` so the
+> `/lp-build` autonomous chain runs without per-Skill prompts? The merge
+> would add: **`<comma-joined additions>`**. Your existing entries are
+> preserved (tightened rules like `Bash(git:*)` are NOT broadened, scalar
+> values are NOT replaced). \[y/N]
+
+On accept:
+
+```bash
+python -m lp_bootstrap.claude_settings_merger --apply --cwd "$PWD"
+```
+
+The `--apply` invocation refuses with exit 65 if `.launchpad/autonomous-ack.md`
+is absent (the gate cannot be bypassed implicitly), and atomically writes
+the merged JSON via `atomic_write_replace`. On decline, do nothing: the
+user keeps the prompts. Future bootstrap runs will re-offer the prompt
+as long as the settings file remains incomplete; the user can opt out
+permanently by NOT creating `autonomous-ack.md`.
+
+The shipped template uses TOOL-level entries (`"Skill"`, `"Bash"`, `"Edit"`,
+`"Monitor"`, ...). Per-skill granularity (e.g. `"Skill(launchpad:lp-inf)"`)
+is NOT supported by Claude Code's current permission schema; the merger
+will not generate such entries even if requested.
+
 ## Post-bootstrap follow-up: preflight config (BL-370, v2.1.8)
 
 After the engine returns `BootstrapStatus.SUCCESS`, scan for deploy-target
