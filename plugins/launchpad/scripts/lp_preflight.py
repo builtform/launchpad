@@ -66,13 +66,14 @@ BL-356 invariant on `autonomous_guard.py`.
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import os
 import re
 import subprocess
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -859,44 +860,68 @@ def _probe_section_specs_approved(
     `_SHIP_READY_STATUSES`). `args.section_glob` (default
     `docs/tasks/sections/*.md`) controls which files are inspected.
     Missing directory means no sections to check (pass with a note).
+
+    Target-scoped mode (Codex round-5 P1-A): when `args.section_path`
+    is set (engine plumbs this from `--section` CLI flag), the probe
+    inspects ONLY that single file. This prevents `/lp-build <approved>`
+    from being false-blocked by unrelated `shaped`/`planned` work on
+    other sections.
     """
-    glob = str(chk.args.get("section_glob", "docs/tasks/sections/*.md"))
-    # Validate the glob is a repo-root-relative pattern. Absolute patterns
-    # raise NotImplementedError from Path.glob; `..` segments would scan
-    # outside the repo. Codex round-4 P1.
-    if glob.startswith("/") or ".." in Path(glob).parts:
-        return _fail(
-            chk,
-            f"`args.section_glob` {glob!r} must be a repo-root-relative pattern "
-            f"(no absolute paths, no `..` segments). Default is "
-            f"`docs/tasks/sections/*.md`.",
-        )
-    # Exclude implementation plan files which live alongside section specs
-    # at `docs/tasks/sections/<name>-plan.md` per /lp-plan + /lp-pnf
-    # conventions. Plan files have NO `status:` frontmatter, so including
-    # them would false-fail the probe with "no status field" on a fully
-    # approved section. Codex round-3 P1.
     plan_suffix = "-plan.md"
-    try:
-        matched_paths = list(repo_root.glob(glob))
-    except (NotImplementedError, OSError) as exc:
-        return _fail(chk, f"`args.section_glob` {glob!r} failed to glob: {exc}")
-    # Confine each match under repo_root (defense-in-depth even though
-    # the pattern is pre-validated above; symlink under repo could still
-    # point outside).
     root_resolved = repo_root.resolve()
-    confined: list[Path] = []
-    for p in matched_paths:
-        if p.name.endswith(plan_suffix):
-            continue
+    # Codex round-5 P1-A: target-scoped path overrides the glob entirely.
+    # `/lp-build` resolves the section name first and passes `--section
+    # docs/tasks/sections/<name>.md` so this check applies only to the
+    # section being built. `/lp-ship` + standalone `/lp-preflight` do
+    # not pass `--section` and retain the all-sections semantic.
+    section_path_arg = chk.args.get("section_path")
+    if section_path_arg:
+        rel = str(section_path_arg)
+        target = _resolve_under_root(rel, repo_root)
+        if target is None:
+            return _fail(
+                chk,
+                f"`args.section_path` {rel!r} does not resolve under the repo root",
+            )
+        if not target.is_file():
+            return _fail(chk, f"`args.section_path` {rel!r} is not a file")
+        matches = [target]
+    else:
+        glob = str(chk.args.get("section_glob", "docs/tasks/sections/*.md"))
+        # Validate the glob is a repo-root-relative pattern. Absolute patterns
+        # raise NotImplementedError from Path.glob; `..` segments would scan
+        # outside the repo. Codex round-4 P1.
+        if glob.startswith("/") or ".." in Path(glob).parts:
+            return _fail(
+                chk,
+                f"`args.section_glob` {glob!r} must be a repo-root-relative pattern "
+                f"(no absolute paths, no `..` segments). Default is "
+                f"`docs/tasks/sections/*.md`.",
+            )
+        # Exclude implementation plan files which live alongside section specs
+        # at `docs/tasks/sections/<name>-plan.md` per /lp-plan + /lp-pnf
+        # conventions. Plan files have NO `status:` frontmatter, so including
+        # them would false-fail the probe with "no status field" on a fully
+        # approved section. Codex round-3 P1.
         try:
-            p.resolve().relative_to(root_resolved)
-        except (OSError, ValueError):
-            continue
-        confined.append(p)
-    matches = sorted(confined)
-    if not matches:
-        return _pass(chk, f"no section specs found at {glob}")
+            matched_paths = list(repo_root.glob(glob))
+        except (NotImplementedError, OSError) as exc:
+            return _fail(chk, f"`args.section_glob` {glob!r} failed to glob: {exc}")
+        # Confine each match under repo_root (defense-in-depth even though
+        # the pattern is pre-validated above; symlink under repo could still
+        # point outside).
+        confined: list[Path] = []
+        for p in matched_paths:
+            if p.name.endswith(plan_suffix):
+                continue
+            try:
+                p.resolve().relative_to(root_resolved)
+            except (OSError, ValueError):
+                continue
+            confined.append(p)
+        matches = sorted(confined)
+        if not matches:
+            return _pass(chk, f"no section specs found at {glob}")
     bad: list[str] = []
     for path in matches:
         try:
@@ -1307,6 +1332,36 @@ def _probe_uncommitted(
     )
 
 
+# Cloudflare's published edge ranges, parsed as IPv4 networks. The /12
+# covers 104.16.0.0 through 104.31.255.255; the /13 covers 172.64.0.0
+# through 172.71.255.255. Codex round-5 P2: replace raw-string
+# `startswith()` matching with `ipaddress.ip_address()` parsing so a
+# CNAME hostname like `104.16.example.com.` cannot false-positive the
+# IP-range check.
+_CLOUDFLARE_NETWORKS: tuple[ipaddress.IPv4Network, ...] = (
+    ipaddress.IPv4Network("104.16.0.0/12"),
+    ipaddress.IPv4Network("172.64.0.0/13"),
+)
+
+
+def _parse_dig_answer(raw: str) -> tuple[ipaddress.IPv4Address | None, str]:
+    """Classify one `dig +short` answer line as either an IPv4 address
+    or a hostname.
+
+    Returns `(ip_address, hostname)`: at most one is non-None/non-empty.
+    The hostname has the trailing dot stripped to match `.suffix` checks
+    cleanly. A non-parseable answer returns `(None, "")` so callers can
+    skip it. Codex round-5 P2.
+    """
+    candidate = raw.strip().rstrip(".")
+    if not candidate:
+        return (None, "")
+    try:
+        return (ipaddress.IPv4Address(candidate), "")
+    except (ipaddress.AddressValueError, ValueError):
+        return (None, candidate)
+
+
 @register_probe("dns-resolves-via-cname")
 def _probe_dns_cname(
     repo_root: Path, chk: CheckDefinition, clients: ProbeClients
@@ -1318,6 +1373,11 @@ def _probe_dns_cname(
 
     Provider-agnostic complement to `dns-resolves-to-cloudflare`. Used
     by the namecheap-dns / vercel / netlify profiles.
+
+    Codex round-5 P2: IP-prefix matching applies ONLY to answers that
+    parse as IPv4 addresses; CNAME hostnames are matched against the
+    suffix only. Prevents a CNAME like `104.16.cdn.example.com.` from
+    false-matching the `104.16.` prefix.
     """
     domain = chk.args.get("domain") or _resolve_env(
         chk.args.get("domain_env", "PREFLIGHT_DOMAIN")
@@ -1360,20 +1420,25 @@ def _probe_dns_cname(
         return _fail(
             chk, f"`dig` failed (exit {result.returncode}): {result.stderr.strip()}"
         )
-    answers = [
-        ln.strip().rstrip(".") for ln in result.stdout.splitlines() if ln.strip()
-    ]
-    if not answers:
+    raw_answers = [ln for ln in result.stdout.splitlines() if ln.strip()]
+    if not raw_answers:
         return _fail(chk, f"no DNS records for {domain}")
-    for answer in answers:
-        if expected_suffix and answer.endswith(str(expected_suffix).rstrip(".")):
-            return _pass(chk, f"{domain} resolves via {answer}")
-        for prefix in expected_prefixes:
-            if answer.startswith(str(prefix)):
-                return _pass(chk, f"{domain} resolves to {answer}")
+    parsed = [_parse_dig_answer(a) for a in raw_answers]
+    # Display set: keep the original textual form (trailing dot stripped)
+    # for error messaging.
+    display = [ip.exploded if ip is not None else host for ip, host in parsed]
+    suffix = str(expected_suffix).rstrip(".") if expected_suffix else None
+    for ip, host in parsed:
+        if suffix and host and host.endswith(suffix):
+            return _pass(chk, f"{domain} resolves via {host}")
+        if ip is not None:
+            ip_text = ip.exploded
+            for prefix in expected_prefixes:
+                if ip_text.startswith(prefix):
+                    return _pass(chk, f"{domain} resolves to {ip_text}")
     return _fail(
         chk,
-        f"{domain} resolves to {', '.join(answers[:3])} which does not match "
+        f"{domain} resolves to {', '.join(display[:3])} which does not match "
         f"expected suffix/prefix",
     )
 
@@ -1382,6 +1447,15 @@ def _probe_dns_cname(
 def _probe_dns_cloudflare(
     repo_root: Path, chk: CheckDefinition, clients: ProbeClients
 ) -> CheckResult:
+    """Resolve `args.domain` and assert the answer chain lands on a
+    Cloudflare edge IP (in 104.16.0.0/12 or 172.64.0.0/13) or a known
+    Cloudflare CNAME suffix (`.cloudflare.com` or `.pages.dev`).
+
+    Codex round-5 P2: answers are parsed via `ipaddress.IPv4Address`
+    before being checked against the network ranges; hostnames are
+    matched only against the suffix list. Prevents a CNAME hostname
+    like `104.16.cdn.example.com.` from false-matching the IP range.
+    """
     domain = chk.args.get("domain") or _resolve_env(
         chk.args.get("domain_env", "PREFLIGHT_DOMAIN")
     )
@@ -1401,29 +1475,19 @@ def _probe_dns_cloudflare(
         return _fail(
             chk, f"`dig` failed (exit {result.returncode}): {result.stderr.strip()}"
         )
-    answers = [ln.strip() for ln in result.stdout.splitlines() if ln.strip()]
-    if not answers:
+    raw_answers = [ln for ln in result.stdout.splitlines() if ln.strip()]
+    if not raw_answers:
         return _fail(chk, f"no DNS A records for {domain}")
-    # Cloudflare's published edge ranges. We cover the full /12 and /13
-    # blocks the docs name (104.16.0.0/12 = 104.16.* through 104.31.*;
-    # 172.64.0.0/13 = 172.64.* through 172.71.*) plus the .cloudflare.com
-    # and .pages.dev CNAME suffixes. The probe is C1 (user has already
-    # confirmed the configuration); we just verify the resolution lands
-    # on Cloudflare's surface, not a third-party CDN. Greptile round-2:
-    # the prior heuristic only covered 5 prefixes from /12+/13 (104.16,
-    # 104.17, 104.18, 172.64, 172.67) and false-negative-failed on any
-    # IP in the remaining 19 prefixes.
-    cloudflare_signals = tuple(f"104.{i}." for i in range(16, 32)) + tuple(
-        f"172.{i}." for i in range(64, 72)
-    )
-    for answer in answers:
-        if any(answer.startswith(prefix) for prefix in cloudflare_signals):
-            return _pass(chk, f"{domain} resolves to Cloudflare ({answer})")
-        if answer.endswith(".cloudflare.com.") or answer.endswith(".pages.dev."):
-            return _pass(chk, f"{domain} CNAME points to Cloudflare ({answer})")
+    parsed = [_parse_dig_answer(a) for a in raw_answers]
+    display = [ip.exploded if ip is not None else host for ip, host in parsed]
+    for ip, host in parsed:
+        if ip is not None and any(ip in net for net in _CLOUDFLARE_NETWORKS):
+            return _pass(chk, f"{domain} resolves to Cloudflare ({ip.exploded})")
+        if host and (host.endswith(".cloudflare.com") or host.endswith(".pages.dev")):
+            return _pass(chk, f"{domain} CNAME points to Cloudflare ({host})")
     return _fail(
         chk,
-        f"{domain} resolves to {', '.join(answers[:3])} which does not match "
+        f"{domain} resolves to {', '.join(display[:3])} which does not match "
         f"Cloudflare edge ranges or known CNAME suffixes",
     )
 
@@ -1552,6 +1616,7 @@ def run_preflight(
     profile_dir: Path | None = None,
     write_checklist: bool = True,
     now: datetime | None = None,
+    target_section: str | None = None,
 ) -> PreflightReport:
     """Load config, run all checks, optionally write the checklist file.
 
@@ -1561,9 +1626,29 @@ def run_preflight(
     a summary to the terminal.
 
     Raises PreflightConfigError on config/profile load failure.
+
+    `target_section` (Codex round-5 P1-A) is a repo-root-relative path
+    to a single section spec (e.g., `docs/tasks/sections/foo.md`).
+    When set, the `section-specs-approved` probe is scoped to that
+    file only. `/lp-build` resolves the target before Step 0.6 and
+    passes it via `--section`; `/lp-ship` and standalone runs leave
+    it unset (all-sections semantic).
     """
     clients = clients or default_clients()
     checks, providers = load_preflight_config(repo_root, profile_dir=profile_dir)
+    if target_section is not None:
+        # CheckDefinition is frozen; rebuild the list with a new args
+        # dict on the section-specs-approved entry. Done here (not in
+        # the probe itself) so the probe sees `section_path` via the
+        # normal `chk.args` channel and stays ignorant of CLI flags.
+        checks = [
+            (
+                replace(chk, args={**chk.args, "section_path": target_section})
+                if chk.probe == "section-specs-approved"
+                else chk
+            )
+            for chk in checks
+        ]
     checklist_path = repo_root / CHECKLIST_PATH
     confirmations = parse_checklist(checklist_path)
     now_dt = now or datetime.now(UTC)
@@ -1610,6 +1695,7 @@ def assert_preflight_ok(
     *,
     clients: ProbeClients | None = None,
     profile_dir: Path | None = None,
+    target_section: str | None = None,
 ) -> PreflightReport:
     """Raise PreflightFailedError if any check fails or needs confirmation.
 
@@ -1621,7 +1707,12 @@ def assert_preflight_ok(
     summary naming the failed/pending items plus the path to the
     generated checklist.
     """
-    report = run_preflight(repo_root, clients=clients, profile_dir=profile_dir)
+    report = run_preflight(
+        repo_root,
+        clients=clients,
+        profile_dir=profile_dir,
+        target_section=target_section,
+    )
     if report.ok:
         return report
     raise PreflightFailedError(_format_refuse(report))
@@ -1695,10 +1786,25 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="do not generate/update the checklist file (read-only mode)",
     )
+    parser.add_argument(
+        "--section",
+        default=None,
+        help=(
+            "Repo-root-relative path to a single section spec (e.g., "
+            "docs/tasks/sections/foo.md). When provided, scopes the "
+            "section-specs-approved check to that file only. `/lp-build` "
+            "passes this after target resolution; `/lp-ship` and "
+            "standalone runs leave it unset (all-sections semantic)."
+        ),
+    )
     args = parser.parse_args(argv)
     repo_root = Path(args.repo_root).resolve()
     try:
-        report = run_preflight(repo_root, write_checklist=not args.no_write_checklist)
+        report = run_preflight(
+            repo_root,
+            write_checklist=not args.no_write_checklist,
+            target_section=args.section,
+        )
     except PreflightConfigError as exc:
         print(f"[preflight] CONFIG ERROR: {exc}", file=sys.stderr)
         return 2

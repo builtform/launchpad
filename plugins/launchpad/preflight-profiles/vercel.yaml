@@ -39,7 +39,7 @@ checks:
 
   - id: vercel.project-exists
     category: C1
-    title: Vercel project exists and references the GitHub repo
+    title: Vercel project exists
     setup_hint: |
       1. Visit https://vercel.com/new and import the repo from GitHub.
       2. Set framework preset, build command, output dir, install
@@ -48,6 +48,12 @@ checks:
          Settings -> General page (NOT the slug). Set VERCEL_PROJECT_ID.
       4. Find the org id in Account Settings -> General. Set
          VERCEL_ORG_ID.
+      The probe verifies the project EXISTS under the token's scope; it
+      does NOT verify the project is linked to the right GitHub repo. The
+      user ticks the confirmation box to attest that the Git integration
+      in the Vercel dashboard points at the correct repo. Programmatic
+      linkage verification via the API `link.repo` block is tracked as
+      BL-367 (v2.1.8).
     stale_window_days: 90
     probe: vercel-project-exists
     args:

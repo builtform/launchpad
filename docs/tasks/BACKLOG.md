@@ -2949,11 +2949,11 @@ Same UX pattern as the autonomous-ack gate but for external prerequisites: surfa
      - namecheap-dns
      - spec-completeness
    overrides:
-     CLOUDFLARE_API_TOKEN:
+     cloudflare-pages.api-token-valid:
        stale_window_days: 60
    ```
 
-   Inherits everything from the named profile templates; overrides tune specific items. Adding a new provider means adding a profile YAML; zero changes to the preflight engine.
+   Inherits everything from the named profile templates; overrides tune specific items. Override keys are check IDs (`<provider>.<item>`), not env-var names. Adding a new provider means adding a profile YAML; zero changes to the preflight engine.
 
 3. **Per-item stale windows.** Default 30 days. Each profile declares per-check defaults; the project's overrides block can tighten or loosen any specific item. API tokens rotate faster than DNS, etc.
 4. **Non-deploy items in scope.** The built-in `spec-completeness` profile covers `[TBD]` markers in PRD, CHANGELOG.md hygiene, in-scope section specs at `approved` status, etc. All ship-time hygiene; lives in the same preflight machinery.
@@ -3204,3 +3204,25 @@ CLI ergonomics (1):
 **Default decision**: ship in v2.1.x (between v2.1.8 and v2.2) as a P3 polish bundle. Total scope ~300-400 LOC of code + tests. Self-contained; no migration concerns.
 
 **Test**: each item gets a targeted test or test refactor. Verify total test count stays balanced (~30 net new across the bundle) and suite runtime stays under 1 second.
+
+---
+
+#### BL-367 - v2.1.8: Programmatic GitHub-repo linkage verification for provider project probes (P2)
+
+**Filed by**: Codex round-5 review on PR #75 (v2.1.7 / BL-364), 2026-05-17.
+
+**Context**: BL-364 ships `cloudflare-pages.project-exists`, `vercel.project-exists`, and `netlify.site-exists` probes that verify a deploy project exists under the credentialed account, but DO NOT verify the project is linked to the correct GitHub repo. The v2.1.7 fix narrows the profile titles + setup_hint text to "project exists" (truth-in-advertising), with a C1 user-confirmation that the Git integration is correct. Programmatic verification is deferred here.
+
+**Scope**: extend each probe to parse the repo-linkage block from the API response and compare against the derived `<owner>/<repo>` slug:
+
+- **Cloudflare Pages**: response `result.source.config.{owner, repo_name}` -> compare to derived slug.
+- **Vercel**: response `link.{type, repo, org}` (type must be `github`; repo must match) -> compare to derived slug.
+- **Netlify**: response `build_settings.repo_url` -> parse with `_GH_REPO_SLUG_RE` then compare.
+
+On linkage mismatch: probe FAILS with message naming the detected linkage vs the expected slug. On linkage block absent (project linked via a different provider, e.g., GitLab): probe FAILS asking the user to re-link to GitHub. On linkage block present but unparseable: probe FAILS with the raw value (defensive).
+
+**Profile changes**: restore "is linked to the GitHub repo" language in titles + setup_hints once the probe verifies it. Update SETUP_HINT wording to drop the "user attests" language.
+
+**Test**: per-provider success + failure + no-linkage + unparseable-linkage cases. Mock API responses via existing `ProbeClients.http_get` seam.
+
+**Default decision**: ship in v2.1.8 alongside BL-365. Total scope ~80-120 LOC of code + tests. Self-contained.

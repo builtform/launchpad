@@ -6,7 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Tracked in [ROADMAP.md](ROADMAP.md). v2.1.7 candidates include BL-357 (`/lp-shape-section --auto` synthesize-from-artifacts mode), BL-364 (`/lp-preflight` external-infrastructure preflight gate + 6 provider profiles, wired into `/lp-ship` Step 0.6 + `/lp-build` Step 0.6), setup-action step rewrites in ci.yml for non-TS stacks, and astro.config content-grep for output-mode detection. v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
+Tracked in [ROADMAP.md](ROADMAP.md). v2.1.8 candidates include BL-365 (parallelize preflight probe dispatch + short-TTL cache), BL-367 (programmatic GitHub-repo linkage verification for provider project probes), and setup-action step rewrites in ci.yml for non-TS stacks. v2.1.x bundles BL-366 (18-item preflight polish). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0 plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
+
+## [v2.1.7]
+
+External-infrastructure preflight gate (BL-364). v2.1.7 ships `lp_preflight.py` (engine + 15 probes + CLI), 6 bundled provider profiles (cloudflare-pages, vercel, netlify, cloudflare-dns, namecheap-dns, spec-completeness), and Step 0.6 wiring on `/lp-build` + `/lp-ship`. The gate fails fast on provider account, deploy project, GitHub Secrets, DNS, and spec-completeness prerequisites BEFORE the autonomous implementation loop runs, so users don't waste a 30-minute `/lp-inf` cycle to learn that `CLOUDFLARE_API_TOKEN` was never set.
+
+### For LaunchPad users (downstream behavior changes)
+
+- **`/lp-preflight` standalone command + 6 provider profiles (BL-364, P1).** Drop `.launchpad/preflight.config.yaml` naming any subset of `{cloudflare-pages, vercel, netlify, cloudflare-dns, namecheap-dns, spec-completeness}` and the gate verifies provider-account existence, API-token validity, deploy-project existence, GitHub Secrets population, DNS resolution (Cloudflare edge ranges or CNAME suffix matching), and PRD/CHANGELOG/section-spec completeness. Per-item stale windows (default 30-365 days depending on item) re-prompt the user when a confirmation goes stale. The file's absence is opt-out: projects that haven't configured external prerequisites skip preflight silently.
+- **`/lp-build` Step 0.6 + `/lp-ship` Step 0.6 wiring.** `/lp-build` resolves the target section name before preflight (new Step 0.55) and passes `--section docs/tasks/sections/<name>.md` so `section-specs-approved` scopes to the section being built. Multi-section projects with one approved section + others in `shaped`/`planned` state no longer false-fail the gate. `/lp-ship` runs the same gate without `--section` (project-wide).
+- **Cloudflare DNS check covers the full `/12` + `/13` edge ranges.** The Cloudflare DNS probe parses `dig +short` answers via `ipaddress.IPv4Address` and matches against `104.16.0.0/12` (104.16.0.0 to 104.31.255.255) + `172.64.0.0/13` (172.64.0.0 to 172.71.255.255), so any IP across the full published ranges passes, and a CNAME hostname starting with a numeric octet (e.g., `104.16.cdn.example.com.`) cannot false-positive the IP-prefix check.
+- **Provider project-existence probes verify EXISTENCE only, not GitHub linkage.** Profile titles are now scoped to "Cloudflare Pages project exists" / "Vercel project exists" / "Netlify site exists" with explicit setup_hint language that the user attests to the Git integration. Programmatic linkage verification via the API `source.config` / `link.repo` / `build_settings.repo_url` blocks is tracked as BL-367 (v2.1.8).
+
+### Plugin-internal changes
+
+See `docs/releases/v2.1.7.md` for full file-by-file breakdown.
+
+### Test count
+
+1937 passing + 4 skipped (was 1854 at v2.1.6 squash; +91 across the new `tests/test_lp_preflight.py` suite).
 
 ## [v2.1.6]
 

@@ -2422,3 +2422,286 @@ def test_args_repo_with_invalid_shape_refused(tmp_path: Path, monkeypatch):
     )
     assert res.status == "fail"
     assert "<owner>/<repo>" in res.message
+
+
+# ---------------------------------------------------------------------------
+# Codex round-5 P1-A: target-scoped section-specs-approved via --section.
+# ---------------------------------------------------------------------------
+
+
+def test_target_section_scopes_check_to_one_file_passing(tmp_path: Path):
+    """When `run_preflight` is called with `target_section=<path>`, the
+    section-specs-approved probe must inspect ONLY that file. A second
+    section spec at status=shaped must NOT cause a fail.
+
+    This is the Codex round-5 P1-A acceptance test: /lp-build <approved>
+    must not be false-blocked by unrelated in-flight sections.
+    """
+    _make_repo(tmp_path, ["spec-completeness"])
+    (tmp_path / ".launchpad" / "autonomous-ack.md").write_text(
+        "ack\n", encoding="utf-8"
+    )
+    (tmp_path / "docs" / "architecture").mkdir(parents=True)
+    (tmp_path / "docs" / "architecture" / "PRD.md").write_text(
+        "# PRD\n", encoding="utf-8"
+    )
+    (tmp_path / "CHANGELOG.md").write_text("## [v1.0.0]\n", encoding="utf-8")
+    sections = tmp_path / "docs" / "tasks" / "sections"
+    sections.mkdir(parents=True)
+    (sections / "approved-target.md").write_text(
+        "---\nstatus: approved\n---\n", encoding="utf-8"
+    )
+    # In-flight work on a different section. Without --section scoping this
+    # would fail the gate.
+    (sections / "in-flight.md").write_text(
+        "---\nstatus: shaped\n---\n", encoding="utf-8"
+    )
+    clients = _make_clients(
+        command_responses={
+            ("git", "-C", str(tmp_path), "status", "--porcelain"): CommandResult(
+                0, "", ""
+            ),
+        }
+    )
+    report = run_preflight(
+        tmp_path,
+        clients=clients,
+        profile_dir=PROFILE_DIR,
+        write_checklist=False,
+        target_section="docs/tasks/sections/approved-target.md",
+    )
+    by_id = {r.item_id: r for r in report.results}
+    res = by_id["spec-completeness.section-specs-approved"]
+    assert res.status == "pass"
+
+
+def test_target_section_fails_when_target_itself_not_approved(tmp_path: Path):
+    """If the targeted section is itself not ship-ready, the probe must
+    fail even when other unrelated sections are approved."""
+    _make_repo(tmp_path, ["spec-completeness"])
+    (tmp_path / ".launchpad" / "autonomous-ack.md").write_text(
+        "ack\n", encoding="utf-8"
+    )
+    (tmp_path / "docs" / "architecture").mkdir(parents=True)
+    (tmp_path / "docs" / "architecture" / "PRD.md").write_text(
+        "# PRD\n", encoding="utf-8"
+    )
+    (tmp_path / "CHANGELOG.md").write_text("## [v1.0.0]\n", encoding="utf-8")
+    sections = tmp_path / "docs" / "tasks" / "sections"
+    sections.mkdir(parents=True)
+    (sections / "approved-sibling.md").write_text(
+        "---\nstatus: approved\n---\n", encoding="utf-8"
+    )
+    (sections / "not-ready-target.md").write_text(
+        "---\nstatus: planned\n---\n", encoding="utf-8"
+    )
+    clients = _make_clients(
+        command_responses={
+            ("git", "-C", str(tmp_path), "status", "--porcelain"): CommandResult(
+                0, "", ""
+            ),
+        }
+    )
+    report = run_preflight(
+        tmp_path,
+        clients=clients,
+        profile_dir=PROFILE_DIR,
+        write_checklist=False,
+        target_section="docs/tasks/sections/not-ready-target.md",
+    )
+    by_id = {r.item_id: r for r in report.results}
+    res = by_id["spec-completeness.section-specs-approved"]
+    assert res.status == "fail"
+    assert "planned" in res.message
+
+
+def test_target_section_rejects_traversal_path(tmp_path: Path):
+    """`target_section` pointing outside repo_root must be refused."""
+    chk = lp_preflight.CheckDefinition(
+        item_id="test.target-traversal",
+        category="A",
+        title="traversal",
+        setup_hint="",
+        stale_window_days=30,
+        probe="section-specs-approved",
+        args={"section_path": "../../etc/passwd"},
+    )
+    res = lp_preflight._PROBE_REGISTRY["section-specs-approved"](
+        tmp_path, chk, _make_clients()
+    )
+    assert res.status == "fail"
+    assert "does not resolve under" in res.message
+
+
+def test_target_section_rejects_non_file_path(tmp_path: Path):
+    """`target_section` pointing at a directory or missing file must fail."""
+    (tmp_path / "docs" / "tasks" / "sections").mkdir(parents=True)
+    chk = lp_preflight.CheckDefinition(
+        item_id="test.target-not-file",
+        category="A",
+        title="not file",
+        setup_hint="",
+        stale_window_days=30,
+        probe="section-specs-approved",
+        args={"section_path": "docs/tasks/sections"},
+    )
+    res = lp_preflight._PROBE_REGISTRY["section-specs-approved"](
+        tmp_path, chk, _make_clients()
+    )
+    assert res.status == "fail"
+    assert "is not a file" in res.message
+
+
+def test_cli_section_flag_threads_through_to_probe(
+    tmp_path: Path, monkeypatch, capsys
+):
+    """Smoke-test the --section CLI flag: invoking `main(['--repo-root',
+    tmp, '--section', 'docs/tasks/sections/target.md'])` must succeed when
+    the target is approved even if a sibling is `shaped`.
+    """
+    _make_repo(tmp_path, ["spec-completeness"])
+    (tmp_path / ".launchpad" / "autonomous-ack.md").write_text(
+        "ack\n", encoding="utf-8"
+    )
+    (tmp_path / "docs" / "architecture").mkdir(parents=True)
+    (tmp_path / "docs" / "architecture" / "PRD.md").write_text(
+        "# PRD\n", encoding="utf-8"
+    )
+    (tmp_path / "CHANGELOG.md").write_text("## [v1.0.0]\n", encoding="utf-8")
+    sections = tmp_path / "docs" / "tasks" / "sections"
+    sections.mkdir(parents=True)
+    (sections / "target.md").write_text(
+        "---\nstatus: approved\n---\n", encoding="utf-8"
+    )
+    (sections / "sibling.md").write_text(
+        "---\nstatus: shaped\n---\n", encoding="utf-8"
+    )
+
+    # Patch default_clients so the CLI invocation uses a hermetic stub
+    # rather than touching the real shell. The smoke test verifies the
+    # flag plumbs; the section-specs-approved probe is the only one that
+    # reads it.
+    def _fake_default_clients() -> lp_preflight.ProbeClients:
+        return _make_clients(
+            command_responses={
+                ("git", "-C", str(tmp_path), "status", "--porcelain"): CommandResult(
+                    0, "", ""
+                ),
+            }
+        )
+
+    monkeypatch.setattr(lp_preflight, "default_clients", _fake_default_clients)
+    exit_code = lp_preflight.main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--no-write-checklist",
+            "--section",
+            "docs/tasks/sections/target.md",
+        ]
+    )
+    assert exit_code == 0
+
+
+# ---------------------------------------------------------------------------
+# Codex round-5 P2: ipaddress.ip_address() prevents CNAME false-positives.
+# ---------------------------------------------------------------------------
+
+
+def test_dns_cloudflare_rejects_numeric_prefix_cname(tmp_path: Path, monkeypatch):
+    """A CNAME hostname literally starting with `104.16.` (e.g.,
+    `104.16.cdn.example.com.`) must NOT pass the Cloudflare edge-range
+    check, because raw-string `startswith` would false-positive here.
+    The `ipaddress.IPv4Address` parser rejects it as not an IPv4, so
+    only the suffix list is consulted, and the hostname does not end
+    with `.cloudflare.com` or `.pages.dev`.
+    """
+    _make_repo(tmp_path, ["cloudflare-dns"])
+    monkeypatch.setenv("PREFLIGHT_DOMAIN", "example.com")
+    checklist = tmp_path / ".launchpad" / "preflight-checklist.md"
+    checklist.write_text(
+        "- [x] Custom domain resolves to Cloudflare "
+        "(id: cloudflare-dns.apex-resolves-to-cloudflare)\n"
+        f"  Last confirmed: {_recent_iso()}\n",
+        encoding="utf-8",
+    )
+    clients = _make_clients(
+        command_responses={
+            ("dig", "+short", "--", "example.com"): CommandResult(
+                0, "104.16.cdn.example.com.\n", ""
+            ),
+        }
+    )
+    report = run_preflight(
+        tmp_path, clients=clients, profile_dir=PROFILE_DIR, write_checklist=False
+    )
+    by_id = {r.item_id: r for r in report.results}
+    res = by_id["cloudflare-dns.apex-resolves-to-cloudflare"]
+    assert res.status == "fail"
+    assert "104.16.cdn.example.com" in res.message
+
+
+def test_dns_cloudflare_accepts_172_64_through_172_71(
+    tmp_path: Path, monkeypatch
+):
+    """Confirm the full /13 block (172.64.0.0 to 172.71.255.255) parses
+    via ipaddress.IPv4Network. 172.71.255.255 is the last address in the
+    /13 and must pass."""
+    _make_repo(tmp_path, ["cloudflare-dns"])
+    monkeypatch.setenv("PREFLIGHT_DOMAIN", "example.com")
+    checklist = tmp_path / ".launchpad" / "preflight-checklist.md"
+    checklist.write_text(
+        "- [x] Custom domain resolves to Cloudflare "
+        "(id: cloudflare-dns.apex-resolves-to-cloudflare)\n"
+        f"  Last confirmed: {_recent_iso()}\n",
+        encoding="utf-8",
+    )
+    clients = _make_clients(
+        command_responses={
+            ("dig", "+short", "--", "example.com"): CommandResult(
+                0, "172.71.255.255\n", ""
+            ),
+        }
+    )
+    report = run_preflight(
+        tmp_path, clients=clients, profile_dir=PROFILE_DIR, write_checklist=False
+    )
+    by_id = {r.item_id: r for r in report.results}
+    res = by_id["cloudflare-dns.apex-resolves-to-cloudflare"]
+    assert res.status == "pass"
+    assert "172.71.255.255" in res.message
+
+
+def test_dns_cname_probe_does_not_treat_hostname_as_ip_prefix(
+    tmp_path: Path, monkeypatch
+):
+    """The generic dns-resolves-via-cname probe must not match a CNAME
+    hostname against `expected_prefixes` (which are IP-prefix strings).
+    A hostname starting with `104.16.` must FAIL when the only
+    configured matcher is the IP prefix, because hostnames cannot be
+    classified as IP addresses.
+    """
+    monkeypatch.setenv("PREFLIGHT_DOMAIN", "example.com")
+    clients = _make_clients(
+        command_responses={
+            ("dig", "+short", "--", "example.com"): CommandResult(
+                0, "104.16.evil.attacker.example.\n", ""
+            ),
+        }
+    )
+    chk = lp_preflight.CheckDefinition(
+        item_id="test.cname-numeric-prefix",
+        category="C1",
+        title="cname numeric prefix",
+        setup_hint="",
+        stale_window_days=365,
+        probe="dns-resolves-via-cname",
+        args={
+            "domain_env": "PREFLIGHT_DOMAIN",
+            "expected_prefixes": ["104.16."],
+        },
+    )
+    probe = lp_preflight._PROBE_REGISTRY["dns-resolves-via-cname"]
+    result = probe(tmp_path, chk, clients)
+    assert result.status == "fail"
+    assert "104.16.evil.attacker.example" in result.message
