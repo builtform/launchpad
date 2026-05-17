@@ -301,6 +301,14 @@ def _coerce_check(
     overrides: dict[str, dict[str, Any]],
 ) -> CheckDefinition:
     """Build a CheckDefinition from a raw YAML dict + caller overrides."""
+    if not isinstance(raw, dict):
+        # Catches malformed entries like `checks: [1]` or `checks: [foo]`
+        # which would otherwise raise an unhandled TypeError inside the
+        # `required not in raw` membership test. Codex round-2 P2.
+        raise PreflightConfigError(
+            f"profile {profile_name!r}: check entry must be a mapping; "
+            f"got {type(raw).__name__} ({raw!r:.60})"
+        )
     for required in ("id", "category", "title", "setup_hint"):
         if required not in raw:
             raise PreflightConfigError(
@@ -690,7 +698,15 @@ def _probe_file_contains(
         text = target.read_text(encoding="utf-8")
     except OSError as exc:
         return _fail(chk, f"cannot read {rel}: {exc}")
-    if re.search(pattern, text, re.MULTILINE):
+    try:
+        matched = re.search(pattern, text, re.MULTILINE)
+    except re.error as exc:
+        # Greptile round-2 P2: a user-authored or future-bundled profile
+        # may supply an invalid regex (e.g., unbalanced parens). Catch
+        # at the probe boundary so the CLI exits with the structured
+        # CONFIG-ERROR refuse-message rather than an unhandled traceback.
+        return _fail(chk, f"invalid regex pattern {pattern!r}: {exc}")
+    if matched:
         return _pass(chk, f"{rel} matches /{pattern}/")
     return _fail(chk, f"{rel} does not contain pattern /{pattern}/")
 
@@ -741,16 +757,34 @@ def _probe_changelog(
     return _fail(chk, f"{rel} has no version entries")
 
 
+_SHIP_READY_STATUSES = frozenset({"approved", "reviewed", "built"})
+"""Section-spec statuses that count as ship-ready for the preflight gate.
+
+The documented lifecycle (see `/lp-build` Step 0.3 + the section-registry
+status contract) advances each section through:
+
+    defined -> shaped -> designed -> planned -> hardened -> approved
+    -> reviewed -> built
+
+`approved` is the minimum ship-ready state; `reviewed` (post-code-review)
+and `built` (post-ship) are stages further along in the same lifecycle.
+The preflight gate fires at both `/lp-build` Step 0.6 (before the run)
+AND `/lp-ship` Step 0.6 (which is reachable after `/lp-build` advances
+the section to `reviewed` / `built`). Requiring exactly `approved` would
+block `/lp-ship` recovery-path invocations after a successful build.
+"""
+
+
 @register_probe("section-specs-approved")
 def _probe_section_specs_approved(
     repo_root: Path, chk: CheckDefinition, clients: ProbeClients
 ) -> CheckResult:
-    """Verify every in-scope section spec has `status: approved` in its
-    frontmatter.
+    """Verify every in-scope section spec is at a ship-ready status.
 
-    `args.section_glob` (default `docs/tasks/sections/*.md`) controls which
-    files are inspected. Missing directory means no sections to check
-    (pass with a note).
+    Ship-ready statuses: `approved`, `reviewed`, `built` (see
+    `_SHIP_READY_STATUSES`). `args.section_glob` (default
+    `docs/tasks/sections/*.md`) controls which files are inspected.
+    Missing directory means no sections to check (pass with a note).
     """
     glob = chk.args.get("section_glob", "docs/tasks/sections/*.md")
     matches = sorted(repo_root.glob(glob))
@@ -763,17 +797,20 @@ def _probe_section_specs_approved(
         except OSError:
             bad.append(f"{path.name} (unreadable)")
             continue
-        # Look for `status: approved` in YAML frontmatter or anywhere
-        # in the first ~50 lines.
+        # Look for `status: <value>` in YAML frontmatter or anywhere
+        # in the first ~60 lines. The "ship-ready" set covers approved
+        # (pre-build) + reviewed (post-review, pre-ship) + built
+        # (post-ship recovery-path) so the gate doesn't block /lp-ship
+        # invocations after /lp-build has advanced the section.
         head = "\n".join(text.splitlines()[:60])
         m = re.search(r"^status:\s*([A-Za-z_]+)\s*$", head, re.MULTILINE)
         if not m:
             bad.append(f"{path.name} (no status field)")
-        elif m.group(1).lower() != "approved":
+        elif m.group(1).lower() not in _SHIP_READY_STATUSES:
             bad.append(f"{path.name} (status={m.group(1)})")
     if not bad:
-        return _pass(chk, f"all {len(matches)} section spec(s) approved")
-    return _fail(chk, f"{len(bad)} section(s) not approved: {', '.join(bad[:5])}")
+        return _pass(chk, f"all {len(matches)} section spec(s) ship-ready")
+    return _fail(chk, f"{len(bad)} section(s) not ship-ready: {', '.join(bad[:5])}")
 
 
 # ----- B-category probes (network/API) -----
@@ -926,8 +963,24 @@ def _probe_vercel_project(
             f"VERCEL_PROJECT_ID {project!r} must match [A-Za-z0-9_-]+; "
             "refusing to construct request URL",
         )
+    # Optional team-scoping via VERCEL_ORG_ID (Codex round-2 P2). When the
+    # token has team scope, the API will reject team-owned projects unless
+    # the teamId query param is passed; conversely, personal-scope tokens
+    # work without teamId. We pass teamId when the env var is present so
+    # team-owned projects verify correctly without breaking personal use.
+    org = _resolve_env(chk.args.get("org_env", "VERCEL_ORG_ID"))
+    url = f"https://api.vercel.com/v9/projects/{project_seg}"
+    if org:
+        org_seg = _validated_segment("VERCEL_ORG_ID", org)
+        if org_seg is None:
+            return _fail(
+                chk,
+                f"VERCEL_ORG_ID {org!r} must match [A-Za-z0-9_-]+; "
+                "refusing to construct request URL",
+            )
+        url = f"{url}?teamId={org_seg}"
     resp = clients.http_get(
-        f"https://api.vercel.com/v9/projects/{project_seg}",
+        url,
         {"Authorization": f"Bearer {token}", "Accept": "application/json"},
     )
     if resp.status == 0:
@@ -936,7 +989,8 @@ def _probe_vercel_project(
             f"network error talking to Vercel: {resp.body.removeprefix('network error: ')}",
         )
     if resp.status == 200:
-        return _pass(chk, f"Vercel project {project!r} exists")
+        scope = f" (teamId={org!r})" if org else ""
+        return _pass(chk, f"Vercel project {project!r} exists{scope}")
     if resp.status == 404:
         return _fail(chk, f"Vercel project {project!r} not found (HTTP 404)")
     return _fail(chk, f"Vercel project probe failed: HTTP {resp.status}")
@@ -1031,15 +1085,27 @@ def _probe_github_secrets(
     # `/lp-preflight --repo-root /elsewhere` from a different cwd validates
     # the right repository (closes Codex P1: cwd-ambient gh inference can
     # false-pass when --repo-root and cwd disagree).
-    slug = _derive_gh_repo_slug(repo_root, clients)
-    cmd = ["gh", "secret", "list", "--json", "name"]
-    if slug is not None:
-        cmd.extend(["--repo", slug])
-    else:
-        # No-origin / non-github remote / non-repo path: fall through to
-        # gh's ambient inference but surface the gap in the failure
-        # message so users understand which repo is being checked.
-        pass
+    # Fail-closed when the slug cannot be derived from repo_root's git
+    # remote. Falling back to gh's ambient cwd inference can validate the
+    # WRONG repository when /lp-preflight is invoked with --repo-root
+    # pointing somewhere other than $PWD (Codex round-2 P1). Users with a
+    # non-github origin or no origin at all can either set args.repo as
+    # an override in .launchpad/preflight.config.yaml OR remove the
+    # github-secrets-populated check from their profile config.
+    explicit_repo = chk.args.get("repo")
+    slug = explicit_repo if explicit_repo else _derive_gh_repo_slug(repo_root, clients)
+    if slug is None:
+        return _fail(
+            chk,
+            "cannot derive GitHub repo slug from `git -C <repo_root> remote "
+            "get-url origin` (no origin remote, or remote is not a github.com "
+            "URL). Fail-closed to avoid validating secrets in the wrong "
+            "repository. Either set the `origin` remote to a github.com URL, "
+            "OR add `args.repo: <owner>/<repo>` to this check's override in "
+            "`.launchpad/preflight.config.yaml`, OR remove the "
+            "`github-secrets-populated` check from your provider profile.",
+        )
+    cmd = ["gh", "secret", "list", "--json", "name", "--repo", slug]
     result = clients.run_command(cmd)
     if result.returncode == 127:
         return _fail(
@@ -1171,12 +1237,18 @@ def _probe_dns_cloudflare(
     answers = [ln.strip() for ln in result.stdout.splitlines() if ln.strip()]
     if not answers:
         return _fail(chk, f"no DNS A records for {domain}")
-    # Cloudflare's published edge ranges are sparse; we use a loose heuristic
-    # (104.16.0.0/12 + 172.64.0.0/13 + CNAME ending in .cloudflare.com or
-    # .pages.dev). The probe is C1; user has already confirmed the
-    # configuration; we just need to verify it resolves to Cloudflare's
-    # surface, not a third-party CDN.
-    cloudflare_signals = ("104.16.", "104.17.", "104.18.", "172.64.", "172.67.")
+    # Cloudflare's published edge ranges. We cover the full /12 and /13
+    # blocks the docs name (104.16.0.0/12 = 104.16.* through 104.31.*;
+    # 172.64.0.0/13 = 172.64.* through 172.71.*) plus the .cloudflare.com
+    # and .pages.dev CNAME suffixes. The probe is C1 (user has already
+    # confirmed the configuration); we just verify the resolution lands
+    # on Cloudflare's surface, not a third-party CDN. Greptile round-2:
+    # the prior heuristic only covered 5 prefixes from /12+/13 (104.16,
+    # 104.17, 104.18, 172.64, 172.67) and false-negative-failed on any
+    # IP in the remaining 19 prefixes.
+    cloudflare_signals = tuple(f"104.{i}." for i in range(16, 32)) + tuple(
+        f"172.{i}." for i in range(64, 72)
+    )
     for answer in answers:
         if any(answer.startswith(prefix) for prefix in cloudflare_signals):
             return _pass(chk, f"{domain} resolves to Cloudflare ({answer})")

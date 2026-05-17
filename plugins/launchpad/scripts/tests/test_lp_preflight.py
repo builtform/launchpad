@@ -83,6 +83,19 @@ def _make_clients(
 PROFILE_DIR = REPO_ROOT / "plugins" / "launchpad" / "preflight-profiles"
 
 
+def _recent_iso() -> str:
+    """Return an ISO-8601 UTC timestamp 1 day before now.
+
+    Tests that need a "recent enough" Last-confirmed value use this so
+    the assertion never goes stale as wall-clock time advances. Hardcoded
+    timestamps would silently fail tests after the configured stale
+    window elapses (Codex round-2 P2: hardcoded `2026-05-16` values
+    were 60+ days fresh at PR creation but would drift to stale on
+    later CI runs).
+    """
+    return (datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 # ---------------------------------------------------------------------------
 # Test 1: profile loader assembles checks across profiles + applies overrides.
 # ---------------------------------------------------------------------------
@@ -343,7 +356,7 @@ def test_category_c1_confirmed_and_probe_runs(tmp_path: Path, monkeypatch):
     checklist.write_text(
         "- [x] Cloudflare Pages project exists "
         "(id: cloudflare-pages.project-exists)\n"
-        "  Last confirmed: 2026-05-16T00:00:00Z\n",
+        f"  Last confirmed: {_recent_iso()}\n",
         encoding="utf-8",
     )
     clients = _make_clients(
@@ -374,7 +387,7 @@ def test_category_c1_confirmed_but_probe_fails_blocks(tmp_path: Path, monkeypatc
     checklist = tmp_path / ".launchpad" / "preflight-checklist.md"
     checklist.write_text(
         "- [x] Cloudflare Pages project (id: cloudflare-pages.project-exists)\n"
-        "  Last confirmed: 2026-05-16T00:00:00Z\n",
+        f"  Last confirmed: {_recent_iso()}\n",
         encoding="utf-8",
     )
     clients = _make_clients(
@@ -409,7 +422,7 @@ def test_category_c2_confirmed_passes_trusted(tmp_path: Path):
     checklist = tmp_path / ".launchpad" / "preflight-checklist.md"
     checklist.write_text(
         "- [x] Cloudflare account (id: cloudflare-pages.account-exists)\n"
-        "  Last confirmed: 2026-05-16T00:00:00Z\n",
+        f"  Last confirmed: {_recent_iso()}\n",
         encoding="utf-8",
     )
     # Need all envs set so other checks don't blow up the run; we only
@@ -1192,7 +1205,7 @@ def test_category_b_vercel_project_404(tmp_path: Path, monkeypatch):
     checklist = tmp_path / ".launchpad" / "preflight-checklist.md"
     checklist.write_text(
         "- [x] Vercel project (id: vercel.project-exists)\n"
-        "  Last confirmed: 2026-05-16T00:00:00Z\n",
+        f"  Last confirmed: {_recent_iso()}\n",
         encoding="utf-8",
     )
     clients = _make_clients(
@@ -1253,7 +1266,7 @@ def test_category_b_netlify_site_404(tmp_path: Path, monkeypatch):
     checklist = tmp_path / ".launchpad" / "preflight-checklist.md"
     checklist.write_text(
         "- [x] Netlify site (id: netlify.site-exists)\n"
-        "  Last confirmed: 2026-05-16T00:00:00Z\n",
+        f"  Last confirmed: {_recent_iso()}\n",
         encoding="utf-8",
     )
     clients = _make_clients(
@@ -1302,7 +1315,7 @@ def test_dns_resolves_to_cloudflare_matches_104_prefix(tmp_path: Path, monkeypat
     checklist.write_text(
         "- [x] Custom domain resolves to Cloudflare "
         "(id: cloudflare-dns.apex-resolves-to-cloudflare)\n"
-        "  Last confirmed: 2026-05-16T00:00:00Z\n",
+        f"  Last confirmed: {_recent_iso()}\n",
         encoding="utf-8",
     )
     clients = _make_clients(
@@ -1332,7 +1345,7 @@ def test_dns_resolves_to_cloudflare_rejects_third_party_ip(tmp_path: Path, monke
     checklist.write_text(
         "- [x] Custom domain resolves to Cloudflare "
         "(id: cloudflare-dns.apex-resolves-to-cloudflare)\n"
-        "  Last confirmed: 2026-05-16T00:00:00Z\n",
+        f"  Last confirmed: {_recent_iso()}\n",
         encoding="utf-8",
     )
     clients = _make_clients(
@@ -1395,7 +1408,7 @@ def test_dns_resolves_fails_when_dig_missing(tmp_path: Path, monkeypatch):
     checklist.write_text(
         "- [x] Custom domain resolves to Cloudflare "
         "(id: cloudflare-dns.apex-resolves-to-cloudflare)\n"
-        "  Last confirmed: 2026-05-16T00:00:00Z\n",
+        f"  Last confirmed: {_recent_iso()}\n",
         encoding="utf-8",
     )
     clients = _make_clients(
@@ -1442,7 +1455,7 @@ def test_github_secrets_missing_fails(tmp_path: Path, monkeypatch):
     checklist.write_text(
         "- [x] GitHub Secrets populated "
         "(id: cloudflare-pages.github-secrets-populated)\n"
-        "  Last confirmed: 2026-05-16T00:00:00Z\n",
+        f"  Last confirmed: {_recent_iso()}\n",
         encoding="utf-8",
     )
     clients = _make_clients(
@@ -1503,7 +1516,7 @@ def test_github_secrets_gh_not_installed(tmp_path: Path, monkeypatch):
     checklist.write_text(
         "- [x] GitHub Secrets populated "
         "(id: cloudflare-pages.github-secrets-populated)\n"
-        "  Last confirmed: 2026-05-16T00:00:00Z\n",
+        f"  Last confirmed: {_recent_iso()}\n",
         encoding="utf-8",
     )
     clients = _make_clients(
@@ -1532,9 +1545,7 @@ def test_github_secrets_gh_not_installed(tmp_path: Path, monkeypatch):
                 "name",
                 "--repo",
                 "test-org/test-repo",
-            ): CommandResult(
-                returncode=127, stdout="", stderr="FileNotFoundError"
-            ),
+            ): CommandResult(returncode=127, stdout="", stderr="FileNotFoundError"),
         },
     )
     report = run_preflight(
@@ -1763,7 +1774,7 @@ def test_malformed_override_value_raises(tmp_path: Path):
     cfg.write_text(
         "providers:\n  - spec-completeness\n"
         "overrides:\n"
-        "  spec-completeness.changelog-has-version-entry: \"not-a-dict\"\n",
+        '  spec-completeness.changelog-has-version-entry: "not-a-dict"\n',
         encoding="utf-8",
     )
     with pytest.raises(PreflightConfigError, match="must be a mapping"):
@@ -1781,7 +1792,7 @@ def test_github_secrets_pins_repo_from_origin(tmp_path: Path, monkeypatch):
     checklist = tmp_path / ".launchpad" / "preflight-checklist.md"
     checklist.write_text(
         "- [x] GitHub Secrets (id: cloudflare-pages.github-secrets-populated)\n"
-        "  Last confirmed: 2026-05-16T00:00:00Z\n",
+        f"  Last confirmed: {_recent_iso()}\n",
         encoding="utf-8",
     )
     captured_commands: list[list[str]] = []
@@ -1789,9 +1800,7 @@ def test_github_secrets_pins_repo_from_origin(tmp_path: Path, monkeypatch):
     def _capture_run(args: list[str]) -> CommandResult:
         captured_commands.append(args)
         if args[:4] == ["git", "-C", str(tmp_path), "remote"]:
-            return CommandResult(
-                0, "git@github.com:org-via-ssh/repo-via-ssh.git\n", ""
-            )
+            return CommandResult(0, "git@github.com:org-via-ssh/repo-via-ssh.git\n", "")
         if args[:3] == ["gh", "secret", "list"]:
             return CommandResult(
                 0,
@@ -1822,3 +1831,318 @@ def test_github_secrets_pins_repo_from_origin(tmp_path: Path, monkeypatch):
     assert "--repo" in gh_calls[0]
     repo_idx = gh_calls[0].index("--repo")
     assert gh_calls[0][repo_idx + 1] == "org-via-ssh/repo-via-ssh"
+
+
+# ---------------------------------------------------------------------------
+# Round-2 Codex / Greptile review fixes: section-spec lifecycle, gh
+# fail-closed, Vercel teamId, malformed check guard, regex error catch,
+# Cloudflare IP range completeness.
+# ---------------------------------------------------------------------------
+
+
+def test_section_specs_accepts_reviewed_and_built_statuses(tmp_path: Path):
+    """Sections in the lifecycle ahead of `approved` (reviewed, built)
+    MUST count as ship-ready. The probe previously required EXACTLY
+    `approved`, which would block /lp-ship recovery-path invocations
+    after a successful /lp-build advance to `reviewed` or `built`.
+    Codex round-2 P1."""
+    _make_repo(tmp_path, ["spec-completeness"])
+    (tmp_path / ".launchpad" / "autonomous-ack.md").write_text(
+        "ack\n", encoding="utf-8"
+    )
+    (tmp_path / "docs" / "architecture").mkdir(parents=True)
+    (tmp_path / "docs" / "architecture" / "PRD.md").write_text(
+        "# PRD\n", encoding="utf-8"
+    )
+    (tmp_path / "CHANGELOG.md").write_text("## [v1.0.0]\n", encoding="utf-8")
+    sections = tmp_path / "docs" / "tasks" / "sections"
+    sections.mkdir(parents=True)
+    (sections / "hero.md").write_text("---\nstatus: reviewed\n---\n", encoding="utf-8")
+    (sections / "pricing.md").write_text("---\nstatus: built\n---\n", encoding="utf-8")
+    (sections / "faq.md").write_text("---\nstatus: approved\n---\n", encoding="utf-8")
+    clients = _make_clients(
+        command_responses={
+            ("git", "-C", str(tmp_path), "status", "--porcelain"): CommandResult(
+                0, "", ""
+            ),
+        }
+    )
+    report = run_preflight(
+        tmp_path, clients=clients, profile_dir=PROFILE_DIR, write_checklist=False
+    )
+    by_id = {r.item_id: r for r in report.results}
+    assert by_id["spec-completeness.section-specs-approved"].status == "pass"
+
+
+def test_section_specs_rejects_pre_approval_statuses(tmp_path: Path):
+    """Statuses before `approved` (shaped, designed, planned, hardened)
+    are NOT ship-ready and must fail. Locks the closed-enum invariant."""
+    _make_repo(tmp_path, ["spec-completeness"])
+    (tmp_path / ".launchpad" / "autonomous-ack.md").write_text(
+        "ack\n", encoding="utf-8"
+    )
+    (tmp_path / "docs" / "architecture").mkdir(parents=True)
+    (tmp_path / "docs" / "architecture" / "PRD.md").write_text(
+        "# PRD\n", encoding="utf-8"
+    )
+    (tmp_path / "CHANGELOG.md").write_text("## [Unreleased]\n", encoding="utf-8")
+    sections = tmp_path / "docs" / "tasks" / "sections"
+    sections.mkdir(parents=True)
+    (sections / "draft.md").write_text("---\nstatus: planned\n---\n", encoding="utf-8")
+    clients = _make_clients(
+        command_responses={
+            ("git", "-C", str(tmp_path), "status", "--porcelain"): CommandResult(
+                0, "", ""
+            ),
+        }
+    )
+    report = run_preflight(
+        tmp_path, clients=clients, profile_dir=PROFILE_DIR, write_checklist=False
+    )
+    by_id = {r.item_id: r for r in report.results}
+    res = by_id["spec-completeness.section-specs-approved"]
+    assert res.status == "fail"
+    assert "planned" in res.message
+
+
+def test_github_secrets_fails_closed_when_slug_not_derivable(
+    tmp_path: Path, monkeypatch
+):
+    """When the git remote is missing OR not a github.com URL, the probe
+    MUST fail-closed rather than fall back to gh's ambient cwd inference.
+    Codex round-2 P1."""
+    _make_repo(tmp_path, ["cloudflare-pages"])
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "ok")
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "acct")
+    monkeypatch.setenv("CLOUDFLARE_PAGES_PROJECT_SLUG", "slug")
+    checklist = tmp_path / ".launchpad" / "preflight-checklist.md"
+    checklist.write_text(
+        "- [x] GitHub Secrets (id: cloudflare-pages.github-secrets-populated)\n"
+        f"  Last confirmed: {_recent_iso()}\n",
+        encoding="utf-8",
+    )
+
+    def _run(args: list[str]) -> CommandResult:
+        if args[:4] == ["git", "-C", str(tmp_path), "remote"]:
+            # Simulate "no origin remote" via non-zero exit
+            return CommandResult(128, "", "fatal: No such remote 'origin'\n")
+        raise AssertionError(f"gh secret list should not run; got {args}")
+
+    clients = ProbeClients(
+        http_get=lambda url, headers: HttpResponse(
+            200, json.dumps({"success": True, "result": {"status": "active"}})
+        ),
+        run_command=_run,
+    )
+    report = run_preflight(
+        tmp_path, clients=clients, profile_dir=PROFILE_DIR, write_checklist=False
+    )
+    by_id = {r.item_id: r for r in report.results}
+    res = by_id["cloudflare-pages.github-secrets-populated"]
+    assert res.status == "fail"
+    assert "cannot derive" in res.message
+    assert "args.repo" in res.message
+
+
+def test_github_secrets_honors_args_repo_override(tmp_path: Path, monkeypatch):
+    """When `args.repo: <owner>/<name>` is set in overrides, the probe
+    skips slug derivation and uses the explicit override. Documented
+    fail-closed escape hatch."""
+    cfg = tmp_path / ".launchpad" / "preflight.config.yaml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text(
+        "providers:\n  - cloudflare-pages\n"
+        "overrides:\n"
+        "  cloudflare-pages.github-secrets-populated:\n"
+        "    args:\n"
+        "      repo: explicit-org/explicit-repo\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "ok")
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "acct")
+    monkeypatch.setenv("CLOUDFLARE_PAGES_PROJECT_SLUG", "slug")
+    checklist = tmp_path / ".launchpad" / "preflight-checklist.md"
+    checklist.write_text(
+        "- [x] GitHub Secrets (id: cloudflare-pages.github-secrets-populated)\n"
+        f"  Last confirmed: {_recent_iso()}\n",
+        encoding="utf-8",
+    )
+    captured: list[list[str]] = []
+
+    def _run(args: list[str]) -> CommandResult:
+        captured.append(args)
+        if args[:3] == ["gh", "secret", "list"]:
+            return CommandResult(
+                0,
+                json.dumps(
+                    [
+                        {"name": "CLOUDFLARE_API_TOKEN"},
+                        {"name": "CLOUDFLARE_ACCOUNT_ID"},
+                    ]
+                ),
+                "",
+            )
+        raise AssertionError(f"unexpected run_command: {args}")
+
+    clients = ProbeClients(
+        http_get=lambda url, headers: HttpResponse(
+            200, json.dumps({"success": True, "result": {"status": "active"}})
+        ),
+        run_command=_run,
+    )
+    report = run_preflight(
+        tmp_path, clients=clients, profile_dir=PROFILE_DIR, write_checklist=False
+    )
+    by_id = {r.item_id: r for r in report.results}
+    assert by_id["cloudflare-pages.github-secrets-populated"].status == "pass"
+    gh_calls = [c for c in captured if c[:3] == ["gh", "secret", "list"]]
+    assert len(gh_calls) == 1
+    idx = gh_calls[0].index("--repo")
+    assert gh_calls[0][idx + 1] == "explicit-org/explicit-repo"
+    # The git remote get-url should NOT have been called when args.repo
+    # is explicit (avoids spurious subprocess).
+    assert not any(c[:2] == ["git", "-C"] for c in captured)
+
+
+def test_vercel_project_pins_teamid_when_org_env_set(tmp_path: Path, monkeypatch):
+    """When VERCEL_ORG_ID is exported, the project-exists probe MUST
+    append `?teamId=<org>` so team-owned projects verify correctly.
+    Codex round-2 P2."""
+    _make_repo(tmp_path, ["vercel"])
+    monkeypatch.setenv("VERCEL_TOKEN", "tok")
+    monkeypatch.setenv("VERCEL_PROJECT_ID", "prj_abc")
+    monkeypatch.setenv("VERCEL_ORG_ID", "team_xyz")
+    checklist = tmp_path / ".launchpad" / "preflight-checklist.md"
+    checklist.write_text(
+        "- [x] Project (id: vercel.project-exists)\n"
+        f"  Last confirmed: {_recent_iso()}\n",
+        encoding="utf-8",
+    )
+    captured_urls: list[str] = []
+
+    def _http(url: str, headers: dict[str, str]) -> HttpResponse:
+        captured_urls.append(url)
+        return HttpResponse(200, "{}")
+
+    clients = ProbeClients(
+        http_get=_http,
+        run_command=lambda args: CommandResult(0, "[]", ""),
+    )
+    report = run_preflight(
+        tmp_path, clients=clients, profile_dir=PROFILE_DIR, write_checklist=False
+    )
+    by_id = {r.item_id: r for r in report.results}
+    assert by_id["vercel.project-exists"].status == "pass"
+    project_urls = [u for u in captured_urls if "/v9/projects/" in u]
+    assert len(project_urls) == 1
+    assert "teamId=team_xyz" in project_urls[0]
+
+
+def test_malformed_check_entry_raises_config_error(tmp_path: Path):
+    """A profile with `checks: [1]` or `checks: ["foo"]` (non-mapping
+    entries) MUST raise PreflightConfigError at load time instead of
+    propagating an unhandled TypeError. Codex round-2 P2."""
+    cfg = tmp_path / ".launchpad" / "preflight.config.yaml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("providers:\n  - bad-profile\n", encoding="utf-8")
+    profile_dir = tmp_path / "profiles"
+    profile_dir.mkdir()
+    (profile_dir / "bad-profile.yaml").write_text(
+        "name: bad-profile\nchecks:\n  - 1\n  - non-dict-string\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(PreflightConfigError, match="must be a mapping"):
+        load_preflight_config(tmp_path, profile_dir=profile_dir)
+
+
+def test_file_contains_catches_invalid_regex(tmp_path: Path):
+    """The file-contains probe MUST catch re.error from a malformed
+    regex pattern and return a clean _fail message rather than raising.
+    Greptile round-2 P2."""
+    target = tmp_path / "sample.txt"
+    target.write_text("hello world\n", encoding="utf-8")
+    cfg = tmp_path / ".launchpad" / "preflight.config.yaml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("providers:\n  - bad-regex\n", encoding="utf-8")
+    profile_dir = tmp_path / "profiles"
+    profile_dir.mkdir()
+    (profile_dir / "bad-regex.yaml").write_text(
+        "name: bad-regex\n"
+        "checks:\n"
+        "  - id: bad-regex.invalid-pattern\n"
+        "    category: A\n"
+        "    title: Smoke check with bad regex\n"
+        "    setup_hint: |\n"
+        "      not used\n"
+        "    probe: file-contains\n"
+        "    args:\n"
+        "      path: sample.txt\n"
+        "      pattern: '[unclosed'\n",
+        encoding="utf-8",
+    )
+    clients = _make_clients()
+    report = run_preflight(
+        tmp_path, clients=clients, profile_dir=profile_dir, write_checklist=False
+    )
+    by_id = {r.item_id: r for r in report.results}
+    res = by_id["bad-regex.invalid-pattern"]
+    assert res.status == "fail"
+    assert "invalid regex pattern" in res.message
+
+
+def test_dns_cloudflare_accepts_full_104_block(tmp_path: Path, monkeypatch):
+    """The cloudflare-DNS probe MUST cover 104.16.0.0/12 in full
+    (104.16.* through 104.31.*), not just 3 prefixes. Greptile round-2
+    P2: previous heuristic false-negatived on 104.19.* through
+    104.31.*."""
+    monkeypatch.setenv("PREFLIGHT_DOMAIN", "example.test")
+    chk = lp_preflight.CheckDefinition(
+        item_id="test.dns-104-25",
+        category="C1",
+        title="DNS",
+        setup_hint="",
+        stale_window_days=30,
+        probe="dns-resolves-to-cloudflare",
+        args={"domain_env": "PREFLIGHT_DOMAIN"},
+    )
+    # Test 104.25.x.y (inside the /12 but outside the 3-prefix subset
+    # the old heuristic covered).
+    clients = _make_clients(
+        command_responses={
+            ("dig", "+short", "--", "example.test"): CommandResult(
+                0, "104.25.42.7\n", ""
+            ),
+        }
+    )
+    res = lp_preflight._PROBE_REGISTRY["dns-resolves-to-cloudflare"](
+        tmp_path, chk, clients
+    )
+    assert res.status == "pass"
+    assert "104.25.42.7" in res.message
+
+
+def test_dns_cloudflare_accepts_full_172_block(tmp_path: Path, monkeypatch):
+    """Mirror of the /12 test for 172.64.0.0/13 (172.64.* through
+    172.71.*). Pre-fix heuristic only covered 172.64.* and 172.67.*."""
+    monkeypatch.setenv("PREFLIGHT_DOMAIN", "example.test")
+    chk = lp_preflight.CheckDefinition(
+        item_id="test.dns-172-70",
+        category="C1",
+        title="DNS",
+        setup_hint="",
+        stale_window_days=30,
+        probe="dns-resolves-to-cloudflare",
+        args={"domain_env": "PREFLIGHT_DOMAIN"},
+    )
+    clients = _make_clients(
+        command_responses={
+            ("dig", "+short", "--", "example.test"): CommandResult(
+                0, "172.70.5.5\n", ""
+            ),
+        }
+    )
+    res = lp_preflight._PROBE_REGISTRY["dns-resolves-to-cloudflare"](
+        tmp_path, chk, clients
+    )
+    assert res.status == "pass"
+    assert "172.70" in res.message
