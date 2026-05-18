@@ -27,7 +27,7 @@ See `docs/releases/v2.1.9.md` for the file-by-file breakdown and the dependency-
 
 ### Test count
 
-1975 passing + 4 skipped (unchanged from v2.1.8). The dependency bumps re-ran existing tests under updated tool versions; all green.
+1975 passing + 4 skipped. Matches the end-of-v2.1.8-lane total at the BL-373 cycle-2 commit; the v2.1.8 release notes pinned 1967 mid-arc (before BL-373 cycle 2 added 7 round-2 fix-pass tests). No new tests added in v2.1.9; the dependency bumps re-ran existing tests under updated tool versions, all green.
 
 ## [v2.1.8]
 
@@ -451,7 +451,13 @@ Carried forward into v1.1:
 
 Full v1.1 scope in [ROADMAP.md](ROADMAP.md).
 
-[Unreleased]: https://github.com/builtform/launchpad/compare/v2.1.3...HEAD
+[Unreleased]: https://github.com/builtform/launchpad/compare/v2.1.9...HEAD
+[v2.1.9]: https://github.com/builtform/launchpad/compare/v2.1.8...v2.1.9
+[v2.1.8]: https://github.com/builtform/launchpad/compare/v2.1.7...v2.1.8
+[v2.1.7]: https://github.com/builtform/launchpad/compare/v2.1.6...v2.1.7
+[v2.1.6]: https://github.com/builtform/launchpad/compare/v2.1.5...v2.1.6
+[v2.1.5]: https://github.com/builtform/launchpad/compare/v2.1.4...v2.1.5
+[v2.1.4]: https://github.com/builtform/launchpad/compare/v2.1.3...v2.1.4
 [v2.1.3]: https://github.com/builtform/launchpad/compare/v2.1.2...v2.1.3
 [v2.1.2]: https://github.com/builtform/launchpad/compare/v2.1.1...v2.1.2
 [v2.1.1]: https://github.com/builtform/launchpad/compare/v2.1.0...v2.1.1

@@ -3117,7 +3117,9 @@ Confirmations are persisted via per-item `Last confirmed:` ISO timestamps in the
 
 ---
 
-#### BL-365 - v2.1.8: Parallelize preflight probe dispatch + short-TTL cache + `_run_one_check` refactor (P2)
+#### BL-365 - v2.1.x: Parallelize preflight probe dispatch + short-TTL cache + `_run_one_check` refactor (P2)
+
+**Status (2026-05-18)**: Re-targeted v2.1.8 → v2.1.x. Did not ship in v2.1.8 (autonomy lane took precedence); carried forward through v2.1.9 (dependency sweep, no code-bearing window). Will land in the next code-bearing v2.1.x patch.
 
 **Status (2026-05-17)**: NEW. Surfaced during the post-BL-364 `/lp-review` pass on `feat/bl-364-preflight-gate` (8-agent dispatch). **Source**: BL-364 review findings 01 (`lp-performance-auditor`) + 05 (4-agent consensus across `lp-code-simplicity-reviewer`, `lp-kieran-foad-python-reviewer`, `lp-pattern-finder`, `lp-architecture-strategist`).
 
@@ -3212,7 +3214,9 @@ Codex round-6 follow-ups on PR #75 (2):
 
 ---
 
-#### BL-367 - v2.1.8: Programmatic GitHub-repo linkage verification for provider project probes (P2)
+#### BL-367 - v2.1.x: Programmatic GitHub-repo linkage verification for provider project probes (P2)
+
+**Status (2026-05-18)**: Re-targeted v2.1.8 → v2.1.x. Did not ship in v2.1.8 (autonomy lane took precedence); carried forward through v2.1.9 (dependency sweep, no code-bearing window). Will land in the next code-bearing v2.1.x patch.
 
 **Filed by**: Codex round-5 review on PR #75 (v2.1.7 / BL-364), 2026-05-17.
 
@@ -3234,7 +3238,9 @@ On linkage mismatch: probe FAILS with message naming the detected linkage vs the
 
 ---
 
-#### BL-368 - v2.1.8: DNS probes pass `dig +short -- <domain>` but BIND `dig` does not support `--` as end-of-options sentinel; all DNS checks false-fail in real invocations (P1)
+#### BL-368 - v2.1.x: DNS probes pass `dig +short -- <domain>` but BIND `dig` does not support `--` as end-of-options sentinel; all DNS checks false-fail in real invocations (P1)
+
+**Status (2026-05-18)**: Re-targeted v2.1.8 → v2.1.x. Did not ship in v2.1.8 (autonomy lane took precedence); carried forward through v2.1.9 (dependency sweep, no code-bearing window). Will land in the next code-bearing v2.1.x patch. Workaround documented in v2.1.8 release notes: untick the C1 box after probe false-fail OR drop the DNS profile from `.launchpad/preflight.config.yaml`.
 
 **Filed by**: Codex round-6 review on PR #75 (post-merge, after `f6838ae` push), 2026-05-17. Validated locally against `DiG 9.10.6`: `dig +short -- example.com` prints `Invalid option: --` + usage to stderr and exits 0 with EMPTY stdout. The probe code at `plugins/launchpad/scripts/lp_preflight.py:1416` (`dns-resolves-to-cloudflare`) and `:1468` (`dns-resolves-via-cname`) parses stdout for answer lines, sees zero answers, and returns `fail` with the message `"no DNS A records for <domain>"` or `"no DNS records for <domain>"`. Real consequence: **every DNS probe in v2.1.7 false-fails against a correctly-configured domain**, because the `--` sentinel I added to defend against leading-dash domain interpretation is not a BIND-supported option.
 
