@@ -3787,3 +3787,82 @@ Future hosts (v2.2 BL): `registry.npmjs.org`, `pypi.org/simple/`, `crates.io`, p
 - Auto-rotation reminders for tokens approaching expiration.
 
 **Default decision**: ship in v2.1.8 as a fourth additive BL on the autonomy lane. Touches different files from BL-370 / BL-371 / BL-372, so no merge-time interaction. Total scope ~150-200 LOC + new profile + ~10 net new tests.
+
+---
+
+#### BL-374 - v2.2: TypeScript 5.x -> 6.x upgrade (audit + fix all breaking-change surfaces in one deliberate pass) (P2)
+
+**Filed by**: Dependabot PR #74 review during the post-v2.1.8 dependency-sweep session, 2026-05-17. Dependabot proposed `typescript 5.9.3 -> 6.0.3` (npm devDependency). CI Build + Type Check + CI Summary all failed; the root cause is a single class of TS 6.0 breaking change (tightened type auto-loading), but TS major bumps historically expose multiple breaking-change surfaces, so the right move is a deliberate audit rather than a Dependabot-driven auto-merge. PR #74 was closed (not merged) and this BL captures the deferred work.
+
+**Status (2026-05-17)**: NEW. Deferred from v2.1.x by explicit operator decision; not blocking any v2.1.x release.
+
+**Impact**: `apps/api` typecheck fails on TS 6.0 with 6 errors in `apps/api/src/index.ts`:
+
+```
+src/index.ts(13,21): error TS2591: Cannot find name 'process'.
+src/index.ts(17,5):  error TS2584: Cannot find name 'console'.
+src/index.ts(20,28): error TS2503: Cannot find namespace 'NodeJS'.
+src/index.ts(23,7):  error TS2584: Cannot find name 'console'.
+src/index.ts(26,7):  error TS2584: Cannot find name 'console'.
+src/index.ts(27,7):  error TS2591: Cannot find name 'process'.
+```
+
+Root cause: TS 6.0 tightened type auto-loading. Under TS 5.x, every `@types/*` package in `node_modules` was implicitly available; under TS 6.0, `tsconfig.json` must explicitly declare `"types": [...]`. The shared `packages/typescript-config/node.json` does not declare `"types": ["node"]`, so Node globals (`process`, `console`, `NodeJS` namespace) become unresolvable for any consumer of that config. `apps/api` and `packages/db` both extend `node.json` and would be affected; `@types/node@22.19.17` IS installed at `apps/api`'s level (and hoisted to root via pnpm workspaces) but never loaded into the compile.
+
+**Solution shape: one-line tsconfig fix + full TS 6.0 breaking-change audit**
+
+The known fix is a single line in `packages/typescript-config/node.json`:
+
+```jsonc
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./base.json",
+  "compilerOptions": {
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "lib": ["ESNext"],
+    "types": ["node"],
+  },
+}
+```
+
+That closes the immediate 6 errors. But TS 6.0 also tightened:
+
+1. Control-flow analysis (more narrowed inferences; some patterns that previously inferred `any` now infer `unknown`).
+2. Default `module` / `target` semantics; `Node16` `module` resolution behavior was refined.
+3. Stricter `noImplicitOverride` and `useUnknownInCatchVariables` behavior in some interop edge cases.
+4. Library declaration changes (some `lib.*.d.ts` types moved or were renamed).
+
+The BL covers a deliberate single-pass audit: apply the tsconfig fix, run `pnpm typecheck` across all workspaces, fix every error in one branch, run `pnpm test` + `pnpm build`, ship.
+
+**Files likely to modify**:
+
+- `packages/typescript-config/node.json`: add `"types": ["node"]` to `compilerOptions`.
+- `packages/typescript-config/base.json`: review `target` / `module` defaults; may need to declare `"types": []` to be explicit about empty default.
+- `apps/api/src/**`, `apps/web/src/**`, `packages/db/src/**`, `packages/shared/src/**`, `packages/ui/src/**`: any TS source surfaced by the typecheck pass.
+- `package.json` (root + workspace): bump `typescript` devDependency to `^6.0.3` (or whichever 6.x patch is latest at audit time).
+
+**Tests to add**:
+
+- No new functional tests required; existing `pnpm test` across all workspaces must stay green.
+- Optional: add a CI guard that prints `tsc --version` so future bumps are visible in CI logs.
+
+**Acceptance criteria**:
+
+- `pnpm typecheck` is green across all workspaces on TS 6.x.
+- `pnpm build` is green.
+- `pnpm test` is green.
+- A new (or recreated) Dependabot TS-6.x PR can be merged via the normal flow (CI green, no admin override needed).
+- The tsconfig change is documented in the v2.2 release notes under "Breaking-change audits".
+
+**Stop conditions** (pause + report):
+
+- A TS 6.0 breaking change in user-facing API surface (rare; TS rarely breaks public type APIs across majors). Defer to a v2.3 follow-up if surfaced.
+- A breaking change in `@types/node` that requires a Node runtime bump (LTS targeting).
+
+**Out of scope** (defer to v2.2 / v2.x):
+
+- Adopting any TS 6.0 NEW features (e.g., new utility types, new strict modes). This BL is breaking-change-only; net-new feature adoption is separate.
+- Migrating `module: Node16` -> `module: NodeNext` or other module-resolution rewrites; not required by TS 6.0.
+
+**Default decision**: defer to v2.2 as a deliberate single-PR audit. Do NOT slip in via Dependabot. PR #74 (closed 2026-05-17) is the deferred artifact this BL replaces.
