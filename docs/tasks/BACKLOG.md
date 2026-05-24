@@ -3883,7 +3883,7 @@ The BL covers a deliberate single-pass audit: apply the tsconfig fix, run `pnpm 
 
 1. `packages/db/prisma/schema.prisma` declares `generator client { provider = "prisma-client-js" }` (must rename to `prisma-client`) and does not declare an `output` path (must add one, e.g., `output = "../src/generated/prisma"`).
 2. `packages/db/src/client.ts:9` calls `new PrismaClient({ log: ... })` (must switch to an adapter, e.g., `@prisma/adapter-pg`, or pass `accelerateUrl`).
-3. `packages/db/src/client.ts:1` imports `from "@prisma/client"` (must repoint to the generated output path, e.g., `from "../generated/prisma/client"`).
+3. `packages/db/src/client.ts:1` imports `from "@prisma/client"` (must repoint to the generated output path, e.g., `from "./generated/prisma/client"`).
 4. `packages/db/prisma/schema.prisma` datasource `url = env("DATABASE_URL")` must move to a new `prisma.config.ts` at the package root.
 5. CLI no longer auto-loads `.env`; any entry point that runs `prisma` commands or instantiates the client without an existing env setup needs explicit `dotenv` (or equivalent) wiring. No `dotenv` import exists in `packages/db` or `apps/api` today.
 
@@ -3906,20 +3906,27 @@ datasource db {
 ```typescript
 // packages/db/prisma.config.ts (new)
 import "dotenv/config";
-import { defineConfig } from "prisma/config";
+import { defineConfig, env } from "prisma/config";
 export default defineConfig({
   schema: "prisma/schema.prisma",
-  datasource: { url: process.env.DATABASE_URL! },
+  datasource: { url: env("DATABASE_URL") },
 });
 ```
 
 ```typescript
 // packages/db/src/client.ts
-import { PrismaClient } from "../generated/prisma/client";
+import { PrismaClient } from "./generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-// adapter accepts a connection string or a pg Pool
+
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
-export const prisma = new PrismaClient({ adapter });
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
+
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 ```
 
 Beyond the minimum, Prisma 7 also tightened/removed:

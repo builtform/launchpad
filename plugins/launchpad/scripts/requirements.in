@@ -23,7 +23,7 @@ markupsafe==3.0.3      # transitive of jinja2; pinned explicitly for repro
 
 # --- v2.1.1 Phase 4 Layer 3 static analysis ---
 
-ruff==0.11.12          # style + import-order + bugbear (lefthook pre-commit)
+ruff==0.15.14          # style + import-order + bugbear (lefthook pre-commit)
 # pyright pulls nodeenv, which downloads a Node.js binary at install-time.
 # That binary download is OUTSIDE pip's hash coverage — a residual supply-chain
 # hole at the pyright/nodeenv boundary. v2.1.x BL candidate: evaluate mypy (no
