@@ -77,13 +77,13 @@ importers:
         version: link:../../packages/ui
       next:
         specifier: ^15.5.15
-        version: 15.5.15(react-dom@19.2.5(react@19.2.6))(react@19.2.6)
+        version: 15.5.15(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       react:
         specifier: ^19.2.6
         version: 19.2.6
       react-dom:
-        specifier: ^19.2.5
-        version: 19.2.5(react@19.2.6)
+        specifier: ^19.2.6
+        version: 19.2.6(react@19.2.6)
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*
@@ -2339,10 +2339,10 @@ packages:
   rc9@2.1.2:
     resolution: {integrity: sha512-btXCnMmRIBINM2LDZoEmOogIZU7Qe7zn4BpomSKZ/ykbLObuBdvG+mFq11DL6fjH1DRwHhrlgtYWG96bJiC7Cg==}
 
-  react-dom@19.2.5:
-    resolution: {integrity: sha512-J5bAZz+DXMMwW/wV3xzKke59Af6CHY7G4uYLN1OvBcKEsWOs4pQExj86BBKamxl/Ik5bx9whOrvBlSDfWzgSag==}
+  react-dom@19.2.6:
+    resolution: {integrity: sha512-0prMI+hvBbPjsWnxDLxlCGyM8PN6UuWjEUCYmZhO67xIV9Xasa/r/vDnq+Xyq4Lo27g8QSbO5YzARu0D1Sps3g==}
     peerDependencies:
-      react: ^19.2.5
+      react: ^19.2.6
 
   react-is@16.13.1:
     resolution: {integrity: sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==}
@@ -4641,14 +4641,14 @@ snapshots:
 
   natural-compare@1.4.0: {}
 
-  next@15.5.15(react-dom@19.2.5(react@19.2.6))(react@19.2.6):
+  next@15.5.15(react-dom@19.2.6(react@19.2.6))(react@19.2.6):
     dependencies:
       '@next/env': 15.5.15
       '@swc/helpers': 0.5.15
       caniuse-lite: 1.0.30001790
       postcss: 8.4.31
       react: 19.2.6
-      react-dom: 19.2.5(react@19.2.6)
+      react-dom: 19.2.6(react@19.2.6)
       styled-jsx: 5.1.6(react@19.2.6)
     optionalDependencies:
       '@next/swc-darwin-arm64': 15.5.15
@@ -4842,7 +4842,7 @@ snapshots:
       defu: 6.1.7
       destr: 2.0.5
 
-  react-dom@19.2.5(react@19.2.6):
+  react-dom@19.2.6(react@19.2.6):
     dependencies:
       react: 19.2.6
       scheduler: 0.27.0
