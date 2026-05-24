@@ -2063,6 +2063,8 @@ Additionally, `lp-test-browser.md:103` is a SECOND writer of `.harness/todos/*.m
 
 #### BL-322 - v2.1.x: Migrate to Prisma 7 (datasource URL → prisma.config.ts)
 
+**Status (2026-05-24)**: SUPERSEDED by [[BL-375]]. Same scope (Prisma 6 -> 7 migration), but BL-375 has the expanded breaking-change inventory across all 5 axes from the Prisma 7 release notes (generator rename, required `output` path, removed zero-arg `new PrismaClient()`, datasource -> `prisma.config.ts`, no auto-`.env`), the concrete file-by-file impact map for this repo, and verified code snippets (Greptile-reviewed). Re-targeted v2.1.x -> v2.2 per BL-375. This entry retained for audit trail; do not action.
+
 **Status (2026-05-10)**: NEW — Dependabot PR #54 (closed 2026-05-10) attempted Prisma 6.19.3 → 7.8.0 bump; fails on `schema.prisma` validation (P1012). NOT v2.1.2 scope.
 
 **Source**: v2.1.1 post-ship dependabot triage (2026-05-10)
