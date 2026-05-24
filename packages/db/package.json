@@ -18,7 +18,7 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.3"
+    "@prisma/client": "^7.8.0"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
