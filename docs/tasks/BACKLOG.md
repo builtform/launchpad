@@ -3872,3 +3872,100 @@ The BL covers a deliberate single-pass audit: apply the tsconfig fix, run `pnpm 
 - Migrating `module: Node16` -> `module: NodeNext` or other module-resolution rewrites; not required by TS 6.0.
 
 **Default decision**: defer to v2.2 as a deliberate single-PR audit. Do NOT slip in via Dependabot. PR #74 (closed 2026-05-17) is the deferred artifact this BL replaces.
+
+#### BL-375 - v2.2: Prisma 6.x -> 7.x upgrade (generator rename + required output path + adapter-based instantiation + config-file datasource) (P2)
+
+**Filed by**: Dependabot PR #86 review during the 2026-05-24 dependency-sweep session. Dependabot proposed `@prisma/client 6.19.3 -> 7.8.0` (npm dependency in `packages/db`). CI Install failed at `prisma generate` postinstall because the bumped `@prisma/client@7.8.0` is paired against the unchanged `prisma@6.19.3` CLI: `Cannot find module .../runtime/query_engine_bg.postgresql.wasm-base64.js`. The naive fix (also bump `prisma` CLI to 7.8.0) crosses a major version boundary with substantial breaking changes; the right move is a deliberate audit rather than a Dependabot-driven auto-merge. PR #86 was closed (not merged) and this BL captures the deferred work.
+
+**Status (2026-05-24)**: NEW. Deferred from v2.1.x by explicit operator decision; not blocking any v2.1.x release.
+
+**Impact**: Prisma 7 changes the generator name, requires an explicit client `output` path, drops the zero-arg `new PrismaClient()` form in favor of explicit adapter/accelerateUrl, moves the datasource URL out of `schema.prisma` into `prisma.config.ts`, and removes the CLI's implicit `.env` auto-loading. Concrete surface in this repo:
+
+1. `packages/db/prisma/schema.prisma` declares `generator client { provider = "prisma-client-js" }` (must rename to `prisma-client`) and does not declare an `output` path (must add one, e.g., `output = "../src/generated/prisma"`).
+2. `packages/db/src/client.ts:9` calls `new PrismaClient({ log: ... })` (must switch to an adapter, e.g., `@prisma/adapter-pg`, or pass `accelerateUrl`).
+3. `packages/db/src/client.ts:1` imports `from "@prisma/client"` (must repoint to the generated output path, e.g., `from "../generated/prisma/client"`).
+4. `packages/db/prisma/schema.prisma` datasource `url = env("DATABASE_URL")` must move to a new `prisma.config.ts` at the package root.
+5. CLI no longer auto-loads `.env`; any entry point that runs `prisma` commands or instantiates the client without an existing env setup needs explicit `dotenv` (or equivalent) wiring. No `dotenv` import exists in `packages/db` or `apps/api` today.
+
+**Solution shape: schema rewrite + adapter introduction + import rewrite in one deliberate pass**
+
+The minimum migration to restore green:
+
+```prisma
+// packages/db/prisma/schema.prisma
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+```
+
+```typescript
+// packages/db/prisma.config.ts (new)
+import "dotenv/config";
+import { defineConfig } from "prisma/config";
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  datasource: { url: process.env.DATABASE_URL! },
+});
+```
+
+```typescript
+// packages/db/src/client.ts
+import { PrismaClient } from "../generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+// adapter accepts a connection string or a pg Pool
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+export const prisma = new PrismaClient({ adapter });
+```
+
+Beyond the minimum, Prisma 7 also tightened/removed:
+
+1. Driver adapter naming (`PrismaNeonHTTP` -> `PrismaNeonHttp`, `PrismaD1HTTP` -> `PrismaD1Http`, `PrismaLibSQL` -> `PrismaLibSql`, `PrismaBetterSQLite3` -> `PrismaBetterSqlite3`).
+2. `prisma migrate diff` flag renames (`--[from/to]-schema-datamodel` -> `--[from/to]-schema`, `--[from/to]-url` / `--[from/to]-schema-datasource` -> `--[from/to]-config-datasource`).
+3. Removed: `prisma introspect`, `prisma db pull --local-d1`, generate flags `--data-proxy`/`--accelerate`/`--no-engine`/`--allow-no-models`, `metrics` preview feature, React Native engine, MongoDB support.
+4. Removed engine types: `LibraryEngine`, `BinaryEngine`, `DataProxyEngine`, `AccelerateEngine` (Accelerate uses `RemoteExecutor`).
+5. Removed env vars: `PRISMA_CLI_QUERY_ENGINE_TYPE`, `PRISMA_CLIENT_ENGINE_TYPE`, `PRISMA_GENERATE_SKIP_AUTOINSTALL`, others.
+
+None of (1)-(5) bite this repo as-of 2026-05-24 (PostgreSQL provider, no Accelerate, no React Native, no MongoDB, no removed env vars in CI or `.env*`), but the audit pass should confirm point-in-time.
+
+**Files likely to modify**:
+
+- `packages/db/prisma/schema.prisma`: rename generator provider, add `output`, drop `url` from datasource.
+- `packages/db/prisma.config.ts`: new file with `defineConfig` + dotenv import + datasource URL.
+- `packages/db/src/client.ts`: rewrite imports to generated path; switch to adapter-based instantiation.
+- `packages/db/src/generated/`: new generated output dir; add to `.gitignore` and to `packages/db/tsconfig.json` includes if not picked up automatically.
+- `packages/db/package.json`: bump `prisma` + `@prisma/client` to `^7.8.0`; add `@prisma/adapter-pg` + `pg` + `@types/pg` deps; add `dotenv` if `prisma.config.ts` imports it.
+- `pnpm-lock.yaml`: regenerated.
+- Any `apps/api/src/**` or `apps/web/src/**` route that imports `from "@repo/db"` should keep working transparently (re-export shape preserved by `packages/db/src/index.ts`), but verify in the audit.
+
+**Tests to add**:
+
+- No new functional tests required; existing `pnpm test` across all workspaces must stay green.
+- Optional: a smoke test that boots `prisma` and asserts the generated client surface (`prisma.user.findMany`) compiles + runs against a test PG (CI can use a service container).
+
+**Acceptance criteria**:
+
+- `pnpm install` is green (postinstall `prisma generate` succeeds against the new schema).
+- `pnpm typecheck` is green across all workspaces.
+- `pnpm build` is green.
+- `pnpm test` is green.
+- A new (or recreated) Dependabot Prisma-7.x PR can be merged via the normal flow (CI green, no admin override needed).
+- The schema + adapter migration is documented in the v2.2 release notes under "Breaking-change audits".
+
+**Stop conditions** (pause + report):
+
+- The chosen PG adapter (`@prisma/adapter-pg`) is incompatible with the production Postgres deployment (managed service quirks). Fall back to `@prisma/adapter-pg-worker` or the `prisma+postgres://` accelerateUrl form.
+- A Prisma 7 change in generated-client API surface that breaks consumers in `apps/api` or `apps/web` (rare for routine model queries, more likely for raw-SQL / metrics / middleware patterns). Defer affected callsites to a v2.3 follow-up if surfaced.
+- A `@prisma/client` change that requires a Node runtime bump (current target is Node LTS via `@types/node@22.x`).
+
+**Out of scope** (defer to v2.3 / v2.x):
+
+- Adopting any Prisma 7 NEW features (TypedSQL improvements, new preview features, Accelerate adoption). This BL is breaking-change-only; net-new feature adoption is separate.
+- Migrating the datasource provider away from `postgresql` (no driver change planned).
+- Multi-schema support, ESM-only rewrites, or other architectural shifts; not required by Prisma 7.
+
+**Default decision**: defer to v2.2 as a deliberate single-PR audit. Do NOT slip in via Dependabot. PR #86 (closed 2026-05-24) is the deferred artifact this BL replaces.
