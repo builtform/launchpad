@@ -136,3 +136,14 @@ jobs:
           # allowlisted via LEAKAGE_FILE_ALLOWLIST.
           python plugins/launchpad/scripts/plugin-v2-handshake-lint.py \
             --check-leakage
+
+      - name: 5) Catalog/pattern freshness window (release-time hard gate)
+        run: |
+          # OPERATIONS §4: catalog/pattern `last_validated:` frontmatter must be
+          # re-stamped within the 30d window at each tag. This window is
+          # enforced HERE (release time), not on every PR — the default PR lint
+          # treats staleness as advisory so a lapsed window never blocks an
+          # unrelated change (e.g. a Dependabot bump). If this fails, re-stamp
+          # the catalog/pattern docs to today and re-tag.
+          python plugins/launchpad/scripts/plugin-v2-handshake-lint.py \
+            --check-freshness

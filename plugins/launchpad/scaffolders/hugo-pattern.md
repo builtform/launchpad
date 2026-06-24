@@ -2,7 +2,7 @@
 stack: hugo
 pillar: Frontend Content (Go)
 type: orchestrate
-last_validated: 2026-04-30
+last_validated: 2026-06-23
 scaffolder_command: hugo new site <path> --force
 scaffolder_command_pinned_version: hugo@0.137+ (extended)
 ---

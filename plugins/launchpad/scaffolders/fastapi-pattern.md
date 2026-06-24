@@ -2,7 +2,7 @@
 stack: fastapi
 pillar: Backend Python
 type: curate
-last_validated: 2026-04-30
+last_validated: 2026-06-23
 scaffolder_command: (curate — no official CLI; manual scaffold per this doc)
 scaffolder_command_pinned_version: fastapi@0.115+
 ---
