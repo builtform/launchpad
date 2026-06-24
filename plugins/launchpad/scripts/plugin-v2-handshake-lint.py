@@ -1781,13 +1781,22 @@ def run_default_lint() -> int:
 
 
 def run_check_freshness_gate() -> int:
-    """Hard freshness gate for release time (`--check-freshness`).
+    """Release-time hard gate for the CATALOG/PATTERN SUBSET (`--check-freshness`).
 
     Runs the same catalog/anchor validators as the default lint but with
     `freshness_blocking=True`, so a lapsed `last_validated:` window becomes a
-    failure rather than an advisory warning. Wired into v2-release.yml so
-    catalog/pattern docs must be re-stamped within the window at each tag, while
-    everyday PRs (e.g. dependency bumps) are never blocked by staleness.
+    failure rather than an advisory warning. Everyday PRs (e.g. dependency
+    bumps) are never blocked by staleness; this gate runs only at release.
+
+    Scope is intentionally the catalog/pattern subset of the OPERATIONS §4
+    target set — scaffolders.yml, category-patterns.yml, scaffolders/*-pattern.md
+    — because this entry point also validates their schema shape and
+    knowledge_anchor_sha256 pins. The COMPLETE §4 freshness contract (which also
+    covers pillar-framework.md and the SCAFFOLD_HANDSHAKE/OPERATIONS contract
+    docs) is owned by `plugin-freshness-check.py --gating`, wired as the
+    adjacent release step. The two are complementary: this one adds catalog
+    integrity, that one owns the full freshness target list (single source of
+    truth for it). See v2-release.yml steps 5 and 6.
     """
     failures: list[str] = []
     if SCAFFOLDERS_YML.exists() or CATEGORY_PATTERNS_YML.exists():
@@ -1921,10 +1930,13 @@ def main() -> int:
         "--check-freshness",
         action="store_true",
         dest="check_freshness",
-        help="Release-time HARD freshness gate: fail when any catalog/pattern "
-        "`last_validated:` is older than the 30d window. The default PR lint "
-        "treats staleness as advisory; this flag (wired into v2-release.yml) is "
-        "where the window is enforced. See SCAFFOLD_OPERATIONS.md §4.",
+        help="Release-time HARD gate for the CATALOG/PATTERN SUBSET of the "
+        "OPERATIONS §4 target set (scaffolders.yml + category-patterns.yml + "
+        "scaffolders/*-pattern.md): fail when their `last_validated:` is older "
+        "than the 30d window (alongside schema + sha-pin integrity). The default "
+        "PR lint treats staleness as advisory. The FULL §4 freshness contract "
+        "(also pillar-framework.md + the contract docs) is owned by "
+        "plugin-freshness-check.py --gating. See SCAFFOLD_OPERATIONS.md §4.",
     )
     parser.add_argument(
         "--regenerate-fixtures",
