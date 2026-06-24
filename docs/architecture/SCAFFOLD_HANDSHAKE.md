@@ -4,7 +4,7 @@ date: 2026-04-30
 status: Binding contract for v2.0 implementation; Layer 3-absorbed (Path γ, 2026-04-30); both v2.0 plans reduce to references against this document
 applies_to: LaunchPad plugin v2.0+ (`/lp-brainstorm`, `/lp-pick-stack`, `/lp-scaffold-stack`, `/lp-define`)
 companion: docs/architecture/SCAFFOLD_OPERATIONS.md (governance, CI, freshness, telemetry, Tier 1 panel, acceptance gates, amendment trail)
-last_validated: 2026-05-01
+last_validated: 2026-06-24
 ---
 
 # Scaffold Handshake — v2.0 Cross-Plan Contracts

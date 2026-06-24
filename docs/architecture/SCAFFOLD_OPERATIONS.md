@@ -4,7 +4,7 @@ date: 2026-04-30
 status: Operational guide for v2.0 implementation; Layer 3-absorbed (Path γ, 2026-04-30); companion to SCAFFOLD_HANDSHAKE.md
 applies_to: LaunchPad plugin v2.0+ (`/lp-brainstorm`, `/lp-pick-stack`, `/lp-scaffold-stack`, `/lp-define`)
 companion: docs/architecture/SCAFFOLD_HANDSHAKE.md (binding contracts: schemas, algorithms, validators, version policy)
-last_validated: 2026-05-01
+last_validated: 2026-06-24
 ---
 
 # Scaffold Operations — v2.0 Governance & Operations
