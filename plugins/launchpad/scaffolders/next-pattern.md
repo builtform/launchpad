@@ -2,7 +2,7 @@
 stack: next
 pillar: Frontend App
 type: orchestrate
-last_validated: 2026-04-30
+last_validated: 2026-06-23
 scaffolder_command: npx create-next-app@latest --yes --typescript --eslint --tailwind --app --turbopack
 scaffolder_command_pinned_version: create-next-app@15
 ---

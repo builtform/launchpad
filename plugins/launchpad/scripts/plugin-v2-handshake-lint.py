@@ -979,29 +979,73 @@ def _load_yaml_or_fail(path: Path, failures: list[str], rule: str) -> dict | Non
     return data
 
 
-def _check_freshness(date_str: str, *, today: _dt.date) -> str | None:
-    """Return None if last_validated is within window; an error string otherwise."""
+def _freshness_finding(lv: object, *, today: _dt.date) -> tuple[str, str] | None:
+    """Classify a `last_validated` value into a `(severity, message)` finding.
+
+    `severity` is one of:
+      - ``"fail"`` — a STRUCTURAL problem (missing / wrong type / unparseable /
+        future-dated). Always a hard lint failure: the value is malformed, not
+        merely old.
+      - ``"warn"`` — the date is valid but older than the freshness window. This
+        is ADVISORY in the default PR lint (`run_default_lint`). Re-stamping the
+        catalog/pattern docs is a time-based maintenance task with no
+        relationship to the content of any given PR, so a lapsed window must
+        never block unrelated changes (e.g. a dependency bump). The HARD
+        freshness gate runs at release time via `--check-freshness`, wired into
+        `v2-release.yml`. See `docs/architecture/SCAFFOLD_OPERATIONS.md` §4.
+
+    Returns ``None`` when the date is fresh.
+
+    Severity is decided by the control-flow branch taken here, NEVER by
+    inspecting the text of a message. This is deliberate (Codex PR #104 P1 +
+    Greptile P2): an earlier version inferred severity from a substring of the
+    error string, which (a) misclassified a malformed value that happened to
+    contain the staleness marker — e.g. ``"d old (>"`` — as advisory, and
+    (b) would silently reclassify a genuinely-stale date as structural if the
+    staleness message were ever reworded. Both failure modes are impossible
+    when the branch itself carries the severity.
+    """
+    if isinstance(lv, _dt.date):
+        date_str = lv.isoformat()
+    elif isinstance(lv, str):
+        date_str = lv
+    else:
+        return ("fail", f"last_validated must be a YYYY-MM-DD string; got {lv!r}")
     try:
         last = _dt.date.fromisoformat(date_str)
     except (TypeError, ValueError):
-        return f"unparseable last_validated {date_str!r}"
+        return ("fail", f"unparseable last_validated {date_str!r}")
     age_days = (today - last).days
     if age_days < 0:
-        return f"last_validated {date_str} is in the future"
+        return ("fail", f"last_validated {date_str} is in the future")
     if age_days > FRESHNESS_WINDOW_DAYS:
-        return f"last_validated {date_str} is {age_days}d old (>30d window)"
+        return (
+            "warn",
+            f"last_validated {date_str} is {age_days}d old "
+            f"(>{FRESHNESS_WINDOW_DAYS}d window)",
+        )
     return None
 
 
 def check_scaffolders_catalog(
-    failures: list[str], today: _dt.date | None = None
+    failures: list[str],
+    today: _dt.date | None = None,
+    *,
+    warnings: list[str] | None = None,
+    freshness_blocking: bool = False,
 ) -> set[str]:
     """Validate scaffolders.yml shape + freshness + per-entry sha256 against
     its knowledge_anchor file. Returns the set of stack ids it found (used by
     the cross-reference check in check_category_patterns_catalog).
+
+    Staleness findings route to `warnings` (advisory) unless `freshness_blocking`
+    is True, in which case they route to `failures` (the release-time gate). See
+    `_freshness_finding`.
     """
     if today is None:
         today = _dt.date.today()
+    if warnings is None:
+        warnings = []
     rule = "scaffolders-catalog"
     data = _load_yaml_or_fail(SCAFFOLDERS_YML, failures, rule)
     if data is None:
@@ -1111,27 +1155,33 @@ def check_scaffolders_catalog(
                         f"[{rule}] entry {stack_id!r} knowledge_anchor_sha256 "
                         f"mismatch: pinned {pinned!r} actual {actual_sha!r}"
                     )
-        # last_validated freshness
-        lv = entry.get("last_validated")
-        if isinstance(lv, _dt.date):
-            err = _check_freshness(lv.isoformat(), today=today)
-        elif isinstance(lv, str):
-            err = _check_freshness(lv, today=today)
-        else:
-            err = f"last_validated must be a YYYY-MM-DD string; got {lv!r}"
-        if err:
-            failures.append(f"[{rule}] entry {stack_id!r}: {err}")
+        # last_validated freshness (staleness advisory unless freshness_blocking)
+        finding = _freshness_finding(entry.get("last_validated"), today=today)
+        if finding is not None:
+            severity, msg = finding
+            sink = failures if (severity == "fail" or freshness_blocking) else warnings
+            sink.append(f"[{rule}] entry {stack_id!r}: {msg}")
 
     return found_ids
 
 
 def check_category_patterns_catalog(
-    failures: list[str], *, scaffolder_ids: set[str], today: _dt.date | None = None
+    failures: list[str],
+    *,
+    scaffolder_ids: set[str],
+    today: _dt.date | None = None,
+    warnings: list[str] | None = None,
+    freshness_blocking: bool = False,
 ) -> None:
     """Validate category-patterns.yml shape + freshness + cross-reference each
-    canonical_stack[].stack against scaffolder_ids."""
+    canonical_stack[].stack against scaffolder_ids.
+
+    Staleness findings route to `warnings` (advisory) unless `freshness_blocking`
+    is True. See `_freshness_finding`."""
     if today is None:
         today = _dt.date.today()
+    if warnings is None:
+        warnings = []
     rule = "category-patterns-catalog"
     data = _load_yaml_or_fail(CATEGORY_PATTERNS_YML, failures, rule)
     if data is None:
@@ -1214,25 +1264,29 @@ def check_category_patterns_catalog(
                     failures.append(
                         f"[{rule}] category {cat_id!r} path must be a string"
                     )
-        # last_validated freshness
-        lv = entry.get("last_validated")
-        if isinstance(lv, _dt.date):
-            err = _check_freshness(lv.isoformat(), today=today)
-        elif isinstance(lv, str):
-            err = _check_freshness(lv, today=today)
-        else:
-            err = f"last_validated must be a YYYY-MM-DD string; got {lv!r}"
-        if err:
-            failures.append(f"[{rule}] category {cat_id!r}: {err}")
+        # last_validated freshness (staleness advisory unless freshness_blocking)
+        finding = _freshness_finding(entry.get("last_validated"), today=today)
+        if finding is not None:
+            severity, msg = finding
+            sink = failures if (severity == "fail" or freshness_blocking) else warnings
+            sink.append(f"[{rule}] category {cat_id!r}: {msg}")
 
 
 def check_anchor_doc_freshness(
-    failures: list[str], today: _dt.date | None = None
+    failures: list[str],
+    today: _dt.date | None = None,
+    *,
+    warnings: list[str] | None = None,
+    freshness_blocking: bool = False,
 ) -> None:
     """Each plugins/launchpad/scaffolders/<stack>-pattern.md MUST carry a
-    YAML frontmatter `last_validated:` within the 30d window."""
+    YAML frontmatter `last_validated:`. Presence/shape problems are hard
+    failures; a lapsed window is advisory unless `freshness_blocking` is True.
+    See `_freshness_finding`."""
     if today is None:
         today = _dt.date.today()
+    if warnings is None:
+        warnings = []
     rule = "anchor-doc-freshness"
     if not ANCHOR_DIR.exists():
         return
@@ -1253,9 +1307,11 @@ def check_anchor_doc_freshness(
                 f"last_validated"
             )
             continue
-        err = _check_freshness(lv.group(1), today=today)
-        if err:
-            failures.append(f"[{rule}] {anchor.relative_to(REPO_ROOT)}: {err}")
+        finding = _freshness_finding(lv.group(1), today=today)
+        if finding is not None:
+            severity, msg = finding
+            sink = failures if (severity == "fail" or freshness_blocking) else warnings
+            sink.append(f"[{rule}] {anchor.relative_to(REPO_ROOT)}: {msg}")
 
 
 # --- Phase -1 acceptance gates ---
@@ -1684,6 +1740,11 @@ def check_decommission_audit_log_required(
 
 def run_default_lint() -> int:
     failures: list[str] = []
+    # Catalog/pattern-doc staleness is advisory in the PR lint: it reflects a
+    # time-based maintenance cadence, not the content of any PR, so it must not
+    # block unrelated changes. The hard freshness gate runs at release time via
+    # `--check-freshness` (wired into v2-release.yml). See _freshness_finding.
+    warnings: list[str] = []
     check_no_raw_subprocess(failures)
     check_no_shell_true(failures)
     check_zx_test_residual(failures)
@@ -1695,21 +1756,64 @@ def run_default_lint() -> int:
     # Phase 1 catalog validation (only enforced when the catalog files exist;
     # at Phase -1 they did not, and the lint stayed silent on this surface).
     if SCAFFOLDERS_YML.exists() or CATEGORY_PATTERNS_YML.exists():
-        scaffolder_ids = check_scaffolders_catalog(failures)
-        check_category_patterns_catalog(failures, scaffolder_ids=scaffolder_ids)
-        check_anchor_doc_freshness(failures)
+        scaffolder_ids = check_scaffolders_catalog(failures, warnings=warnings)
+        check_category_patterns_catalog(
+            failures, scaffolder_ids=scaffolder_ids, warnings=warnings
+        )
+        check_anchor_doc_freshness(failures, warnings=warnings)
     # Phase 3 fixture-shape validators (run regardless; no-op if no matching
     # fixtures exist).
     check_scaffold_receipt_schema(failures)
     check_nonce_ledger_format(failures)
     check_scaffold_rejection_schema(failures)
     check_scaffold_failed_schema(failures)
+    if warnings:
+        print("v2 handshake lint advisory (non-blocking — see --check-freshness):")
+        for w in warnings:
+            print(f"  {w}")
     if failures:
         print("v2 handshake lint failed:", file=sys.stderr)
         for f in failures:
             print(f, file=sys.stderr)
         return 1
     print("v2 handshake lint: PASS")
+    return 0
+
+
+def run_check_freshness_gate() -> int:
+    """Release-time hard gate for the CATALOG/PATTERN SUBSET (`--check-freshness`).
+
+    Runs the same catalog/anchor validators as the default lint but with
+    `freshness_blocking=True`, so a lapsed `last_validated:` window becomes a
+    failure rather than an advisory warning. Everyday PRs (e.g. dependency
+    bumps) are never blocked by staleness; this gate runs only at release.
+
+    Scope is intentionally the catalog/pattern subset of the OPERATIONS §4
+    target set — scaffolders.yml, category-patterns.yml, scaffolders/*-pattern.md
+    — because this entry point also validates their schema shape and
+    knowledge_anchor_sha256 pins. The COMPLETE §4 freshness contract (which also
+    covers pillar-framework.md and the SCAFFOLD_HANDSHAKE/OPERATIONS contract
+    docs) is owned by `plugin-freshness-check.py --gating`, wired as the
+    adjacent release step. The two are complementary: this one adds catalog
+    integrity, that one owns the full freshness target list (single source of
+    truth for it). See v2-release.yml steps 5 and 6.
+    """
+    failures: list[str] = []
+    if SCAFFOLDERS_YML.exists() or CATEGORY_PATTERNS_YML.exists():
+        scaffolder_ids = check_scaffolders_catalog(failures, freshness_blocking=True)
+        check_category_patterns_catalog(
+            failures, scaffolder_ids=scaffolder_ids, freshness_blocking=True
+        )
+        check_anchor_doc_freshness(failures, freshness_blocking=True)
+    else:
+        print("freshness gate: no catalog files present; nothing to check")
+        return 0
+    if failures:
+        print("freshness gate FAIL:", file=sys.stderr)
+        for f in failures:
+            print(f, file=sys.stderr)
+        return 1
+    print("freshness gate: PASS")
     return 0
 
 
@@ -1823,6 +1927,18 @@ def main() -> int:
         "(default origin/main) for the diff base.",
     )
     parser.add_argument(
+        "--check-freshness",
+        action="store_true",
+        dest="check_freshness",
+        help="Release-time HARD gate for the CATALOG/PATTERN SUBSET of the "
+        "OPERATIONS §4 target set (scaffolders.yml + category-patterns.yml + "
+        "scaffolders/*-pattern.md): fail when their `last_validated:` is older "
+        "than the 30d window (alongside schema + sha-pin integrity). The default "
+        "PR lint treats staleness as advisory. The FULL §4 freshness contract "
+        "(also pillar-framework.md + the contract docs) is owned by "
+        "plugin-freshness-check.py --gating. See SCAFFOLD_OPERATIONS.md §4.",
+    )
+    parser.add_argument(
         "--regenerate-fixtures",
         action="store_true",
         help="WRITE-MUTATING: regenerate test fixtures from manifest.yml. "
@@ -1870,6 +1986,8 @@ def main() -> int:
         return run_check_schema_codeowners_gate()
     if args.check_pin_registry_rotation_audit_log:
         return run_check_pin_registry_rotation_audit_log()
+    if args.check_freshness:
+        return run_check_freshness_gate()
     if args.regenerate_fixtures:
         return run_regenerate_fixtures(args.max_fixtures)
 

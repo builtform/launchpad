@@ -1,6 +1,6 @@
 ---
 generated_by: hand-authored
-last_validated: 2026-04-30
+last_validated: 2026-06-23
 purpose: rationale-generation context for /lp-pick-stack
 ---
 

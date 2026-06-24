@@ -2,7 +2,7 @@
 stack: django
 pillar: Backend Python
 type: orchestrate
-last_validated: 2026-04-30
+last_validated: 2026-06-23
 scaffolder_command: django-admin startproject <name>
 scaffolder_command_pinned_version: django@5.1+
 ---
