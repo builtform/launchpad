@@ -979,26 +979,6 @@ def _load_yaml_or_fail(path: Path, failures: list[str], rule: str) -> dict | Non
     return data
 
 
-def _check_freshness(date_str: str, *, today: _dt.date) -> str | None:
-    """Return None if last_validated is within window; an error string otherwise."""
-    try:
-        last = _dt.date.fromisoformat(date_str)
-    except (TypeError, ValueError):
-        return f"unparseable last_validated {date_str!r}"
-    age_days = (today - last).days
-    if age_days < 0:
-        return f"last_validated {date_str} is in the future"
-    if age_days > FRESHNESS_WINDOW_DAYS:
-        return f"last_validated {date_str} is {age_days}d old (>30d window)"
-    return None
-
-
-# Sentinel embedded in the staleness message emitted by `_check_freshness`. Used
-# by `_freshness_finding` to tell a pure-staleness finding (advisory) apart from
-# a structural one (hard failure). Keep in sync with the message above.
-_STALENESS_MARKER = "d old (>"
-
-
 def _freshness_finding(lv: object, *, today: _dt.date) -> tuple[str, str] | None:
     """Classify a `last_validated` value into a `(severity, message)` finding.
 
@@ -1014,8 +994,16 @@ def _freshness_finding(lv: object, *, today: _dt.date) -> tuple[str, str] | None
         freshness gate runs at release time via `--check-freshness`, wired into
         `v2-release.yml`. See `docs/architecture/SCAFFOLD_OPERATIONS.md` §4.
 
-    Returns ``None`` when the date is fresh. Reuses `_check_freshness` so the
-    date arithmetic lives in exactly one place.
+    Returns ``None`` when the date is fresh.
+
+    Severity is decided by the control-flow branch taken here, NEVER by
+    inspecting the text of a message. This is deliberate (Codex PR #104 P1 +
+    Greptile P2): an earlier version inferred severity from a substring of the
+    error string, which (a) misclassified a malformed value that happened to
+    contain the staleness marker — e.g. ``"d old (>"`` — as advisory, and
+    (b) would silently reclassify a genuinely-stale date as structural if the
+    staleness message were ever reworded. Both failure modes are impossible
+    when the branch itself carries the severity.
     """
     if isinstance(lv, _dt.date):
         date_str = lv.isoformat()
@@ -1023,10 +1011,20 @@ def _freshness_finding(lv: object, *, today: _dt.date) -> tuple[str, str] | None
         date_str = lv
     else:
         return ("fail", f"last_validated must be a YYYY-MM-DD string; got {lv!r}")
-    err = _check_freshness(date_str, today=today)
-    if err is None:
-        return None
-    return ("warn" if _STALENESS_MARKER in err else "fail", err)
+    try:
+        last = _dt.date.fromisoformat(date_str)
+    except (TypeError, ValueError):
+        return ("fail", f"unparseable last_validated {date_str!r}")
+    age_days = (today - last).days
+    if age_days < 0:
+        return ("fail", f"last_validated {date_str} is in the future")
+    if age_days > FRESHNESS_WINDOW_DAYS:
+        return (
+            "warn",
+            f"last_validated {date_str} is {age_days}d old "
+            f"(>{FRESHNESS_WINDOW_DAYS}d window)",
+        )
+    return None
 
 
 def check_scaffolders_catalog(

@@ -59,6 +59,17 @@ def test_freshness_finding_malformed_is_hard_fail(lint):
     assert sev == "fail"
 
 
+def test_freshness_finding_malformed_containing_staleness_marker_is_hard_fail(lint):
+    """Codex PR #104 P1 regression: a malformed value that happens to contain
+    the staleness-message substring ("d old (>") must still classify as a
+    structural hard failure, not an advisory warning. The earlier substring-
+    sentinel implementation misclassified this as "warn"."""
+    for malformed in ("d old (>", "0d old (>30d window)", "x is 1d old (>30d window)"):
+        sev, msg = lint._freshness_finding(malformed, today=FRESH)
+        assert sev == "fail", f"{malformed!r} must be structural fail, got {sev}"
+        assert "unparseable" in msg
+
+
 def test_freshness_finding_future_dated_is_hard_fail(lint):
     sev, msg = lint._freshness_finding("2030-01-01", today=FRESH)
     assert sev == "fail"
@@ -88,6 +99,65 @@ def test_anchor_doc_staleness_blocks_when_freshness_blocking(lint):
     warnings: list[str] = []
     lint.check_anchor_doc_freshness(
         failures, today=FAR_FUTURE, warnings=warnings, freshness_blocking=True
+    )
+    assert failures, "expected staleness to block under freshness_blocking"
+    assert warnings == []
+
+
+def test_scaffolders_catalog_staleness_routes_to_warnings_not_failures(lint):
+    """Greptile PR #104 P2 regression: the same advisory-vs-blocking routing
+    that anchor-doc staleness has must hold for check_scaffolders_catalog, so a
+    future refactor cannot silently drop the warnings path. With a far-future
+    `today` the (otherwise valid) catalog entries read as stale and must land in
+    `warnings`, leaving `failures` empty."""
+    failures: list[str] = []
+    warnings: list[str] = []
+    lint.check_scaffolders_catalog(failures, today=FAR_FUTURE, warnings=warnings)
+    assert failures == [], f"staleness leaked into failures: {failures}"
+    assert warnings, "expected advisory staleness warnings"
+    assert all("old (>" in w for w in warnings)
+
+
+def test_scaffolders_catalog_staleness_blocks_when_freshness_blocking(lint):
+    failures: list[str] = []
+    warnings: list[str] = []
+    lint.check_scaffolders_catalog(
+        failures, today=FAR_FUTURE, warnings=warnings, freshness_blocking=True
+    )
+    assert failures, "expected staleness to block under freshness_blocking"
+    assert warnings == []
+
+
+def test_category_patterns_catalog_staleness_routes_to_warnings_not_failures(lint):
+    """Greptile PR #104 P2 regression: parallel routing guarantee for
+    check_category_patterns_catalog. It needs scaffolder_ids to avoid spurious
+    cross-reference failures, so we seed it from check_scaffolders_catalog."""
+    seed_failures: list[str] = []
+    scaffolder_ids = lint.check_scaffolders_catalog(seed_failures, today=FRESH)
+    failures: list[str] = []
+    warnings: list[str] = []
+    lint.check_category_patterns_catalog(
+        failures,
+        scaffolder_ids=scaffolder_ids,
+        today=FAR_FUTURE,
+        warnings=warnings,
+    )
+    assert failures == [], f"staleness leaked into failures: {failures}"
+    assert warnings, "expected advisory staleness warnings"
+    assert all("old (>" in w for w in warnings)
+
+
+def test_category_patterns_catalog_staleness_blocks_when_freshness_blocking(lint):
+    seed_failures: list[str] = []
+    scaffolder_ids = lint.check_scaffolders_catalog(seed_failures, today=FRESH)
+    failures: list[str] = []
+    warnings: list[str] = []
+    lint.check_category_patterns_catalog(
+        failures,
+        scaffolder_ids=scaffolder_ids,
+        today=FAR_FUTURE,
+        warnings=warnings,
+        freshness_blocking=True,
     )
     assert failures, "expected staleness to block under freshness_blocking"
     assert warnings == []
