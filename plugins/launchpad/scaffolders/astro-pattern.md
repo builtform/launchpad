@@ -2,7 +2,7 @@
 stack: astro
 pillar: Frontend Content/Performance
 type: orchestrate
-last_validated: 2026-04-30
+last_validated: 2026-06-23
 scaffolder_command: npm create astro@latest -- --yes --template <template>
 scaffolder_command_pinned_version: astro@5
 ---

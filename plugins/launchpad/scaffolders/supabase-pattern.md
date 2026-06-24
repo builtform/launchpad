@@ -2,7 +2,7 @@
 stack: supabase
 pillar: Backend Managed
 type: orchestrate
-last_validated: 2026-04-30
+last_validated: 2026-06-23
 scaffolder_command: supabase init
 scaffolder_command_pinned_version: supabase-cli@2
 ---
