@@ -2,7 +2,7 @@
 stack: rails
 pillar: Backend MVC (Ruby)
 type: orchestrate
-last_validated: 2026-04-30
+last_validated: 2026-06-23
 scaffolder_command: rails new <path> --skip-bundle --skip-git
 scaffolder_command_pinned_version: rails@8
 ---
