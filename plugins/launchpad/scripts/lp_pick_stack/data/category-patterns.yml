@@ -54,7 +54,7 @@ categories:
         role: "frontend"
         path: "."
     explanation: "Markdown-driven blog with TypeScript-first islands when interactive bits matter."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"
 
   - id: "static-blog-eleventy"
     name: "Static blog (Eleventy)"
@@ -64,7 +64,7 @@ categories:
         role: "frontend"
         path: "."
     explanation: "Pure-Markdown site with minimal JS surface; no npm-create scaffolder."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"
 
   - id: "static-blog-hugo"
     name: "Static blog (Hugo)"
@@ -74,7 +74,7 @@ categories:
         role: "frontend"
         path: "."
     explanation: "Markdown blog with Go-built max-speed builds; theme ecosystem."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"
 
   # Marketing sites (2)
   - id: "marketing-astro"
@@ -85,7 +85,7 @@ categories:
         role: "frontend"
         path: "."
     explanation: "Static marketing site optimized for Lighthouse + content updates via Markdown."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"
 
   - id: "marketing-next"
     name: "Marketing site with future interactivity (Next.js)"
@@ -95,7 +95,7 @@ categories:
         role: "fullstack"
         path: "."
     explanation: "Marketing site that anticipates auth/dashboard expansion — Next absorbs both phases."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"
 
   # App SaaS (2)
   - id: "saas-next-supabase"
@@ -109,7 +109,7 @@ categories:
         role: "frontend"
         path: "apps/web"
     explanation: "Next frontend backed by Supabase managed Postgres + Auth + Storage."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"
 
   - id: "saas-django-postgres"
     name: "Python SaaS (Django monolith)"
@@ -119,7 +119,7 @@ categories:
         role: "fullstack"
         path: "."
     explanation: "Battery-packed Django monolith for Python teams; admin + ORM + auth out of the box."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"
 
   # Backend-only (4 — api-only-quartet ambiguity cluster)
   - id: "api-only-fastapi"
@@ -130,7 +130,7 @@ categories:
         role: "backend"
         path: "."
     explanation: "Async Python API with Pydantic v2 type validation + SQLAlchemy 2 async ORM."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"
 
   - id: "api-only-hono"
     name: "Edge-native TypeScript API (Hono)"
@@ -140,7 +140,7 @@ categories:
         role: "backend"
         path: "."
     explanation: "Edge-deployable TypeScript API; runs on Cloudflare Workers, Deno Deploy, Vercel Edge."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"
 
   - id: "api-only-django-drf"
     name: "Python API with admin (Django + DRF)"
@@ -150,7 +150,7 @@ categories:
         role: "backend"
         path: "."
     explanation: "Django + Django REST Framework when admin UI + ORM + auth out-of-the-box matter more than async."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"
 
   - id: "api-only-rails"
     name: "Ruby API (Rails 8 API mode)"
@@ -160,7 +160,7 @@ categories:
         role: "backend"
         path: "."
     explanation: "Rails 8 API mode for Ruby teams; ActiveRecord + ActiveJob with Solid Queue."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"
 
   # Polyglot (2)
   - id: "polyglot-next-fastapi"
@@ -174,7 +174,7 @@ categories:
         role: "backend"
         path: "services/api"
     explanation: "Next frontend with Python ML backend — common for AI/ML SaaS with RAG pipelines."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"
 
   - id: "polyglot-next-hono"
     name: "Polyglot (Next frontend + Hono backend)"
@@ -187,7 +187,7 @@ categories:
         role: "backend"
         path: "apps/api"
     explanation: "Next + Hono polyglot with end-to-end TypeScript + RPC type-inference between layers."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"
 
   # Mobile (1)
   - id: "mobile-app-expo"
@@ -198,7 +198,7 @@ categories:
         role: "mobile"
         path: "."
     explanation: "Cross-platform iOS + Android via React Native; EAS Build for cloud-built artifacts."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"
 
   # Backend managed (1)
   - id: "managed-supabase"
@@ -209,7 +209,7 @@ categories:
         role: "backend-managed"
         path: "supabase/"
     explanation: "Supabase-only project (no frontend yet) — schema + auth + storage with deferred UI choice."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"
 
   # Realtime (1 — Phoenix deferred per BL-212; only Django Channels lands at v2.0)
   - id: "realtime-django-channels"
@@ -220,7 +220,7 @@ categories:
         role: "fullstack"
         path: "."
     explanation: "Django Channels for realtime Python apps; ASGI under the hood."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"
 
   # Multi-frontend hybrid (1 — exercises the multi-layer composer)
   - id: "multi-frontend-astro-next"
@@ -234,7 +234,7 @@ categories:
         role: "frontend-dashboard"
         path: "apps/dashboard"
     explanation: "Content-heavy Astro site fronting a Next dashboard for the interactive admin area."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"
 
   # Manual override (1) — reserved per HANDSHAKE §4 rule 4
   - id: "manual-override"
@@ -242,4 +242,4 @@ categories:
     fits_when: "user_explicit_override"
     canonical_stack: []
     explanation: "Reserved id for the [m]anual override branch in /lp-pick-stack §3.1. Layers materialize from user catalog selections, validated against the VALID_COMBINATIONS frozenset in lp_pick_stack/__init__.py."
-    last_validated: "2026-04-30"
+    last_validated: "2026-06-23"

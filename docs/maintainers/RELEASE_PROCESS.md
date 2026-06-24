@@ -44,6 +44,31 @@ CVE fixes, feature work, doc updates — whatever the release contains.
 
 Update the release-notes file as you go. By the time the PR is review-ready, the notes should match the actual changes.
 
+### 2a. Re-validate and re-stamp the OPERATIONS §4 freshness docs (before tagging)
+
+`v2-release.yml` runs two release-time freshness gates that hard-fail the tag if any `last_validated:` date is older than the 30-day window on the tagged commit:
+
+- **Step 5** (`plugin-v2-handshake-lint.py --check-freshness`): the catalog/pattern subset (`scaffolders.yml`, `category-patterns.yml`, `scaffolders/*-pattern.md`), plus their schema and `knowledge_anchor_sha256` integrity.
+- **Step 6** (`plugin-freshness-check.py --gating`): the full §4 target set, which additionally covers `pillar-framework.md` and the `SCAFFOLD_HANDSHAKE.md` / `SCAFFOLD_OPERATIONS.md` contract docs.
+
+These gates fire on tag push, so the docs must already be fresh on the commit you tag. Do this re-stamp **on the release branch** (it must land on `main` before step 6 of this sequence), not after tagging. Preview what is stale locally first:
+
+```bash
+python plugins/launchpad/scripts/plugin-freshness-check.py --gating
+```
+
+For each flagged file, **re-read it and confirm it still accurately describes current behavior** (this is a real re-validation, not a date bump) before updating its date:
+
+- **Catalog/pattern docs** (`scaffolders.yml`, `category-patterns.yml`, `pillar-framework.md`, `scaffolders/*-pattern.md`): bump `last_validated:` to today. Re-stamping a `*-pattern.md` changes its content hash, so re-pin the matching `knowledge_anchor_sha256` in `scaffolders.yml` (`plugin-v2-handshake-lint.py` prints the expected hash).
+- **Contract docs** (`SCAFFOLD_HANDSHAKE.md`, `SCAFFOLD_OPERATIONS.md`): per OPERATIONS §4, re-stamp these in their **own dedicated commit** with subject `chore(v2): re-stamp HANDSHAKE/OPERATIONS last_validated, no contract change` and a `Restamp-Affirmation: <prior-SHA> -> <new-SHA>` trailer. The commit must touch only the `last_validated:` frontmatter line (no body diff).
+
+Confirm both gates are green before proceeding:
+
+```bash
+python plugins/launchpad/scripts/plugin-v2-handshake-lint.py --check-freshness   # exit 0
+python plugins/launchpad/scripts/plugin-freshness-check.py --gating              # exit 0
+```
+
 ### 3. Open the PR
 
 Branch name like `chore/vX.Y.Z-…` triggers `release-notes-check.yml`, which validates that `docs/releases/vX.Y.Z.md` exists.

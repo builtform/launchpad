@@ -6,7 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.1.9: BL-365 (parallelize preflight probe dispatch + short-TTL cache), BL-367 (programmatic GitHub-repo linkage verification for provider project probes), BL-368 (DNS `dig +short --` sentinel bug), and BL-366 (18-item preflight polish). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0, plus BL-374 (TypeScript 5.x -> 6.x upgrade audit, seeded by v2.1.9), plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
+Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.1.10: BL-365 (parallelize preflight probe dispatch + short-TTL cache), BL-367 (programmatic GitHub-repo linkage verification for provider project probes), BL-368 (DNS `dig +short --` sentinel bug), and BL-366 (18-item preflight polish). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0, plus BL-374 (TypeScript 5.x -> 6.x upgrade audit, seeded by v2.1.9), plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
+
+## [v2.1.10]
+
+Freshness gate no longer blocks unrelated PRs + dependency sweep. The `v2-handshake-lint` required check enforced a 30-day `last_validated:` freshness window on every PR, so once the window lapsed it failed every PR (including unrelated Dependabot bumps) regardless of content. v2.1.10 makes catalog/pattern staleness advisory on PRs and enforces the window at release time instead (PR #104). The rest of the release is seven Dependabot bumps plus one v2.2 backlog seed (BL-375, Prisma 6.x -> 7.x audit).
+
+### For LaunchPad users (downstream behavior changes)
+
+None. The freshness-gate fix touches LaunchPad's own CI; downstream projects do not run `v2-handshake-lint`. The dependency bumps are build-time and template-scoped only.
+
+### Plugin-internal changes
+
+- **Catalog freshness advisory on PRs, hard-gated at release (#104).** Staleness routes to a non-blocking advisory in the default lint; structural problems (missing / malformed / future-dated `last_validated:`) stay hard failures. Two release-workflow gates enforce the 30-day window at tag time (`--check-freshness` for catalog/pattern integrity + freshness; `plugin-freshness-check.py --gating` for the full OPERATIONS §4 contract set). Severity classification hardened to branch on intrinsic control flow rather than a message substring. `RELEASE_PROCESS.md` gains a pre-tag re-stamp step. See `docs/releases/v2.1.10.md` for the dependency-bump table.
+
+### Scope deferred from v2.1.10
+
+- **Prisma 6.x -> 7.x**: deferred to v2.2 (BL-375). Seeded as a backlog item; no code change.
+- The 12 open post-v2.1.9 Dependabot PRs (#91-#103) are not in this release; they were unblocked by #104 and land in a later patch.
 
 ## [v2.1.9]
 

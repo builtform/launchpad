@@ -1,12 +1,16 @@
 # verify-v2-ship — post-tag release verification (HANDSHAKE §12 + OPERATIONS
 # §0 strip-back-aware Layer 7).
 #
-# v2.0 ships the SIMPLIFIED 4-check single-shot battery per HANDSHAKE §1.5
-# strip-back. The Layer 5 8-check battery (marketplace.json schema, automated
+# v2.0 shipped the SIMPLIFIED single-shot battery per HANDSHAKE §1.5
+# strip-back (originally 4 checks: steps 1-4, plus the step 0 semver shape
+# guard). Steps 5 and 6 were added later to enforce the OPERATIONS §4 freshness
+# contract at release time (step 5: catalog integrity + catalog/pattern
+# freshness; step 6: the full §4 contract incl. pillar-framework + contract
+# docs). The Layer 5 8-check battery (marketplace.json schema, automated
 # reviews green, tag-protection content, pre-existing recall-tag 404 gate,
 # exponential-backoff polling, `${{ github.run_id }}` self-loop break) is
-# DEFERRED to v2.2 under BL-226 / BL-227 / BL-232. The 4 checks below are
-# load-bearing for v2.0 ship; the deferred 4 are load-bearing for v2.2.
+# DEFERRED to v2.2 under BL-226 / BL-227 / BL-232. The checks below (steps
+# 0-6) are load-bearing for v2.0 ship; the deferred 4 are load-bearing for v2.2.
 #
 # Trigger: tag push matching the `v*.*.*` glob; strict semver shape is
 # enforced inside the job via a regex check on `${{ github.ref_name }}`.
@@ -16,9 +20,9 @@
 # `-dryrun` suffix patterns intentionally do NOT pass the in-job regex per
 # HANDSHAKE §10 + §12.
 #
-# All 4 checks must pass for the tag to be considered "verified-shipped".
-# Failure → §7.1 inline rollback procedure (delete tag from origin, ship a
-# fresh patch on next ship attempt).
+# All checks (steps 0-6) must pass for the tag to be considered
+# "verified-shipped". Failure → §7.1 inline rollback procedure (delete tag from
+# origin, ship a fresh patch on next ship attempt).
 name: verify-v2-ship
 
 on:
@@ -49,7 +53,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -136,3 +140,29 @@ jobs:
           # allowlisted via LEAKAGE_FILE_ALLOWLIST.
           python plugins/launchpad/scripts/plugin-v2-handshake-lint.py \
             --check-leakage
+
+      - name: 5) Catalog integrity + catalog/pattern freshness (release-time)
+        run: |
+          # Validates the catalog/pattern SUBSET of the OPERATIONS §4 target set
+          # (scaffolders.yml + category-patterns.yml + scaffolders/*-pattern.md):
+          # schema shape, knowledge_anchor_sha256 pins, AND `last_validated:`
+          # freshness as a HARD gate. The default PR lint treats that freshness
+          # as advisory so a lapsed window never blocks an unrelated change
+          # (e.g. a Dependabot bump); here at release it must be fresh. The FULL
+          # §4 freshness contract — including pillar-framework.md and the
+          # SCAFFOLD_HANDSHAKE/OPERATIONS contract docs — is enforced by step 6.
+          python plugins/launchpad/scripts/plugin-v2-handshake-lint.py \
+            --check-freshness
+
+      - name: 6) Full OPERATIONS §4 freshness contract (release-time hard gate)
+        run: |
+          # OPERATIONS §4: every plugin-shipped catalog/pattern doc AND the
+          # contract docs themselves must carry a `last_validated:` within the
+          # 30d window at the tag commit. `plugin-freshness-check.py` is the
+          # canonical checker — it owns the complete target list (scaffolders +
+          # category-patterns + pillar-framework + SCAFFOLD_HANDSHAKE +
+          # SCAFFOLD_OPERATIONS + *-pattern.md). It runs ADVISORY on every PR;
+          # `--gating` promotes it to a hard exit-1-on-stale gate here at
+          # release. If this fails, re-stamp the flagged docs to today and
+          # re-tag (contract docs use their re-stamp-affirmation commit form).
+          python plugins/launchpad/scripts/plugin-freshness-check.py --gating
