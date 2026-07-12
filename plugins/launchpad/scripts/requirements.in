@@ -28,7 +28,7 @@ ruff==0.15.20          # style + import-order + bugbear (lefthook pre-commit)
 # That binary download is OUTSIDE pip's hash coverage — a residual supply-chain
 # hole at the pyright/nodeenv boundary. v2.1.x BL candidate: evaluate mypy (no
 # Node dep) OR pin the node binary download via CI checksum verification.
-pyright==1.1.409       # type-check (lefthook pre-push, strict on 5 contract modules)
+pyright==1.1.411       # type-check (lefthook pre-push, strict on 5 contract modules)
 bandit==1.9.4          # security audit at MEDIUM+ (lefthook pre-commit)
 semgrep==1.167.0       # general patterns (pre-commit) + LP-internal invariants (pre-push)
 pytest==9.1.1          # test runner (lefthook pre-push + CI v2-handshake-lint); pinned for hash coverage (Codex PR #62 P1 #2)
