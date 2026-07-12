@@ -13,7 +13,7 @@
   "dependencies": {
     "@repo/shared": "workspace:*",
     "@repo/ui": "workspace:*",
-    "next": "^15.5.15",
+    "next": "^15.5.18",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },
@@ -27,6 +27,6 @@
     "postcss": "^8.5.14",
     "tailwindcss": "^4.3.2",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.6"
+    "vitest": "^4.1.10"
   }
 }
