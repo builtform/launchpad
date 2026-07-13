@@ -1,0 +1,26 @@
+# osv-scanner per-directory config for the CVE-watch nightly scan
+# (.github/workflows/cve-watch.yml). Applies to lockfiles in THIS
+# directory only (no child-directory propagation).
+#
+# Policy: every entry MUST carry a reason with (a) why the finding is
+# not exploitable here, (b) why the fix is currently unreachable, and
+# (c) an ignoreUntil expiry so the suppression re-surfaces for review
+# instead of rotting silently.
+
+[[IgnoredVulns]]
+id = "PYSEC-2026-2132"
+# Aliases (CVE-2026-7246, GHSA-47fr-3ffg-hgmw) are suppressed automatically.
+ignoreUntil = 2026-10-13
+reason = """
+click.edit() command injection, fixed only in click 8.3.3 (no 8.1.x
+backport). Unreachable fix: click is transitive-only here (semgrep,
+click-option-group, uvicorn) and semgrep pins click~=8.1.8 through its
+latest release (1.169.0 as of 2026-07-13), so 8.3.3 cannot resolve in
+this environment. Not exploitable in this repo: first-party code never
+imports click (verified 2026-07-13; only word-matches in vendored
+jinja2 docstrings), and click runs solely as CLI plumbing for pinned
+dev/CI lint tools on trusted input -- the vulnerable interactive
+click.edit() path is never invoked. Revisit at expiry OR when semgrep
+relaxes the click pin, whichever comes first; then bump click to
+>=8.3.3 in requirements.txt via `make lock-deps` and delete this entry.
+"""
