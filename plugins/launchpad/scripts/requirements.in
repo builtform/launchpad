@@ -36,5 +36,5 @@ bandit==1.9.4          # security audit at MEDIUM+ (lefthook pre-commit)
 # rationale + expiry in osv-scanner.toml (this directory). Whoever bumps
 # semgrep past that pin: re-lock so click moves to >=8.3.3, then delete
 # the suppression entry.
-semgrep==1.167.0       # general patterns (pre-commit) + LP-internal invariants (pre-push)
+semgrep==1.170.0       # general patterns (pre-commit) + LP-internal invariants (pre-push)
 pytest==9.1.1          # test runner (lefthook pre-push + CI v2-handshake-lint); pinned for hash coverage (Codex PR #62 P1 #2)
