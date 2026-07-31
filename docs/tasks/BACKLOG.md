@@ -186,6 +186,50 @@ Add `@@index([email])` (or `@unique`) to the `User` model in `packages/db/prisma
 Follow the migration protocol in `docs/operations/PRISMA_MIGRATION_GUIDE.md`.
 -->
 
+#### BL-376 - v2.2: `/lp-bootstrap --recover` implements only step 1 of 3 (documented manifest-unlink never shipped)
+
+- **Priority**: P1
+- **Status**: TODO
+- **Area**: lp_bootstrap
+- **Date**: 2026-07-31
+
+**Encountered**
+
+- **Location**: `plugins/launchpad/scripts/lp_bootstrap/engine.py:746` (recover branch at `:749-773`)
+- **Scenario**: Surfaced by the v2.1.11 ruff-0.16 triage. `RUF059` flagged `recovered_snap` as an unpacked-but-never-used variable; the variable turned out to be the exact value an unimplemented, documented step needs.
+
+**Current Behavior**
+
+`plugins/launchpad/commands/lp-bootstrap.md:106-118` documents `--recover` as doing three things:
+
+1. Clear the bootstrap sentinel.
+2. Unlink the manifest IFF `manifest.created_at < sentinel.acquired_at` (provably stale).
+3. Return `BootstrapStatus.RECOVERED_SENTINEL_CLEAR_ONLY`.
+
+Only step 1 is implemented. The recover branch returns immediately after `_sentinel_preflight`, never reading the manifest. Corroborating evidence that steps 2-3 were intended but dropped:
+
+- `recovered_snap.started_at` IS the `sentinel.acquired_at` value step 2 needs, and it is discarded at the only site that obtains it.
+- `BootstrapManifest.created_at`'s docstring (`manifest_writer.py:115-119`) states verbatim that "the `--recover` flow reads `created_at` to decide whether to unlink a stale manifest". Nothing reads it.
+- `BootstrapStatus.RECOVERED_SENTINEL_CLEAR_ONLY` and `STALE_SENTINEL_DETECTED` are dead enum members: exported in `__all__` with zero producers and zero consumers.
+- `sentinel.py:8-13` documents `pre_edit_manifest_sha256` + `target_paths` as the "partial-rollback substrate" that `--recover` reads; neither is read.
+
+The doc itself names the gap a security surface: a stale manifest plus a cleared sentinel lets a later `_check_plugin_version_pin` pass for the OLD plugin version (downgrade window). Note BL-262 defers only the separate "auto-complete the partial run by re-rendering `target_paths`" work; the manifest-unlink was documented as shipping at v2.1.0 and is not in that deferral.
+
+**Desired Behavior**
+
+One of two coherent resolutions (decide before implementing):
+
+- **(a) Implement** steps 2-3: compare `recovered_snap.started_at` against `manifest.created_at`, unlink when provably stale, and surface `RECOVERED_SENTINEL_CLEAR_ONLY`. Closes the downgrade window and consumes the variable naturally.
+- **(b) Downgrade the docs** to match reality (recover == sentinel-clear only), delete the two dead `BootstrapStatus` members, and accept the narrower contract.
+
+**Proposed Fix** (revalidate before implementing)
+
+Prefer (a) if the downgrade window is judged reachable; (b) is only acceptable after confirming no consumer relies on the documented unlink. Either way, add a regression test — the only recover-adjacent test (`tests/test_bootstrap_wiring.py:179`) asserts a warning string and pins none of this behavior.
+
+**Notes**
+
+Interim state: `engine.py:746` carries `# noqa: RUF059` with a pointer to this BL, deliberately chosen over renaming to `_recovered_snap` so the doc/implementation divergence stays visible in the code rather than being silently blessed.
+
 ---
 
 ### P2 - Medium

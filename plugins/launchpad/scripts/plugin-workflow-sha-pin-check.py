@@ -30,7 +30,7 @@ def _extract_ref(uses_value: str) -> str | None:
     Returns None for local actions (`./path`) or Docker actions
     (`docker://`), which don't have pinnable refs.
     """
-    if uses_value.startswith("./") or uses_value.startswith("docker://"):
+    if uses_value.startswith(("./", "docker://")):
         return None
     if "@" not in uses_value:
         return None

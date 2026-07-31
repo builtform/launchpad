@@ -666,7 +666,7 @@ class RendererBase:
         # raises OSError before tempfiles are staged.
         atomic_write_replace_batch(batch, modes=modes, trusted_root=cwd)
         if chmod_after_replace:
-            for target_path in batch.keys():
+            for target_path in batch:
                 mode = modes.get(target_path)
                 if mode is None:
                     continue

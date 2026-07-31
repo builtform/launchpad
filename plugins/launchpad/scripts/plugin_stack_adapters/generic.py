@@ -210,7 +210,6 @@ class GenericAdapter:
 
     def scaffold_into(self, tempdir: Path) -> None:
         tempdir.mkdir(parents=True, exist_ok=True)
-        return None
 
     def apply_overlay(self, tempdir: Path) -> None:
         return None

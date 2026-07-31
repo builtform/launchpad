@@ -192,7 +192,7 @@ def _validate_workflow_self_consistency(
             continue
         if not relpath.startswith(".github/workflows/"):
             continue
-        if not (relpath.endswith(".yml") or relpath.endswith(".yaml")):
+        if not relpath.endswith((".yml", ".yaml")):
             continue
         try:
             doc = yaml.safe_load(content)
@@ -208,7 +208,7 @@ def _validate_workflow_self_consistency(
         jobs = doc.get("jobs", {})
         if not isinstance(jobs, dict):
             continue
-        for _job_id, job in jobs.items():
+        for job in jobs.values():
             if not isinstance(job, dict):
                 continue
             steps = job.get("steps", [])

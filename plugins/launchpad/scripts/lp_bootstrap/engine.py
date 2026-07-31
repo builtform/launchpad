@@ -306,8 +306,10 @@ def _check_plugin_version_pin(
     # accept_drift=True: record the drift inline on scaffold-decision.json.
     _record_version_drift(cwd, decision.payload, recorded, running)
     return running, [
-        f"plugin version drift accepted: {recorded!r} -> {running!r}; "
-        f"--refresh-all auto-triggered to align manifest shas"
+        (
+            f"plugin version drift accepted: {recorded!r} -> {running!r}; "
+            f"--refresh-all auto-triggered to align manifest shas"
+        )
     ]
 
 
@@ -505,8 +507,10 @@ def _sentinel_preflight(cwd: Path) -> tuple[SentinelSnapshot | None, list[str]]:
     # Dead PID -> recover.
     clear_sentinel(cwd)
     return snap, [
-        f"recovered stale sentinel (dead pid={snap.command_pid}, "
-        f"started_at={snap.started_at})"
+        (
+            f"recovered stale sentinel (dead pid={snap.command_pid}, "
+            f"started_at={snap.started_at})"
+        )
     ]
 
 
@@ -739,7 +743,14 @@ def run_bootstrap(
 
         with advisory_flock(lock_path):
             # Step 2: sentinel preflight.
-            recovered_snap, info = _sentinel_preflight(cwd)
+            # BL-376: `recovered_snap` is deliberately unused pending a
+            # decision. lp-bootstrap.md:106-118 documents `--recover` as also
+            # unlinking a provably-stale manifest (manifest.created_at <
+            # sentinel.acquired_at) to close a plugin-version downgrade
+            # window; that step was never implemented, and this value is the
+            # `acquired_at` it would need. Marked rather than renamed to `_`
+            # so the doc/impl divergence stays visible. See BL-376.
+            recovered_snap, info = _sentinel_preflight(cwd)  # noqa: RUF059
             warnings.extend(info)
 
             if mode == "recover":

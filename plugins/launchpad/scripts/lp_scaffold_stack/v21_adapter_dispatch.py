@@ -278,10 +278,7 @@ def _dispatch_single_adapter_into_apps(
             placed.append(dst)
 
         # Per harden P3-ν: surface tampered-tempdir slip-through.
-        for (
-            _workspace_name,
-            source_relpath,
-        ) in adapter.workspace_source_map_single.items():
+        for source_relpath in adapter.workspace_source_map_single.values():
             if (tempdir / source_relpath).exists():
                 raise CompositionAbortError(
                     reason=(CompositionRejectionCode.RESIDUAL_TAMPERED_TEMPDIR.value),

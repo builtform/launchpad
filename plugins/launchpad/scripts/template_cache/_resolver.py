@@ -75,8 +75,7 @@ def _split_repo(repo_url: str) -> tuple[str, str]:
             ),
         )
     rest = repo_url[len(_HTTPS_GITHUB_PREFIX) :].rstrip("/")
-    if rest.endswith(".git"):
-        rest = rest[:-4]
+    rest = rest.removesuffix(".git")
     parts = rest.split("/")
     if len(parts) != 2 or not parts[0] or not parts[1]:
         raise ResolverError(

@@ -116,6 +116,7 @@ def _read_git_config_email(cwd: Path) -> str:
             stderr=subprocess.DEVNULL,
             text=True,
             timeout=5,
+            check=False,  # `git config` exits 1 when unset; empty == mismatch
         )
         return completed.stdout.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):

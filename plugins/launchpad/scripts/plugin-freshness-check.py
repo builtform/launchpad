@@ -85,8 +85,7 @@ def _enumerate_targets() -> list[Path]:
         if p.exists():
             out.append(p)
     for glob in TARGET_GLOBS:
-        for p in REPO_ROOT.glob(glob):
-            out.append(p)
+        out.extend(REPO_ROOT.glob(glob))
     return out
 
 

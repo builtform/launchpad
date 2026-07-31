@@ -166,7 +166,7 @@ def _validate_workspace_source_relpath(value: str, *, field_name: str) -> None:
         raise ValueError(
             f"{field_name} must not be empty; use an empty map to skip wrapping"
         )
-    if value.startswith("/") or value.startswith("\\"):
+    if value.startswith(("/", "\\")):
         raise ValueError(f"{field_name}={value!r} must be a relative POSIX path")
     parts = value.replace("\\", "/").split("/")
     if any(part == ".." for part in parts):

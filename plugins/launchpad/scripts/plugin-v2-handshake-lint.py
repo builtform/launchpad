@@ -1021,8 +1021,10 @@ def _freshness_finding(lv: object, *, today: _dt.date) -> tuple[str, str] | None
     if age_days > FRESHNESS_WINDOW_DAYS:
         return (
             "warn",
-            f"last_validated {date_str} is {age_days}d old "
-            f"(>{FRESHNESS_WINDOW_DAYS}d window)",
+            (
+                f"last_validated {date_str} is {age_days}d old "
+                f"(>{FRESHNESS_WINDOW_DAYS}d window)"
+            ),
         )
     return None
 
@@ -1043,7 +1045,7 @@ def check_scaffolders_catalog(
     `_freshness_finding`.
     """
     if today is None:
-        today = _dt.date.today()
+        today = _dt.datetime.now(_dt.UTC).date()
     if warnings is None:
         warnings = []
     rule = "scaffolders-catalog"
@@ -1179,7 +1181,7 @@ def check_category_patterns_catalog(
     Staleness findings route to `warnings` (advisory) unless `freshness_blocking`
     is True. See `_freshness_finding`."""
     if today is None:
-        today = _dt.date.today()
+        today = _dt.datetime.now(_dt.UTC).date()
     if warnings is None:
         warnings = []
     rule = "category-patterns-catalog"
@@ -1284,7 +1286,7 @@ def check_anchor_doc_freshness(
     failures; a lapsed window is advisory unless `freshness_blocking` is True.
     See `_freshness_finding`."""
     if today is None:
-        today = _dt.date.today()
+        today = _dt.datetime.now(_dt.UTC).date()
     if warnings is None:
         warnings = []
     rule = "anchor-doc-freshness"

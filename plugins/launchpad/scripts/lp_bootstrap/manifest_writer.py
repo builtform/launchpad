@@ -155,8 +155,7 @@ def _normalize_path(raw: str) -> str:
         )
 
     s = raw.replace("\\", "/")
-    if s.startswith("./"):
-        s = s[2:]
+    s = s.removeprefix("./")
 
     if not s:
         raise BootstrapManifestError(
