@@ -17,22 +17,10 @@
 
 # --- mcp: 3 server-side advisories, unreachable fix, not exploitable here ---
 #
-# Shared rationale for all three (kept per-entry so each stands alone if
-# one is fixed independently):
-#
-#   Unreachable fix: `mcp` is transitive-only -- semgrep hard-pins
-#   `mcp==1.23.3` (exact `==`, still true at semgrep 1.171.0, the latest
-#   release as of 2026-07-31), so neither 1.27.2 nor 1.28.1 can resolve
-#   here. Bumping semgrep does not help; only an upstream semgrep release
-#   that moves its mcp pin will clear these.
-#
-#   Not exploitable in this repo: all three are MCP *server*-side flaws.
-#   This repo runs no MCP server from this dependency and no first-party
-#   code imports `mcp` (verified 2026-07-31); it is inert transitive
-#   weight behind a pinned CI/hook lint tool.
-#
-# Revisit at expiry OR when semgrep moves its mcp pin, whichever is first;
-# then re-lock via `make lock-deps` and delete the cleared entries.
+# Each entry below states its own (a)/(b)/(c) rationale so it stands alone if
+# one is fixed independently. Revisit at expiry OR when semgrep moves its mcp
+# pin, whichever comes first; then re-lock via `make lock-deps` and delete the
+# cleared entries.
 
 [[IgnoredVulns]]
 id = "GHSA-hvrp-rf83-w775"

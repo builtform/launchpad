@@ -9,10 +9,20 @@
 #   2. Run `make lock-deps` to regenerate requirements.txt
 #   3. Commit BOTH files together
 #
-# Versions track _vendor/{TOOL}_VERSION pin files for ruff/pyright/bandit/semgrep
-# (and PSUTIL_VERSION/PYYAML_VERSION/JINJA2_VERSION/MARKUPSAFE_VERSION for the
-# v2.0 runtime deps). Keep them in lockstep — bump the pin file AND this file
-# in the same commit.
+# THIS FILE IS AUTHORITATIVE for every version below. Do NOT sync versions
+# FROM `_vendor/*_VERSION`.
+#
+# `_vendor/` holds pin files for the four deps with a second on-disk source of
+# truth: PSUTIL_VERSION + PYYAML_VERSION (read by plugin-v2-handshake-lint.py)
+# and JINJA2_VERSION + MARKUPSAFE_VERSION (record which version is vendored
+# under plugin_stack_adapters/_vendor/). Those four must move together with
+# this file. Nothing else belongs there.
+#
+# Historical note (2026-07-31): pin files also existed for ruff/pyright/bandit/
+# semgrep/pytest. Nothing read them, nothing kept them current, and an earlier
+# instruction here told maintainers to keep this file "in lockstep" with them —
+# which, because they were years stale, silently downgraded lint and security
+# tooling for anyone who complied. They were deleted in v2.1.11 (PR #138).
 
 # --- v2.0 runtime deps ---
 

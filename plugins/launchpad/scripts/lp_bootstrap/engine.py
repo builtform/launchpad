@@ -81,6 +81,7 @@ from lp_bootstrap import (  # noqa: E402
     BootstrapError,
     BootstrapErrorCode,
     BootstrapPolicy,
+    BootstrapStatus,
 )
 from lp_bootstrap.manifest_writer import (  # noqa: E402
     BootstrapManifest,
@@ -163,6 +164,10 @@ class BootstrapResult:
     manifest_path: Path | None
     backup_dir: Path | None
     plugin_version: str | None
+    # Non-error outcome discriminator (D4 taxonomy). Trailing default keeps
+    # every existing keyword construction and the sole external consumer
+    # (lp_scaffold_stack/engine.py, attribute access only) source-compatible.
+    status: BootstrapStatus | None = None
 
 
 # --- Renderer singleton (harden B4) --------------------------------------
@@ -308,7 +313,7 @@ def _check_plugin_version_pin(
     return running, [
         (
             f"plugin version drift accepted: {recorded!r} -> {running!r}; "
-            f"--refresh-all auto-triggered to align manifest shas"
+            "--refresh-all auto-triggered to align manifest shas"
         )
     ]
 
@@ -743,19 +748,24 @@ def run_bootstrap(
 
         with advisory_flock(lock_path):
             # Step 2: sentinel preflight.
-            # BL-376: `recovered_snap` is deliberately unused pending a
-            # decision. lp-bootstrap.md:106-118 documents `--recover` as also
-            # unlinking a provably-stale manifest (manifest.created_at <
-            # sentinel.acquired_at) to close a plugin-version downgrade
-            # window; that step was never implemented, and this value is the
-            # `acquired_at` it would need. Marked rather than renamed to `_`
-            # so the doc/impl divergence stays visible. See BL-376.
-            recovered_snap, info = _sentinel_preflight(cwd)  # noqa: RUF059
+            recovered_snap, info = _sentinel_preflight(cwd)
             warnings.extend(info)
 
             if mode == "recover":
-                # Recover-mode terminates after preflight; sentinel cleared
-                # if stale, error if live process owned it.
+                # Recover is sentinel-clear-only, BY DESIGN (BL-376). It does
+                # NOT unlink the manifest. Earlier docs described an unlink of
+                # a "provably stale" manifest as a plugin-version downgrade
+                # control; that rationale was wrong on two counts:
+                #   * `_check_plugin_version_pin` reads plugin.json and
+                #     scaffold-decision.json only -- never the manifest -- so
+                #     retaining one cannot bypass the version pin.
+                #   * A missing manifest makes `manifest_rendered_sha` None,
+                #     which policy.py treats as "target absent" and OVERWRITES
+                #     unconditionally. Unlinking would therefore destroy the
+                #     user-edit protection it claimed to strengthen, with no
+                #     backup on the plain-bootstrap path.
+                # `recovered_snap` is not None exactly when a stale sentinel
+                # was cleared, which is the distinction callers need.
                 _emit_telemetry(
                     repo_root,
                     "success",
@@ -777,6 +787,11 @@ def run_bootstrap(
                     manifest_path=None,
                     backup_dir=None,
                     plugin_version=None,
+                    status=(
+                        BootstrapStatus.RECOVERED_SENTINEL_CLEAR_ONLY
+                        if recovered_snap is not None
+                        else None
+                    ),
                 )
 
             # v2.1 Codex PR #50 P1 + Greptile #2 (D8): write_sentinel becomes

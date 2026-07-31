@@ -979,6 +979,18 @@ def _load_yaml_or_fail(path: Path, failures: list[str], rule: str) -> dict | Non
     return data
 
 
+def _today_utc() -> _dt.date:
+    """Today's date in UTC.
+
+    Mirrors `plugin-freshness-check.py:_today_utc()` deliberately: that script
+    gates an overlapping file set in the adjacent release step (RELEASE_PROCESS
+    steps 5 and 6), so the two must agree on what "today" means. UTC, not
+    `date.today()`, so a developer's local run reaches the same verdict a
+    UTC CI runner will.
+    """
+    return _dt.datetime.now(_dt.UTC).date()
+
+
 def _freshness_finding(lv: object, *, today: _dt.date) -> tuple[str, str] | None:
     """Classify a `last_validated` value into a `(severity, message)` finding.
 
@@ -1016,7 +1028,14 @@ def _freshness_finding(lv: object, *, today: _dt.date) -> tuple[str, str] | None
     except (TypeError, ValueError):
         return ("fail", f"unparseable last_validated {date_str!r}")
     age_days = (today - last).days
-    if age_days < 0:
+    # One day of tolerance, not zero. `last_validated` is hand-stamped, and a
+    # contributor as far east as UTC+14 writing their local date legitimately
+    # produces a value up to one day ahead of UTC. Since the max real offset
+    # is under 24h, `< -1` admits exactly that skew while still catching the
+    # errors worth catching (wrong year, wrong month). This branch returns
+    # `fail`, and unlike the staleness branch below it is NOT gated by
+    # `freshness_blocking`, so a false positive here blocks PRs too.
+    if age_days < -1:
         return ("fail", f"last_validated {date_str} is in the future")
     if age_days > FRESHNESS_WINDOW_DAYS:
         return (
@@ -1045,7 +1064,7 @@ def check_scaffolders_catalog(
     `_freshness_finding`.
     """
     if today is None:
-        today = _dt.datetime.now(_dt.UTC).date()
+        today = _today_utc()
     if warnings is None:
         warnings = []
     rule = "scaffolders-catalog"
@@ -1181,7 +1200,7 @@ def check_category_patterns_catalog(
     Staleness findings route to `warnings` (advisory) unless `freshness_blocking`
     is True. See `_freshness_finding`."""
     if today is None:
-        today = _dt.datetime.now(_dt.UTC).date()
+        today = _today_utc()
     if warnings is None:
         warnings = []
     rule = "category-patterns-catalog"
@@ -1286,7 +1305,7 @@ def check_anchor_doc_freshness(
     failures; a lapsed window is advisory unless `freshness_blocking` is True.
     See `_freshness_finding`."""
     if today is None:
-        today = _dt.datetime.now(_dt.UTC).date()
+        today = _today_utc()
     if warnings is None:
         warnings = []
     rule = "anchor-doc-freshness"

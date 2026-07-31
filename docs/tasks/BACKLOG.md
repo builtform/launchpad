@@ -186,49 +186,80 @@ Add `@@index([email])` (or `@unique`) to the `User` model in `packages/db/prisma
 Follow the migration protocol in `docs/operations/PRISMA_MIGRATION_GUIDE.md`.
 -->
 
-#### BL-376 - v2.2: `/lp-bootstrap --recover` implements only step 1 of 3 (documented manifest-unlink never shipped)
+#### BL-376 - v2.1.11: `/lp-bootstrap --recover` doc/implementation divergence
+
+**Status (2026-07-31)**: RESOLVED in v2.1.11 (PR #138) by correcting the docs and implementing the status discriminator. The documented manifest-unlink step was WITHDRAWN, not built — see Resolution.
 
 - **Priority**: P1
-- **Status**: TODO
-- **Area**: lp_bootstrap
-- **Date**: 2026-07-31
+- **Status**: DONE
+- **Area**: Plugin / lp_bootstrap
 
 **Encountered**
 
-- **Location**: `plugins/launchpad/scripts/lp_bootstrap/engine.py:746` (recover branch at `:749-773`)
-- **Scenario**: Surfaced by the v2.1.11 ruff-0.16 triage. `RUF059` flagged `recovered_snap` as an unpacked-but-never-used variable; the variable turned out to be the exact value an unimplemented, documented step needs.
+- **Date**: 2026-07-31
+- **Location**: `plugins/launchpad/scripts/lp_bootstrap/engine.py` (recover branch), `plugins/launchpad/commands/lp-bootstrap.md`, `docs/architecture/SCAFFOLD_OPERATIONS.md`
+- **Scenario**: Surfaced by the v2.1.11 ruff-0.16 triage. `RUF059` flagged `recovered_snap` as unpacked-but-never-used; the variable turned out to be the `sentinel.acquired_at` value a documented-but-unimplemented step needed. OpenAI Codex independently raised it as a P1 on PR #138, asking for the unlink to be implemented.
 
-**Current Behavior**
+**Current Behavior** (before resolution)
 
-`plugins/launchpad/commands/lp-bootstrap.md:106-118` documents `--recover` as doing three things:
+Docs described `--recover` as doing three things: clear the sentinel, unlink the manifest when `manifest.created_at < sentinel.acquired_at`, and return `RECOVERED_SENTINEL_CLEAR_ONLY`. Only step 1 existed. `BootstrapStatus.RECOVERED_SENTINEL_CLEAR_ONLY` and `STALE_SENTINEL_DETECTED` were dead members, `STALE_SENTINEL_THRESHOLD_HOURS` was a dead constant, and `lp-bootstrap.md` described stale-sentinel predicates (`hostname_mismatch`, `mtime_age`) that do not exist — the sentinel carries no hostname field and `_sentinel_preflight` uses PID liveness only. Recover mode had zero test coverage (`mode="recover"` matched nothing in source or tests).
 
-1. Clear the bootstrap sentinel.
-2. Unlink the manifest IFF `manifest.created_at < sentinel.acquired_at` (provably stale).
-3. Return `BootstrapStatus.RECOVERED_SENTINEL_CLEAR_ONLY`.
+**Resolution**
 
-Only step 1 is implemented. The recover branch returns immediately after `_sentinel_preflight`, never reading the manifest. Corroborating evidence that steps 2-3 were intended but dropped:
+The documented unlink was withdrawn rather than implemented, because its stated security rationale is false and building it would have introduced a data-loss bug:
 
-- `recovered_snap.started_at` IS the `sentinel.acquired_at` value step 2 needs, and it is discarded at the only site that obtains it.
-- `BootstrapManifest.created_at`'s docstring (`manifest_writer.py:115-119`) states verbatim that "the `--recover` flow reads `created_at` to decide whether to unlink a stale manifest". Nothing reads it.
-- `BootstrapStatus.RECOVERED_SENTINEL_CLEAR_ONLY` and `STALE_SENTINEL_DETECTED` are dead enum members: exported in `__all__` with zero producers and zero consumers.
-- `sentinel.py:8-13` documents `pre_edit_manifest_sha256` + `target_paths` as the "partial-rollback substrate" that `--recover` reads; neither is read.
+- `_check_plugin_version_pin` reads `plugin.json` and `.launchpad/scaffold-decision.json` only. It never reads the manifest, so a retained stale manifest cannot bypass the version pin. The "downgrade window" the doc named does not exist on that path.
+- A missing manifest leaves `manifest_rendered_sha` unset, which `policy.py` treats as "target absent" and overwrites unconditionally. Unlinking would have destroyed the user-edit protection it claimed to strengthen, with no backup on the plain-bootstrap path. The stale predicate is true for essentially every abandoned run, so the step would have fired almost always.
 
-The doc itself names the gap a security surface: a stale manifest plus a cleared sentinel lets a later `_check_plugin_version_pin` pass for the OLD plugin version (downgrade window). Note BL-262 defers only the separate "auto-complete the partial run by re-rendering `target_paths`" work; the manifest-unlink was documented as shipping at v2.1.0 and is not in that deferral.
-
-**Desired Behavior**
-
-One of two coherent resolutions (decide before implementing):
-
-- **(a) Implement** steps 2-3: compare `recovered_snap.started_at` against `manifest.created_at`, unlink when provably stale, and surface `RECOVERED_SENTINEL_CLEAR_ONLY`. Closes the downgrade window and consumes the variable naturally.
-- **(b) Downgrade the docs** to match reality (recover == sentinel-clear only), delete the two dead `BootstrapStatus` members, and accept the narrower contract.
-
-**Proposed Fix** (revalidate before implementing)
-
-Prefer (a) if the downgrade window is judged reachable; (b) is only acceptable after confirming no consumer relies on the documented unlink. Either way, add a regression test — the only recover-adjacent test (`tests/test_bootstrap_wiring.py:179`) asserts a warning string and pins none of this behavior.
+Shipped: `BootstrapResult.status` added; the recover branch sets `RECOVERED_SENTINEL_CLEAR_ONLY` when a stale sentinel was cleared (`None` otherwise), which consumes `recovered_snap` legitimately and removed the `# noqa: RUF059`; `STALE_SENTINEL_DETECTED` + `STALE_SENTINEL_THRESHOLD_HOURS` deleted; `lp-bootstrap.md` and `SCAFFOLD_OPERATIONS.md` (flag table, recover section, and the separate "auto-completes an interrupted run" claim) corrected; `tests/test_bootstrap_recover_semantics.py` added, including a test that pins the deliberate non-unlink.
 
 **Notes**
 
-Interim state: `engine.py:746` carries `# noqa: RUF059` with a pointer to this BL, deliberately chosen over renaming to `_recovered_snap` so the doc/implementation divergence stays visible in the code rather than being silently blessed.
+BL-262 remains the home for the real functional gap this doc text was gesturing at: partially-rendered files from an interrupted run are misclassified as `KEPT_USER_EDITS` and never healed. Its correct remedy is a targeted re-render of divergent `target_paths`, not manifest deletion. BL-262's claim that "v2.1.0 ships only sentinel-clear + provably-stale-manifest unlink" is superseded by this entry: no unlink ever shipped, and none will.
+
+---
+
+#### BL-377 - v2.2: Backlog-orphan gate cannot read bullet-form `Status` lines
+
+- **Priority**: P3
+- **Status**: TODO
+- **Area**: CI / tooling
+
+**Encountered**
+
+- **Date**: 2026-07-31
+- **Location**: `plugins/launchpad/scripts/plugin-backlog-orphan-check.py`, `docs/tasks/BACKLOG.md`
+- **Scenario**: Surfaced by the PR #138 review. The gate matches `^\*\*Status[^*]*\*\*:` at line start, but many entries (BL-100..BL-105, BL-200..BL-202, and the Standard Task Format itself) write `- **Status**: TODO` as a list item, which that regex cannot match.
+
+**Current Behavior**
+
+No failure today: the gate only inspects BLs labeled for the release under test. But a BL closed with a dated status written in the repo's own bullet style is invisible to the gate, so the close marker is not seen and the required check hard-fails at release time.
+
+**Desired Behavior**
+
+Either the regex tolerates an optional leading `- ` / `* ` bullet, or the Standard Task Format is amended to mandate the non-bullet form and existing entries are migrated. Prefer the former: it accepts what the file already contains.
+
+---
+
+#### BL-378 - v2.2: Schema-CODEOWNERS gate is neutralized by any bundled formatting pass
+
+- **Priority**: P2
+- **Status**: TODO
+- **Area**: CI / tooling
+
+**Encountered**
+
+- **Date**: 2026-07-31
+- **Location**: `plugins/launchpad/scripts/plugin-v2-handshake-lint.py` (schema-doc pairing gate)
+- **Scenario**: Surfaced by the PR #138 review. The gate passes whenever `docs/architecture/SCAFFOLD_HANDSHAKE.md` appears anywhere in `git diff --name-only origin/main...HEAD`. It does not check that the doc change relates to the schema change.
+
+**Current Behavior**
+
+`SCAFFOLD_HANDSHAKE.md` is markdown and is not prettier-ignored, so a repo-wide formatter upgrade puts it in the diff and satisfies the gate for free. PR #138 hit exactly this: it touched three `SCHEMA_SOURCE_FILES` (`manifest_writer.py`, `contracts.py`, `_renderer_base.py`) and the gate passed only because prettier reformatted the doc. The edits were cosmetic lint rewrites with no contract change, so nothing unsafe shipped — but the gate did not actually adjudicate them.
+
+**Desired Behavior**
+
+Require the schema-doc side of the pairing to be a non-trivial change: ignore whitespace-only diffs (`git diff --ignore-all-space --numstat`) when deciding whether the doc was touched, so a formatting pass alone cannot satisfy the gate. The existing `Schema-Refactor-Only: <reason>` commit-footer escape hatch remains the intended path for genuine pure-refactor changes.
 
 ---
 

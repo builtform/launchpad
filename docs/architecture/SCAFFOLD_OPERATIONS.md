@@ -699,7 +699,7 @@ When implementation reveals a contract bug or scope-evolution forces a change to
 | `--refresh <path>`              | Re-render a single infrastructure path with `overwrite-with-backup`. Repeatable. Path must be in the v2.1 34-path inventory (v2.1.5+); kernel paths rejected.                                                                |
 | `--refresh-all`                 | Re-render every infrastructure path with `overwrite-with-backup`. If no manifest exists, silently degrades to full bootstrap with INFO `no_manifest_to_refresh`.                                                             |
 | `--accept-plugin-version-drift` | Override the plugin-version pin abort. Records the drift in `scaffold-decision.json` `version_drift_log[]`. Auto-triggers `--refresh-all` to align manifest shas with the new plugin's templates. Sealed identity preserved. |
-| `--recover`                     | Inspect sentinel snapshot. Auto-completes an interrupted run if state is consistent; fails with structured guidance if state diverges.                                                                                       |
+| `--recover`                     | Inspect sentinel snapshot; clear it when the owning PID is dead. Does NOT auto-complete the interrupted run (deferred, BL-262) and does NOT touch the manifest (BL-376). A live-PID sentinel fails with structured guidance. |
 | `--accept-bootstrap`            | Non-interactive consent flag for brownfield auto-invocation. Required by `/lp-define` brownfield dispatch in CI / scripted contexts.                                                                                         |
 
 Glob in `--refresh <path>`, `--refresh-paths` comma-sep variant, and `--prune-backups-older-than <N>d` are v2.2 backlog.
@@ -720,7 +720,7 @@ Default Y so the happy path is single-keystroke. CI / scripted contexts must pas
 
 Two recovery surfaces:
 
-- `/lp-bootstrap --recover`: inspects sentinel snapshot (`.launchpad/.bootstrap-in-progress`), confirms PID liveness via `os.kill(pid, 0)`, and either auto-completes the interrupted run OR fails with structured guidance.
+- `/lp-bootstrap --recover`: inspects the sentinel snapshot (`.launchpad/.bootstrap-in-progress`), confirms PID liveness via `os.kill(pid, 0)`, and clears the sentinel when the owner is dead. It does NOT auto-complete the interrupted run — that reconciliation is deferred to BL-262 — and a live-PID sentinel fails with structured guidance.
 - Manual `rm .launchpad/.bootstrap-in-progress` after confirming no `/lp-bootstrap` PID is alive (last resort; `--recover` should handle most cases).
 
 ### 10.4 Backup directory accumulation
@@ -959,7 +959,7 @@ Writers emit the canonical 5-key shape directly. v2.1.0 ships zero reader-side n
 
 ### --recover multi-command contract (D4)
 
-`/lp-bootstrap --recover` clears the bootstrap sentinel and unlinks a provably-stale manifest (`manifest.created_at < sentinel.acquired_at`). The deferred reconciliation (auto-completing partial runs) lives at v2.1.1 BL-262. `/lp-update-identity` does NOT participate in `--recover` semantics; its sentinel is independently owned and recovered via dead-PID auto-clear in `_validate_preconditions`.
+`/lp-bootstrap --recover` clears a stale (dead-PID) bootstrap sentinel and does nothing else. It deliberately does NOT unlink the manifest: `_check_plugin_version_pin` never reads the manifest (so retaining one cannot bypass the version pin), and a missing manifest makes `policy.py` treat every target as absent and overwrite it unconditionally — destroying user-edit protection rather than strengthening it. See BL-376. The deferred reconciliation (auto-completing partial runs) lives at v2.1.1 BL-262. `/lp-update-identity` does NOT participate in `--recover` semantics; its sentinel is independently owned and recovered via dead-PID auto-clear in `_validate_preconditions`.
 
 ---
 

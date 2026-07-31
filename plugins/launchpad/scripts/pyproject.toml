@@ -14,6 +14,11 @@
 
 [tool.ruff]
 target-version = "py311"
+# Required because lefthook pipes explicit file paths (CI passes a
+# directory). Without it, extend-exclude is ignored for those paths and a
+# contributor editing plugin_stack_adapters/tests/ gets pre-commit failures
+# on rules CI never enforces.
+force-exclude = true
 # Paths are relative to this pyproject.toml's directory
 # (= plugins/launchpad/scripts/). `tests/` excluded per R1-T1-2 — those carry
 # 200+ deferred ruff violations; v2.1.x BL: tests-dir ruff baseline.
@@ -51,9 +56,12 @@ select = [
     "B",       # flake8-bugbear
     "UP",      # pyupgrade
     # --- adopted from the ruff-0.16 default expansion (all findings fixed) ---
-    "DTZ011",  # date.today() -> UTC; fixed a real release-gate false-failure
+    "DTZ",     # tz-aware datetime (DTZ007 rejected below). Family, not just
+               # DTZ011: pinning one rule left DTZ005 (`datetime.now()`
+               # without tz) unenforced, so a revert spelled that way would
+               # reintroduce local-clock comparison undetected.
     "EXE001",  # shebang without exec bit (3 live entrypoints, chmod +x'd)
-    "FURB105", # print("", end="") -> print(end="")
+    "FURB105", # print("") -> print()
     "FURB162", # redundant .replace("Z", "+00:00") before fromisoformat
     "FURB188", # manual prefix/suffix slicing -> removeprefix/removesuffix
     "ISC004",  # implicit concat inside a collection literal (comma-slip class)
@@ -97,19 +105,23 @@ select = [
 # SIM103 (5): terminal clauses of deliberate guard-clause ladders.
 # SIM114 (4): exhaustive enum-dispatch ladders; the 1:1 branch-per-enum-member
 #   correspondence is what makes them auditable.
-# DTZ007 (2): both already UTC-correct (one `.date()`s the result, one
-#   discards it after upstream UTC enforcement); `%z` is impossible anyway
-#   because the literal `Z` in the format string is the UTC pin.
-extend-ignore = [
+# (DTZ007 is selected-then-ignored rather than unselected, so the rest of
+#  the DTZ family stays enforced; its rationale sits with the ignore entry.)
+ignore = [
+    # DTZ007 (2): both sites are already UTC-correct — one `.date()`s the
+    # result, the other discards it after upstream UTC enforcement — and
+    # `%z` cannot be added anyway because the literal `Z` in the format
+    # string is what pins them to UTC. Rejected while the rest of DTZ is
+    # enforced.
+    "DTZ007",
     # 181 violations dominantly in error-message strings + URLs; manual rewrap
     # is high-effort low-value; deferred to v2.1.x BL (choose between raising
     # line-length to 100 OR systematic rewrap into named constants).
     "E501",
 ]
 
-[tool.ruff.format]
-# Standard ruff format defaults; mirror the eslint-fix + prettier-fix pairing
-# pattern used on the TS side.
+# `ruff format` runs on defaults (no [tool.ruff.format] overrides), mirroring
+# the eslint-fix + prettier-fix pairing on the TS side.
 
 [tool.pyright]
 include = ["."]
