@@ -6,21 +6,66 @@
 # not exploitable here, (b) why the fix is currently unreachable, and
 # (c) an ignoreUntil expiry so the suppression re-surfaces for review
 # instead of rotting silently.
+#
+# Suppressing a GHSA id also suppresses its aliases (CVE-*, PYSEC-*).
+#
+# HISTORY: the click.edit() entry (PYSEC-2026-2132 / CVE-2026-7246) was
+# removed on 2026-07-31 -- semgrep 1.171.0 relaxed its click~=8.1.8 pin,
+# so `click` now resolves to 8.4.2 (>= the 8.3.3 fix) and the finding is
+# genuinely fixed rather than suppressed. That is the intended lifecycle
+# for every entry below.
+
+# --- mcp: 3 server-side advisories, unreachable fix, not exploitable here ---
+#
+# Shared rationale for all three (kept per-entry so each stands alone if
+# one is fixed independently):
+#
+#   Unreachable fix: `mcp` is transitive-only -- semgrep hard-pins
+#   `mcp==1.23.3` (exact `==`, still true at semgrep 1.171.0, the latest
+#   release as of 2026-07-31), so neither 1.27.2 nor 1.28.1 can resolve
+#   here. Bumping semgrep does not help; only an upstream semgrep release
+#   that moves its mcp pin will clear these.
+#
+#   Not exploitable in this repo: all three are MCP *server*-side flaws.
+#   This repo runs no MCP server from this dependency and no first-party
+#   code imports `mcp` (verified 2026-07-31); it is inert transitive
+#   weight behind a pinned CI/hook lint tool.
+#
+# Revisit at expiry OR when semgrep moves its mcp pin, whichever is first;
+# then re-lock via `make lock-deps` and delete the cleared entries.
 
 [[IgnoredVulns]]
-id = "PYSEC-2026-2132"
-# Aliases (CVE-2026-7246, GHSA-47fr-3ffg-hgmw) are suppressed automatically.
-ignoreUntil = 2026-10-13
+id = "GHSA-hvrp-rf83-w775"
+ignoreUntil = 2026-10-31
 reason = """
-click.edit() command injection, fixed only in click 8.3.3 (no 8.1.x
-backport). Unreachable fix: click is transitive-only here (semgrep,
-click-option-group, uvicorn) and semgrep pins click~=8.1.8 through its
-latest release (1.169.0 as of 2026-07-13), so 8.3.3 cannot resolve in
-this environment. Not exploitable in this repo: first-party code never
-imports click (verified 2026-07-13; only word-matches in vendored
-jinja2 docstrings), and click runs solely as CLI plumbing for pinned
-dev/CI lint tools on trusted input -- the vulnerable interactive
-click.edit() path is never invoked. Revisit at expiry OR when semgrep
-relaxes the click pin, whichever comes first; then bump click to
->=8.3.3 in requirements.txt via `make lock-deps` and delete this entry.
+MCP Python SDK: experimental task handlers (server.experimental.enable_tasks())
+do not check which session created a task, letting any connected client observe
+or cancel another client's tasks. Fixed in mcp 1.27.2. Unreachable: semgrep
+hard-pins mcp==1.23.3 (still true at semgrep 1.171.0). Not exploitable here:
+this repo runs no MCP server and never enables the experimental tasks feature;
+no first-party code imports mcp.
+"""
+
+[[IgnoredVulns]]
+id = "GHSA-jpw9-pfvf-9f58"
+ignoreUntil = 2026-10-31
+reason = """
+MCP Python SDK: SSE and Streamable HTTP server transports route requests to an
+existing session by session id alone, without verifying the request is
+authenticated as the principal that created the session. Fixed in mcp 1.27.2.
+Unreachable: semgrep hard-pins mcp==1.23.3 (still true at semgrep 1.171.0).
+Not exploitable here: this repo serves no MCP HTTP/SSE transport; no
+first-party code imports mcp.
+"""
+
+[[IgnoredVulns]]
+id = "GHSA-vj7q-gjh5-988w"
+ignoreUntil = 2026-10-31
+reason = """
+MCP Python SDK: the deprecated WebSocket server transport
+(mcp.server.websocket.websocket_server) accepts handshakes without Host/Origin
+validation, bypassing TransportSecuritySettings. Fixed in mcp 1.28.1.
+Unreachable: semgrep hard-pins mcp==1.23.3 (still true at semgrep 1.171.0).
+Not exploitable here: this repo serves no MCP WebSocket transport; no
+first-party code imports mcp.
 """

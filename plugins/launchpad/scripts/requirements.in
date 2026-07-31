@@ -30,11 +30,12 @@ ruff==0.15.20          # style + import-order + bugbear (lefthook pre-commit)
 # Node dep) OR pin the node binary download via CI checksum verification.
 pyright==1.1.411       # type-check (lefthook pre-push, strict on 5 contract modules)
 bandit==1.9.4          # security audit at MEDIUM+ (lefthook pre-commit)
-# NOTE: semgrep pins click~=8.1.8 (through 1.169.0, latest as of
-# 2026-07-13), which blocks the click>=8.3.3 fix for CVE-2026-7246
-# (PYSEC-2026-2132, click.edit() command injection). Suppressed with
+# NOTE: semgrep hard-pins `mcp==1.23.3` (exact `==`, still true at 1.171.0),
+# which blocks the fixes for three MCP server-side advisories (GHSA-hvrp,
+# GHSA-jpw9 -> mcp 1.27.2; GHSA-vj7q -> mcp 1.28.1). Suppressed with
 # rationale + expiry in osv-scanner.toml (this directory). Whoever bumps
-# semgrep past that pin: re-lock so click moves to >=8.3.3, then delete
-# the suppression entry.
+# semgrep past that pin: re-lock so mcp moves to >=1.28.1, then delete the
+# suppression entries. (The earlier click~=8.1.8 pin cleared at semgrep
+# 1.171.0 -- click is now 8.4.2 and its suppression has been removed.)
 semgrep==1.171.0       # general patterns (pre-commit) + LP-internal invariants (pre-push)
 pytest==9.1.1          # test runner (lefthook pre-push + CI v2-handshake-lint); pinned for hash coverage (Codex PR #62 P1 #2)
