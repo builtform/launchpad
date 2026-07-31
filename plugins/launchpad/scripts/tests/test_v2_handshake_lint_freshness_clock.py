@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import importlib.util
+import os
 import sys
 import time
 from pathlib import Path
@@ -54,16 +55,29 @@ def lint():
 
 
 @pytest.fixture
-def in_timezone(monkeypatch):
-    """Run the body under a fixed TZ, restoring the process clock afterwards."""
+def in_timezone():
+    """Run the body under a fixed TZ, restoring the process clock afterwards.
+
+    Deliberately does NOT use `monkeypatch.setenv`: monkeypatch restores the
+    env var in ITS finalizer, which runs *after* this fixture's post-yield
+    code. A `time.tzset()` here would therefore re-read the still-shifted TZ
+    and leak it into every subsequent test in the session. Restore the value
+    ourselves, then tzset, so ordering is explicit.
+    """
+    original = os.environ.get("TZ")
 
     def _set(tz: str) -> None:
-        monkeypatch.setenv("TZ", tz)
+        os.environ["TZ"] = tz
         time.tzset()
 
-    yield _set
-    # monkeypatch restores the env var; tzset must be re-run to apply it.
-    time.tzset()
+    try:
+        yield _set
+    finally:
+        if original is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = original
+        time.tzset()
 
 
 @pytest.mark.parametrize("tz", [TZ_EAST, TZ_WEST, "UTC"])
