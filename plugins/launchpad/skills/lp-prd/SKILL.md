@@ -294,19 +294,21 @@ with no NFR implications, write:
 List edge cases with expected behavior in a structured table.
 
 Format:
-| Scenario | Expected Behavior | Fallback |
-|---|---|---|
+
+| Scenario              | Expected Behavior           | Fallback                    |
+| --------------------- | --------------------------- | --------------------------- |
 | [What could go wrong] | [What the system should do] | [Recovery action, or "N/A"] |
 
 For simple configuration changes or cosmetic updates where no meaningful edge cases exist, write:
 "N/A — this change has no user-facing logic with edge case scenarios."
 
 Example:
-| Scenario | Expected Behavior | Fallback |
-|---|---|---|
-| User submits form with past date | Show validation error: "Date must be in the future" | N/A |
-| Email service is down | Queue email for retry, show "Email will be sent shortly" | Retry 3x, then log failure |
-| File upload exceeds 10MB limit | Show error before upload starts (client-side check) | Server-side 413 response |
+
+| Scenario                         | Expected Behavior                                        | Fallback                   |
+| -------------------------------- | -------------------------------------------------------- | -------------------------- |
+| User submits form with past date | Show validation error: "Date must be in the future"      | N/A                        |
+| Email service is down            | Queue email for retry, show "Email will be sent shortly" | Retry 3x, then log failure |
+| File upload exceeds 10MB limit   | Show error before upload starts (client-side check)      | Server-side 413 response   |
 
 ### 7. Success Metrics
 
