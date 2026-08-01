@@ -2,23 +2,22 @@
 stack: fastapi
 pillar: Backend Python
 type: curate
-last_validated: 2026-06-23
-scaffolder_command: (curate — no official CLI; manual scaffold per this doc)
-scaffolder_command_pinned_version: fastapi@0.115+
+last_validated: 2026-08-01
+scaffolder_command: (curate; `uvx fastapi-new` exists but emits only a minimal single-file app, so LaunchPad scaffolds the layered layout per this doc)
+scaffolder_command_pinned_version: fastapi@0.141.x (Starlette 1.x requires fastapi>=0.133)
 ---
 
 # FastAPI — Knowledge Anchor
 
 ## Idiomatic 2026 pattern
 
-FastAPI 0.115+ is the canonical async Python web framework, built on Starlette
-
-- Pydantic v2 + Uvicorn. The 2026 idiom uses Python 3.12+ (3.13 preferred),
-  async-first throughout, dependency-injection via `Depends()`, type-validated
-  request/response models via Pydantic v2 BaseModel, and async SQLAlchemy 2.0 as
-  the standard ORM with asyncpg as the Postgres driver. Project metadata lives in
-  `pyproject.toml` (PEP 621) with `uv` as the canonical package manager (replaces
-  pip/poetry as the 2026 default).
+FastAPI 0.141+ is the canonical async Python web framework, built on Starlette
+1.x, Pydantic v2, and Uvicorn. The 2026 idiom uses Python 3.13+ (3.14
+preferred), async-first throughout, dependency injection via `Depends()` with
+`Annotated[]`, type-validated request/response models via Pydantic v2
+`BaseModel`, and async SQLAlchemy 2.0 as the standard ORM with asyncpg as the
+Postgres driver. Project metadata lives in `pyproject.toml` (PEP 621) with `uv`
+as the canonical package manager (replacing pip/poetry as the 2026 default).
 
 Canonical layout:
 
@@ -45,27 +44,34 @@ tests/
   conftest.py      # pytest-asyncio + httpx AsyncClient fixtures
   test_health.py
 .env.example
-.python-version    # 3.12 or 3.13
+.python-version    # 3.13 or 3.14
 pyproject.toml
-Dockerfile         # multi-stage, python:3.13-slim base
+Dockerfile         # multi-stage, python:3.14-slim base
 ```
 
 Version pins (in `pyproject.toml`):
 
-- `fastapi>=0.115,<0.117`
-- `uvicorn[standard]>=0.34`
-- `pydantic>=2.9`
-- `pydantic-settings>=2.5`
-- `sqlalchemy[asyncio]>=2.0.36`
-- `asyncpg>=0.30`
-- `alembic>=1.14`
-- `structlog>=24.4` (for structured logging)
-- `httpx>=0.27` (test client)
-- `pytest>=8.3`, `pytest-asyncio>=0.24`
+- `fastapi[standard]>=0.141,<0.142`. Do NOT cap below 0.133: earlier releases
+  pin `starlette<1.0.0`, which is unsatisfiable alongside Starlette 1.x.
+- `starlette>=1.3` (transitive via fastapi; pinned explicitly to document the
+  1.x break)
+- `uvicorn[standard]>=0.52`
+- `pydantic>=2.13`
+- `pydantic-settings>=2.14`
+- `sqlalchemy[asyncio]>=2.0.51,<2.1` (2.1 is still beta as of 2026-07)
+- `asyncpg>=0.31`
+- `alembic>=1.18`
+- `structlog>=26.1` (for structured logging)
+- `httpx>=0.28,<1.0` (test client; `fastapi[standard]` caps `<1.0`)
+- `pytest>=9.1`, `pytest-asyncio>=1.4` (1.0 removed the `event_loop` fixture;
+  use `loop_scope`)
 
 ## Scaffolder behavior
 
-FastAPI has NO official CLI scaffolder. This is a `curate`-mode stack.
+FastAPI has no official CLI scaffolder that emits a layered layout.
+`uvx fastapi-new <name>` (published under the `fastapi` org) creates only a
+minimal uv-configured single-file app, and `fastapi-cli` itself provides just
+`fastapi dev` / `fastapi run`. This is therefore a `curate`-mode stack.
 LaunchPad's curate path materializes the canonical layout via Claude using this
 knowledge anchor as context. The `/lp-scaffold-stack` command, when dispatching
 a `fastapi` layer, calls `knowledge_anchor_loader.read_and_verify()` on this
@@ -81,13 +87,13 @@ required.
 
 ## Tier-1 detection signals
 
-- `pyproject.toml` with `fastapi` in `[project.dependencies]`
+- `pyproject.toml` with `fastapi` in the `[project]` `dependencies` array
 - `src/main.py` (or `app/main.py`, `main.py` at root) containing `FastAPI(`
   constructor invocation
 - `alembic.ini` at repo root paired with `alembic/` directory
 - `uv.lock` (modern) or `poetry.lock` (legacy) or `requirements.txt` with
   fastapi pin
-- `.python-version` file pinning 3.12+
+- `.python-version` file pinning 3.13+ (FastAPI requires Python >=3.10)
 
 ## Common pitfalls + cold-rerun gotchas
 
@@ -103,10 +109,28 @@ required.
   errors; structured logs help debug.
 - Alembic autogenerate misses certain SQLAlchemy 2.0 constructs (CheckConstraint
   named, server_default expressions); review every generated migration.
-- CORS middleware must be added BEFORE routes, not after; ordering matters.
+- Middleware must be registered before the app starts serving, and relative
+  middleware order matters. For CORS specifically, `allow_credentials=True`
+  forbids `["*"]` in `allow_origins` / `allow_methods` / `allow_headers`.
+- Starlette 1.0 (2026-03-22) removed `on_startup`/`on_shutdown` params,
+  `@app.on_event()`, `@app.route()`, `@app.websocket_route()`,
+  `add_event_handler()`, and `Jinja2Templates(**env_options)`. FastAPI
+  re-implemented `on_event` and the middleware/exception-handler decorators for
+  backwards compatibility (0.128.3+), so FastAPI-level code still works, but any
+  code importing those idioms from `starlette` directly breaks. Use `lifespan`
+  unconditionally.
+- pytest-asyncio 1.0 removed the `event_loop` fixture; 2024-era `conftest.py`
+  snippets that override it fail on import. Use `loop_scope` or
+  `asyncio_mode = "auto"`.
 
 ## Version evolution
 
+- FastAPI 0.141 (2026-07): `app.frontend()` static/SPA serving; SSE + JSONL
+  streaming response fixes.
+- FastAPI 0.133 (2026-02-24): first release supporting Starlette 1.0+ (the
+  `starlette<1.0.0` cap was dropped here).
+- FastAPI 0.128.3 (2026-02): `on_event` re-implemented inside FastAPI ahead of
+  Starlette 1.0 removing it.
 - FastAPI 0.115 (2024 → 2025): `Annotated[]` dependency injection promoted to
   preferred syntax over `Depends()` defaults; lifespan events stable; OpenAPI
   3.1 by default.
