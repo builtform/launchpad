@@ -265,19 +265,35 @@ Require the schema-doc side of the pairing to be a _semantically_ non-trivial ch
 
 **Do NOT use `git diff --ignore-all-space` for this. It does not work.** That was this entry's original proposed remedy; it was tested against the real PR #138 diff on 2026-08-01 and **still reports `SCAFFOLD_HANDSHAKE.md` as changed**. Prettier 3.9 rewrites markdown table _separator rows_ (`|--------|` becomes `| --- |`) in addition to cell padding, and a change in dash-run length is not a whitespace difference. Any remedy that only normalizes whitespace will fail to classify exactly the case that motivated this BL.
 
-What does work (verified against the same diff): normalize whitespace **and** collapse runs of 3-or-more hyphens before comparing. Sketch:
+What does work (verified against the same diff): normalize **only markdown table rows**, and compare every other line byte-for-byte. Sketch:
 
 ```python
+_TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
+
+def _norm_line(line: str) -> str:
+    if not _TABLE_ROW.match(line):
+        return line                                 # code, prose: verbatim
+    line = re.sub(r"-{3,}", "---", line)            # separator dash runs
+    return re.sub(r"\s*\|\s*", "|", line).strip()   # cell padding
+
 def _semantically_unchanged(old: str, new: str) -> bool:
-    def norm(t: str) -> str:
-        t = re.sub(r"-{3,}", "---", t)   # markdown table separator runs
-        return re.sub(r"\s+", "", t)     # all whitespace
+    norm = lambda t: "\n".join(_norm_line(x) for x in t.splitlines())
     return norm(old) == norm(new)
 ```
 
-Fetch both sides with `git show <base>:<path>` and `git show HEAD:<path>`, and treat `SCHEMA_DOC` as untouched when this returns True. Confirmed: raw content differs, normalized content does not, for the PR #138 reformat.
+Fetch both sides with `git show <base>:<path>` and `git show HEAD:<path>`, and treat `SCHEMA_DOC` as untouched when this returns True. Confirmed against the PR #138 reformat: raw content differs, normalized content does not.
 
-Whoever picks this up should also add a regression test pinning that a whitespace-plus-dash-run-only change to `SCAFFOLD_HANDSHAKE.md` does NOT satisfy the gate, since that is the precise failure this entry exists to prevent.
+**Scope the normalization to table rows; do NOT normalize the whole document.** An earlier revision of this entry sketched a global `re.sub(r"\s+", "", t)`. That is wrong, and it was caught in review (Greptile P2 on PR #139) before anyone built it. `SCAFFOLD_HANDSHAKE.md` is dense with YAML and Python code blocks where indentation IS semantics, and global whitespace-stripping classifies real edits as no-change. Verified:
+
+| Edit                                          | global normalization | table-scoped normalization |
+| --------------------------------------------- | -------------------- | -------------------------- |
+| Move a statement out of a Python `if` block   | "unchanged" (wrong)  | changed (correct)          |
+| Un-nest a key in a YAML example               | "unchanged" (wrong)  | changed (correct)          |
+| Prettier table reformat (the motivating case) | unchanged (correct)  | unchanged (correct)        |
+
+The failure direction is fail-closed (the gate would demand a doc change the author already made), so it is not a security hole. It is worse than it looks anyway: the natural escape from a spurious "you didn't touch the doc" failure is the `Schema-Refactor-Only:` footer, which trains maintainers to reach for the bypass on changes that are not refactors, corroding the gate more than the original bug did.
+
+Whoever picks this up should add regression tests pinning BOTH directions: a table-formatting-only change to `SCAFFOLD_HANDSHAKE.md` must NOT satisfy the gate, and a whitespace-only edit inside a fenced code block MUST satisfy it. Note also that no normalization here is airtight: a formatter change outside table rows (e.g. normalizing a `-----` thematic break to `---`) would still satisfy the gate. Prefer tests over trusting the normalizer to be complete.
 
 ---
 
