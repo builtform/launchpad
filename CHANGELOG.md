@@ -6,7 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.1.10: BL-365 (parallelize preflight probe dispatch + short-TTL cache), BL-367 (programmatic GitHub-repo linkage verification for provider project probes), BL-368 (DNS `dig +short --` sentinel bug), and BL-366 (18-item preflight polish). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0, plus BL-374 (TypeScript 5.x -> 6.x upgrade audit, seeded by v2.1.9), plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
+Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.1.11: BL-365 (parallelize preflight probe dispatch + short-TTL cache), BL-367 (programmatic GitHub-repo linkage verification for provider project probes), BL-368 (DNS `dig +short --` sentinel bug), and BL-366 (18-item preflight polish). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0, plus BL-374 (TypeScript 5.x -> 6.x upgrade audit, seeded by v2.1.9), BL-375 (Prisma 6.x -> 7.x upgrade audit, seeded by v2.1.10), BL-377 and BL-378 (CI gate correctness, seeded by v2.1.11), plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
+
+## [v2.1.11]
+
+CVE-watch lane repaired, linter pinned against silent drift, dependency sweep. v2.1.11 clears the post-v2.1.10 Dependabot backlog (32 bumps, unblocked by the v2.1.10 freshness-gate fix) and repairs three CI failures that had been firing on a schedule with nobody acting on them: `cve-watch.yml` had been broken since `osv-scanner` v2 removed a flag it passed, that workflow's tag-drift detector was reporting false positives, and a routine `ruff` minor bump silently expanded the linter's default rule set under a config that could not pin it.
+
+### For LaunchPad users (downstream behavior changes)
+
+None. Every change is LaunchPad-repo CI, LaunchPad-internal Python tooling, or template dependency maintenance. Downstream projects do not run `cve-watch.yml`, `v2-handshake-lint`, or the backlog-orphan gate. The BL-376 fix corrects documentation to match shipped behavior, so no downstream flow changes.
+
+### Plugin-internal changes
+
+- **CVE-watch workflow restored (#123, #124).** `osv-scanner` v2 removed `--skip-git` (skipping the git root is now the default), so every scheduled run failed at invocation before scanning anything. The flag was dropped, the companion tag-drift detector was corrected, and the workflow gained a `pull_request.paths` guard so it runs on PRs touching the scanner config, the requirements lockfile, or the workflow itself rather than on every PR.
+- **`mcp` transitive CVEs suppressed with an expiry (#138).** `semgrep` hard-pins `mcp==1.23.3` (an exact pin, still true at 1.171.0), blocking the fixed versions for three advisories. Suppressed in `osv-scanner.toml` with `ignoreUntil = 2026-10-31` and a written reason so the suppression expires rather than becoming permanent. The stale `click` suppression from the previous pin generation was deleted; `semgrep` 1.171.0 moved `click` to 8.4.2 on its own.
+- **`ruff` pinned to an explicit rule set (#138).** The config used `extend-select`, which layers on top of whatever `ruff` currently treats as default; `ruff` 0.16.0 expanded that default set and surfaced 138 new findings. All 138 were triaged individually, the ones worth enforcing adopted as explicit `select` rule codes, and every deliberately-omitted rule carries an inline rationale. Added `force-exclude = true` so explicit-path invocations honor the exclude list.
+- **Unread `_vendor/*_VERSION` pin files deleted (#138).** Five files (`RUFF`, `PYRIGHT`, `BANDIT`, `SEMGREP`, `PYTEST`) documented versions nothing consumed, while `requirements.in` told maintainers to sync `requirements.txt` from them. `RUFF_VERSION` read `0.11.12` against a `requirements.txt` pin of `0.16.0`, so following that instruction silently downgraded the linter by five minor versions. The four runtime-read pin files (`JINJA2`, `MARKUPSAFE`, `PSUTIL`, `PYYAML`) are retained and the instruction now names `requirements.txt` as authoritative.
+- **`vitest` 1.x to 4.x plus the first TypeScript tests (#120, #122).** Migrated 1.6.1 to 3.2.6 to 4.1.10 and dropped a dead root workspace config (`vitest` 3 activates projects through `test.projects`). `vitest` 4 moves `vite` from a direct dependency to a peer dependency, so `vite` is now an explicit root dev dependency. The `apps/api` bootstrap was split into `app.ts` (app factory) and `index.ts` (server entry) so the app is testable without binding a port, and a `/health` test landed alongside it.
+- **`v2-handshake-lint` freshness check now reads UTC (#138).** It compared against the runner's local date while `plugin-freshness-check.py` used UTC, so the two gates could disagree by a day depending on timezone. Three call sites route through a shared `_today_utc()` helper and the future-date guard gained a one-day skew tolerance, pinned by seven tests under `Pacific/Kiritimati` (UTC+14) and `Etc/GMT+12`.
+- **Test-suite time bomb defused (#138).** A template-cache fixture wrote a hardcoded `fetched_at` timestamp that would have started failing cache-freshness assertions within days; it now stamps the current UTC time.
+- **`/lp-bootstrap --recover` doc and implementation reconciled (BL-376, #138).** The docs described a manifest-unlink step the engine does not perform. Unlinking would discard a rendered manifest whose absence the policy layer treats as first-bootstrap (`action=WRITE`), so the documented behavior was the wrong one: the docs were corrected and the unlink withdrawn rather than built. `BootstrapResult` gained a `status` discriminator distinguishing a sentinel-clear-only recovery from a full recovery, and the unused `STALE_SENTINEL_DETECTED` / `STALE_SENTINEL_THRESHOLD_HOURS` constants were removed.
+- **Backlog-orphan gate no longer hard-fails on a closed BL (#139).** BL-376's status line read `RESOLVED`, which `plugin-backlog-orphan-check.py` does not recognize (`shipped`, `closed`, `re-targeted`, `deferred`, `superseded`). Since BL-376 is labeled for v2.1.11, the gate flagged it as an orphan the moment this release was tested. Corrected to `SHIPPED` with an inline note naming the recognized keyword set.
+
+See `docs/releases/v2.1.11.md` for the full dependency-bump table (9 majors, 23 patch/minor).
+
+### Scope deferred from v2.1.11
+
+- **BL-377** (P3): the backlog-orphan gate's `^\*\*Status[^*]*\*\*:` pattern cannot read the bullet-form `- **Status**: TODO` used by BL-100..BL-105, BL-200..BL-202, and the Standard Task Format itself. Filed, deferred to v2.2, not implemented.
+- **BL-378** (P2): the schema-CODEOWNERS gate passes whenever `SCAFFOLD_HANDSHAKE.md` appears anywhere in the PR diff, so any bundled formatting pass satisfies it vacuously. The entry's original `git diff --ignore-all-space` remedy was tested against the real PR #138 diff and does not work (Prettier 3.9 rewrites markdown table separator rows, and a change in dash-run length is not a whitespace difference); replaced with a table-row-scoped normalizer that leaves code blocks and prose byte-exact. Filed, deferred to v2.2, not implemented.
+- **BL-365 / BL-366 / BL-367 / BL-368**: existing v2.1.x candidates, carrying forward.
+
+### Test count
+
+2003 passing + 5 skipped in the Python suite (up from 1975 + 4 at v2.1.9). The delta is 12 tests added by #138 (five pinning `--recover` semantics, seven pinning the freshness-lint UTC clock under shifted timezones) plus incidental additions. The TypeScript suite gained its first tests via #122 / #124.
 
 ## [v2.1.10]
 
