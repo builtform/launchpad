@@ -1,4 +1,4 @@
 ### ts_monorepo
 
-- Stack: TypeScript monorepo (Next.js 15 + Hono + Prisma + Turborepo + pnpm)
+- Stack: TypeScript monorepo (Next.js + Hono + Prisma + Turborepo + pnpm)
 - Adapter: `ts_monorepo`

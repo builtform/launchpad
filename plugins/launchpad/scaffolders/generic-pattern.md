@@ -2,7 +2,7 @@
 stack: generic
 pillar: Bring-your-own-framework
 type: curate
-last_validated: 2026-06-23
+last_validated: 2026-08-01
 scaffolder_command: (curate — no scaffolder; user fills the workspace by hand)
 scaffolder_command_pinned_version: n/a
 ---
@@ -21,9 +21,12 @@ Use cases:
 
 - A third-party Astro theme (or any other framework starter) the user has
   already curated, where LaunchPad's pinned upstream is the wrong choice.
-- A framework not yet shipped with a stack-aware adapter
-  (`StackIdV22Candidate` ids without an active `Adapter` Protocol
-  implementation — e.g., SvelteKit, Remix, Solid, Phoenix-LiveView).
+- A framework not yet shipped with a stack-aware adapter: either a
+  `StackIdV22Candidate` id awaiting an active `Adapter` Protocol
+  implementation (`python_django`, `python_generic`,
+  `nextjs_hono_cloudflare`, `nextjs_trpc_prisma`, `rails`, `go_cli`), or
+  a framework outside the catalog entirely (SvelteKit, React Router v7,
+  Solid, Phoenix LiveView).
 - A custom starter the user maintains internally (private monorepo
   template, company-internal scaffold, prototype that hasn't earned a
   full adapter yet).
@@ -42,23 +45,32 @@ they want. LaunchPad provides the shell across two pipeline stages:
 
 - **At `/lp-scaffold-stack` time** the cross-cutting wirer
   (`lp_scaffold_stack/cross_cutting_wirer.py`) emits `lefthook.yml`
-  with the universal v2.1 pre-commit + pre-push hooks (secret-scan,
-  test, typecheck, lint, format-check, structure-check). For
-  multi-layer monorepo scaffolds it also emits `pnpm-workspace.yaml`
-  and `turbo.json`. That is the entire scaffold-stack-time surface
-  for `generic`.
+  with four `pre-commit` hooks and no `pre-push` block:
+  `secret-scan`, `structure-drift`, `typecheck`, `lint` (the
+  `LEFTHOOK_HOOKS` constant). The `typecheck` and `lint` bodies are
+  toolchain-conditional, and `generic` contributes no toolchain, so on a
+  generic-only pick both render as `echo` stubs the user is expected to
+  replace. For multi-layer monorepo scaffolds it also emits
+  `pnpm-workspace.yaml` and `turbo.json`. That is the entire
+  scaffold-stack-time surface for `generic`.
 - **At `/lp-define` + `/lp-bootstrap` time** the kernel renderer
   emits `.launchpad/config.yml` (with the identity sealed at
-  `/lp-pick-stack` Step 1.5 — project name, license, repo URL,
-  copyright holder, email) and `.harness/agents.yml` (populated with
-  the project-default review-agent roster). CI workflows under
+  `/lp-pick-stack` Step 1.5: project name, license, repo URL,
+  copyright holder, email) and `.launchpad/agents.yml` (populated with
+  the stack-aware review-agent roster). CI workflows under
   `.github/workflows/` land here as well, NOT at scaffold-stack time.
 
 The user's own scaffolder (whichever they pick) goes in OVER the
 scaffold-stack-time `lefthook.yml`, either before invoking
 `/lp-scaffold-stack` (manual prep) or after (then running `/lp-define`
-to register the new stack with the harness). Either ordering works;
-LaunchPad does not assume one.
+to register the new stack with the harness). The two orderings are NOT
+equivalent: the wirer writes cross-cutting files with `O_CREAT|O_EXCL`,
+so if your starter already ships `lefthook.yml` (or, on a multi-layer
+pick, `pnpm-workspace.yaml` / `turbo.json`), running it first makes
+`/lp-scaffold-stack` hard-fail with
+`reason: "cross_cutting_wiring_collision"`. Prefer running
+`/lp-scaffold-stack` first, or delete the conflicting file before
+invoking it.
 
 ## When to choose `generic` vs a stack-aware adapter
 
@@ -106,11 +118,11 @@ manual-override branch produces this shape.
   emitted; for multi-layer scaffolds `pnpm-workspace.yaml` and
   `turbo.json` are also emitted. This is the value proposition of
   choosing `generic` at the scaffold-stack stage. `.launchpad/config.yml`,
-  `.harness/agents.yml`, and `.github/workflows/` are NOT written here
-  — those land later via `/lp-define` + `/lp-bootstrap`.
+  `.launchpad/agents.yml`, and `.github/workflows/` are NOT written here;
+  those land later via `/lp-define` + `/lp-bootstrap`.
 - **Receipt records the dispatch normally.** `scaffold-receipt.json`
   has `layers_materialized` populated with the `generic` entry, but
-  with empty `materialized_files` for the layer (since the generic
+  with an empty `files_created` list for the layer (since the generic
   adapter never wrote any). The cross-cutting files (`lefthook.yml`
   and the optional monorepo pair) appear in the receipt's separate
   `cross_cutting_files` array.

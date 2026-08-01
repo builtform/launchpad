@@ -41,12 +41,18 @@ stacks:
     # `--template` is a value-taking flag emitted via options_schema
     # (--template=<value>); listing it bare in headless_flags would consume
     # the next arg as its value and break the parser.
-    headless_flags: ["--", "--yes"]
+    # `--no-install` / `--no-git`: create-astro resolves these as
+    # `ctx.install ?? ctx.yes` and `ctx.git ?? ctx.yes`, so a bare `--yes`
+    # silently installs deps AND runs git init/add/commit. LaunchPad owns
+    # both steps; without these flags the scaffolder commits a nested repo.
+    # `--no-ai`: suppresses AGENTS.md + a CLAUDE.md symlink that would
+    # collide with the harness-authored CLAUDE.md.
+    headless_flags: ["--", "--yes", "--no-ai", "--no-install", "--no-git"]
     knowledge_anchor: "plugins/launchpad/scaffolders/astro-pattern.md"
-    knowledge_anchor_sha256: "dd253516d1064e0715d75b99f45400f35d1582208e7c246f15d3f3799a1875d4"
+    knowledge_anchor_sha256: "1ebb784787fec279e3eb610e12cf80b8eb8ea33c2bddff68e5486f01c825f276"
     options_schema:
       template: "string"
-    last_validated: "2026-06-23"
+    last_validated: "2026-08-01"
 
   next:
     pillar: "Frontend App"
@@ -54,9 +60,24 @@ stacks:
     flavor: "pure-headless"
     command: "npx create-next-app@latest"
     destination_argv: ["."]
-    headless_flags: ["--yes", "--typescript", "--eslint", "--tailwind", "--app", "--turbopack"]
+    # `--reset-preferences`: `--yes` reuses previously saved CLI preferences,
+    # so headless output is not reproducible on a machine that has run
+    # create-next-app before. `--no-agents-md`: suppresses AGENTS.md +
+    # CLAUDE.md (default since Next 16.2), which collide with the
+    # harness-authored CLAUDE.md. `--turbopack` dropped: Turbopack is the
+    # default bundler for dev and build in Next 16, so the flag is redundant.
+    headless_flags:
+      [
+        "--yes",
+        "--reset-preferences",
+        "--no-agents-md",
+        "--typescript",
+        "--eslint",
+        "--tailwind",
+        "--app",
+      ]
     knowledge_anchor: "plugins/launchpad/scaffolders/next-pattern.md"
-    knowledge_anchor_sha256: "3dce89abd01671bdc7ce3d7a62dac50176af1a5b6759eb795ecb5b8a2a3633ca"
+    knowledge_anchor_sha256: "4da14225d59ab3ca12c5f050c2406443fb80e4c7c44b651bf8c231e43c1504f1"
     # Per v2.0.1 BL-244 #2 (PR #41 cycle-12 #2 closure): `src_dir` requires
     # the `--src-dir` kebab-case spelling that `create-next-app` expects;
     # without the option_flags override, layer_materializer would emit
@@ -69,30 +90,35 @@ stacks:
       src_dir: "--src-dir"
     options_schema:
       src_dir: "boolean"
-    last_validated: "2026-06-23"
+    last_validated: "2026-08-01"
 
   eleventy:
     pillar: "Frontend Content"
     type: "curate"
     flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/eleventy-pattern.md"
-    knowledge_anchor_sha256: "f5eda31b08b1e32c255e281d63e3ec640461f4aac2f8b4de25c7e8bd11757a31"
+    knowledge_anchor_sha256: "05febc105fef46a3298ac54d4c61f47c6bda7dc7bdea919514defe33cf295c53"
     options_schema:
       template_engine: "string"
-    last_validated: "2026-06-23"
+    last_validated: "2026-08-01"
 
   hugo:
     pillar: "Frontend Content (Go)"
     type: "orchestrate"
     flavor: "pure-headless"
+    # `hugo new site` is deliberately retained over the newer canonical
+    # `hugo new project`. The rename landed in v0.158 with `site` kept as an
+    # alias, so `site` works on every Hugo the user might have installed
+    # while `project` fails on anything older. The anchor documents
+    # `hugo new project` as the canonical name; this is the compatible form.
     command: "hugo new site"
     destination_argv: ["."]
     headless_flags: ["--force"]
     knowledge_anchor: "plugins/launchpad/scaffolders/hugo-pattern.md"
-    knowledge_anchor_sha256: "3a607a46fa7c69f8fb9db0b140d325aeba1c921ebef85059dc8d6cf64800e249"
+    knowledge_anchor_sha256: "b5dff745ef94833e093336094828ef44cf6bcb9ed66e2fc538d8d78945283443"
     options_schema:
       theme: "string"
-    last_validated: "2026-06-23"
+    last_validated: "2026-08-01"
 
   hono:
     pillar: "Backend Edge-native TS"
@@ -101,22 +127,27 @@ stacks:
     command: "npm create hono@latest"
     destination_argv: ["."]
     # `--template` is value-taking — emitted via options_schema, not bare.
-    headless_flags: ["--", "--yes"]
+    # NO `--yes`: create-hono does not define that option and commander
+    # rejects unknown options, so every invocation carrying it failed at
+    # argument parsing. Non-interactivity comes from the target positional
+    # (destination_argv) plus `--template`. `--pm npm` pins the package
+    # manager so the prompt cannot appear.
+    headless_flags: ["--", "--pm", "npm"]
     knowledge_anchor: "plugins/launchpad/scaffolders/hono-pattern.md"
-    knowledge_anchor_sha256: "497afa81ca697748293d777417fce397d8f617928cd0e214c4bb9c35a58b6040"
+    knowledge_anchor_sha256: "eb4ebb717ad4e824e3761f34e5a62d0ca22f5bc27503aa21e66835d4f2dd22bf"
     options_schema:
       template: "string"
-    last_validated: "2026-06-23"
+    last_validated: "2026-08-01"
 
   fastapi:
     pillar: "Backend Python"
     type: "curate"
     flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/fastapi-pattern.md"
-    knowledge_anchor_sha256: "77787ef06954653a0ade6459a6e20a974c2a7aab07c3a7af0855c4cf67f9abb8"
+    knowledge_anchor_sha256: "c212b036382c8229824afb74c5cbf106dacb3af9539dd78b9ad6fe3623e86baf"
     options_schema:
       database: "string"
-    last_validated: "2026-06-23"
+    last_validated: "2026-08-01"
 
   django:
     pillar: "Backend Python"
@@ -129,10 +160,10 @@ stacks:
     type: "curate"
     flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/django-pattern.md"
-    knowledge_anchor_sha256: "a5f837026074d54aa09e13273a6f313135de7c0aa92036f1a6beb92ea6d6505c"
+    knowledge_anchor_sha256: "b2f3321049acccec459ce26ad9f891abce372ff87ab8923c45be7d3c2a8ae865"
     options_schema:
       database: "string"
-    last_validated: "2026-06-23"
+    last_validated: "2026-08-01"
 
   rails:
     pillar: "Backend MVC (Ruby)"
@@ -140,30 +171,51 @@ stacks:
     flavor: "pure-headless"
     command: "rails new"
     destination_argv: ["."]
-    headless_flags: ["--skip-bundle", "--skip-git"]
+    # `--skip-bundle` REMOVED (BL-381). It does not merely defer `bundle
+    # install` to the cross-cutting wiring step: `run_solid`, `run_hotwire`,
+    # `run_javascript`, `run_css` and `run_kamal` all early-return on
+    # `!bundle_install?`, so passing it produced an app with no JavaScript
+    # entrypoint (config/importmap.rb, bin/importmap, app/javascript/**) and
+    # no Solid Queue/Cache/Cable config (config/queue.yml, config/cache.yml,
+    # config/recurring.yml, bin/jobs, db/*_schema.rb). A later `bundle
+    # install` does NOT create any of them.
+    #
+    # Letting the generator own its own install follows the expo precedent
+    # in this same catalog, where the CLI's install is deliberately left in
+    # place because correct dependency resolution depends on it. A scaffold
+    # that succeeds while producing an unusable app is the worse failure.
+    # BL-381 tracks the cleaner fix: a per-stack post-install hook that
+    # would let `--skip-bundle` come back.
+    headless_flags: ["--skip-git"]
     knowledge_anchor: "plugins/launchpad/scaffolders/rails-pattern.md"
-    knowledge_anchor_sha256: "cd666d0f5f5f1f99497924fbaa38074e4611a0b9f35056829bcdf62630525301"
+    knowledge_anchor_sha256: "42fd813ba441c4d13796b34cbb023654d1140bfb2afe75c4191b219a7675fad2"
     options_schema:
       database: "string"
       javascript: "string"
-    last_validated: "2026-06-23"
+    last_validated: "2026-08-01"
 
   supabase:
     pillar: "Backend Managed"
-    # type: curate (NOT orchestrate) at v2.0 — `supabase init` is mixed-
-    # prompts with no non-interactive flag set, so headless invocation
-    # would hang on stdin until the 5-minute timeout. Demoted to curate
-    # so users follow the pattern doc and run `supabase init` themselves.
-    # Future v2.1+ work: identify a verified non-interactive invocation
-    # path (env vars + --yes equivalent) and promote back to orchestrate.
+    # type: curate (NOT orchestrate). The ORIGINAL justification is now
+    # obsolete: it said `supabase init` is mixed-prompts and would hang on
+    # stdin, but the 2026-08-01 re-validation found init is non-interactive
+    # by default in current CLI v2.x (the Deno IDE prompts moved behind
+    # `-i/--interactive` and on to `supabase functions new`).
+    #
+    # Staying `curate` anyway, deliberately: promoting to orchestrate is a
+    # behavior change that needs its own verification pass against a real
+    # `supabase init` run, not a same-PR flip justified by reading docs.
+    # Tracked as BL-380. Note `supabase init` writes ONLY config.toml, so
+    # the orchestrate payoff is small compared with the risk.
     type: "curate"
     flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/supabase-pattern.md"
-    knowledge_anchor_sha256: "0f93655539befdfcc024bcf905e49d090f11d0b424798cb79cf7ab342786c4e2"
-    options_schema:
-      vscode_deno_settings: "boolean"
-      intellij_deno_settings: "boolean"
-    last_validated: "2026-06-23"
+    knowledge_anchor_sha256: "023ff077907820205a6ff6a0c5e19765135333f43802b05c6a87cf8ee1220d7e"
+    # options_schema intentionally empty: the vscode_deno_settings /
+    # intellij_deno_settings options modelled prompts that no longer exist
+    # on `supabase init`.
+    options_schema: {}
+    last_validated: "2026-08-01"
 
   expo:
     pillar: "Frontend Mobile (RN)"
@@ -172,12 +224,15 @@ stacks:
     command: "npx create-expo-app@latest"
     destination_argv: ["."]
     # `--template` is value-taking — emitted via options_schema, not bare.
-    headless_flags: ["--yes"]
+    # `--no-agents-md`: suppresses AGENTS.md, CLAUDE.md and
+    # .claude/settings.json (default since Expo SDK 56), all of which
+    # collide with harness-authored files.
+    headless_flags: ["--yes", "--no-agents-md"]
     knowledge_anchor: "plugins/launchpad/scaffolders/expo-pattern.md"
-    knowledge_anchor_sha256: "b7b19ca0fda81fcab9594204c27c160f6698ac4e0b1955647549dd401875bf25"
+    knowledge_anchor_sha256: "b6c1586d7319a26a4b5d4b7f897f1d222eb06ab5b690525d0dbcb753bb384b7d"
     options_schema:
       template: "string"
-    last_validated: "2026-06-23"
+    last_validated: "2026-08-01"
 
   # v2.1.4 BL-331: `generic` selectable as a primary stack — barebones
   # workspace shell, bring-your-own-framework path. No scaffolder command
@@ -192,9 +247,9 @@ stacks:
     type: "curate"
     flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/generic-pattern.md"
-    knowledge_anchor_sha256: "3818a851ea9738c041d2e6d64ebab0f1864d03037549f3effa6f8ce17c7f9ebc"
+    knowledge_anchor_sha256: "46f98cd0b784527ff3e4041ff354079d90ab289a5e8aa3efeb76b0d42c0b1be3"
     # No options at v2.1.4 — the user brings the framework, so per-stack
     # options would be meaningless (whatever the user picks gets its own
     # config, not LaunchPad's).
     options_schema: {}
-    last_validated: "2026-06-23"
+    last_validated: "2026-08-01"
