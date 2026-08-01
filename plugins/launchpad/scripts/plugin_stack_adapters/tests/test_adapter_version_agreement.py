@@ -88,19 +88,38 @@ def test_adapter_module_and_fragments_agree_on_versions(
 ) -> None:
     module_tokens = _tokens(module.read_text(encoding="utf-8"))
 
+    # A module that names the same family at two different versions is itself
+    # a defect, and it would also weaken every comparison below by giving a
+    # fragment more than one version to match against.
+    for family, versions in module_tokens.items():
+        assert len(versions) == 1, (
+            f"{package}: {module.name} declares {family} at multiple versions "
+            f"{sorted(versions)}. One of them is stale. A fragment could match "
+            f"either, so this must be resolved before agreement means anything."
+        )
+
     for fragment in fragments:
         fragment_tokens = _tokens(fragment.read_text(encoding="utf-8"))
         for family, fragment_versions in fragment_tokens.items():
             module_versions = module_tokens.get(family)
-            if not module_versions:
-                # Fragment names a framework the module never mentions. Not a
-                # contradiction, so out of scope for this check.
-                continue
-            assert fragment_versions <= module_versions, (
+
+            # A fragment naming a framework the module never declares is not
+            # "out of scope": it is an undeclared claim shipped into generated
+            # architecture docs with nothing to check it against. Fail.
+            assert module_versions, (
+                f"{package}: {fragment.name} claims {family} "
+                f"{sorted(fragment_versions)} but {module.name} never declares "
+                f"{family} at all. Either the fragment is describing something "
+                f"the adapter does not build, or the adapter's metadata is "
+                f"missing a declaration."
+            )
+
+            assert fragment_versions == module_versions, (
                 f"{package}: {fragment.name} claims {family} "
                 f"{sorted(fragment_versions)} but {module.name} declares "
                 f"{family} {sorted(module_versions)}. Generated architecture "
                 f"docs would contradict the adapter metadata. Update both, and "
-                f"check the knowledge anchor at "
-                f"plugins/launchpad/scaffolders/ for which version is correct."
+                f"check what is actually materialized: for pinned adapters the "
+                f"truth is the SHA in pin_registry.py, NOT the knowledge anchor "
+                f"(the anchor describes the upstream CLI, a different path)."
             )
