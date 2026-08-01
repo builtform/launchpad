@@ -297,6 +297,43 @@ Whoever picks this up should add regression tests pinning BOTH directions: a tab
 
 ---
 
+#### BL-379 - v2.2: OPERATIONS section 4 specifies two enforcement mechanisms that are implemented by nothing
+
+- **Priority**: P2
+- **Status**: TODO
+- **Area**: CI / tooling / docs
+
+**Encountered**
+
+- **Date**: 2026-08-01
+- **Location**: `docs/architecture/SCAFFOLD_OPERATIONS.md` section 4, `plugins/launchpad/scripts/plugin-freshness-check.py`, `plugins/launchpad/scripts/plugin-restamp-history-hook.py`
+- **Scenario**: Surfaced while re-validating the knowledge anchors for v2.1.11. Both mechanisms were read as active, relied on, and then found absent.
+
+**Current Behavior**
+
+Two things section 4 describes as enforced are enforced nowhere.
+
+1. **Re-stamp affirmation trailer + chain-of-custody.** Section 4 states that the freshness-check script asserts a `^chore\(v2\): re-stamp ...$` subject and a `Restamp-Affirmation: <prior-SHA> -> <new-SHA>` trailer parsed via `git interpret-trailers`, then compares tree-hashes to close a lineage-forgery vector. `plugin-freshness-check.py` (178 lines) is a date checker: it reads no commit messages, shells out to no git plumbing, and compares no hashes. The `commit-msg` hook `plugin-restamp-history-hook.py` only appends the subject to `restamp-history.jsonl` with injection defenses; it validates neither the subject nor the trailer. `grep -rn 'Restamp-Affirmation\|interpret-trailers' plugins/launchpad/scripts/*.py .github/workflows/*.yml` returns nothing.
+
+2. **`verdicts:` / `waivers:` freshness-report schema.** Section 4 states the script "reads the frontmatter; blocks tag if any `verdicts:` entry is `drift-major` AND there's no matching `waivers:` entry signed by the project maintainer." Nothing reads `.harness/observations/freshness-<ts>.md` at all. `plugin-freshness-check.py` contains no reference to `verdicts`, `waivers`, or `observations`.
+
+**Why it matters**
+
+The second one has teeth. Because the waiver path does not exist, the ONLY thing that satisfies the release-time freshness gate is editing `last_validated:` dates. When a real re-validation finds drift that cannot be fixed in the release window, the maintainer's choices collapse to (a) do the content work now, or (b) bump the date and assert a validation that did not happen. The waiver existed precisely to provide an honest third option, and its absence pushes toward the dishonest one. That is the exact failure mode the v2.1.11 anchor pass found evidence of: two anchors were stamped 2026-06-23 while already contradicting events from 2026-06-19 and 2026-06-22.
+
+The first is lower severity because the affirmation-commit convention is still followed by hand, but the doc claims a forgery vector is closed when it is open.
+
+**Proposed Resolution**
+
+Pick one direction per mechanism and make doc and code agree.
+
+- For the waiver: implementing it is the higher-value option. Parse the newest `.harness/observations/freshness-*.md` frontmatter, and fail only on a `drift-major` verdict lacking a matching `waivers:` entry. Note `.harness/` is gitignored except `harness.local.md`, so either the report location moves into tracked space or the waiver has to live somewhere tracked; decide that first, because a gate keyed on an untracked file is not a gate in CI.
+- For the trailer: either implement the subject-regex + trailer + tree-hash assertions in `plugin-freshness-check.py`, or narrow section 4 to describe the convention as maintainer discipline rather than enforcement.
+
+An interim `IMPLEMENTATION STATUS` note was added to section 4 on 2026-08-01 so the doc stops overstating what runs. That note is a stopgap, not the fix.
+
+---
+
 ### P2 - Medium
 
 #### BL-100 - v2.2: Restore `cloudflare-workers` to scaffolders.yml + add cf-edge-stack category-pattern
