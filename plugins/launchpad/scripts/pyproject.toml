@@ -19,6 +19,17 @@ target-version = "py311"
 # contributor editing plugin_stack_adapters/tests/ gets pre-commit failures
 # on rules CI never enforces.
 force-exclude = true
+# RUN RUFF FROM THE REPO ROOT until the classification fix lands.
+# `src` is unset, and ruff anchors first-party import detection at the project
+# root, which is THIS FILE'S DIRECTORY when ruff discovers the config by
+# walking up, but the PROCESS WORKING DIRECTORY when `--config <path>` is
+# passed. CI passes `--config` from the repo root, so `atomic_io`,
+# `lp_bootstrap` and their siblings read as third-party there, while
+# `cd plugins/launchpad/scripts && ruff check .` gets discovery, anchors here,
+# and reads them as first-party. The second reading is the CORRECT one and
+# surfaces 13 real I001 findings; the two forms disagree, and the repo-root
+# form is what CI enforces. A single relative `src` value cannot reconcile
+# them, because `--config` re-anchors it the same way.
 # Paths are relative to this pyproject.toml's directory
 # (= plugins/launchpad/scripts/). `tests/` excluded per R1-T1-2 — those carry
 # 200+ deferred ruff violations; v2.1.x BL: tests-dir ruff baseline.
