@@ -23,9 +23,9 @@ from .contracts import (
 def describe_tech_stack() -> TechStackInfo:
     return TechStackInfo(
         language="TypeScript",
-        runtime="Node.js 20+ / Expo Go runtime",
+        runtime="Node.js 22+ / Expo development build",
         package_manager="pnpm",
-        frameworks=["Expo SDK 51", "React Native", "Expo Router"],
+        frameworks=["Expo SDK 57", "React Native", "Expo Router"],
         database=None,
         ci="GitHub Actions / EAS Build",
     )
@@ -48,7 +48,7 @@ def describe_backend() -> BackendInfo:
 
 def describe_frontend() -> FrontendInfo | None:
     return FrontendInfo(
-        framework="Expo SDK 51 + React Native",
+        framework="Expo SDK 57 + React Native",
         styling="StyleSheet / NativeWind",
         component_dir="apps/mobile/components/",
         routing="Expo Router (file-based under app/)",
@@ -68,7 +68,7 @@ def describe_app_flow() -> AppFlowInfo | None:
 
 def describe_product_context() -> ProductContextInfo:
     return ProductContextInfo(
-        stack_summary="Expo SDK 51 mobile app (React Native + Expo Router)",
+        stack_summary="Expo SDK 57 mobile app (React Native + Expo Router)",
         deployment_target="EAS Build → App Store / Play Store",
     )
 

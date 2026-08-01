@@ -188,7 +188,7 @@ stacks:
     # would let `--skip-bundle` come back.
     headless_flags: ["--skip-git"]
     knowledge_anchor: "plugins/launchpad/scaffolders/rails-pattern.md"
-    knowledge_anchor_sha256: "ad54460b8fae11b4e49adce23786c9959ce775248804678c4f19ddd05a628569"
+    knowledge_anchor_sha256: "42fd813ba441c4d13796b34cbb023654d1140bfb2afe75c4191b219a7675fad2"
     options_schema:
       database: "string"
       javascript: "string"

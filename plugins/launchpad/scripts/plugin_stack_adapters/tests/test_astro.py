@@ -213,7 +213,7 @@ def test_module_does_not_invoke_npm_create():
 def test_legacy_run_function_preserved_for_polyglot_composer():
     out = run()
     assert out["stack_id"] == "astro"
-    assert "Astro 5" in out["tech_stack"]["frameworks"]
+    assert "Astro 7" in out["tech_stack"]["frameworks"]
     assert out["frontend"] is not None
 
 

@@ -3,7 +3,7 @@ stack: rails
 pillar: Backend MVC (Ruby)
 type: orchestrate
 last_validated: 2026-08-01
-scaffolder_command: rails new <path> --skip-bundle --skip-git
+scaffolder_command: rails new <path> --skip-git
 scaffolder_command_pinned_version: rails@8.1
 ---
 
@@ -11,7 +11,7 @@ scaffolder_command_pinned_version: rails@8.1
 
 ## Idiomatic 2026 pattern
 
-Rails 8 is the canonical batteries-included Ruby web framework. The 2026 idiom
+Rails 8.1 is the canonical batteries-included Ruby web framework. The 2026 idiom
 ships **Solid Queue** + **Solid Cache** + **Solid Cable** as the default
 adapters (replacing Redis/Sidekiq/Memcached for jobs/cache/realtime in single-
 node deployments), **Hotwire** (Turbo + Stimulus) as the default frontend,
@@ -87,7 +87,7 @@ Version pins (Gemfile):
 
 ## Scaffolder behavior
 
-`rails new <path> --skip-bundle --skip-git` creates the full Rails 8 app
+`rails new <path> --skip-git` creates the full Rails 8.1 app
 skeleton at `<path>/`. Flag effects:
 
 - `--skip-bundle` (-B) — LaunchPad does NOT pass this, deliberately. It does
@@ -104,9 +104,9 @@ skeleton at `<path>/`. Flag effects:
 - Defaults: SQLite database, importmap (no Node), Turbo + Stimulus,
   Solid Queue/Cache/Cable, Puma, Propshaft, Kamal, Thruster, Minitest
 
-For Postgres: `rails new <path> --database=postgresql --skip-bundle --skip-git`.
-For RSpec instead of Minitest: `rails new <path> --skip-test --skip-bundle
---skip-git` (LaunchPad's curate emit then adds `gem "rspec-rails"` to Gemfile).
+For Postgres: `rails new <path> --database=postgresql --skip-git`.
+For RSpec instead of Minitest: `rails new <path> --skip-test --skip-git`
+(LaunchPad's curate emit then adds `gem "rspec-rails"` to Gemfile).
 For esbuild instead of importmap: `--javascript=esbuild` (adds Node toolchain
 to the project, which LaunchPad detects and wires `package.json` into the
 cross-cutting layer).
@@ -135,12 +135,11 @@ Rails::Application`
   connections. SQLite default uses separate `.sqlite3` files; for Postgres run
   `bin/rails db:prepare`, which creates and loads every database declared in
   `database.yml`. There is no `multi_db_setup` rake task.
-- `--skip-bundle` means `Gemfile.lock` does NOT exist after `rails new`;
-  `bundle install` is mandatory before `bin/rails server` will boot. The
-  following are ALSO absent until the install generators run:
-  `config/importmap.rb`, `bin/importmap`, `app/javascript/**`,
-  `config/queue.yml`, `config/recurring.yml`, `config/cache.yml`, `bin/jobs`,
-  and `db/{queue,cache,cable}_schema.rb`.
+- Because the generator runs its own `bundle install`, the scaffold step needs
+  network access and a working Ruby toolchain, and gem-resolution failures
+  surface there rather than in LaunchPad's cross-cutting wiring step. That is
+  the accepted cost of not passing `--skip-bundle`; see the flag note above for
+  what passing it silently omits.
 - Importmap vs esbuild: importmap is the 2026 default and ships zero Node
   toolchain; switching to esbuild later requires `bin/rails javascript:install:
 esbuild` + manual `Gemfile` edit.
