@@ -188,7 +188,9 @@ Follow the migration protocol in `docs/operations/PRISMA_MIGRATION_GUIDE.md`.
 
 #### BL-376 - v2.1.11: `/lp-bootstrap --recover` doc/implementation divergence
 
-**Status (2026-07-31)**: RESOLVED in v2.1.11 (PR #138) by correcting the docs and implementing the status discriminator. The documented manifest-unlink step was WITHDRAWN, not built — see Resolution.
+**Status (2026-07-31)**: SHIPPED in v2.1.11 (PR #138) by correcting the docs and implementing the status discriminator. The documented manifest-unlink step was WITHDRAWN, not built; see Resolution.
+
+> Wording note: this line must use one of the keywords `plugin-backlog-orphan-check.py` recognizes (`shipped`, `closed`, `re-targeted`, `deferred`, `superseded`). It originally read "RESOLVED", which the gate does not match, so `--release 2.1.11` hard-failed this BL as an orphan even though it was closed.
 
 - **Priority**: P1
 - **Status**: DONE
@@ -259,7 +261,23 @@ Either the regex tolerates an optional leading `- ` / `* ` bullet, or the Standa
 
 **Desired Behavior**
 
-Require the schema-doc side of the pairing to be a non-trivial change: ignore whitespace-only diffs (`git diff --ignore-all-space --numstat`) when deciding whether the doc was touched, so a formatting pass alone cannot satisfy the gate. The existing `Schema-Refactor-Only: <reason>` commit-footer escape hatch remains the intended path for genuine pure-refactor changes.
+Require the schema-doc side of the pairing to be a _semantically_ non-trivial change, so a formatting pass alone cannot satisfy the gate. The existing `Schema-Refactor-Only: <reason>` commit-footer escape hatch remains the intended path for genuine pure-refactor changes.
+
+**Do NOT use `git diff --ignore-all-space` for this. It does not work.** That was this entry's original proposed remedy; it was tested against the real PR #138 diff on 2026-08-01 and **still reports `SCAFFOLD_HANDSHAKE.md` as changed**. Prettier 3.9 rewrites markdown table _separator rows_ (`|--------|` becomes `| --- |`) in addition to cell padding, and a change in dash-run length is not a whitespace difference. Any remedy that only normalizes whitespace will fail to classify exactly the case that motivated this BL.
+
+What does work (verified against the same diff): normalize whitespace **and** collapse runs of 3-or-more hyphens before comparing. Sketch:
+
+```python
+def _semantically_unchanged(old: str, new: str) -> bool:
+    def norm(t: str) -> str:
+        t = re.sub(r"-{3,}", "---", t)   # markdown table separator runs
+        return re.sub(r"\s+", "", t)     # all whitespace
+    return norm(old) == norm(new)
+```
+
+Fetch both sides with `git show <base>:<path>` and `git show HEAD:<path>`, and treat `SCHEMA_DOC` as untouched when this returns True. Confirmed: raw content differs, normalized content does not, for the PR #138 reformat.
+
+Whoever picks this up should also add a regression test pinning that a whitespace-plus-dash-run-only change to `SCAFFOLD_HANDSHAKE.md` does NOT satisfy the gate, since that is the precise failure this entry exists to prevent.
 
 ---
 
