@@ -188,7 +188,9 @@ Follow the migration protocol in `docs/operations/PRISMA_MIGRATION_GUIDE.md`.
 
 #### BL-376 - v2.1.11: `/lp-bootstrap --recover` doc/implementation divergence
 
-**Status (2026-07-31)**: RESOLVED in v2.1.11 (PR #138) by correcting the docs and implementing the status discriminator. The documented manifest-unlink step was WITHDRAWN, not built — see Resolution.
+**Status (2026-07-31)**: SHIPPED in v2.1.11 (PR #138) by correcting the docs and implementing the status discriminator. The documented manifest-unlink step was WITHDRAWN, not built; see Resolution.
+
+> Wording note: this line must use one of the keywords `plugin-backlog-orphan-check.py` recognizes (`shipped`, `closed`, `re-targeted`, `deferred`, `superseded`). It originally read "RESOLVED", which the gate does not match, so `--release 2.1.11` hard-failed this BL as an orphan even though it was closed.
 
 - **Priority**: P1
 - **Status**: DONE
@@ -259,7 +261,39 @@ Either the regex tolerates an optional leading `- ` / `* ` bullet, or the Standa
 
 **Desired Behavior**
 
-Require the schema-doc side of the pairing to be a non-trivial change: ignore whitespace-only diffs (`git diff --ignore-all-space --numstat`) when deciding whether the doc was touched, so a formatting pass alone cannot satisfy the gate. The existing `Schema-Refactor-Only: <reason>` commit-footer escape hatch remains the intended path for genuine pure-refactor changes.
+Require the schema-doc side of the pairing to be a _semantically_ non-trivial change, so a formatting pass alone cannot satisfy the gate. The existing `Schema-Refactor-Only: <reason>` commit-footer escape hatch remains the intended path for genuine pure-refactor changes.
+
+**Do NOT use `git diff --ignore-all-space` for this. It does not work.** That was this entry's original proposed remedy; it was tested against the real PR #138 diff on 2026-08-01 and **still reports `SCAFFOLD_HANDSHAKE.md` as changed**. Prettier 3.9 rewrites markdown table _separator rows_ (`|--------|` becomes `| --- |`) in addition to cell padding, and a change in dash-run length is not a whitespace difference. Any remedy that only normalizes whitespace will fail to classify exactly the case that motivated this BL.
+
+What does work (verified against the same diff): normalize **only markdown table rows**, and compare every other line byte-for-byte. Sketch:
+
+```python
+_TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
+
+def _norm_line(line: str) -> str:
+    if not _TABLE_ROW.match(line):
+        return line                                 # code, prose: verbatim
+    line = re.sub(r"-{3,}", "---", line)            # separator dash runs
+    return re.sub(r"\s*\|\s*", "|", line).strip()   # cell padding
+
+def _semantically_unchanged(old: str, new: str) -> bool:
+    norm = lambda t: "\n".join(_norm_line(x) for x in t.splitlines())
+    return norm(old) == norm(new)
+```
+
+Fetch both sides with `git show <base>:<path>` and `git show HEAD:<path>`, and treat `SCHEMA_DOC` as untouched when this returns True. Confirmed against the PR #138 reformat: raw content differs, normalized content does not.
+
+**Scope the normalization to table rows; do NOT normalize the whole document.** An earlier revision of this entry sketched a global `re.sub(r"\s+", "", t)`. That is wrong, and it was caught in review (Greptile P2 on PR #139) before anyone built it. `SCAFFOLD_HANDSHAKE.md` is dense with YAML and Python code blocks where indentation IS semantics, and global whitespace-stripping classifies real edits as no-change. Verified:
+
+| Edit                                          | global normalization | table-scoped normalization |
+| --------------------------------------------- | -------------------- | -------------------------- |
+| Move a statement out of a Python `if` block   | "unchanged" (wrong)  | changed (correct)          |
+| Un-nest a key in a YAML example               | "unchanged" (wrong)  | changed (correct)          |
+| Prettier table reformat (the motivating case) | unchanged (correct)  | unchanged (correct)        |
+
+The failure direction is fail-closed (the gate would demand a doc change the author already made), so it is not a security hole. It is worse than it looks anyway: the natural escape from a spurious "you didn't touch the doc" failure is the `Schema-Refactor-Only:` footer, which trains maintainers to reach for the bypass on changes that are not refactors, corroding the gate more than the original bug did.
+
+Whoever picks this up should add regression tests pinning BOTH directions: a table-formatting-only change to `SCAFFOLD_HANDSHAKE.md` must NOT satisfy the gate, and a whitespace-only edit inside a fenced code block MUST satisfy it. Note also that no normalization here is airtight: a formatter change outside table rows (e.g. normalizing a `-----` thematic break to `---`) would still satisfy the gate. Prefer tests over trusting the normalizer to be complete.
 
 ---
 
