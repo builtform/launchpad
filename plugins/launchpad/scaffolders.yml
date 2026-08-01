@@ -41,7 +41,13 @@ stacks:
     # `--template` is a value-taking flag emitted via options_schema
     # (--template=<value>); listing it bare in headless_flags would consume
     # the next arg as its value and break the parser.
-    headless_flags: ["--", "--yes"]
+    # `--no-install` / `--no-git`: create-astro resolves these as
+    # `ctx.install ?? ctx.yes` and `ctx.git ?? ctx.yes`, so a bare `--yes`
+    # silently installs deps AND runs git init/add/commit. LaunchPad owns
+    # both steps; without these flags the scaffolder commits a nested repo.
+    # `--no-ai`: suppresses AGENTS.md + a CLAUDE.md symlink that would
+    # collide with the harness-authored CLAUDE.md.
+    headless_flags: ["--", "--yes", "--no-ai", "--no-install", "--no-git"]
     knowledge_anchor: "plugins/launchpad/scaffolders/astro-pattern.md"
     knowledge_anchor_sha256: "1ebb784787fec279e3eb610e12cf80b8eb8ea33c2bddff68e5486f01c825f276"
     options_schema:
@@ -54,7 +60,22 @@ stacks:
     flavor: "pure-headless"
     command: "npx create-next-app@latest"
     destination_argv: ["."]
-    headless_flags: ["--yes", "--typescript", "--eslint", "--tailwind", "--app", "--turbopack"]
+    # `--reset-preferences`: `--yes` reuses previously saved CLI preferences,
+    # so headless output is not reproducible on a machine that has run
+    # create-next-app before. `--no-agents-md`: suppresses AGENTS.md +
+    # CLAUDE.md (default since Next 16.2), which collide with the
+    # harness-authored CLAUDE.md. `--turbopack` dropped: Turbopack is the
+    # default bundler for dev and build in Next 16, so the flag is redundant.
+    headless_flags:
+      [
+        "--yes",
+        "--reset-preferences",
+        "--no-agents-md",
+        "--typescript",
+        "--eslint",
+        "--tailwind",
+        "--app",
+      ]
     knowledge_anchor: "plugins/launchpad/scaffolders/next-pattern.md"
     knowledge_anchor_sha256: "4da14225d59ab3ca12c5f050c2406443fb80e4c7c44b651bf8c231e43c1504f1"
     # Per v2.0.1 BL-244 #2 (PR #41 cycle-12 #2 closure): `src_dir` requires
@@ -85,6 +106,11 @@ stacks:
     pillar: "Frontend Content (Go)"
     type: "orchestrate"
     flavor: "pure-headless"
+    # `hugo new site` is deliberately retained over the newer canonical
+    # `hugo new project`. The rename landed in v0.158 with `site` kept as an
+    # alias, so `site` works on every Hugo the user might have installed
+    # while `project` fails on anything older. The anchor documents
+    # `hugo new project` as the canonical name; this is the compatible form.
     command: "hugo new site"
     destination_argv: ["."]
     headless_flags: ["--force"]
@@ -101,7 +127,12 @@ stacks:
     command: "npm create hono@latest"
     destination_argv: ["."]
     # `--template` is value-taking — emitted via options_schema, not bare.
-    headless_flags: ["--", "--yes"]
+    # NO `--yes`: create-hono does not define that option and commander
+    # rejects unknown options, so every invocation carrying it failed at
+    # argument parsing. Non-interactivity comes from the target positional
+    # (destination_argv) plus `--template`. `--pm npm` pins the package
+    # manager so the prompt cannot appear.
+    headless_flags: ["--", "--pm", "npm"]
     knowledge_anchor: "plugins/launchpad/scaffolders/hono-pattern.md"
     knowledge_anchor_sha256: "eb4ebb717ad4e824e3761f34e5a62d0ca22f5bc27503aa21e66835d4f2dd22bf"
     options_schema:
@@ -150,19 +181,25 @@ stacks:
 
   supabase:
     pillar: "Backend Managed"
-    # type: curate (NOT orchestrate) at v2.0 — `supabase init` is mixed-
-    # prompts with no non-interactive flag set, so headless invocation
-    # would hang on stdin until the 5-minute timeout. Demoted to curate
-    # so users follow the pattern doc and run `supabase init` themselves.
-    # Future v2.1+ work: identify a verified non-interactive invocation
-    # path (env vars + --yes equivalent) and promote back to orchestrate.
+    # type: curate (NOT orchestrate). The ORIGINAL justification is now
+    # obsolete: it said `supabase init` is mixed-prompts and would hang on
+    # stdin, but the 2026-08-01 re-validation found init is non-interactive
+    # by default in current CLI v2.x (the Deno IDE prompts moved behind
+    # `-i/--interactive` and on to `supabase functions new`).
+    #
+    # Staying `curate` anyway, deliberately: promoting to orchestrate is a
+    # behavior change that needs its own verification pass against a real
+    # `supabase init` run, not a same-PR flip justified by reading docs.
+    # Tracked as BL-380. Note `supabase init` writes ONLY config.toml, so
+    # the orchestrate payoff is small compared with the risk.
     type: "curate"
     flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/supabase-pattern.md"
     knowledge_anchor_sha256: "3901fd13240f3860b3406c8a98dba543ddc14dda6967e425be526f8c94b4ecd5"
-    options_schema:
-      vscode_deno_settings: "boolean"
-      intellij_deno_settings: "boolean"
+    # options_schema intentionally empty: the vscode_deno_settings /
+    # intellij_deno_settings options modelled prompts that no longer exist
+    # on `supabase init`.
+    options_schema: {}
     last_validated: "2026-08-01"
 
   expo:
@@ -172,7 +209,10 @@ stacks:
     command: "npx create-expo-app@latest"
     destination_argv: ["."]
     # `--template` is value-taking — emitted via options_schema, not bare.
-    headless_flags: ["--yes"]
+    # `--no-agents-md`: suppresses AGENTS.md, CLAUDE.md and
+    # .claude/settings.json (default since Expo SDK 56), all of which
+    # collide with harness-authored files.
+    headless_flags: ["--yes", "--no-agents-md"]
     knowledge_anchor: "plugins/launchpad/scaffolders/expo-pattern.md"
     knowledge_anchor_sha256: "b6c1586d7319a26a4b5d4b7f897f1d222eb06ab5b690525d0dbcb753bb384b7d"
     options_schema:

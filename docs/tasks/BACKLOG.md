@@ -334,6 +334,65 @@ An interim `IMPLEMENTATION STATUS` note was added to section 4 on 2026-08-01 so 
 
 ---
 
+#### BL-380 - v2.2: promote `supabase` from `curate` to `orchestrate`
+
+- **Priority**: P3
+- **Status**: TODO
+- **Area**: Plugin / scaffolders catalog
+
+**Encountered**
+
+- **Date**: 2026-08-01
+- **Location**: `plugins/launchpad/scaffolders.yml` (supabase entry), `plugins/launchpad/scaffolders/supabase-pattern.md`
+- **Scenario**: Surfaced by the v2.1.11 anchor re-validation and confirmed by Codex review of PR #145.
+
+**Current Behavior**
+
+`supabase` is classified `curate`. The recorded justification was that `supabase init` is mixed-prompts with no non-interactive flag set, so a headless invocation would hang on stdin until the 5-minute timeout. That justification is now obsolete: current CLI v2.x `init` is non-interactive by default, the Deno IDE-settings prompts moved behind `-i/--interactive`, and Deno IDE config moved to `supabase functions new`. The catalog also carried `options_schema` entries (`vscode_deno_settings`, `intellij_deno_settings`) modelling prompts that no longer exist; those were removed in PR #145.
+
+**Why it was NOT promoted in PR #145**
+
+Promoting is a behavior change, and the evidence for it is documentation reading rather than an observed run. The re-validation researcher explicitly could not identify the CLI release in which `init` became non-interactive, and could not confirm whether the CLI's internal `db.major_version` default has moved off the documented `15`. Flipping `type` on that basis, inside a PR whose whole point was that undertested documentation claims had gone stale, would have repeated the mistake it was fixing.
+
+**Proposed Resolution**
+
+Run `supabase init` headlessly against a clean temp dir on a pinned CLI version and observe: does it exit 0 without reading stdin, and does it write only `config.toml`? If yes, set `type: orchestrate`, `flavor: pure-headless`, `command: "supabase init"`, and add a regression test asserting no stdin read. If the behavior turns out to be version-dependent, keep `curate` and record the version boundary in the anchor instead.
+
+Note the payoff is small either way: `supabase init` writes exactly one file, so orchestrating it saves the user a single command.
+
+---
+
+#### BL-381 - v2.2: Rails `--skip-bundle` suppresses every post-bundle installer with no compensating step
+
+- **Priority**: P2
+- **Status**: TODO
+- **Area**: Plugin / scaffolders catalog + scaffold engine
+
+**Encountered**
+
+- **Date**: 2026-08-01
+- **Location**: `plugins/launchpad/scaffolders.yml` (rails `headless_flags`), `plugins/launchpad/scaffolders/rails-pattern.md`
+- **Scenario**: Surfaced by the v2.1.11 anchor re-validation and independently flagged by Codex review of PR #145.
+
+**Current Behavior**
+
+The rails entry passes `--skip-bundle --skip-git`, on the assumption that `--skip-bundle` only defers `bundle install` to LaunchPad's cross-cutting wiring step. It does more than that. In the Rails generator, `run_solid`, `run_hotwire`, `run_javascript`, `run_css` and `run_kamal` all early-return on `!bundle_install?`, and `bundle_install?` is false whenever `--skip-bundle` is passed.
+
+So a LaunchPad-scaffolded Rails app is missing, and a later `bundle install` does NOT create: `config/importmap.rb`, `bin/importmap`, `app/javascript/**` (including Stimulus controllers), `config/queue.yml`, `config/recurring.yml`, `config/cache.yml`, `bin/jobs`, and `db/{queue,cache,cable}_schema.rb`. The app has no JavaScript entrypoint and no Solid Queue/Cache/Cable configuration.
+
+This is pre-existing, not introduced by PR #145. That PR documented it in the anchor; the catalog was left as-is because the fix is engine work rather than a flag edit.
+
+**Proposed Resolution**
+
+Two viable directions, and they trade off differently against LaunchPad's "cross-cutting wiring owns the install" invariant.
+
+1. **Keep `--skip-bundle`, add a post-install generator step.** After the cross-cutting `bundle install`, run `bin/rails importmap:install turbo:install stimulus:install solid_cache:install solid_queue:install solid_cable:install`. Preserves the invariant. Requires a per-stack post-install hook in the scaffold engine, which does not exist today; that hook is the actual work item.
+2. **Drop `--skip-bundle`.** The generator installs gems and runs its own installers inline, producing a correct app. Simpler, but breaks the invariant and means gem-install failures surface inside the scaffold step rather than in the isolated wiring step.
+
+Option 1 is preferred. Whichever is chosen, add an integration test asserting `config/importmap.rb` and `config/queue.yml` exist after a full rails scaffold, since their absence is exactly what went unnoticed here.
+
+---
+
 ### P2 - Medium
 
 #### BL-100 - v2.2: Restore `cloudflare-workers` to scaffolders.yml + add cf-edge-stack category-pattern
