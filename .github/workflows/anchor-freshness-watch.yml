@@ -104,12 +104,37 @@ jobs:
           set -e
 
           cat freshness.txt
-          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+
+          # The exit code ALONE cannot tell "documents are stale" from "the
+          # checker crashed": --gating exits 1 on stale, and an uncaught Python
+          # exception also exits 1. Swallowing both as "stale" would (a) file a
+          # tracking issue blaming the docs when the tooling is what broke, and
+          # (b) go completely unnoticed on pull_request runs, where the issue
+          # steps are skipped and the job would end green. That second case
+          # would defeat the paths guard below, whose entire purpose is to
+          # exercise this checker on PRs that touch it.
+          #
+          # So discriminate on the checker's own contract instead. It prints
+          # exactly one of these two lines on a successful evaluation; anything
+          # else means it did not get far enough to have an opinion.
+          if grep -q "^freshness check: PASS" freshness.txt; then
+            STATUS="fresh"
+          elif grep -q "^freshness check FAIL" freshness.txt; then
+            STATUS="stale"
+          else
+            echo "::error::plugin-freshness-check.py exited ${RC} without emitting"
+            echo "::error::a PASS or FAIL verdict. This is a checker failure, not"
+            echo "::error::a staleness report. Output above."
+            exit 1
+          fi
+
+          echo "Checker verdict: ${STATUS} (exit ${RC})"
+          echo "status=${STATUS}" >> "$GITHUB_OUTPUT"
           echo "warn_window=${WARN_WINDOW}" >> "$GITHUB_OUTPUT"
           echo "lead_days=${LEAD_DAYS_RAW}" >> "$GITHUB_OUTPUT"
 
       - name: Open or update the tracking issue
-        if: ${{ steps.check.outputs.rc != '0' && github.event_name != 'pull_request' }}
+        if: ${{ steps.check.outputs.status == 'stale' && github.event_name != 'pull_request' }}
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -152,7 +177,16 @@ jobs:
             echo "This issue auto-closes once every anchor is back inside the window."
           } > issue-body.md
 
+          # Server-side title search, NOT a client-side filter over the default
+          # page. `gh issue list` returns 30 items unless told otherwise, so a
+          # tracker that drifts past the 30 most recent open issues would read
+          # as absent: this step would then open a duplicate every week, and the
+          # close step below would never find the original. `--search` pushes
+          # the match to GitHub and `--limit` covers same-title collisions.
+          # The exact-title jq filter stays, because `in:title` is a full-text
+          # match and would also return issues that merely mention the phrase.
           EXISTING=$(gh issue list --repo "${REPO}" --state open \
+            --search "${TITLE} in:title" --limit 100 \
             --json number,title \
             --jq "[.[] | select(.title == \"${TITLE}\")] | .[0].number // empty")
 
@@ -165,14 +199,18 @@ jobs:
           fi
 
       - name: Close the tracking issue once anchors are fresh
-        if: ${{ steps.check.outputs.rc == '0' && github.event_name != 'pull_request' }}
+        if: ${{ steps.check.outputs.status == 'fresh' && github.event_name != 'pull_request' }}
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           TITLE="Knowledge anchors approaching the 30-day freshness window"
+          # Same server-side search as the open/update step; see the comment
+          # there. Both lookups must use identical criteria or the pair can
+          # open a tracker it is then unable to close.
           EXISTING=$(gh issue list --repo "${REPO}" --state open \
+            --search "${TITLE} in:title" --limit 100 \
             --json number,title \
             --jq "[.[] | select(.title == \"${TITLE}\")] | .[0].number // empty")
           if [ -n "${EXISTING}" ]; then
