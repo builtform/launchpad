@@ -1,6 +1,6 @@
 ---
 generated_by: hand-authored
-last_validated: 2026-06-23
+last_validated: 2026-08-01
 purpose: rationale-generation context for /lp-pick-stack
 ---
 
@@ -41,8 +41,8 @@ output is mostly static HTML + minimal JavaScript. Read-heavy, edit-rare.
 
 - **astro**: TypeScript-first; islands architecture; best when interactive bits
   matter (search, comments, dashboards embedded in content)
-- **eleventy**: ESM-only JavaScript; minimal JS surface; best for plain
-  Markdown sites without framework overhead
+- **eleventy**: JavaScript, ESM or CommonJS (v3 supports both); minimal JS
+  surface; best for plain Markdown sites without framework overhead
 - **hugo**: Go-built; fastest builds (thousands of pages/sec); best for very
   large content corpora (1k+ pages) or non-JS teams
 
@@ -115,8 +115,10 @@ Native Web). Native UI primitives + React component model.
 - TypeScript-first
 - Expo Router for file-based routing
 - EAS Build for cloud-based native builds (avoids local Xcode/Android Studio)
-- New Architecture (Fabric + TurboModules) enabled by default in SDK 52+
-- Deploy targets: App Store, Play Store, Expo Go (dev/preview)
+- New Architecture (Fabric + TurboModules) is the only architecture from SDK 55
+  onward; the legacy architecture was removed and cannot be re-enabled
+- Deploy targets: App Store, Play Store, and a development build or `eas go`
+  for dev/preview (store-published Expo Go now lags the newest SDK by design)
 
 **Standalone vs polyglot**:
 
@@ -146,15 +148,17 @@ candidate stack was NOT chosen:
 
 - **Express for new APIs**: Hono or FastAPI is the modern path; Express is
   legacy unless the team has institutional ESM/middleware investment
-- **Remix as a separate framework**: Remix v2 became React Router v7 (2024); a
-  new Remix project today writes itself as React Router v7 inside a Next or
+- **Remix as a separate framework**: Remix v2's React-based continuation is
+  React Router v7 (2024), and Remix 3 (beta 2026-04-30) dropped React entirely,
+  so "Remix" is ambiguous and rarely what a React team wants today. A React
+  team reaching for Remix should write React Router v7 inside a Next or
   standalone Vite shell
 - **Webpack for new bundling**: Vite (Astro/SvelteKit/Vite-projects) or
-  Turbopack (Next 15) are the modern paths
+  Turbopack (the default for both dev and build in Next 16) are the modern paths
 - **psycopg2 instead of psycopg3**: psycopg3 (`psycopg`) is the 2026 idiom;
   psycopg2 is in maintenance-only mode
 - **Pages Router for new Next projects**: App Router is the canonical paradigm
-  in Next 15; Pages Router is legacy support for migration only
+  in Next 16; Pages Router is legacy support for migration only
 - **Webpacker / Sprockets for new Rails**: Propshaft + importmap is the Rails 8
   default; Webpacker was sunset in Rails 7
 
