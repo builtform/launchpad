@@ -283,7 +283,7 @@ class TechStackInfo(TypedDict):
     language: str  # "TypeScript", "Python", "Go", "Unknown"
     runtime: str  # "Node.js 20", "Python 3.12", "Go 1.22", etc.
     package_manager: str  # "pnpm", "poetry", "go mod", ""
-    frameworks: list[str]  # ["Next.js 15", "Hono", "Prisma"]
+    frameworks: list[str]  # ["Next.js 16", "Hono", "Prisma"]
     database: str | None  # "PostgreSQL", None
     ci: str | None  # "GitHub Actions", None
 
@@ -319,7 +319,7 @@ class FrontendInfo(TypedDict):
     Returns None from adapters for backend-only stacks.
     """
 
-    framework: str  # "Next.js 15 App Router", "React SPA"
+    framework: str  # "Next.js 16 App Router", "React SPA"
     styling: str  # "Tailwind CSS v4", "CSS Modules"
     component_dir: str  # "apps/web/components/"
     routing: str  # "App Router", "React Router"

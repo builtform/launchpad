@@ -147,11 +147,20 @@ def select_sub_template_or_decline(
 
 
 def describe_tech_stack() -> TechStackInfo:
+    # Major 6, not the current upstream major, and deliberately so. This
+    # adapter materializes the templates pinned by SHA in `pin_registry.py`,
+    # which sit at withastro/astro@astro@6.2.2 (see
+    # docs/maintainers/upstream-pin-rotations.md). The knowledge anchor names a
+    # newer major because it describes the upstream scaffolder CLI, which is a
+    # different code path that this adapter never invokes. Each must track what
+    # it actually produces. BL-382 covers
+    # rotating the pins and deriving this string from the pinned template's own
+    # package.json so the two cannot drift apart again.
     return TechStackInfo(
         language="TypeScript",
-        runtime="Node.js 20+",
+        runtime="Node.js 22.12+",
         package_manager="pnpm",
-        frameworks=["Astro 5", "Tailwind CSS v4"],
+        frameworks=["Astro 6", "Tailwind CSS v4"],
         database=None,
         ci="GitHub Actions",
     )
@@ -178,7 +187,7 @@ def describe_backend() -> BackendInfo:
 
 def describe_frontend() -> FrontendInfo | None:
     return FrontendInfo(
-        framework="Astro 5",
+        framework="Astro 6",
         styling="Tailwind CSS v4",
         component_dir="apps/web/src/components/",
         routing="File-based (src/pages/)",
@@ -203,7 +212,7 @@ def describe_app_flow() -> AppFlowInfo | None:
 
 def describe_product_context() -> ProductContextInfo:
     return ProductContextInfo(
-        stack_summary="Astro 5 (frontend content/performance, content collections)",
+        stack_summary="Astro 6 (frontend content/performance, content collections)",
         deployment_target="Vercel / Netlify / Cloudflare Pages",
     )
 

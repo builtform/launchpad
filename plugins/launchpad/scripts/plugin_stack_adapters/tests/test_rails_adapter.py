@@ -12,7 +12,7 @@ def test_run_returns_adapter_output_with_correct_stack_id():
 def test_run_populates_required_fields():
     out = rails_adapter.run()
     assert out["tech_stack"]["language"] == "Ruby"
-    assert out["backend"]["framework"] == "Rails 8"
+    assert out["backend"]["framework"] == "Rails 8.1"
     # Rails fullstack: ships its own view layer (Hotwire).
     assert out["frontend"] is not None
     assert "Hotwire" in out["frontend"]["framework"]

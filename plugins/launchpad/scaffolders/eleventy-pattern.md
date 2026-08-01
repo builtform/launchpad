@@ -2,7 +2,7 @@
 stack: eleventy
 pillar: Frontend Content
 type: curate
-last_validated: 2026-06-23
+last_validated: 2026-08-01
 scaffolder_command: (curate — no npm create CLI; manual scaffold per this doc)
 scaffolder_command_pinned_version: "@11ty/eleventy@3"
 ---
@@ -11,24 +11,30 @@ scaffolder_command_pinned_version: "@11ty/eleventy@3"
 
 ## Idiomatic 2026 pattern
 
-Eleventy 3 is ESM-only; the 2.x CommonJS path is removed. The canonical 2026
-layout uses `src/` for content + templates with `_data/` for global data files
-(JS or JSON), `_includes/` for layout chains, `_includes/layouts/` for base
-layouts, `src/index.njk` (or `.md`) as the home page, and `eleventy.config.mjs`
-at the repo root (note the `.mjs` extension; `.js` works only if `package.json`
-declares `"type": "module"`).
+Eleventy 3 supports both ESM and CommonJS. CJS was not removed and upstream
+states it will keep working; ESM is simply the recommended default for new
+projects. The canonical 2026 layout uses `src/` for content + templates with
+`_data/` for global data files (JS or JSON), `_includes/` for layout chains,
+`_includes/layouts/` for base layouts, `src/index.njk` (or `.md`) as the home
+page, and `eleventy.config.js` at the repo root alongside `"type": "module"` in
+`package.json` (what the official eleventy-base-blog starter does).
+`eleventy.config.mjs` is an equally valid alternative when you do not want to
+set `"type": "module"`.
 
 JS data files are first-class: `src/_data/site.mjs` exporting an object becomes
 available as `{{ site.title }}` in templates. Async data files are supported
 (top-level `await` works).
 
 Output goes to `_site/` by default; configure via `dir.output` in the config
-file. Nunjucks (`.njk`) and Markdown (`.md`) are the two universal template
-engines; Liquid, Handlebars, Pug, EJS are opt-in.
+file. Bundled in core: HTML, Markdown (`.md`), Liquid (`.liquid`), Nunjucks
+(`.njk`) and JavaScript (`.11ty.js`); Liquid is the default preprocessor for
+HTML and Markdown. Handlebars, Mustache, EJS, HAML and Pug were unbundled in v3
+and now require official plugins; WebC, TypeScript, JSX and MDX were never core.
 
-Version pins: `@11ty/eleventy@3.x`, Node `>=18`, optional
-`@11ty/eleventy-img@5+` for image optimization, `@11ty/eleventy-fetch@5+` for
-build-time API fetching.
+Version pins: `@11ty/eleventy@3.x` (3.1.x current), Node `>=18`, optional
+`@11ty/eleventy-img@6.x` for image optimization (7.x is ESM-only and requires
+Node >= 22, so stay on 6.x unless the project targets Node 22+),
+`@11ty/eleventy-fetch@5+` for build-time API fetching.
 
 ## Scaffolder behavior
 
@@ -53,19 +59,24 @@ Post-scaffold install runs separately via the cross-cutting wiring step.
 
 ## Tier-1 detection signals
 
-- `eleventy.config.mjs` / `eleventy.config.js` / `.eleventy.js` at repo root
+- `.eleventy.js` / `eleventy.config.js` / `eleventy.config.mjs` /
+  `eleventy.config.cjs` at repo root (Eleventy resolves them in that order)
 - `_site/` build output directory (gitignored, present after first build)
 - `package.json` with `"@11ty/eleventy"` in dependencies
-- `src/_data/` directory containing `.mjs` / `.js` / `.json` files
-- `src/_includes/` directory with template partials
+- `_data/` directory (at repo root or under the configured `dir.input`, which
+  defaults to `.`) containing `.mjs` / `.cjs` / `.js` / `.json` files
+- `_includes/` directory with template partials and layouts
 
 ## Common pitfalls + cold-rerun gotchas
 
-- Eleventy 3 removed CommonJS support entirely; `.cjs` config files do not work.
-  Pre-3 projects must rename `eleventy.config.js` → `eleventy.config.mjs` AND
-  add `"type": "module"` to `package.json`.
-- The legacy `.eleventy.js` filename works but is a discovery footgun;
-  `eleventy.config.mjs` is the 2026 idiom.
+- Do NOT "migrate" an existing CommonJS Eleventy project to ESM as part of a v3
+  upgrade. `eleventy.config.cjs` is a first-class supported config filename and
+  `module.exports` configs still work. ESM is a preference, not a requirement.
+- Mixing formats is the real footgun: with `"type": "module"` set, a `.js`
+  config or data file using `module.exports` throws. Use `.cjs` to mark
+  individual files as CommonJS.
+- `.eleventy.js` is still checked FIRST in the config resolution order, so a
+  stray legacy `.eleventy.js` silently wins over a new `eleventy.config.js`.
 - `dir.input` defaults to `.` (root) in older docs; canonical 2026 layout uses
   `src/` and requires explicit `dir.input` setting.
 - Nunjucks template inheritance (`{% extends %}`) requires the layout path
@@ -79,10 +90,16 @@ Post-scaffold install runs separately via the cross-cutting wiring step.
 
 ## Version evolution
 
-- Eleventy 3 (2024 → stable 2025): ESM-only; bundle helper for inline CSS/JS;
-  i18n plugin GA; performance improvements (~2x faster builds).
-- Eleventy 2 (2023): async-first APIs; serverless deferred to community;
-  declarative `addPlugin` configuration.
+- Build Awesome / Eleventy 4 (alpha as of 2026-07): the project was rebranded to
+  "Build Awesome" on 2026-03-03 and the repo moved to `11ty/buildawesome`; the
+  npm package is still `@11ty/eleventy`. v4 raises the Node minimum, removes
+  `setDataDeepMerge(false)` and the `slug` filter, and swaps Nunjucks for the
+  `@11ty/nunjucks` fork. Do not pin to 4.x until stable.
+- Eleventy 3 (stable 2024-10-02): full ESM support added while KEEPING
+  CommonJS; plain-text bundler built into core; Handlebars, Mustache, EJS, HAML
+  and Pug unbundled into plugins; Node 18 minimum.
+- Eleventy 2 (2023): async-first APIs including `addAsyncFilter`; bundled i18n
+  plugin; serverless deferred to community; declarative `addPlugin`.
 - Eleventy 1 (2022): first stable; CommonJS-only.
 
 Curate-mode means LaunchPad ships the pattern doc itself as the canonical
