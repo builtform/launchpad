@@ -136,13 +136,10 @@ class BootstrapStatus(StrEnum):
     `--recover` flow) to disambiguate "what state did we end up in".
     """
 
-    # `--recover` cleared the sentinel; manifest unlinked because
-    # manifest.created_at predated sentinel.acquired_at (provably stale).
+    # `--recover` cleared a stale sentinel and did nothing else. Recover is
+    # sentinel-clear-only by design; it deliberately does NOT unlink the
+    # manifest (see BL-376 and the rationale in engine.py's recover branch).
     RECOVERED_SENTINEL_CLEAR_ONLY = "recovered_sentinel_clear_only"
-
-    # Stale-sentinel detected by liveness predicates: pid_dead OR
-    # hostname_mismatch OR mtime_age > STALE_SENTINEL_THRESHOLD_HOURS.
-    STALE_SENTINEL_DETECTED = "stale_sentinel_detected"
 
 
 @dataclass(frozen=True)
@@ -448,14 +445,6 @@ HOOK_CLASSIFICATIONS: Final[Mapping[str, str]] = MappingProxyType(
 )
 
 
-# v2.1 Codex PR #50 P1.D (D4): bootstrap sentinel staleness threshold (hours).
-# Sentinel is treated stale if mtime_age exceeds this value AND no other
-# liveness predicate fired (`pid_dead` and `hostname_mismatch` are
-# instant-stale signals, while age is the soft fallback for pid/hostname
-# matches that still look abandoned).
-STALE_SENTINEL_THRESHOLD_HOURS: Final[int] = 2
-
-
 __all__ = [
     "BACKUP_DIR_NAME",
     "BootstrapError",
@@ -472,6 +461,5 @@ __all__ = [
     "MANIFEST_FILENAME",
     "MANIFEST_SCHEMA_VERSION",
     "SENTINEL_NAME",
-    "STALE_SENTINEL_THRESHOLD_HOURS",
     "WARNINGS_FILENAME",
 ]

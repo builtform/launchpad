@@ -82,15 +82,19 @@ KNOWN_BAD_PINS: tuple[tuple[str, str | None, str], ...] = (
     (
         "nextjs_fastapi",
         None,
-        "BL-329 — vintasoftware/nextjs-fastapi-template@62b67456 has "
-        "docs/CHANGELOG.md + docs/README.md as symlinks; rotate to a "
-        "clean SHA in v2.1.5 / v2.2",
+        (
+            "BL-329 — vintasoftware/nextjs-fastapi-template@62b67456 has "
+            "docs/CHANGELOG.md + docs/README.md as symlinks; rotate to a "
+            "clean SHA in v2.1.5 / v2.2"
+        ),
     ),
     (
         "astro",
         "docs",
-        "BL-330 — withastro/starlight@2c530192 has README.md as a "
-        "root-level symlink; rotate to a clean SHA in v2.1.5 / v2.2",
+        (
+            "BL-330 — withastro/starlight@2c530192 has README.md as a "
+            "root-level symlink; rotate to a clean SHA in v2.1.5 / v2.2"
+        ),
     ),
 )
 
@@ -214,8 +218,10 @@ def _check_pin(
         if sub_path and not walk_root.is_dir():
             return PinCheckResult(
                 findings=(
-                    f"[{label}] sub-template subpath {sub_path!r} does not "
-                    f"exist in {repo_url}@{sha[:8]} — pin may be stale",
+                    (
+                        f"[{label}] sub-template subpath {sub_path!r} does not "
+                        f"exist in {repo_url}@{sha[:8]} — pin may be stale"
+                    ),
                 )
             )
         finding = _walk_for_disallowed(walk_root)
@@ -228,9 +234,11 @@ def _check_pin(
             scope_label = sub_path if sub_path else "<whole-tree>"
             return PinCheckResult(
                 findings=(
-                    f"[{label}] DISALLOWED ENTRY ({kind}) in {repo_url}@{sha[:8]} "
-                    f"at walk_scope={scope_label} :: {rel} — runtime "
-                    f"`template_cache.fetch()` will reject this pin for users",
+                    (
+                        f"[{label}] DISALLOWED ENTRY ({kind}) in {repo_url}@{sha[:8]} "
+                        f"at walk_scope={scope_label} :: {rel} — runtime "
+                        f"`template_cache.fetch()` will reject this pin for users"
+                    ),
                 )
             )
     return PinCheckResult()

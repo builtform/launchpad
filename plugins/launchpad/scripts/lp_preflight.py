@@ -1560,9 +1560,11 @@ def _probe_build_time_api_auth(
         )
     remediation_lines = [
         f"  1. Set locally: export {env_var}=<token> in your shell rc.",
-        f"  2. Set in deploy env: add {env_var} to your hosting provider's "
-        f"environment variables dashboard (Cloudflare Pages / Vercel / "
-        f"Netlify / etc.).",
+        (
+            f"  2. Set in deploy env: add {env_var} to your hosting provider's "
+            f"environment variables dashboard (Cloudflare Pages / Vercel / "
+            f"Netlify / etc.)."
+        ),
     ]
     if remediation_url is not None:
         scope_suffix = (
@@ -1763,7 +1765,7 @@ def _probe_dns_cloudflare(
     for ip, host in parsed:
         if ip is not None and any(ip in net for net in _CLOUDFLARE_NETWORKS):
             return _pass(chk, f"{domain} resolves to Cloudflare ({ip.exploded})")
-        if host and (host.endswith(".cloudflare.com") or host.endswith(".pages.dev")):
+        if host and host.endswith((".cloudflare.com", ".pages.dev")):
             return _pass(chk, f"{domain} CNAME points to Cloudflare ({host})")
     return _fail(
         chk,
@@ -2213,7 +2215,7 @@ def check_receipt_validity(
     if not isinstance(ts_raw, str):
         return ReceiptCheckResult(False, "corrupt", None, writer_str)
     try:
-        ts = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
+        ts = datetime.fromisoformat(ts_raw)
     except ValueError:
         return ReceiptCheckResult(False, "corrupt", None, writer_str)
     if ts.tzinfo is None:
@@ -2281,8 +2283,10 @@ def _format_summary(report: PreflightReport) -> str:
     need_count = len(report.needs_confirmation)
     total = len(report.results)
     lines = [
-        f"[preflight] Ran {total} check(s) "
-        f"(providers: {', '.join(report.providers) or '(none)'})",
+        (
+            f"[preflight] Ran {total} check(s) "
+            f"(providers: {', '.join(report.providers) or '(none)'})"
+        ),
         f"[preflight] OK: {pass_count}",
     ]
     if need_count:
@@ -2450,7 +2454,7 @@ def main(argv: list[str] | None = None) -> int:
     print(_format_summary(report))
     exit_code = 0 if report.ok else 1
     if not report.ok:
-        print("")
+        print()
         print(_format_refuse(report))
     if args.write_receipt:
         write_receipt(

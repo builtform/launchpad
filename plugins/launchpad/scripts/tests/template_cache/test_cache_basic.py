@@ -132,6 +132,27 @@ def test_verify_returns_false_when_manifest_files_missing(
     assert verify(REPO, SHA) is False
 
 
+def test_z_suffixed_fetched_at_parses_to_a_finite_age(
+    cache_root_tmp, prepopulate_entry
+):
+    """Pin Z-suffix parsing independently of TTL arithmetic.
+
+    `_entry_age_days` returns `float("inf")` when `fromisoformat` raises, so a
+    parse failure is indistinguishable from "very stale" in any test that only
+    asserts `verify(...) is False`. Assert a *finite* age instead, so dropping
+    py311's native `Z` handling (or reintroducing a `.replace("Z", "+00:00")`
+    dependency) fails loudly here rather than silently degrading every
+    TTL-based assertion into a tautology.
+    """
+    entry = prepopulate_entry(REPO, SHA)
+    (entry / _store.FETCHED_AT_FILE).write_text(
+        "2026-05-05T00:00:00Z\n", encoding="utf-8"
+    )
+    age = _store._entry_age_days(entry)
+    assert age != float("inf"), "Z-suffixed fetched_at failed to parse"
+    assert age >= 0
+
+
 def test_verify_returns_false_past_ttl(
     cache_root_tmp, prepopulate_entry
 ):

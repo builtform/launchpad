@@ -199,8 +199,7 @@ def _slug_from_repo(repo_url: str) -> str:
             ),
         )
     rest = repo_url[len(_HTTPS_GITHUB_PREFIX) :].rstrip("/")
-    if rest.endswith(".git"):
-        rest = rest[:-4]
+    rest = rest.removesuffix(".git")
     return rest.replace("/", "-")
 
 
@@ -435,7 +434,7 @@ def _entry_age_days(entry_dir: Path) -> float:
         return float("inf")
     try:
         ts = fetched.read_text(encoding="utf-8").strip()
-        when = _dt.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        when = _dt.datetime.fromisoformat(ts)
     except (OSError, ValueError):
         return float("inf")
     now = _dt.datetime.now(tz=when.tzinfo or _dt.UTC)
@@ -608,7 +607,10 @@ def fetch(
         def fetcher(target: Path) -> None:
             git_clone_depth_one(repo_url, sha, target)
 
-    with _FETCH_SEMAPHORE:
+    # noqa rationale: the nesting is deliberate — semaphore-then-flock is the
+    # lock-acquisition order contract at this critical section, and keeping the
+    # two `with` statements separate makes that acquire/release order explicit.
+    with _FETCH_SEMAPHORE:  # noqa: SIM117
         with _flock(handle.lock_file):
             if (
                 _entry_is_ready(handle.entry_dir)

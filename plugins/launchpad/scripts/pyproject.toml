@@ -14,6 +14,11 @@
 
 [tool.ruff]
 target-version = "py311"
+# Required because lefthook pipes explicit file paths (CI passes a
+# directory). Without it, extend-exclude is ignored for those paths and a
+# contributor editing plugin_stack_adapters/tests/ gets pre-commit failures
+# on rules CI never enforces.
+force-exclude = true
 # Paths are relative to this pyproject.toml's directory
 # (= plugins/launchpad/scripts/). `tests/` excluded per R1-T1-2 — those carry
 # 200+ deferred ruff violations; v2.1.x BL: tests-dir ruff baseline.
@@ -25,17 +30,98 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-extend-select = ["E", "F", "I", "B", "UP"]
-extend-ignore = [
+# `select` (NOT `extend-select`) — deliberate, see v2.1.11 triage below.
+#
+# ruff 0.16.0 expanded its DEFAULT rule set. Because this block previously
+# used `extend-select` (which ADDS to whatever ruff defaults to), that
+# upgrade silently pulled in ~20 new families and turned a clean tree into
+# 138 findings. `select` pins the enforced set explicitly, so a future ruff
+# upgrade can never change what CI enforces without a deliberate edit here.
+#
+# Coverage is NOT reduced relative to the old `extend-select` form: ruff's
+# defaults were E4/E7/E9 + F, and "E" + "F" are supersets of those.
+#
+# All 138 findings from the 0.16.0 expansion were triaged individually
+# (2026-07-31). Rules whose findings we FIXED are adopted below as specific
+# rule codes (not whole families — a family would enable many rules this tree
+# has never been checked against, which is how the 0.16 default expansion
+# caused this in the first place). Rules whose findings we REJECTED are simply
+# not selected; each carries its rationale in the "deliberately not selected"
+# block below so the decision is recoverable. Two single-site exceptions use
+# inline `# noqa` (SIM117 lock-ordering, RUF059 -> BL-376).
+select = [
+    "E",       # pycodestyle errors
+    "F",       # pyflakes
+    "I",       # isort
+    "B",       # flake8-bugbear
+    "UP",      # pyupgrade
+    # --- adopted from the ruff-0.16 default expansion (all findings fixed) ---
+    "DTZ",     # tz-aware datetime (DTZ007 rejected below). Family, not just
+               # DTZ011: pinning one rule left DTZ005 (`datetime.now()`
+               # without tz) unenforced, so a revert spelled that way would
+               # reintroduce local-clock comparison undetected.
+    "EXE001",  # shebang without exec bit (3 live entrypoints, chmod +x'd)
+    "FURB105", # print("") -> print()
+    "FURB162", # redundant .replace("Z", "+00:00") before fromisoformat
+    "FURB188", # manual prefix/suffix slicing -> removeprefix/removesuffix
+    "ISC004",  # implicit concat inside a collection literal (comma-slip class)
+    "PERF102", # .items() when only keys/values are used
+    "PERF402", # manual list copy -> .extend()
+    "PIE810",  # multiple startswith/endswith -> single tuple call
+    "PLR1711", # useless trailing `return None`
+    "PLW1510", # subprocess.run without explicit `check=`
+    "RET501",  # unnecessary explicit `return None`
+    "RUF059",  # unused unpacked variable (1 site noqa'd -> BL-376)
+    "SIM117",  # nested `with` (1 site noqa'd -> lock-ordering legibility)
+    "SIM118",  # `in dict.keys()` -> `in dict`
+]
+# --- deliberately NOT selected (ruff-0.16 triage, 2026-07-31) ---
+#
+# These fired under 0.16's expanded defaults and were each reviewed and
+# rejected. They are left unselected rather than select+ignore so the
+# existing `# noqa: BLE001` / `# noqa: S506` / `# noqa: PLC0415` rationale
+# comments survive untouched for whoever adopts these later.
+#
+# BLE001 (31): `except Exception:` is a deliberate fail-soft idiom here —
+#   dynamic module loading (`spec.loader.exec_module`) and config reads run
+#   against UNTRUSTED consumer repos, and returning a safe empty default is
+#   the contract ("never crash the pipeline on a malformed downstream repo").
+# S110 (5): `try/except/pass` on explicitly best-effort paths (telemetry
+#   append, warning-ledger append, audit-log hash probe, malformed manifest
+#   parse); each is documented in-line as non-blocking.
+# RUF022 (17): `__all__` order is case-insensitive alphabetical (repo
+#   convention) or grouped by concern; infrastructure_renderer.py carries an
+#   in-list comment explaining its order, which is why ruff won't autofix it.
+# RUF100 (16): NEVER autofix — the fix on plugin-agent-scope-filter.py:147
+#   deletes the co-located `# nosec B506`, flipping the `bandit -ll`
+#   pre-commit gate (lefthook.yml:121) from 0 findings to 1 MEDIUM (verified).
+# RUF012 (4): `ClassVar` violates PEP 544 conformance against the
+#   instance-variable `Adapter` Protocol (contracts.py:203) that pyright
+#   gates; mutation risk is nil (read-only per-class constants).
+# TRY004 (9): `ValueError` is an asserted + actively-caught error contract
+#   (tests assert `pytest.raises(ValueError)`; callers catch it to exit 2/65).
+# SIM102 (8): ruff refuses to autofix 7 of 8 because each inner `if` carries
+#   a load-bearing comment; two are in `# pyright: strict` security modules.
+# SIM103 (5): terminal clauses of deliberate guard-clause ladders.
+# SIM114 (4): exhaustive enum-dispatch ladders; the 1:1 branch-per-enum-member
+#   correspondence is what makes them auditable.
+# (DTZ007 is selected-then-ignored rather than unselected, so the rest of
+#  the DTZ family stays enforced; its rationale sits with the ignore entry.)
+ignore = [
+    # DTZ007 (2): both sites are already UTC-correct — one `.date()`s the
+    # result, the other discards it after upstream UTC enforcement — and
+    # `%z` cannot be added anyway because the literal `Z` in the format
+    # string is what pins them to UTC. Rejected while the rest of DTZ is
+    # enforced.
+    "DTZ007",
     # 181 violations dominantly in error-message strings + URLs; manual rewrap
     # is high-effort low-value; deferred to v2.1.x BL (choose between raising
     # line-length to 100 OR systematic rewrap into named constants).
     "E501",
 ]
 
-[tool.ruff.format]
-# Standard ruff format defaults; mirror the eslint-fix + prettier-fix pairing
-# pattern used on the TS side.
+# `ruff format` runs on defaults (no [tool.ruff.format] overrides), mirroring
+# the eslint-fix + prettier-fix pairing on the TS side.
 
 [tool.pyright]
 include = ["."]

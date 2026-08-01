@@ -14,6 +14,7 @@ Also reusable from Slice C adapter tests (~50 tests amortized over Slice B's
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Callable
 
@@ -80,8 +81,14 @@ def prepopulate_entry(cache_root_tmp: Path) -> Callable[..., Path]:
             json.dumps({"files": manifest_files}, sort_keys=True, indent=2) + "\n",
             encoding="utf-8",
         )
+        # Relative, NOT a hardcoded date. A fixed stamp silently expires once
+        # it passes CACHE_TTL_DAYS (90): the previous "2026-05-05T00:00:00Z"
+        # would have started failing every prepopulate-based cache-hit
+        # assertion on 2026-08-03, taking with it the only positive-path pin
+        # on Z-suffix parsing in `_entry_age_days`.
         (entry / _store.FETCHED_AT_FILE).write_text(
-            "2026-05-05T00:00:00Z\n", encoding="utf-8"
+            datetime.now(UTC).isoformat().replace("+00:00", "Z") + "\n",
+            encoding="utf-8",
         )
         if with_ready:
             (entry / _store.READY_SENTINEL).write_text("ok\n", encoding="utf-8")

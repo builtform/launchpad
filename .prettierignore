@@ -5,6 +5,12 @@ pnpm-lock.yaml
 coverage
 *.gen.*
 
+# Test-runner scratch. pytest self-ignores via its own .pytest_cache/.gitignore
+# so git never sees it, but prettier has no such awareness -- without this,
+# `pnpm prettier --check .` fails on .pytest_cache/README.md for anyone who has
+# run pytest locally.
+.pytest_cache
+
 # Hash-pinned content: scaffolders.yml pins SHA-256 of each pattern file
 # under `knowledge_anchor_sha256`. Prettier reformatting these would silently
 # break the pins. Edits to these files require recomputing the matching pin.

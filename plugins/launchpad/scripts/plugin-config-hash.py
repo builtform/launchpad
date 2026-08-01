@@ -254,7 +254,9 @@ def main() -> int:
 
     cfg = Path(args.repo_root) / ".launchpad" / "config.yml"
     if not cfg.is_file():
-        print("", end="")  # empty output means "no commands section" by convention
+        # No stdout at all: empty output means "no commands section" by
+        # convention. (Previously `print("", end="")`, which wrote zero bytes
+        # just as verbosely.)
         print(f"WARN: {cfg} does not exist; nothing to hash", file=sys.stderr)
         return 1
 

@@ -163,6 +163,7 @@ def run_detector(repo_root: Path) -> dict[str, Any]:
         capture_output=True,
         text=True,
         env=env,
+        check=False,  # returncode inspected below for a domain-specific error
     )
     if result.returncode != 0:
         raise RuntimeError(f"stack detector failed: {result.stderr}")
