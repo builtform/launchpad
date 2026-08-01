@@ -90,13 +90,16 @@ Version pins (Gemfile):
 `rails new <path> --skip-bundle --skip-git` creates the full Rails 8 app
 skeleton at `<path>/`. Flag effects:
 
-- `--skip-bundle` (-B) — does NOT run `bundle install`, AND suppresses every
-  post-bundle installer, because `run_solid`, `run_hotwire`, `run_javascript`,
-  `run_css` and `run_kamal` all early-return on `!bundle_install?`. Running
-  `bundle install` afterwards does NOT create what they would have written.
-  LaunchPad MUST additionally run `bin/rails importmap:install turbo:install
-  stimulus:install solid_cache:install solid_queue:install solid_cable:install`,
-  or the app has no JS entrypoint and no queue/cache config.
+- `--skip-bundle` (-B) — LaunchPad does NOT pass this, deliberately. It does
+  not merely defer `bundle install`: `run_solid`, `run_hotwire`,
+  `run_javascript`, `run_css` and `run_kamal` all early-return on
+  `!bundle_install?`, so the scaffold silently omits `config/importmap.rb`,
+  `bin/importmap`, `app/javascript/**`, `config/queue.yml`,
+  `config/recurring.yml`, `config/cache.yml`, `bin/jobs` and
+  `db/{queue,cache,cable}_schema.rb`. Running `bundle install` afterwards does
+  NOT create any of them. If you do pass it, you must also run `bin/rails
+  importmap:install turbo:install stimulus:install solid_cache:install
+  solid_queue:install solid_cable:install` to get an app that boots.
 - `--skip-git` — does NOT run `git init` (LaunchPad's repo init is centralized)
 - Defaults: SQLite database, importmap (no Node), Turbo + Stimulus,
   Solid Queue/Cache/Cable, Puma, Propshaft, Kamal, Thruster, Minitest
@@ -108,7 +111,11 @@ For esbuild instead of importmap: `--javascript=esbuild` (adds Node toolchain
 to the project, which LaunchPad detects and wires `package.json` into the
 cross-cutting layer).
 
-Lockfile: `Gemfile.lock` materializes during the post-scaffold `bundle install`.
+Lockfile: `Gemfile.lock` materializes during the generator's own `bundle
+install`, which LaunchPad allows to run (see `--skip-bundle` above). This is the
+same choice made for expo, where the CLI's install is left in place because the
+generated project is only correct if the generator completes its own
+install-dependent steps.
 
 ## Tier-1 detection signals
 

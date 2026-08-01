@@ -26,7 +26,7 @@ schema_version: "1.0"
 ambiguity_clusters:
   - name: "static-blog-trio"
     members: ["static-blog-astro", "static-blog-eleventy", "static-blog-hugo"]
-    differentiator: "team familiarity (TypeScript/JSX vs ESM-only JS vs Go) + build-speed priority"
+    differentiator: "team familiarity (TypeScript/JSX vs plain JavaScript vs Go) + framework surface area + build-speed priority"
 
   - name: "marketing-site-pair"
     members: ["marketing-astro", "marketing-next"]
@@ -58,7 +58,7 @@ categories:
 
   - id: "static-blog-eleventy"
     name: "Static blog (Eleventy)"
-    fits_when: "Q1=static-site-or-blog AND Q2=static-content-only AND describe contains 'eleventy|11ty|minimal|no JS framework|ESM'"
+    fits_when: "Q1=static-site-or-blog AND Q2=static-content-only AND describe contains 'eleventy|11ty|minimal|no JS framework'"
     canonical_stack:
       - stack: "eleventy"
         role: "frontend"

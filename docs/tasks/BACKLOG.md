@@ -364,15 +364,15 @@ Note the payoff is small either way: `supabase init` writes exactly one file, so
 
 #### BL-381 - v2.2: Rails `--skip-bundle` suppresses every post-bundle installer with no compensating step
 
-- **Priority**: P2
-- **Status**: TODO
+- **Priority**: P3
+- **Status**: PARTIALLY SHIPPED in v2.1.11 (PR #145). The broken scaffold is fixed; the cleaner mechanism is still open. See Resolution.
 - **Area**: Plugin / scaffolders catalog + scaffold engine
 
 **Encountered**
 
 - **Date**: 2026-08-01
 - **Location**: `plugins/launchpad/scaffolders.yml` (rails `headless_flags`), `plugins/launchpad/scaffolders/rails-pattern.md`
-- **Scenario**: Surfaced by the v2.1.11 anchor re-validation and independently flagged by Codex review of PR #145.
+- **Scenario**: Surfaced by the v2.1.11 anchor re-validation and independently flagged by Codex review of PR #145, which pushed back on deferring a known-broken scaffold. That pushback was correct.
 
 **Current Behavior**
 
@@ -389,7 +389,11 @@ Two viable directions, and they trade off differently against LaunchPad's "cross
 1. **Keep `--skip-bundle`, add a post-install generator step.** After the cross-cutting `bundle install`, run `bin/rails importmap:install turbo:install stimulus:install solid_cache:install solid_queue:install solid_cable:install`. Preserves the invariant. Requires a per-stack post-install hook in the scaffold engine, which does not exist today; that hook is the actual work item.
 2. **Drop `--skip-bundle`.** The generator installs gems and runs its own installers inline, producing a correct app. Simpler, but breaks the invariant and means gem-install failures surface inside the scaffold step rather than in the isolated wiring step.
 
-Option 1 is preferred. Whichever is chosen, add an integration test asserting `config/importmap.rb` and `config/queue.yml` exist after a full rails scaffold, since their absence is exactly what went unnoticed here.
+**Resolution taken in PR #145: option 2.** `--skip-bundle` was removed from the rails `headless_flags`, so the generator runs its own `bundle install` and completes its install-dependent steps. This follows the existing `expo` precedent in the same catalog, where the CLI's install is deliberately left in place because the generated project is only correct if the generator finishes its own work. A scaffold that succeeds while producing an unusable app is the worse failure mode, and option 2 is one line rather than new untested engine surface.
+
+**Still open (why this entry stays):** option 1 is the better end state. LaunchPad no longer owns the Rails gem install, which means gem-resolution failures now surface inside the scaffold step rather than in the isolated cross-cutting wiring step, and the "wiring owns install" invariant has a second documented exception. Building the per-stack post-install hook would let `--skip-bundle` come back and restore the invariant. Dropped to P3 because the user-visible breakage is gone.
+
+Whichever direction is finished, add an integration test asserting `config/importmap.rb` and `config/queue.yml` exist after a full rails scaffold, since their absence is exactly what went unnoticed here. That test is the actual guard; neither flag choice is self-verifying.
 
 ---
 

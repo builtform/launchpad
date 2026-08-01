@@ -171,9 +171,24 @@ stacks:
     flavor: "pure-headless"
     command: "rails new"
     destination_argv: ["."]
-    headless_flags: ["--skip-bundle", "--skip-git"]
+    # `--skip-bundle` REMOVED (BL-381). It does not merely defer `bundle
+    # install` to the cross-cutting wiring step: `run_solid`, `run_hotwire`,
+    # `run_javascript`, `run_css` and `run_kamal` all early-return on
+    # `!bundle_install?`, so passing it produced an app with no JavaScript
+    # entrypoint (config/importmap.rb, bin/importmap, app/javascript/**) and
+    # no Solid Queue/Cache/Cable config (config/queue.yml, config/cache.yml,
+    # config/recurring.yml, bin/jobs, db/*_schema.rb). A later `bundle
+    # install` does NOT create any of them.
+    #
+    # Letting the generator own its own install follows the expo precedent
+    # in this same catalog, where the CLI's install is deliberately left in
+    # place because correct dependency resolution depends on it. A scaffold
+    # that succeeds while producing an unusable app is the worse failure.
+    # BL-381 tracks the cleaner fix: a per-stack post-install hook that
+    # would let `--skip-bundle` come back.
+    headless_flags: ["--skip-git"]
     knowledge_anchor: "plugins/launchpad/scaffolders/rails-pattern.md"
-    knowledge_anchor_sha256: "556d4559748c80ad4976e920c0dc903f90ec2546577ed8f151cc246589aa6df1"
+    knowledge_anchor_sha256: "ad54460b8fae11b4e49adce23786c9959ce775248804678c4f19ddd05a628569"
     options_schema:
       database: "string"
       javascript: "string"
@@ -195,7 +210,7 @@ stacks:
     type: "curate"
     flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/supabase-pattern.md"
-    knowledge_anchor_sha256: "3901fd13240f3860b3406c8a98dba543ddc14dda6967e425be526f8c94b4ecd5"
+    knowledge_anchor_sha256: "98da6043e95af4f5652c91bde792f31a0ae190107ac64508326b500fc0c2d0f6"
     # options_schema intentionally empty: the vscode_deno_settings /
     # intellij_deno_settings options modelled prompts that no longer exist
     # on `supabase init`.

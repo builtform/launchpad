@@ -1,9 +1,9 @@
 ---
 stack: supabase
 pillar: Backend Managed
-type: orchestrate
+type: curate
 last_validated: 2026-08-01
-scaffolder_command: supabase init
+scaffolder_command: supabase init (run by the user; see Scaffolder behavior)
 scaffolder_command_pinned_version: supabase-cli@2
 ---
 
