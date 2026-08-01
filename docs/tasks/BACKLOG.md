@@ -397,6 +397,69 @@ Whichever direction is finished, add an integration test asserting `config/impor
 
 ---
 
+#### BL-382 - v2.2: adapter version metadata is hardcoded and can contradict the pinned template it describes
+
+- **Priority**: P2
+- **Status**: TODO
+- **Area**: Plugin / stack adapters
+
+**Encountered**
+
+- **Date**: 2026-08-01
+- **Location**: `plugins/launchpad/scripts/plugin_stack_adapters/pin_registry.py`, `plugin_stack_adapters/astro.py`, `plugin_stack_adapters/ts_monorepo.py`
+- **Scenario**: Raised by Codex review of PR #145 after that PR moved adapter metadata to current framework versions.
+
+**Current Behavior**
+
+Two independent instances of the same root cause: adapter metadata is a hardcoded string rather than derived from what is actually materialized.
+
+1. **Pinned templates vs declared version.** `astro.py` now reports Astro 7 and Node 22.12+, but scaffolding materializes upstream commits pinned by SHA in `pin_registry.py`. Those pins were not rotated by PR #145 and may predate Astro 7. If so, the generated architecture doc describes a framework major the scaffolded project does not have. The same exposure exists for every pinned adapter.
+
+2. **Brownfield detection vs greenfield scaffold.** `ts_monorepo.py` hardcodes a Next.js major in `describe_tech_stack` / `describe_backend` / `describe_product_context`. Those describe functions run for existing repos too (`tests/test_define.py` exercises Next.js 15 inputs), so a hardcoded value is wrong for one direction no matter which value is chosen. PR #145 changed 15 to 16 because the shipped template moved to `next@^16.2.12`; that is right for the scaffold path and wrong for a detected Next 15 monorepo. The hardcoding is the bug, not the number.
+
+**Why it was not fixed in PR #145**
+
+Rotating pins requires verifying new upstream SHAs against release tags, which is the job the `cve-watch` tag-drift detector already exists to support and which deserves its own verified pass rather than a same-PR guess. Threading a detected dependency version into the adapter is engine work touching the describe contract.
+
+**Proposed Resolution**
+
+- For (1): rotate the pins, then assert agreement. The cheapest durable guard is to derive the version string from the pinned template's own `package.json` rather than restating it, so the two cannot drift.
+- For (2): thread the detected version through `describe_*`, falling back to the catalog's pinned major only when no manifest is readable. Emit the detected value in architecture docs.
+
+`plugin_stack_adapters/tests/test_adapter_version_agreement.py` (added in PR #145) already guards adapter-module vs template-fragment agreement. It deliberately does not know which version is correct, so it cannot catch either case above; extend it once metadata is derived rather than declared.
+
+---
+
+#### BL-383 - v2.2: no gate models cross-file claim propagation
+
+- **Priority**: P2
+- **Status**: TODO
+- **Area**: CI / tooling
+
+**Encountered**
+
+- **Date**: 2026-08-01
+- **Location**: repo-wide; see the PR #145 review history
+- **Scenario**: A single incorrect sentence in one knowledge anchor was found to have propagated to four other locations, and each copy was found by a human reviewer rather than by any check.
+
+**Current Behavior**
+
+The v2.1.11 re-validation corrected "Eleventy 3 is ESM-only" in `eleventy-pattern.md`. The same claim then had to be chased through `pillar-framework.md` (which feeds `/lp-pick-stack` rationale, so it was being quoted to users as justification for a stack choice) and `category-patterns.yml` (where `ESM` was additionally a routing keyword in a `fits_when` predicate). Separately, corrected framework versions had to be chased into `plugin_stack_adapters/<stack>.py` and then into `<stack>/templates/*.fragment`.
+
+Five layers, four review rounds, and every discovery came from a reviewer noticing rather than a gate firing. The OPERATIONS section 4 freshness window models per-file staleness and nothing else; it has no concept of a claim appearing in more than one file.
+
+**Proposed Resolution**
+
+Full semantic consistency is not tractable, but the cheap 80% is:
+
+1. Extend `test_adapter_version_agreement.py`'s approach outward. It already proves the shape works for adapter-vs-fragment; the same token-comparison applies to anchor-vs-adapter and anchor-vs-pillar-framework.
+2. Add a `type:` agreement assertion between each anchor's frontmatter and its `scaffolders.yml` entry. PR #145 found two mismatches (supabase, django) by hand; the check is three lines and would have found both.
+3. When a re-validation corrects a factual claim, grep the corrected phrase repo-wide before declaring the sweep complete. Cheap, manual, and would have caught three of the five layers immediately.
+
+Item 2 is the highest value per line of code and should ship first.
+
+---
+
 ### P2 - Medium
 
 #### BL-100 - v2.2: Restore `cloudflare-workers` to scaffolders.yml + add cf-edge-stack category-pattern

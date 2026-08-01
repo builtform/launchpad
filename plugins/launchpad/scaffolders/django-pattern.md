@@ -1,9 +1,9 @@
 ---
 stack: django
 pillar: Backend Python
-type: orchestrate
+type: curate
 last_validated: 2026-08-01
-scaffolder_command: django-admin startproject <name>
+scaffolder_command: django-admin startproject <name> (run by the user; curate until BL-238)
 scaffolder_command_pinned_version: django@6.0+
 ---
 

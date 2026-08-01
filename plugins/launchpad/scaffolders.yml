@@ -160,7 +160,7 @@ stacks:
     type: "curate"
     flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/django-pattern.md"
-    knowledge_anchor_sha256: "4534712535d818ec05387b8cf7b292681ef2cee1dced405b16b6456def095ab5"
+    knowledge_anchor_sha256: "b2f3321049acccec459ce26ad9f891abce372ff87ab8923c45be7d3c2a8ae865"
     options_schema:
       database: "string"
     last_validated: "2026-08-01"
@@ -210,7 +210,7 @@ stacks:
     type: "curate"
     flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/supabase-pattern.md"
-    knowledge_anchor_sha256: "98da6043e95af4f5652c91bde792f31a0ae190107ac64508326b500fc0c2d0f6"
+    knowledge_anchor_sha256: "023ff077907820205a6ff6a0c5e19765135333f43802b05c6a87cf8ee1220d7e"
     # options_schema intentionally empty: the vscode_deno_settings /
     # intellij_deno_settings options modelled prompts that no longer exist
     # on `supabase init`.

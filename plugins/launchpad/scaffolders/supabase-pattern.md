@@ -117,7 +117,11 @@ No lockfile from supabase init itself; lockfile from sibling Next.js install.
 - `@supabase/ssr` (v0.12+) replaced the deprecated `@supabase/auth-helpers-*`
   packages; pre-2024 Next.js + Supabase tutorials reference deprecated APIs.
   Within `@supabase/ssr` itself the cookie contract has moved: use `getAll()` /
-  `setAll(cookiesToSet, cacheHeaders)`, never `get`/`set`/`remove`.
+  `setAll(cookiesToSet)`, never `get`/`set`/`remove`. Write the single-argument
+  form: a second parameter was reported during the 2026-08-01 re-validation but
+  could not be confirmed against the published type, and passing an argument the
+  adapter does not declare is a compile error, whereas omitting an optional one
+  is not.
 - API keys: use the new `sb_publishable_...` and `sb_secret_...` keys. The
   legacy `anon` / `service_role` JWT keys still work but are deprecated by the
   end of 2026. The publishable key is safe for client-side; the secret key
