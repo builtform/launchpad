@@ -45,19 +45,30 @@ on:
       - ".github/workflows/anchor-freshness-watch.yml"
       - "plugins/launchpad/scripts/plugin-freshness-check.py"
 
+# Default to read-only. `issues: write` is granted per-job, to the reporting
+# job only, which never runs on pull_request. The checking job runs
+# PR-controlled code (this workflow and the checker script are both in the
+# paths guard above), so it must not hold a write-capable token it has no use
+# for.
 permissions:
   contents: read
-  issues: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  watch:
+  check:
     name: Warn before the 30-day window lapses
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      status: ${{ steps.check.outputs.status }}
+      warn_window: ${{ steps.check.outputs.warn_window }}
+      lead_days: ${{ steps.check.outputs.lead_days }}
+      report: ${{ steps.check.outputs.report }}
     steps:
       - name: Checkout source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -69,12 +80,12 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install vendored deps
-        run: |
-          set -euo pipefail
-          PYYAML_PIN=$(cat plugins/launchpad/scripts/_vendor/PYYAML_VERSION)
-          python -m pip install --upgrade pip
-          python -m pip install "pyyaml==${PYYAML_PIN}"
+      # No dependency install step. `plugin-freshness-check.py` is stdlib-only
+      # (argparse, re, sys, datetime, pathlib); it reads the catalog YAML with a
+      # regex rather than a parser, so it needs no pyyaml. Installing it anyway
+      # cost two network round-trips per run and pulled an unpinned `pip`
+      # upgrade into a job that touches repository contents. If the checker ever
+      # grows a third-party import, add the install back pinned from _vendor/.
 
       - name: Check anchors against the early-warning window
         id: check
@@ -114,33 +125,61 @@ jobs:
           # would defeat the paths guard below, whose entire purpose is to
           # exercise this checker on PRs that touch it.
           #
-          # So discriminate on the checker's own contract instead. It prints
-          # exactly one of these two lines on a successful evaluation; anything
-          # else means it did not get far enough to have an opinion.
-          if grep -q "^freshness check: PASS" freshness.txt; then
+          # So require BOTH signals to agree, and reject every other pairing.
+          # Output alone is not enough either: a checker that prints PASS and
+          # then exits non-zero is broken, and trusting the text would hand it a
+          # green job, which is the same blind spot in the other direction.
+          # Only two combinations are well-formed.
+          if grep -q "^freshness check: PASS" freshness.txt && [ "${RC}" -eq 0 ]; then
             STATUS="fresh"
-          elif grep -q "^freshness check FAIL" freshness.txt; then
+          elif grep -q "^freshness check FAIL" freshness.txt && [ "${RC}" -eq 1 ]; then
             STATUS="stale"
           else
-            echo "::error::plugin-freshness-check.py exited ${RC} without emitting"
-            echo "::error::a PASS or FAIL verdict. This is a checker failure, not"
-            echo "::error::a staleness report. Output above."
+            echo "::error::plugin-freshness-check.py produced an incoherent result:"
+            echo "::error::exit ${RC} with the output above. A well-formed run is"
+            echo "::error::PASS with exit 0, or FAIL with exit 1. Anything else is a"
+            echo "::error::checker failure, not a staleness report."
             exit 1
           fi
 
           echo "Checker verdict: ${STATUS} (exit ${RC})"
           echo "status=${STATUS}" >> "$GITHUB_OUTPUT"
+
+          # Hand the report text to the reporting job, which has no checkout.
+          {
+            echo "report<<FRESHNESS_EOF"
+            cat freshness.txt
+            echo "FRESHNESS_EOF"
+          } >> "$GITHUB_OUTPUT"
           echo "warn_window=${WARN_WINDOW}" >> "$GITHUB_OUTPUT"
           echo "lead_days=${LEAD_DAYS_RAW}" >> "$GITHUB_OUTPUT"
 
+  report:
+    name: Open, update or close the tracking issue
+    needs: check
+    # Never runs on pull_request. This is the only job holding `issues: write`,
+    # and it must not be reachable from PR-controlled code. It also does no
+    # checkout: everything it needs arrives as a job output from `check`, so a
+    # modified checker cannot influence what runs here.
+    if: ${{ github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
       - name: Open or update the tracking issue
-        if: ${{ steps.check.outputs.status == 'stale' && github.event_name != 'pull_request' }}
+        if: ${{ needs.check.outputs.status == 'stale' && github.event_name != 'pull_request' }}
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          WARN_WINDOW: ${{ steps.check.outputs.warn_window }}
-          LEAD_DAYS: ${{ steps.check.outputs.lead_days }}
+          WARN_WINDOW: ${{ needs.check.outputs.warn_window }}
+          LEAD_DAYS: ${{ needs.check.outputs.lead_days }}
+          # Via env, never interpolated into the script body: this is the
+          # checker's stdout, and `${{ }}` substitution would splice it into
+          # the shell source rather than pass it as data.
+          REPORT: ${{ needs.check.outputs.report }}
         run: |
           set -euo pipefail
           TITLE="Knowledge anchors approaching the 30-day freshness window"
@@ -154,10 +193,10 @@ jobs:
             echo "until they are re-validated."
             echo
             echo '```'
-            # Repo-controlled output (file paths + ISO dates). Written to a
-            # file and passed via --body-file so nothing is re-parsed by the
-            # shell.
-            cat freshness.txt
+            # Repo-controlled text (file paths + ISO dates) handed over as a
+            # job output. Written to a file and passed via --body-file so
+            # nothing is re-parsed by the shell.
+            printf "%s\n" "${REPORT}"
             echo '```'
             echo
             echo "### What to do"
@@ -199,7 +238,7 @@ jobs:
           fi
 
       - name: Close the tracking issue once anchors are fresh
-        if: ${{ steps.check.outputs.status == 'fresh' && github.event_name != 'pull_request' }}
+        if: ${{ needs.check.outputs.status == 'fresh' && github.event_name != 'pull_request' }}
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
