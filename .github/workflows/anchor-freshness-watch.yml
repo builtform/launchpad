@@ -1,0 +1,183 @@
+name: Anchor freshness watch
+
+# Early-warning lane for the OPERATIONS §4 freshness contract.
+#
+# WHY THIS EXISTS. The 30-day `last_validated:` window is enforced at two
+# points only: advisory on PRs (so a lapsed window never blocks an unrelated
+# change, per v2.1.10 / PR #104) and HARD at release time by v2-release.yml
+# steps 5 + 6. That leaves a gap: nothing tells you the window is about to
+# lapse. You find out when you try to tag, which is the worst possible moment
+# because the fix is a real re-validation pass, not a date bump. v2.1.11 hit
+# exactly this: 16 docs at 38-39 days, discovered while cutting the release.
+#
+# WHAT THIS DOES NOT DO. It does not re-stamp anything. `last_validated:` is
+# an assertion that a human re-read the doc and confirmed it still describes
+# current upstream behavior; a robot bumping the date would convert a real
+# compliance signal into a lie and silently defeat the gate it is supposed to
+# protect. This workflow only tells you WHICH docs need a human, and WHEN.
+# The re-validation itself stays in RELEASE_PROCESS.md step 2a.
+#
+# HOW THE LEAD TIME WORKS. plugin-freshness-check.py already takes
+# --window-days. Running it at 21 instead of 30 flags any doc older than 21
+# days, i.e. anything that will breach the real 30-day window within ~9 days.
+# Weekly cadence means a doc cannot cross from "fine" to "blocks the release"
+# without at least one warning first.
+#
+# Cron stagger: 03:00 UTC Mondays, between cve-watch.yml (02:00 nightly) and
+# tier-2-nightly.yml (04:00) so the three do not pile onto the same runner
+# minute.
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      lead_days:
+        description: "Warn when a doc is within this many days of the 30-day window"
+        required: false
+        default: "9"
+        type: string
+  # Same guard cve-watch.yml gained in PR #124, for the same reason: a
+  # scheduled-only workflow is invisible to PR CI, so a breaking edit to it
+  # (or to the checker it calls) lands unvalidated until the next fire.
+  pull_request:
+    paths:
+      - ".github/workflows/anchor-freshness-watch.yml"
+      - "plugins/launchpad/scripts/plugin-freshness-check.py"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  watch:
+    name: Warn before the 30-day window lapses
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+
+      - name: Install vendored deps
+        run: |
+          set -euo pipefail
+          PYYAML_PIN=$(cat plugins/launchpad/scripts/_vendor/PYYAML_VERSION)
+          python -m pip install --upgrade pip
+          python -m pip install "pyyaml==${PYYAML_PIN}"
+
+      - name: Check anchors against the early-warning window
+        id: check
+        env:
+          # Validated below before it reaches any arithmetic. Never
+          # interpolated into a shell command directly.
+          LEAD_DAYS_RAW: ${{ inputs.lead_days || '9' }}
+        run: |
+          set -euo pipefail
+
+          if ! [[ "${LEAD_DAYS_RAW}" =~ ^[0-9]{1,2}$ ]] \
+             || [ "${LEAD_DAYS_RAW}" -lt 1 ] || [ "${LEAD_DAYS_RAW}" -gt 29 ]; then
+            echo "::error::lead_days must be an integer 1-29; got '${LEAD_DAYS_RAW}'"
+            exit 1
+          fi
+
+          WARN_WINDOW=$(( 30 - LEAD_DAYS_RAW ))
+          echo "Real gate window: 30d. Warning at >${WARN_WINDOW}d (${LEAD_DAYS_RAW}d lead)."
+
+          # --gating makes it exit 1 on stale; we catch that rather than
+          # failing the job, because "a doc is aging" is a notification, not
+          # a build failure.
+          set +e
+          python plugins/launchpad/scripts/plugin-freshness-check.py \
+            --window-days "${WARN_WINDOW}" --gating > freshness.txt 2>&1
+          RC=$?
+          set -e
+
+          cat freshness.txt
+          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+          echo "warn_window=${WARN_WINDOW}" >> "$GITHUB_OUTPUT"
+          echo "lead_days=${LEAD_DAYS_RAW}" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the tracking issue
+        if: ${{ steps.check.outputs.rc != '0' && github.event_name != 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          WARN_WINDOW: ${{ steps.check.outputs.warn_window }}
+          LEAD_DAYS: ${{ steps.check.outputs.lead_days }}
+        run: |
+          set -euo pipefail
+          TITLE="Knowledge anchors approaching the 30-day freshness window"
+
+          {
+            echo "Detected by \`anchor-freshness-watch\` ([run](${RUN_URL}))."
+            echo
+            echo "The docs below are older than ${WARN_WINDOW} days, so they breach the"
+            echo "30-day OPERATIONS §4 window within roughly ${LEAD_DAYS} days. Once that"
+            echo "happens, \`v2-release.yml\` steps 5 and 6 hard-fail and **no tag can ship**"
+            echo "until they are re-validated."
+            echo
+            echo '```'
+            # Repo-controlled output (file paths + ISO dates). Written to a
+            # file and passed via --body-file so nothing is re-parsed by the
+            # shell.
+            cat freshness.txt
+            echo '```'
+            echo
+            echo "### What to do"
+            echo
+            echo "Follow \`docs/maintainers/RELEASE_PROCESS.md\` step 2a. This is a real"
+            echo "re-validation, not a date bump: re-read each doc and confirm it still"
+            echo "describes current upstream behavior before touching \`last_validated:\`."
+            echo
+            echo "Two mechanics that bite if you skip them:"
+            echo
+            echo "1. Re-stamping a \`*-pattern.md\` changes its content hash, so the matching"
+            echo "   \`knowledge_anchor_sha256\` pin in \`scaffolders.yml\` must be recomputed in"
+            echo "   the same commit."
+            echo "2. \`SCAFFOLD_HANDSHAKE.md\` and \`SCAFFOLD_OPERATIONS.md\` re-stamp in their own"
+            echo "   dedicated commit carrying the \`Restamp-Affirmation:\` trailer."
+            echo
+            echo "This issue auto-closes once every anchor is back inside the window."
+          } > issue-body.md
+
+          EXISTING=$(gh issue list --repo "${REPO}" --state open \
+            --json number,title \
+            --jq "[.[] | select(.title == \"${TITLE}\")] | .[0].number // empty")
+
+          if [ -n "${EXISTING}" ]; then
+            echo "Updating existing issue #${EXISTING}"
+            gh issue comment "${EXISTING}" --repo "${REPO}" --body-file issue-body.md
+          else
+            echo "Opening a new tracking issue"
+            gh issue create --repo "${REPO}" --title "${TITLE}" --body-file issue-body.md
+          fi
+
+      - name: Close the tracking issue once anchors are fresh
+        if: ${{ steps.check.outputs.rc == '0' && github.event_name != 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TITLE="Knowledge anchors approaching the 30-day freshness window"
+          EXISTING=$(gh issue list --repo "${REPO}" --state open \
+            --json number,title \
+            --jq "[.[] | select(.title == \"${TITLE}\")] | .[0].number // empty")
+          if [ -n "${EXISTING}" ]; then
+            gh issue close "${EXISTING}" --repo "${REPO}" \
+              --comment "All knowledge anchors are back inside the 30-day window. Closing."
+          else
+            echo "Anchors fresh; no open tracking issue to close."
+          fi
