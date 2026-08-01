@@ -297,6 +297,169 @@ Whoever picks this up should add regression tests pinning BOTH directions: a tab
 
 ---
 
+#### BL-379 - v2.2: OPERATIONS section 4 specifies two enforcement mechanisms that are implemented by nothing
+
+- **Priority**: P2
+- **Status**: TODO
+- **Area**: CI / tooling / docs
+
+**Encountered**
+
+- **Date**: 2026-08-01
+- **Location**: `docs/architecture/SCAFFOLD_OPERATIONS.md` section 4, `plugins/launchpad/scripts/plugin-freshness-check.py`, `plugins/launchpad/scripts/plugin-restamp-history-hook.py`
+- **Scenario**: Surfaced while re-validating the knowledge anchors for v2.1.11. Both mechanisms were read as active, relied on, and then found absent.
+
+**Current Behavior**
+
+Two things section 4 describes as enforced are enforced nowhere.
+
+1. **Re-stamp affirmation trailer + chain-of-custody.** Section 4 states that the freshness-check script asserts a `^chore\(v2\): re-stamp ...$` subject and a `Restamp-Affirmation: <prior-SHA> -> <new-SHA>` trailer parsed via `git interpret-trailers`, then compares tree-hashes to close a lineage-forgery vector. `plugin-freshness-check.py` (178 lines) is a date checker: it reads no commit messages, shells out to no git plumbing, and compares no hashes. The `commit-msg` hook `plugin-restamp-history-hook.py` only appends the subject to `restamp-history.jsonl` with injection defenses; it validates neither the subject nor the trailer. `grep -rn 'Restamp-Affirmation\|interpret-trailers' plugins/launchpad/scripts/*.py .github/workflows/*.yml` returns nothing.
+
+2. **`verdicts:` / `waivers:` freshness-report schema.** Section 4 states the script "reads the frontmatter; blocks tag if any `verdicts:` entry is `drift-major` AND there's no matching `waivers:` entry signed by the project maintainer." Nothing reads `.harness/observations/freshness-<ts>.md` at all. `plugin-freshness-check.py` contains no reference to `verdicts`, `waivers`, or `observations`.
+
+**Why it matters**
+
+The second one has teeth. Because the waiver path does not exist, the ONLY thing that satisfies the release-time freshness gate is editing `last_validated:` dates. When a real re-validation finds drift that cannot be fixed in the release window, the maintainer's choices collapse to (a) do the content work now, or (b) bump the date and assert a validation that did not happen. The waiver existed precisely to provide an honest third option, and its absence pushes toward the dishonest one. That is the exact failure mode the v2.1.11 anchor pass found evidence of: two anchors were stamped 2026-06-23 while already contradicting events from 2026-06-19 and 2026-06-22.
+
+The first is lower severity because the affirmation-commit convention is still followed by hand, but the doc claims a forgery vector is closed when it is open.
+
+**Proposed Resolution**
+
+Pick one direction per mechanism and make doc and code agree.
+
+- For the waiver: implementing it is the higher-value option. Parse the newest `.harness/observations/freshness-*.md` frontmatter, and fail only on a `drift-major` verdict lacking a matching `waivers:` entry. Note `.harness/` is gitignored except `harness.local.md`, so either the report location moves into tracked space or the waiver has to live somewhere tracked; decide that first, because a gate keyed on an untracked file is not a gate in CI.
+- For the trailer: either implement the subject-regex + trailer + tree-hash assertions in `plugin-freshness-check.py`, or narrow section 4 to describe the convention as maintainer discipline rather than enforcement.
+
+An interim `IMPLEMENTATION STATUS` note was added to section 4 on 2026-08-01 so the doc stops overstating what runs. That note is a stopgap, not the fix.
+
+---
+
+#### BL-380 - v2.2: promote `supabase` from `curate` to `orchestrate`
+
+- **Priority**: P3
+- **Status**: TODO
+- **Area**: Plugin / scaffolders catalog
+
+**Encountered**
+
+- **Date**: 2026-08-01
+- **Location**: `plugins/launchpad/scaffolders.yml` (supabase entry), `plugins/launchpad/scaffolders/supabase-pattern.md`
+- **Scenario**: Surfaced by the v2.1.11 anchor re-validation and confirmed by Codex review of PR #145.
+
+**Current Behavior**
+
+`supabase` is classified `curate`. The recorded justification was that `supabase init` is mixed-prompts with no non-interactive flag set, so a headless invocation would hang on stdin until the 5-minute timeout. That justification is now obsolete: current CLI v2.x `init` is non-interactive by default, the Deno IDE-settings prompts moved behind `-i/--interactive`, and Deno IDE config moved to `supabase functions new`. The catalog also carried `options_schema` entries (`vscode_deno_settings`, `intellij_deno_settings`) modelling prompts that no longer exist; those were removed in PR #145.
+
+**Why it was NOT promoted in PR #145**
+
+Promoting is a behavior change, and the evidence for it is documentation reading rather than an observed run. The re-validation researcher explicitly could not identify the CLI release in which `init` became non-interactive, and could not confirm whether the CLI's internal `db.major_version` default has moved off the documented `15`. Flipping `type` on that basis, inside a PR whose whole point was that undertested documentation claims had gone stale, would have repeated the mistake it was fixing.
+
+**Proposed Resolution**
+
+Run `supabase init` headlessly against a clean temp dir on a pinned CLI version and observe: does it exit 0 without reading stdin, and does it write only `config.toml`? If yes, set `type: orchestrate`, `flavor: pure-headless`, `command: "supabase init"`, and add a regression test asserting no stdin read. If the behavior turns out to be version-dependent, keep `curate` and record the version boundary in the anchor instead.
+
+Note the payoff is small either way: `supabase init` writes exactly one file, so orchestrating it saves the user a single command.
+
+---
+
+#### BL-381 - v2.2: Rails `--skip-bundle` suppresses every post-bundle installer with no compensating step
+
+- **Priority**: P3
+- **Status**: PARTIALLY SHIPPED in v2.1.11 (PR #145). The broken scaffold is fixed; the cleaner mechanism is still open. See Resolution.
+- **Area**: Plugin / scaffolders catalog + scaffold engine
+
+**Encountered**
+
+- **Date**: 2026-08-01
+- **Location**: `plugins/launchpad/scaffolders.yml` (rails `headless_flags`), `plugins/launchpad/scaffolders/rails-pattern.md`
+- **Scenario**: Surfaced by the v2.1.11 anchor re-validation and independently flagged by Codex review of PR #145, which pushed back on deferring a known-broken scaffold. That pushback was correct.
+
+**Current Behavior**
+
+The rails entry passes `--skip-bundle --skip-git`, on the assumption that `--skip-bundle` only defers `bundle install` to LaunchPad's cross-cutting wiring step. It does more than that. In the Rails generator, `run_solid`, `run_hotwire`, `run_javascript`, `run_css` and `run_kamal` all early-return on `!bundle_install?`, and `bundle_install?` is false whenever `--skip-bundle` is passed.
+
+So a LaunchPad-scaffolded Rails app is missing, and a later `bundle install` does NOT create: `config/importmap.rb`, `bin/importmap`, `app/javascript/**` (including Stimulus controllers), `config/queue.yml`, `config/recurring.yml`, `config/cache.yml`, `bin/jobs`, and `db/{queue,cache,cable}_schema.rb`. The app has no JavaScript entrypoint and no Solid Queue/Cache/Cable configuration.
+
+This is pre-existing, not introduced by PR #145. That PR documented it in the anchor; the catalog was left as-is because the fix is engine work rather than a flag edit.
+
+**Proposed Resolution**
+
+Two viable directions, and they trade off differently against LaunchPad's "cross-cutting wiring owns the install" invariant.
+
+1. **Keep `--skip-bundle`, add a post-install generator step.** After the cross-cutting `bundle install`, run `bin/rails importmap:install turbo:install stimulus:install solid_cache:install solid_queue:install solid_cable:install`. Preserves the invariant. Requires a per-stack post-install hook in the scaffold engine, which does not exist today; that hook is the actual work item.
+2. **Drop `--skip-bundle`.** The generator installs gems and runs its own installers inline, producing a correct app. Simpler, but breaks the invariant and means gem-install failures surface inside the scaffold step rather than in the isolated wiring step.
+
+**Resolution taken in PR #145: option 2.** `--skip-bundle` was removed from the rails `headless_flags`, so the generator runs its own `bundle install` and completes its install-dependent steps. This follows the existing `expo` precedent in the same catalog, where the CLI's install is deliberately left in place because the generated project is only correct if the generator finishes its own work. A scaffold that succeeds while producing an unusable app is the worse failure mode, and option 2 is one line rather than new untested engine surface.
+
+**Still open (why this entry stays):** option 1 is the better end state. LaunchPad no longer owns the Rails gem install, which means gem-resolution failures now surface inside the scaffold step rather than in the isolated cross-cutting wiring step, and the "wiring owns install" invariant has a second documented exception. Building the per-stack post-install hook would let `--skip-bundle` come back and restore the invariant. Dropped to P3 because the user-visible breakage is gone.
+
+Whichever direction is finished, add an integration test asserting `config/importmap.rb` and `config/queue.yml` exist after a full rails scaffold, since their absence is exactly what went unnoticed here. That test is the actual guard; neither flag choice is self-verifying.
+
+---
+
+#### BL-382 - v2.2: adapter version metadata is hardcoded and can contradict the pinned template it describes
+
+- **Priority**: P2
+- **Status**: TODO
+- **Area**: Plugin / stack adapters
+
+**Encountered**
+
+- **Date**: 2026-08-01
+- **Location**: `plugins/launchpad/scripts/plugin_stack_adapters/pin_registry.py`, `plugin_stack_adapters/astro.py`, `plugin_stack_adapters/ts_monorepo.py`
+- **Scenario**: Raised by Codex review of PR #145 after that PR moved adapter metadata to current framework versions.
+
+**Current Behavior**
+
+Two independent instances of the same root cause: adapter metadata is a hardcoded string rather than derived from what is actually materialized.
+
+1. **Pinned templates vs declared version.** `astro.py` now reports Astro 7 and Node 22.12+, but scaffolding materializes upstream commits pinned by SHA in `pin_registry.py`. Those pins were not rotated by PR #145 and may predate Astro 7. If so, the generated architecture doc describes a framework major the scaffolded project does not have. The same exposure exists for every pinned adapter.
+
+2. **Brownfield detection vs greenfield scaffold.** `ts_monorepo.py` hardcodes a Next.js major in `describe_tech_stack` / `describe_backend` / `describe_product_context`. Those describe functions run for existing repos too (`tests/test_define.py` exercises Next.js 15 inputs), so a hardcoded value is wrong for one direction no matter which value is chosen. PR #145 changed 15 to 16 because the shipped template moved to `next@^16.2.12`; that is right for the scaffold path and wrong for a detected Next 15 monorepo. The hardcoding is the bug, not the number.
+
+**Why it was not fixed in PR #145**
+
+Rotating pins requires verifying new upstream SHAs against release tags, which is the job the `cve-watch` tag-drift detector already exists to support and which deserves its own verified pass rather than a same-PR guess. Threading a detected dependency version into the adapter is engine work touching the describe contract.
+
+**Proposed Resolution**
+
+- For (1): rotate the pins, then assert agreement. The cheapest durable guard is to derive the version string from the pinned template's own `package.json` rather than restating it, so the two cannot drift.
+- For (2): thread the detected version through `describe_*`, falling back to the catalog's pinned major only when no manifest is readable. Emit the detected value in architecture docs.
+
+`plugin_stack_adapters/tests/test_adapter_version_agreement.py` (added in PR #145) already guards adapter-module vs template-fragment agreement. It deliberately does not know which version is correct, so it cannot catch either case above; extend it once metadata is derived rather than declared.
+
+---
+
+#### BL-383 - v2.2: no gate models cross-file claim propagation
+
+- **Priority**: P2
+- **Status**: TODO
+- **Area**: CI / tooling
+
+**Encountered**
+
+- **Date**: 2026-08-01
+- **Location**: repo-wide; see the PR #145 review history
+- **Scenario**: A single incorrect sentence in one knowledge anchor was found to have propagated to four other locations, and each copy was found by a human reviewer rather than by any check.
+
+**Current Behavior**
+
+The v2.1.11 re-validation corrected "Eleventy 3 is ESM-only" in `eleventy-pattern.md`. The same claim then had to be chased through `pillar-framework.md` (which feeds `/lp-pick-stack` rationale, so it was being quoted to users as justification for a stack choice) and `category-patterns.yml` (where `ESM` was additionally a routing keyword in a `fits_when` predicate). Separately, corrected framework versions had to be chased into `plugin_stack_adapters/<stack>.py` and then into `<stack>/templates/*.fragment`.
+
+Five layers, four review rounds, and every discovery came from a reviewer noticing rather than a gate firing. The OPERATIONS section 4 freshness window models per-file staleness and nothing else; it has no concept of a claim appearing in more than one file.
+
+**Proposed Resolution**
+
+Full semantic consistency is not tractable, but the cheap 80% is:
+
+1. Extend `test_adapter_version_agreement.py`'s approach outward. It already proves the shape works for adapter-vs-fragment; the same token-comparison applies to anchor-vs-adapter and anchor-vs-pillar-framework.
+2. Add a `type:` agreement assertion between each anchor's frontmatter and its `scaffolders.yml` entry. PR #145 found two mismatches (supabase, django) by hand; the check is three lines and would have found both.
+3. When a re-validation corrects a factual claim, grep the corrected phrase repo-wide before declaring the sweep complete. Cheap, manual, and would have caught three of the five layers immediately.
+
+Item 2 is the highest value per line of code and should ship first.
+
+---
+
 ### P2 - Medium
 
 #### BL-100 - v2.2: Restore `cloudflare-workers` to scaffolders.yml + add cf-edge-stack category-pattern

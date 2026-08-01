@@ -25,7 +25,7 @@ def describe_tech_stack() -> TechStackInfo:
         language="Ruby",
         runtime="Ruby 3.3+",
         package_manager="bundler",
-        frameworks=["Rails 8", "Hotwire (Turbo + Stimulus)", "Active Record"],
+        frameworks=["Rails 8.1", "Hotwire (Turbo + Stimulus)", "Active Record"],
         database="PostgreSQL",
         ci="GitHub Actions",
     )
@@ -34,7 +34,7 @@ def describe_tech_stack() -> TechStackInfo:
 def describe_backend() -> BackendInfo:
     # v2.1.6 BL-349: Rails runs a server; static_capable=False.
     return BackendInfo(
-        framework="Rails 8",
+        framework="Rails 8.1",
         api_style="REST",
         routes_dir="config/routes.rb",
         models_dir="app/models/",
@@ -66,7 +66,7 @@ def describe_app_flow() -> AppFlowInfo | None:
 
 def describe_product_context() -> ProductContextInfo:
     return ProductContextInfo(
-        stack_summary="Rails 8 monolith (Ruby + Hotwire + PostgreSQL)",
+        stack_summary="Rails 8.1 monolith (Ruby + Hotwire + PostgreSQL)",
         deployment_target="Fly.io / Render / Heroku",
     )
 

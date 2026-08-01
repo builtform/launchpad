@@ -38,7 +38,7 @@ def describe_tech_stack() -> TechStackInfo:
         language="TypeScript",
         runtime="Node.js 20+",
         package_manager="pnpm",
-        frameworks=["Next.js 15 App Router", "Hono", "Prisma", "Turborepo"],
+        frameworks=["Next.js App Router", "Hono", "Prisma", "Turborepo"],
         database="PostgreSQL",
         ci="GitHub Actions",
     )
@@ -58,7 +58,7 @@ def describe_backend() -> BackendInfo:
 
 def describe_frontend() -> FrontendInfo | None:
     return FrontendInfo(
-        framework="Next.js 15 App Router",
+        framework="Next.js App Router",
         styling="Tailwind CSS v4",
         component_dir="apps/web/components/",
         routing="App Router (file-based)",
@@ -78,7 +78,7 @@ def describe_app_flow() -> AppFlowInfo | None:
 
 def describe_product_context() -> ProductContextInfo:
     return ProductContextInfo(
-        stack_summary="TypeScript monorepo (Next.js 15 + Hono + Prisma + PostgreSQL)",
+        stack_summary="TypeScript monorepo (Next.js + Hono + Prisma + PostgreSQL)",
         deployment_target="Vercel (web) + host of choice (API)",
     )
 

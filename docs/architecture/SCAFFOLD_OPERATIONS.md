@@ -4,7 +4,7 @@ date: 2026-04-30
 status: Operational guide for v2.0 implementation; Layer 3-absorbed (Path γ, 2026-04-30); companion to SCAFFOLD_HANDSHAKE.md
 applies_to: LaunchPad plugin v2.0+ (`/lp-brainstorm`, `/lp-pick-stack`, `/lp-scaffold-stack`, `/lp-define`)
 companion: docs/architecture/SCAFFOLD_HANDSHAKE.md (binding contracts: schemas, algorithms, validators, version policy)
-last_validated: 2026-06-24
+last_validated: 2026-08-01
 ---
 
 # Scaffold Operations — v2.0 Governance & Operations
@@ -300,6 +300,13 @@ All plugin-shipped catalog/pattern docs carry `last_validated:` frontmatter:
 ### Phase 7.5 freshness pass (gating)
 
 Pre-ship gate. CI runs `plugins/launchpad/scripts/plugin-freshness-check.py` (script is **promoted to a Phase -1 deliverable** per Layer 2 F-02 — it runs advisory on every PR for the entire 22-34-week dev window, so by Phase 7.5 ship time the script's behavior is well-exercised) and asserts:
+
+> **IMPLEMENTATION STATUS (recorded 2026-08-01, BL-379).** Two mechanisms specified below are **DESIGN ONLY and enforced by nothing today**. Verified against the shipped tree at v2.1.11:
+>
+> - **The re-stamp affirmation trailer and its chain-of-custody assertion.** `plugin-freshness-check.py` is a date checker; it does not read commit messages, does not call `git interpret-trailers`, and does not compare tree-hashes. `plugin-restamp-history-hook.py` (the `commit-msg` hook) only appends the subject line to `restamp-history.jsonl`; it validates neither the subject regex nor the trailer. Grep for `Restamp-Affirmation` across `plugins/launchpad/scripts/*.py` and `.github/workflows/*.yml` returns nothing. The subject-line convention below is therefore a maintainer discipline, not a gate, and the lineage-forgery vector it claims to close remains open.
+> - **The `verdicts:` / `waivers:` freshness-report schema.** No code reads `.harness/observations/freshness-<ts>.md`. `plugin-freshness-check.py` contains no reference to `verdicts`, `waivers`, or `observations`. There is consequently **no waiver escape hatch**: the only thing that satisfies the release gate is changing `last_validated:` dates, which is exactly the pressure toward a dishonest stamp that the waiver was designed to relieve.
+>
+> Treat the paragraphs below as the intended contract, not as a description of running behavior. BL-379 tracks either implementing them or narrowing this section to what ships.
 
 - **Single 30-day freshness window** (Layer 3 simplicity P1-B + scope P2-1 — collapses Layer 2's 90d/30d/14d tier hierarchy into one window for v2.0): all `last_validated:` frontmatter on plugin-shipped catalog/pattern docs AND contract docs MUST be ≤ **30 days** from the tag commit. Release notes file existence is gated separately by the `feedback_release_notes_required` global rule (PR title `*vX.Y.Z*` requires `docs/releases/vX.Y.Z.md`); a freshness window for release notes is redundant with this existing gate. Tier-based freshness is deferred to v2.1 if observed drift problems demand it (BACKLOG **BL-213**).
 - **Re-stamp affirmation pattern with chain-of-custody** (Layer 2 F-06 + Layer 3 data-migration P1-B + adversarial P1-RT-1 hardening): the only contract docs allowed to self-re-stamp during Phase 7.5 are `SCAFFOLD_HANDSHAKE.md` + `SCAFFOLD_OPERATIONS.md`, AND only via this enforced pattern:
