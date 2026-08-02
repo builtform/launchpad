@@ -111,7 +111,7 @@ ZX_ALLOWED_PATHS = (
     "docs/architecture/SCAFFOLD_HANDSHAKE.md",
     "docs/architecture/SCAFFOLD_OPERATIONS.md",
     "docs/handoffs/launchpad_handoffs/",
-    "docs/plans/launchpad_plans/",
+    "docs/plans/",
     "docs/releases/v2.0.0.md",
     "docs/tasks/BACKLOG.md",  # BL entries documenting v2.2 deferrals reference lifecycle terms
     "ROADMAP.md",
@@ -128,7 +128,7 @@ ZX_ALLOWED_PATHS = (
 LINT_SCAN_EXCLUDES = (
     "docs/reports/launchpad_reports/",
     "docs/handoffs/launchpad_handoffs/",
-    "docs/plans/launchpad_plans/",
+    "docs/plans/",
     "docs/articles/",
     "node_modules/",
     "__pycache__/",
