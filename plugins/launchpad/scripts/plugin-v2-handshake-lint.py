@@ -770,8 +770,17 @@ def check_local_only_trees_untracked(failures: list[str]) -> None:
 # with an example filename is correct, not a leak.
 #
 # Bare `docs/plans/` is always fine; that is how the ignore policy is stated.
-LOCAL_PLAN_TREE_RE = re.compile(r"docs/plans/launchpad_plans/")
-DATED_PLAN_FILE_RE = re.compile(r"docs/plans/[0-9]{4}-[0-9]{2}-[0-9]{2}-")
+#
+# Neither pattern anchors on `docs/`, because markdown links are written
+# relative to the containing file. Every citation removed in this PR had the
+# shape `[docs/plans/launchpad_plans/x.md](../plans/launchpad_plans/x.md)`: a
+# root-relative label over a relative href. Anchoring on `docs/` would have
+# matched only the label, so the same citation written the more natural way,
+# `[the v2.1 plan](../plans/launchpad_plans/x.md)`, would pass untouched.
+# Matching on the `plans/` segment covers `docs/plans/`, `../plans/`, and bare
+# `plans/` alike.
+LOCAL_PLAN_TREE_RE = re.compile(r"plans/launchpad_plans/")
+DATED_PLAN_FILE_RE = re.compile(r"plans/[0-9]{4}-[0-9]{2}-[0-9]{2}-")
 
 # Files permitted to contain the pattern because they implement or test the
 # rule itself, or allowlist the tree for an unrelated check.

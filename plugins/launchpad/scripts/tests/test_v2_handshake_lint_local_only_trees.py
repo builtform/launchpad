@@ -246,6 +246,56 @@ def repo_with_citations(tmp_path_factory):
     return repo
 
 
+@pytest.fixture(scope="module")
+def repo_with_relative_links(tmp_path_factory):
+    """Markdown links are written relative to the containing file.
+
+    Codex P2 on PR #149. Anchoring the patterns on `docs/` matched only
+    root-relative text, so a citation whose href was relative slipped through.
+    That is not hypothetical: every citation removed in this PR had the shape
+    `[docs/plans/launchpad_plans/x.md](../plans/launchpad_plans/x.md)`, caught
+    only because the label repeated the root-relative path. Written the natural
+    way, with a descriptive label, the same citation passed.
+    """
+    repo = tmp_path_factory.mktemp("relative-link-repo").resolve()
+    (repo / "docs").mkdir()
+    (repo / "docs" / "link.md").write_text(
+        "Read [V3 implementation plan](../plans/launchpad_plans/2026-05-04-v2.1.md).\n",
+        encoding="utf-8",
+    )
+    (repo / "docs" / "bare.md").write_text(
+        "Per ../plans/2026-05-04-private-plan.md\n", encoding="utf-8"
+    )
+    (repo / "docs" / "noprefix.md").write_text(
+        "See plans/launchpad_plans/private.md\n", encoding="utf-8"
+    )
+    return repo
+
+
+def test_flags_relative_markdown_link_href(lint, repo_with_relative_links, monkeypatch):
+    """The label says nothing revealing; the href discloses the filename."""
+    out = _citation_hits(lint, repo_with_relative_links, monkeypatch)
+    assert "link.md" in out, (
+        f"a relative href into the plan tree must be caught regardless of link "
+        f"text; got:\n{out}"
+    )
+
+
+def test_flags_relative_and_unprefixed_paths(lint, repo_with_relative_links, monkeypatch):
+    out = _citation_hits(lint, repo_with_relative_links, monkeypatch)
+    assert "bare.md" in out and "noprefix.md" in out, out
+
+
+def test_patterns_are_not_anchored_on_docs(lint):
+    """Pins the fix itself. Re-adding a `docs/` anchor silently reopens the
+    relative-link bypass while every root-relative test keeps passing."""
+    for pattern in (lint.LOCAL_PLAN_TREE_RE, lint.DATED_PLAN_FILE_RE):
+        assert "docs/" not in pattern.pattern, (
+            f"{pattern.pattern!r} anchors on docs/, so relative markdown hrefs "
+            f"like ../plans/launchpad_plans/x.md bypass the check"
+        )
+
+
 def _citation_hits(lint, repo, monkeypatch):
     monkeypatch.setattr(lint, "REPO_ROOT", repo)
     failures: list[str] = []

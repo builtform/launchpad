@@ -1452,7 +1452,7 @@ The command is **NOT a fit for branch-triggered automation projects** (e.g., pro
 
 **Effort estimate**: 127-159h structured / 159-199h with buffer. 12 phases (Phase 0 + Phase 1-11). Two phase-boundary kill checkpoints at end of Phase 3 and after first non-reference adapter. v2.0.1 has been folded into v2.1 per Decision 24; no v2.0.1 release.
 
-**Default decision**: ship in v2.1 as the architecture-defining entry. Read [V3 implementation plan](../plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md) for full design + 24 locked decisions + 12-phase sequencing + test strategy.
+**Default decision**: ship in v2.1 as the architecture-defining entry. The V3 design covers 24 locked decisions, 12-phase sequencing, and test strategy.
 
 #### BL-238 - v2.2: Promote django from curate → orchestrate-headless via auto-name derivation
 
