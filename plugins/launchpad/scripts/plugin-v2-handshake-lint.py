@@ -757,6 +757,76 @@ def check_local_only_trees_untracked(failures: list[str]) -> None:
                 failures.append(f"  ... ({len(tracked) - 30} more)")
 
 
+# Citations into a local-only plan tree, in two tiers because `docs/plans/`
+# means different things in different files.
+#
+# Tier 1 is LaunchPad's own plan directory. Never legitimate anywhere: the
+# filename alone publishes the existence, name, and date of private work.
+#
+# Tier 2 is a dated plan filename directly under `docs/plans/`. Illegitimate in
+# repo documentation for the same reason, but expected inside `plugins/`, where
+# templates describe how DOWNSTREAM projects lay out their own repos and the
+# directory is normally tracked. `lp-docs-locator.md` teaching the convention
+# with an example filename is correct, not a leak.
+#
+# Bare `docs/plans/` is always fine; that is how the ignore policy is stated.
+LOCAL_PLAN_TREE_RE = re.compile(r"docs/plans/launchpad_plans/")
+DATED_PLAN_FILE_RE = re.compile(r"docs/plans/[0-9]{4}-[0-9]{2}-[0-9]{2}-")
+
+# Files permitted to contain the pattern because they implement or test the
+# rule itself, or allowlist the tree for an unrelated check.
+PLAN_CITATION_ALLOWLIST = (
+    "plugins/launchpad/scripts/plugin-v2-handshake-lint.py",
+    "plugins/launchpad/scripts/tests/test_v2_handshake_lint_local_only_trees.py",
+    "plugins/launchpad/scripts/tests/test_phase8_5_decommission.py",
+)
+
+
+def check_no_local_plan_citations(failures: list[str]) -> None:
+    """Fail when a committed file cites a path inside the local-only plan tree.
+
+    Companion to `check_local_only_trees_untracked`. That one stops plan
+    CONTENT from being committed; this one stops plan PATHS from being
+    committed, which is the same disclosure at lower resolution. A filename
+    like `2026-05-07-v2.1.2-codex-corpus-trained-reviewer-plan.md` publishes an
+    internal roadmap item to anyone reading the public backlog.
+
+    It is also dead weight for the reader: the target can never be opened from
+    a fresh clone, so the citation promises evidence it cannot produce. Cite
+    the decision and its date instead, which survive the plan staying private.
+    """
+    rule = "no-local-plan-citations"
+    bad: list[str] = []
+    seen: set[str] = set()
+    for pattern, docs_only in (
+        (LOCAL_PLAN_TREE_RE.pattern, False),
+        (DATED_PLAN_FILE_RE.pattern, True),
+    ):
+        for hit in _walk_grep(pattern, *LEAKAGE_SCAN_PATHS, regex=True):
+            path = hit.split(":", 1)[0]
+            if path in PLAN_CITATION_ALLOWLIST:
+                continue
+            # Tier 2 applies to repo documentation only. Inside plugins/ a
+            # dated plan filename is template material about downstream repos.
+            if docs_only and path.startswith("plugins/"):
+                continue
+            if hit in seen:
+                continue
+            seen.add(hit)
+            bad.append(hit)
+    if bad:
+        failures.append(
+            f"[{rule}] {len(bad)} citation(s) into the local-only plan tree. "
+            f"The path cannot be opened from a fresh clone, and the filename "
+            f"alone discloses private work. Cite the decision and date "
+            f"instead, e.g. `locked 2026-05-03` rather than a plan path:"
+        )
+        for h in bad[:30]:
+            failures.append(f"  {h}")
+        if len(bad) > 30:
+            failures.append(f"  ... ({len(bad) - 30} more)")
+
+
 # Schema-source files for the v2.1 schema-CODEOWNERS gate (V3 plan §11.6
 # + §11.7, locked in HANDSHAKE §10.v2.1). When ANY of these change in a PR
 # diff, the same PR MUST also touch HANDSHAKE.md so the schema contract and
@@ -1855,6 +1925,7 @@ def run_default_lint() -> int:
     # Paired with the leakage scan: asserts the precondition that makes the
     # LOCAL_ONLY_TREES entries in LINT_SCAN_EXCLUDES safe to skip.
     check_local_only_trees_untracked(failures)
+    check_no_local_plan_citations(failures)
     check_atomic_write_replace_allowlist(failures)
     # Phase 1 catalog validation (only enforced when the catalog files exist;
     # at Phase -1 they did not, and the lint stayed silent on this surface).

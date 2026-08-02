@@ -42,4 +42,4 @@ are recorded here so a future v2.2 archive sweep can find them.
 - `CHANGELOG.md` (v1.x release-history entries documenting `init-project.sh` and `greptile.template.json` features as shipped at the time)
 - `docs/releases/v1.0.0.md`, `docs/releases/v1.0.1.md` (historical release notes)
 - `docs/tasks/BACKLOG.md` (BL-247 + BL-248 specifications + tracking content)
-- Phase 8 + Phase 8.5 + V3 plan files under `docs/plans/launchpad_plans/` (gitignored; describe the decommission itself)
+- Phase 8 + Phase 8.5 + V3 plan files (local-only; describe the decommission itself)

@@ -31,7 +31,7 @@ Tests cover:
      leakage.
 
 Plan reference:
-    docs/plans/launchpad_plans/2026-05-06-v2.1-phase9-implementation-plan.md
+    v2.1 Phase 9 plan
 """
 from __future__ import annotations
 

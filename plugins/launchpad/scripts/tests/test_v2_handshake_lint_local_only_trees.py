@@ -208,3 +208,84 @@ def test_checker_fails_closed_without_git(lint, tmp_path_factory, monkeypatch):
         "git ls-files failing must surface as a failure, not a silent pass"
     )
     assert "cannot verify" in "\n".join(failures)
+
+
+# ---------------------------------------------------------------------------
+# check_no_local_plan_citations: plan PATHS are the same disclosure as plan
+# CONTENT, at lower resolution. A filename publishes the existence, name, and
+# date of private work, and cannot be opened from a fresh clone anyway.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def repo_with_citations(tmp_path_factory):
+    """A tree exercising all four cases the two-tier rule must separate."""
+    repo = tmp_path_factory.mktemp("citation-repo").resolve()
+    (repo / "docs").mkdir()
+    (repo / "plugins").mkdir()
+
+    # Tier 1: LaunchPad's own plan tree, illegitimate anywhere.
+    (repo / "docs" / "tier1.md").write_text(
+        "See docs/plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md\n",
+        encoding="utf-8",
+    )
+    # Tier 2: dated plan file cited from repo documentation.
+    (repo / "docs" / "tier2.md").write_text(
+        "Plan at docs/plans/2026-05-04-some-plan.md\n", encoding="utf-8"
+    )
+    # Legitimate: same dated form inside plugins/, describing downstream repos.
+    (repo / "plugins" / "template.md").write_text(
+        "Downstream plans live at `docs/plans/2025-01-08-improve-error-handling.md`\n",
+        encoding="utf-8",
+    )
+    # Legitimate: bare directory, which is how the ignore policy is stated.
+    (repo / "docs" / "policy.md").write_text(
+        "`docs/plans/` is gitignored: local-only, never committed.\n",
+        encoding="utf-8",
+    )
+    return repo
+
+
+def _citation_hits(lint, repo, monkeypatch):
+    monkeypatch.setattr(lint, "REPO_ROOT", repo)
+    failures: list[str] = []
+    lint.check_no_local_plan_citations(failures)
+    return "\n".join(failures)
+
+
+def test_flags_launchpad_plan_tree_citation(lint, repo_with_citations, monkeypatch):
+    assert "tier1.md" in _citation_hits(lint, repo_with_citations, monkeypatch)
+
+
+def test_flags_dated_plan_file_in_repo_docs(lint, repo_with_citations, monkeypatch):
+    assert "tier2.md" in _citation_hits(lint, repo_with_citations, monkeypatch)
+
+
+def test_allows_dated_example_inside_plugins(lint, repo_with_citations, monkeypatch):
+    """Plugin templates teach downstream layout, where docs/plans/ is tracked.
+
+    Without this carve-out the rule fires on lp-docs-locator.md teaching the
+    naming convention, which is correct documentation and not a leak.
+    """
+    assert "template.md" not in _citation_hits(lint, repo_with_citations, monkeypatch)
+
+
+def test_allows_bare_plans_directory(lint, repo_with_citations, monkeypatch):
+    """The policy statement itself must not trip the policy's own guard."""
+    assert "policy.md" not in _citation_hits(lint, repo_with_citations, monkeypatch)
+
+
+def test_citation_failure_names_every_offender(lint, repo_with_citations, monkeypatch):
+    """Two offenders, two reported: a rule that stops at the first hit turns a
+    cleanup pass into a guessing game."""
+    out = _citation_hits(lint, repo_with_citations, monkeypatch)
+    assert "2 citation(s)" in out, out
+
+
+def test_allowlist_covers_the_rule_s_own_implementation(lint):
+    """The lint and these tests necessarily contain the pattern they forbid."""
+    for path in lint.PLAN_CITATION_ALLOWLIST:
+        assert (REPO_ROOT / path).exists(), (
+            f"{path} is allowlisted but does not exist; a stale entry silently "
+            f"widens the exemption if that path is ever recreated"
+        )

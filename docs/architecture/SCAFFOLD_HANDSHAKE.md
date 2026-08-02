@@ -11,7 +11,7 @@ last_validated: 2026-08-01
 
 This document is the binding **contract** layer of v2.0's cross-plan handshake. It defines schemas, algorithms, validators, and version policy. It does NOT define governance, drift mitigation, freshness policy, telemetry, panels, or amendment process — those live in the companion document `docs/architecture/SCAFFOLD_OPERATIONS.md`. The split exists so the contract layer stays small and stable; the operations layer absorbs ongoing changes without requiring a contract bump.
 
-The two v2.0 implementation plans (`docs/plans/launchpad_plans/2026-04-29-v2-scaffolding-layer-test-plan.md` and `docs/plans/launchpad_plans/2026-04-29-v2-pick-stack-implementation-plan.md`) reference this doc + the operations doc rather than re-declaring contracts independently. Where a plan body and these documents conflict, **these documents win.** Where the two documents conflict with each other, **the contracts doc wins** (this file).
+Implementation plans reference this doc + the operations doc rather than re-declaring contracts independently. Where a plan body and these documents conflict, **these documents win.** Where the two documents conflict with each other, **the contracts doc wins** (this file).
 
 This is a LaunchPad-internal architecture contract, not a downstream-template doc. Downstream projects consume the v2.0 pipeline as users; they do not need to understand or modify these documents.
 
@@ -1093,7 +1093,7 @@ The full forward-compat matrix (consumer-superset rule, producer-floor rule, per
 
 ### 10.v2.1 — v2.1 schema acceptance rules + design-time decisions (Phase 0.3 lock)
 
-**Canonical source**: [docs/plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md](../plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md) §11.3 + §11.7 + §17 Phase 0.3 + §22.
+**Canonical source**: the readers named per-schema below. Design-time rationale was locked 2026-05-04 during Phase 0.3.
 
 **`scaffold-decision.json` schema acceptance rules** (v2.1 reader; canonical at `plugin-config-loader.py:read_scaffold_decision()`):
 

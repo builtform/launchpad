@@ -1390,7 +1390,7 @@ The command is **NOT a fit for branch-triggered automation projects** (e.g., pro
 
 **Driver**: v2.0 introduced the four-command greenfield pipeline (`/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`) that supersedes the pre-v2.0 template-clone flow (`git clone github.com/builtform/launchpad my-project` + `./scripts/setup/init-project.sh`). v2.0.1 deprecates the template-clone flow in user-facing docs. v2.1 removes the supporting infrastructure now that BL-248 ships the plugin-owns-everything implementation that replaces it.
 
-**Architectural decision context**: locked 2026-05-03 in [docs/plans/launchpad_plans/2026-05-03-v2.1-plugin-owns-everything-architecture.md](../plans/launchpad_plans/2026-05-03-v2.1-plugin-owns-everything-architecture.md). Per that plan, the LaunchPad repo stops doubling as plugin source AND user-cloneable template. Removing the infrastructure that supported the dual-purpose model is the structural enforcement of that decision; without removal, the template-clone flow remains accessible and the two-narrative problem persists.
+**Architectural decision context**: locked 2026-05-03. The LaunchPad repo stops doubling as plugin source AND user-cloneable template. Removing the infrastructure that supported the dual-purpose model is the structural enforcement of that decision; without removal, the template-clone flow remains accessible and the two-narrative problem persists.
 
 **Sequencing constraint**: BL-247 must ship in the SAME release as BL-248 (Option 2 implementation). Deleting `init-project.sh` before the plugin can render kernel files would break greenfield setup mid-release. Build BL-248 first, then delete in BL-247, all within v2.1.
 
@@ -1422,7 +1422,7 @@ The command is **NOT a fit for branch-triggered automation projects** (e.g., pro
 
 **Effort estimate**: ~4h (deletion + REPOSITORY_STRUCTURE/CLAUDE/AGENTS updates + verification). Migration docs absorbed into Phase 9 release notes. See v2.1 implementation plan §17 Phase 8 + §20 for current scope.
 
-**Cross-link**: full v2.1 implementation plan at [docs/plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md](../plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md) (V3, post-Round-3-hardening). Phase 8 is the BL-247 execution phase.
+**Cross-link**: Phase 8 is the BL-247 execution phase, per the V3 post-Round-3-hardening v2.1 scope.
 
 **Default decision**: ship in v2.1 alongside BL-248 (mandatory same-release coupling). v2.0.1 has been folded into v2.1 per Decision 24; no v2.0.1 release.
 
@@ -1432,7 +1432,7 @@ The command is **NOT a fit for branch-triggered automation projects** (e.g., pro
 
 **Driver**: v2.0 shipped the four-command greenfield pipeline. v2.0.1 deprecated the legacy template-clone flow in docs. v2.1 implements the plugin-owns-everything architecture that makes the deprecation real: all canonical kernel files (README, LICENSE, CONTRIBUTING, CODE_OF_CONDUCT, CHANGELOG, ROADMAP, SECURITY, REPOSITORY_STRUCTURE) plus all architecture docs are rendered by plugin commands using Jinja2 templates bundled inside the plugin. No `init-project.sh`, no `.template.md` files at root, no dual-purpose repo.
 
-**Architectural decision context**: locked 2026-05-03 in [docs/plans/launchpad_plans/2026-05-03-v2.1-plugin-owns-everything-architecture.md](../plans/launchpad_plans/2026-05-03-v2.1-plugin-owns-everything-architecture.md). Read that document end-to-end before authoring the implementation plan. It captures: full evaluation of Option 2 vs. Option 3 (hybrid) with cons + solutions grouped, responsibility split across pick-stack/scaffold-stack/define, template format conversion strategy, identity value flow with chain-of-custody integration, orchestrated-init bash utility extraction, decommissioning plan (BL-247), migration guidance, and 6 open questions to resolve at design time.
+**Architectural decision context**: locked 2026-05-03. The decision covers: full evaluation of Option 2 vs. Option 3 (hybrid) with cons + solutions grouped, responsibility split across pick-stack/scaffold-stack/define, template format conversion strategy, identity value flow with chain-of-custody integration, orchestrated-init bash utility extraction, decommissioning plan (BL-247), migration guidance, and 6 open questions to resolve at design time.
 
 **Responsibility split** (locked):
 
@@ -1440,7 +1440,7 @@ The command is **NOT a fit for branch-triggered automation projects** (e.g., pro
 - `/lp-scaffold-stack` adds canonical kernel file rendering (8 templates) using sealed identity values via Jinja2. Existing layer materialization, `lefthook.yml` emission, receipt sealing all preserved.
 - `/lp-define` adds one new responsibility: render `REPOSITORY_STRUCTURE.md` for brownfield projects when missing (load-bearing for the structure-drift gate). Reuses the same `.j2` template `/lp-scaffold-stack` uses; identity values prompted directly in brownfield (no sealed envelope). The other 7 user-customized kernel files (README/LICENSE/CONTRIBUTING/CODE_OF_CONDUCT/CHANGELOG/ROADMAP/SECURITY) stay user-owned in brownfield. Existing `/lp-define` scope (architecture docs + agents.yml + config.yml + Tier 1 reveal panel) preserved.
 
-**Scope evolved through 3 hardening rounds + 24 locked decisions**. Final v2.1 scope per [docs/plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md](../plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md):
+**Scope evolved through 3 hardening rounds + 24 locked decisions**. Final v2.1 scope:
 
 - **5-command-surface**: 4 main pipeline commands (`/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`) plus 2 utility commands (`/lp-bootstrap`, `/lp-update-identity`). 33 paths / ~45 files rendered across 3 categories: kernel (greenfield-only via `/lp-scaffold-stack`), infrastructure (greenfield + brownfield via `/lp-bootstrap`), workflow-config (both via `/lp-define`).
 - **5 adapters + composition wrapper**: `ts_monorepo`, `nextjs_standalone` (wrap-and-overlay over `vercel/next-forge`), `nextjs_fastapi` (wrap-and-overlay over `vintasoftware/nextjs-fastapi-template`), `astro` (wrap-and-overlay over 3 sub-templates), `generic` (typed fallback). Composition wrapper supports N=2 adapter compositions in a Turborepo (e.g., `astro + nextjs_standalone` for ulc.spec.org).
@@ -1486,7 +1486,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Coverage estimate at v2.2**: 5 v2.1 adapters + 5+ BYO-registered cookiecutter adapters (django, fastapi-flavors, rails via cookiecutter-rails-hotwire, etc.) + power-user generic URL = ~85-92% of niche projects.
 
-**Cross-link**: builds on v2.1 wrap-and-overlay pattern locked in [docs/plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md](../plans/launchpad_plans/2026-05-04-v2.1-implementation-plan.md) §7. v2.2 design plan to be authored when this entry is picked up.
+**Cross-link**: builds on the v2.1 wrap-and-overlay pattern. v2.2 design plan to be authored when this entry is picked up.
 
 **Default decision**: ship in v2.2. Cheap relative to authoring per-adapter from scratch (estimated ~15-25h vs 8-12h per non-BYO adapter). Prerequisite: v2.1 ships and wrap-and-overlay pattern proves stable in production (the `ulc.spec.org` Tier-2 dogfood is the validation gate).
 
@@ -1522,7 +1522,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 3. **ZIP-bomb / oversized-manifest payloads**: pathologically-large or recursively-compressed manifest payloads. Requires manifest size cap (e.g., 1MB hard limit) + early-reject before parse.
 4. **Concurrent-modification race during manifest read**: file mutated between `manifest_sha256` verify and consume by a concurrent `/lp-update-identity` or external editor. Requires either OS-level file lock during read OR re-hash on consume (already partial in TOCTOU augment).
 
-**Cross-link**: Phase 11 plan `docs/plans/launchpad_plans/2026-05-06-v2.1-phase11-implementation-plan.md` §3.3 (DA3 augment scope + deferral list) + §8 (out-of-scope row). v2.0 baseline at PR #41 cycle-12 closed similar scenarios at the security_fields layer; v2.2 extends to manifest-payload layer.
+**Scope note**: Phase 11 DA3 augment scope + deferral list; recorded out-of-scope for that phase. v2.0 baseline at PR #41 cycle-12 closed similar scenarios at the security_fields layer; v2.2 extends to manifest-payload layer.
 
 **Default decision**: defer to v2.2. v2.1 ships with 11 scenarios + 7 attack-class coverage; remaining 4 are exotic edge cases. Cumulative effort estimated ~3-5h.
 
@@ -1537,7 +1537,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 3. Phase 11 E2E test is extended (or new `test_v22_full_pipeline_with_brainstorm.py`) to cover brainstorm → pick-stack → scaffold-stack → define.
 4. Consider whether brainstorm needs its own `BrainstormResult` dataclass or whether the existing `pick_stack` input dict shape covers it.
 
-**Cross-link**: Phase 11 plan `docs/plans/launchpad_plans/2026-05-06-v2.1-phase11-implementation-plan.md` §3.1 DA1 + §6 R2.
+**Scope note**: Phase 11 DA1 + R2.
 
 **Default decision**: defer to v2.2. v2.1 ships with documented coverage gap; brainstorm runtime is LLM-dependent so testing gain is modest. Schedule when telemetry justifies (high brainstorm-step bug rate).
 
@@ -1553,7 +1553,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 4. Document allowlist mechanism for accepted-risk CVEs (e.g., transitive vulnerable dep with no exploit path).
 5. Update SECURITY.md to declare the supply-chain-audit posture.
 
-**Cross-link**: Phase 11 plan `docs/plans/launchpad_plans/2026-05-06-v2.1-phase11-implementation-plan.md` §8 row 4 + Slice E step 9 + cycle 1 security F8.
+**Scope note**: Phase 11 out-of-scope row 4; Slice E step 9; cycle 1 security F8.
 
 **Default decision**: defer to v2.2. v2.1 ships advisory-only output captured in `/tmp/v2.1.0-*.log`; v2.2 gates promotion alongside the operational/security infrastructure bundle.
 
@@ -1929,7 +1929,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Status (2026-05-10)**: RE-TARGETED v2.1.2 → v2.1.3. See BL-316.
 
-**Status (2026-05-08)**: NEW — v2.1.2 dedicated work; primary deliverable. Plan authored at [docs/plans/launchpad_plans/2026-05-07-v2.1.2-codex-corpus-trained-reviewer-plan.md](../plans/launchpad_plans/2026-05-07-v2.1.2-codex-corpus-trained-reviewer-plan.md).
+**Status (2026-05-08)**: NEW. v2.1.2 dedicated work; primary deliverable, plan authored.
 
 **Driver**: closes the third review failure mode (pattern-recognition gap) that v2.1.1's three-layer fix explicitly does NOT cover. v2.1.1 closes plan-bias (Layer 2 `--no-context`) and structural invariants (Layer 3 semgrep). The remaining ~30% gap is novel-pattern detection — bug classes our agents have never seen. Closed via in-context learning over a corpus of past Codex + Greptile PR comments (NOT fine-tuning).
 

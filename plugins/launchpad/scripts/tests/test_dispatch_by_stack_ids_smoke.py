@@ -1,6 +1,6 @@
 """Step 0 proof-of-life smoke for `dispatch_by_stack_ids`.
 
-Per `docs/plans/launchpad_plans/2026-05-08-v2.1.0-completion-plan.md` §3.0:
+Per the v2.1.0 completion scope §3.0:
 exercises `dispatch_by_stack_ids` against `tmp_path` for ALL 5 active
 stack-ids + 1 composition before §3.1+ touches `engine.py`. Halt rule:
 any failure means the dispatch surface has hidden bugs and the

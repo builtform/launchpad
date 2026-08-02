@@ -10,7 +10,7 @@ rewriter must work at its new standalone location; static + dynamic +
 subprocess + reflection references to plugin-doc-generator must remain
 zero outside the permitted historical-artifact appendix.
 
-Plan reference: docs/plans/launchpad_plans/2026-05-05-v2.1-phase8.5-implementation-plan.md
+Plan reference: v2.1 Phase 8.5
 """
 from __future__ import annotations
 

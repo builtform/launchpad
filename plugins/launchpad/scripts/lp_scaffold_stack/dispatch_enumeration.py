@@ -1,6 +1,6 @@
 """Post-dispatch workspace enumeration for /lp-scaffold-stack.
 
-Per docs/plans/launchpad_plans/2026-05-08-v2.1.0-completion-plan.md §3.3.
+Per the v2.1.0 completion scope §3.3.
 
 Trust boundary: adapter output is treated as untrusted. Symlink-escape,
 oversized walks, and out-of-tree paths are filtered or rejected, never
