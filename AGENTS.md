@@ -80,11 +80,30 @@ Auto-fix command: `pnpm format`
 
 ### Definition of Done
 
-The agent must confirm all three before closing a task:
+The agent must confirm all of the following before closing a task:
+
+**TypeScript / JavaScript:**
 
 - [ ] Tests pass: `pnpm test`
 - [ ] Typecheck passes: `pnpm typecheck`
 - [ ] No new lint errors: `pnpm lint`
+
+**Python (when changes touch `*.py` or `plugins/launchpad/scripts/`):**
+
+Note the cwd difference: `pytest` and `pyright` run **from `plugins/launchpad/scripts/`** (CI sets `working-directory` for both), while `ruff` runs **from the repo root** with an explicit `--config`. Each command below matches its CI invocation exactly; do not "simplify" them to a common form.
+
+- [ ] Tests pass: `cd plugins/launchpad/scripts && python -m pytest -q`
+- [ ] Typecheck passes: `cd plugins/launchpad/scripts && pyright` (run from `plugins/launchpad/scripts/` so pyproject.toml is discovered)
+- [ ] No new lint errors, from the repo root: `ruff check --config plugins/launchpad/scripts/pyproject.toml plugins/launchpad/scripts/`
+- [ ] Format check, from the repo root: `ruff format --check --config plugins/launchpad/scripts/pyproject.toml plugins/launchpad/scripts/`
+
+> The two ruff forms currently disagree. `cd plugins/launchpad/scripts && ruff check .`
+> reports ~13 `I001` findings the repo-root form above does not. Those findings are
+> real under the classification that invocation applies, not noise: ruff anchors
+> first-party import detection at the config file's directory when it discovers the
+> config, but at the process working directory when `--config` is passed, and CI
+> passes `--config` from the repo root. Use the repo-root form, which is what CI
+> enforces. A fix converging both forms is planned.
 
 ---
 
