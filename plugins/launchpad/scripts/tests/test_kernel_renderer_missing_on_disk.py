@@ -1,7 +1,7 @@
 """v2.1.0 kernel_renderer drift fix (Codex P1 #2 fold).
 
 Pins §4.6 of
-`docs/plans/launchpad_plans/2026-05-08-v2.1.0-atomic-io-symlink-and-kernel-drift-fix-plan.md`:
+Per the v2.1.0 atomic-io symlink and kernel-drift fix scope:
 
   * `compute_current_on_disk_state` drops `user_has_drift` entirely.
     Missing files seal `missing_on_disk: True` + placeholder

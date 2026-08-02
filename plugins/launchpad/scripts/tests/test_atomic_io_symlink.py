@@ -1,7 +1,7 @@
 """v2.1.0 atomic_io symlink-rejection tests (Codex P1 #1 fold).
 
 Pins the §2.1 / §3.4 contract from
-`docs/plans/launchpad_plans/2026-05-08-v2.1.0-atomic-io-symlink-and-kernel-drift-fix-plan.md`:
+Per the v2.1.0 atomic-io symlink and kernel-drift fix scope:
 
   * `atomic_write_excl`, `atomic_write_replace`, `atomic_write_replace_batch`
     refuse to write through a symlinked ancestor or symlinked target.

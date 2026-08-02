@@ -111,7 +111,7 @@ ZX_ALLOWED_PATHS = (
     "docs/architecture/SCAFFOLD_HANDSHAKE.md",
     "docs/architecture/SCAFFOLD_OPERATIONS.md",
     "docs/handoffs/launchpad_handoffs/",
-    "docs/plans/launchpad_plans/",
+    "docs/plans/",
     "docs/releases/v2.0.0.md",
     "docs/tasks/BACKLOG.md",  # BL entries documenting v2.2 deferrals reference lifecycle terms
     "ROADMAP.md",
@@ -122,13 +122,26 @@ ZX_ALLOWED_PATHS = (
     "plugins/launchpad/scripts/tests/",  # tests legitimately verify the constant
 )
 
-# Directories scanned by the lint exclude these gitignored or third-party
-# trees: their contents never ship in the plugin artifact and frequently
-# contain false-positive markers in audit/research material.
+# Trees `_walk_grep` skips. Two distinct reasons, and the difference matters:
+#
+#   1. Local-only working trees (LOCAL_ONLY_TREES below). Gitignored, so they
+#      exist only on a contributor's disk. Scanning them would push private
+#      working notes into CI stderr, because `_emit` prints up to 30 matching
+#      lines on a hit.
+#   2. Build/cache/vendor noise, which is either binary or not ours.
+#
+# Reason 1 is only safe while nothing under those trees is tracked. A committed
+# file there would both ship AND be invisible to the private-origin leakage
+# gate, since `_walk_grep` filters on path prefix and knows nothing about
+# tracked-ness. `check_local_only_trees_untracked` enforces exactly that
+# precondition, which is what lets this exclusion stay.
+#
+# Do NOT add a tracked tree here. An excluded tree that carries tracked files
+# is a silent coverage hole, which is what LOCAL_ONLY_TREES exists to rule out.
 LINT_SCAN_EXCLUDES = (
     "docs/reports/launchpad_reports/",
     "docs/handoffs/launchpad_handoffs/",
-    "docs/plans/launchpad_plans/",
+    "docs/plans/",
     "docs/articles/",
     "node_modules/",
     "__pycache__/",
@@ -139,6 +152,17 @@ LINT_SCAN_EXCLUDES = (
     # the leakage scanner picks them up as accidental matches. Cache dir is
     # gitignored.
     ".ruff_cache/",
+)
+
+# The subset of LINT_SCAN_EXCLUDES that is excluded for reason 1 above:
+# gitignored trees holding local working material that must never be
+# committed. `check_local_only_trees_untracked` asserts each is empty in
+# `git ls-files`, which is the precondition that makes skipping them safe.
+LOCAL_ONLY_TREES = (
+    "docs/plans/",
+    "docs/reports/launchpad_reports/",
+    "docs/handoffs/launchpad_handoffs/",
+    "docs/articles/",
 )
 
 # pull_request_target forbidden patterns — bracket/dot AST paths that resolve
@@ -685,6 +709,133 @@ def check_private_origin_leakage(failures: list[str]) -> None:
     _emit(failures, "private-origin-leakage", bad)
 
 
+def check_local_only_trees_untracked(failures: list[str]) -> None:
+    """Fail when anything is tracked under a gitignored, local-only tree.
+
+    This is the invariant that keeps the LOCAL_ONLY_TREES entries in
+    LINT_SCAN_EXCLUDES safe. `_walk_grep` filters purely on path prefix, so a
+    file committed under one of those trees would ship while remaining
+    invisible to `check_private_origin_leakage`: the precise gap that lets a
+    private plan reach a public branch unscanned.
+
+    Deliberately a tracked-file assertion rather than a content scan. Policy
+    here is "these trees are never committed", not "these trees must not
+    contain markers": a private plan for an unrelated product is a leak even
+    when it trips none of PRIVATE_ORIGIN_PATTERNS, and only the stricter rule
+    catches that.
+
+    Paths are reported, contents are not. A tracked file is already public in
+    the diff, so naming it discloses nothing further; its body may not be.
+    """
+    rule = "local-only-trees-untracked"
+    for tree in LOCAL_ONLY_TREES:
+        # cwd passed explicitly: `_run` binds its REPO_ROOT default at
+        # definition time, so relying on it would pin this check to whatever
+        # root was current at import.
+        rc, out = _run(["git", "ls-files", "--", tree], cwd=REPO_ROOT)
+        if rc != 0:
+            # Fail closed. The invariant is unverifiable without git, and the
+            # exclusion it guards stays active regardless.
+            failures.append(
+                f"[{rule}] `git ls-files -- {tree}` failed (rc={rc}); cannot "
+                f"verify that the tree is untracked. Output: {out.strip()[:200]!r}"
+            )
+            continue
+        tracked = sorted(line.strip() for line in out.splitlines() if line.strip())
+        if tracked:
+            failures.append(
+                f"[{rule}] {len(tracked)} file(s) tracked under local-only "
+                f"tree {tree}. These ship publicly AND are skipped by the "
+                f"private-origin leakage scan (LINT_SCAN_EXCLUDES). Untrack "
+                f"with `git rm --cached`, or remove {tree} from both "
+                f"LOCAL_ONLY_TREES and LINT_SCAN_EXCLUDES if it is meant to "
+                f"be a committed location:"
+            )
+            for path in tracked[:30]:
+                failures.append(f"  {path}")
+            if len(tracked) > 30:
+                failures.append(f"  ... ({len(tracked) - 30} more)")
+
+
+# Citations into a local-only plan tree, in two tiers because `docs/plans/`
+# means different things in different files.
+#
+# Tier 1 is LaunchPad's own plan directory. Never legitimate anywhere: the
+# filename alone publishes the existence, name, and date of private work.
+#
+# Tier 2 is a dated plan filename directly under `docs/plans/`. Illegitimate in
+# repo documentation for the same reason, but expected inside `plugins/`, where
+# templates describe how DOWNSTREAM projects lay out their own repos and the
+# directory is normally tracked. `lp-docs-locator.md` teaching the convention
+# with an example filename is correct, not a leak.
+#
+# Bare `docs/plans/` is always fine; that is how the ignore policy is stated.
+#
+# Neither pattern anchors on `docs/`, because markdown links are written
+# relative to the containing file. Every citation removed in this PR had the
+# shape `[docs/plans/launchpad_plans/x.md](../plans/launchpad_plans/x.md)`: a
+# root-relative label over a relative href. Anchoring on `docs/` would have
+# matched only the label, so the same citation written the more natural way,
+# `[the v2.1 plan](../plans/launchpad_plans/x.md)`, would pass untouched.
+# Matching on the `plans/` segment covers `docs/plans/`, `../plans/`, and bare
+# `plans/` alike.
+LOCAL_PLAN_TREE_RE = re.compile(r"plans/launchpad_plans/")
+DATED_PLAN_FILE_RE = re.compile(r"plans/[0-9]{4}-[0-9]{2}-[0-9]{2}-")
+
+# Files permitted to contain the pattern because they implement or test the
+# rule itself, or allowlist the tree for an unrelated check.
+PLAN_CITATION_ALLOWLIST = (
+    "plugins/launchpad/scripts/plugin-v2-handshake-lint.py",
+    "plugins/launchpad/scripts/tests/test_v2_handshake_lint_local_only_trees.py",
+    "plugins/launchpad/scripts/tests/test_phase8_5_decommission.py",
+)
+
+
+def check_no_local_plan_citations(failures: list[str]) -> None:
+    """Fail when a committed file cites a path inside the local-only plan tree.
+
+    Companion to `check_local_only_trees_untracked`. That one stops plan
+    CONTENT from being committed; this one stops plan PATHS from being
+    committed, which is the same disclosure at lower resolution. A filename
+    like `2026-05-07-v2.1.2-codex-corpus-trained-reviewer-plan.md` publishes an
+    internal roadmap item to anyone reading the public backlog.
+
+    It is also dead weight for the reader: the target can never be opened from
+    a fresh clone, so the citation promises evidence it cannot produce. Cite
+    the decision and its date instead, which survive the plan staying private.
+    """
+    rule = "no-local-plan-citations"
+    bad: list[str] = []
+    seen: set[str] = set()
+    for pattern, docs_only in (
+        (LOCAL_PLAN_TREE_RE.pattern, False),
+        (DATED_PLAN_FILE_RE.pattern, True),
+    ):
+        for hit in _walk_grep(pattern, *LEAKAGE_SCAN_PATHS, regex=True):
+            path = hit.split(":", 1)[0]
+            if path in PLAN_CITATION_ALLOWLIST:
+                continue
+            # Tier 2 applies to repo documentation only. Inside plugins/ a
+            # dated plan filename is template material about downstream repos.
+            if docs_only and path.startswith("plugins/"):
+                continue
+            if hit in seen:
+                continue
+            seen.add(hit)
+            bad.append(hit)
+    if bad:
+        failures.append(
+            f"[{rule}] {len(bad)} citation(s) into the local-only plan tree. "
+            f"The path cannot be opened from a fresh clone, and the filename "
+            f"alone discloses private work. Cite the decision and date "
+            f"instead, e.g. `locked 2026-05-03` rather than a plan path:"
+        )
+        for h in bad[:30]:
+            failures.append(f"  {h}")
+        if len(bad) > 30:
+            failures.append(f"  ... ({len(bad) - 30} more)")
+
+
 # Schema-source files for the v2.1 schema-CODEOWNERS gate (V3 plan §11.6
 # + §11.7, locked in HANDSHAKE §10.v2.1). When ANY of these change in a PR
 # diff, the same PR MUST also touch HANDSHAKE.md so the schema contract and
@@ -937,9 +1088,16 @@ def run_check_pin_registry_rotation_audit_log() -> int:
 def run_check_leakage() -> int:
     """Standalone leakage scan (verify-v2-ship #4 + Phase 7.5 §4.9 pre-push
     scrub). Same checker as the default-lint sub-rule, but isolated so the
-    release workflow can call it without running the rest of the lint."""
+    release workflow can call it without running the rest of the lint.
+
+    Includes the local-only-tree invariant: without it this entry point could
+    report PASS while a tracked file sat inside an excluded tree, unscanned.
+    A pre-push scrub that cannot see the files most likely to be private is
+    worse than no scrub, because it reports confidence it has not earned.
+    """
     failures: list[str] = []
     check_private_origin_leakage(failures)
+    check_local_only_trees_untracked(failures)
     if failures:
         print("private-origin leakage: FAIL", file=sys.stderr)
         for f in failures:
@@ -1773,6 +1931,10 @@ def run_default_lint() -> int:
     check_hyphen_test_files(failures)
     check_pull_request_target_safety(failures)
     check_private_origin_leakage(failures)
+    # Paired with the leakage scan: asserts the precondition that makes the
+    # LOCAL_ONLY_TREES entries in LINT_SCAN_EXCLUDES safe to skip.
+    check_local_only_trees_untracked(failures)
+    check_no_local_plan_citations(failures)
     check_atomic_write_replace_allowlist(failures)
     # Phase 1 catalog validation (only enforced when the catalog files exist;
     # at Phase -1 they did not, and the lint stayed silent on this surface).

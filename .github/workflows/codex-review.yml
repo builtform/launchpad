@@ -83,6 +83,14 @@ jobs:
             **/*.jsx
             **/*.mjs
             **/*.cjs
+            # Python. plugins/launchpad/scripts/ is the plugin runtime and is
+            # entirely Python, so omitting this made every Python-only PR skip
+            # review while the check still reported success. PR #148 was
+            # reviewed only because it incidentally touched a .toml file; the
+            # gate is a trigger, not a scope limit, so one matched file gets
+            # the whole diff reviewed. Python tests are deliberately NOT in
+            # files_ignore below: Codex's best find on #148 was in a test file.
+            **/*.py
             # Infrastructure
             **/*.prisma
             **/*.sql

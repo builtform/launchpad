@@ -8,7 +8,7 @@ or lefthook step may invoke a deleted script; the decommission audit log
 must carry an entry per Phase 8 deletion; .gitignore must keep secret-
 pattern entries intact.
 
-Plan reference: docs/plans/launchpad_plans/2026-05-05-v2.1-phase8-implementation-plan.md §2.3.
+Plan reference: v2.1 Phase 8 §2.3.
 """
 from __future__ import annotations
 

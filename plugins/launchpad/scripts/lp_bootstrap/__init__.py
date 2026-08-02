@@ -1,9 +1,8 @@
 """lp_bootstrap package (v2.1 Phase 3).
 
 Owns the `/lp-bootstrap` slash command + bootstrap-manifest mechanism + the
-34-path infrastructure overlay (v2.1.5+; V3 plan section 17.1 Phase 3, locked design
-in `docs/plans/launchpad_plans/2026-05-05-v2.1-phase3-implementation-plan.md`
-sections 1 to 8).
+34-path infrastructure overlay (v2.1.5+; V3 plan section 17.1 Phase 3, locked
+design sections 1 to 8).
 
 Surface boundary:
 
