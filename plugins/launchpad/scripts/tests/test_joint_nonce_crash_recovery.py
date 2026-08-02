@@ -195,16 +195,16 @@ def test_empty_ledger_actual_behavior():
     """Per handoff §4.3: pre-write a 0-byte ledger; the test plan
     prescribes hard-reject with `nonce_ledger_empty_unexpected`. Phase 3
     DOES hard-reject — but uses the reason `nonce_ledger_corrupt`, not the
-    prescribed `nonce_ledger_empty_unexpected`. This test asserts the
-    actual Phase 3 reason + writes a Phase 7 finding documenting the
-    name discrepancy per handoff §10b ("do NOT silently fix beyond §10").
+    prescribed `nonce_ledger_empty_unexpected`. This test asserts the actual
+    Phase 3 reason per handoff §10b ("do NOT silently fix beyond §10"); the
+    name discrepancy is documented in this module's docstring.
     """
     cwd = _make_tempdir()
     try:
-        # Pre-write a 0-byte ledger. NB: Phase 3 ensures the format header
-        # gets injected via `_ensure_format_header()` if missing — so the
-        # 0-byte file gets transformed into a proper v1 ledger on the FIRST
-        # `is_nonce_seen()` call. This is the "v0 → v1 migration" path.
+        # Pre-write a 0-byte ledger. `_ensure_format_header()` reads it, finds
+        # no header line, and routes to the corrupt-detection branch, so the
+        # pipeline hard-rejects rather than migrating the file to v1. An empty
+        # ledger is NOT treated as a fresh project.
         lp = cwd / ".launchpad"
         lp.mkdir(parents=True)
         (lp / ".scaffold-nonces.log").write_bytes(b"")
