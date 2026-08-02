@@ -84,6 +84,19 @@ if _RUFF_MISSING and os.environ.get("CI"):
     )
 
 
+def _ruff_version_token(output: str) -> str:
+    """Extract the version token from `ruff --version` output.
+
+    Substring matching is not sufficient: a pin of "0.16.0" is a substring of
+    "10.16.0", "0.16.01" and "0.16.0.dev1", so `pin in output` would accept a
+    different ruff and silently void every version-specific count in this
+    suite. The token is compared exactly.
+    """
+    match = re.search(r"\b(\d+\.\d+\.\d+\S*)", output)
+    assert match, f"could not parse a version token from ruff output: {output.strip()!r}"
+    return match.group(1)
+
+
 def _load_ruff_config() -> dict:
     with _PYPROJECT.open("rb") as fh:
         return tomllib.load(fh)["tool"]["ruff"]
@@ -205,10 +218,11 @@ def test_ruff_pin_matches_requirements() -> None:
         check=True,
         timeout=10,
     ).stdout
-    assert version in module_reported, (
+    module_token = _ruff_version_token(module_reported)
+    assert module_token == version, (
         f"ruff version mismatch: requirements.in pins {version}, "
-        f"`python -m ruff` reports {module_reported.strip()!r}. Every finding "
-        "count in this suite is version-specific."
+        f"`python -m ruff` reports {module_token}. Every finding count in this "
+        "suite is version-specific."
     )
 
     path_ruff = shutil.which("ruff")
@@ -220,16 +234,17 @@ def test_ruff_pin_matches_requirements() -> None:
     path_reported = subprocess.run(
         [path_ruff, "--version"], capture_output=True, text=True, check=True, timeout=10
     ).stdout
-    assert version in path_reported, (
-        f"PATH ruff does not match the pin: {path_ruff} reports "
-        f"{path_reported.strip()!r}, requirements.in pins {version}. CI and "
-        "lefthook invoke the bare `ruff` on PATH, so this suite would be "
-        "asserting parity for a different binary than the gates enforce."
+    path_token = _ruff_version_token(path_reported)
+    assert path_token == version, (
+        f"PATH ruff does not match the pin: {path_ruff} reports {path_token}, "
+        f"requirements.in pins {version}. CI and lefthook invoke the bare "
+        "`ruff` on PATH, so this suite would be asserting parity for a "
+        "different binary than the gates enforce."
     )
-    assert path_reported.strip() == module_reported.strip(), (
-        f"`ruff` on PATH ({path_reported.strip()!r} at {path_ruff}) and "
-        f"`python -m ruff` ({module_reported.strip()!r}) are different "
-        "binaries. The gates use the former; this suite uses the latter."
+    assert path_token == module_token, (
+        f"`ruff` on PATH ({path_token} at {path_ruff}) and `python -m ruff` "
+        f"({module_token}) are different binaries. The gates use the former; "
+        "this suite uses the latter."
     )
 
 
