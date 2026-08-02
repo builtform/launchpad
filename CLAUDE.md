@@ -97,7 +97,7 @@ Claude must confirm all of the following before closing a task:
 
 Note the cwd difference: `pytest` and `pyright` run **from `plugins/launchpad/scripts/`** (CI sets `working-directory` for both), while `ruff` runs **from the repo root** with an explicit `--config`. Each command below matches its CI invocation exactly; do not "simplify" them to a common form.
 
-- [ ] Tests pass: `cd plugins/launchpad/scripts && pytest -q`
+- [ ] Tests pass: `cd plugins/launchpad/scripts && python -m pytest -q`
 - [ ] Typecheck passes: `cd plugins/launchpad/scripts && pyright` (run from `plugins/launchpad/scripts/` so pyproject.toml is discovered)
 - [ ] No new lint errors, from the repo root: `ruff check --config plugins/launchpad/scripts/pyproject.toml plugins/launchpad/scripts/`
 - [ ] Format check, from the repo root: `ruff format --check --config plugins/launchpad/scripts/pyproject.toml plugins/launchpad/scripts/`
