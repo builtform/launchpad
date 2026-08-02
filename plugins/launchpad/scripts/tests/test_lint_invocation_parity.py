@@ -33,6 +33,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tomllib
@@ -187,23 +188,131 @@ def _findings(proc: subprocess.CompletedProcess[str]) -> set[tuple[str, str, int
 def test_ruff_pin_matches_requirements() -> None:
     """The parity result is only authoritative under the pinned ruff.
 
-    CI and lefthook both invoke a bare `ruff` from PATH while this file uses
-    `sys.executable -m ruff`. If those resolve to different binaries, the
-    guard proves parity for something the gates do not run.
+    This file drives ruff as `sys.executable -m ruff`, but CI
+    (`v2-handshake-lint.yml`) and lefthook both invoke a bare `ruff` from
+    PATH. Checking only the module invocation would prove parity for a binary
+    the gates never run, so BOTH are compared against the pin whenever a PATH
+    ruff exists.
     """
     pinned = re.search(r"^ruff==([\d.]+)", _REQUIREMENTS_IN.read_text(), re.M)
     assert pinned, "no ruff==<version> pin found in requirements.in"
-    reported = subprocess.run(
+    version = pinned.group(1)
+
+    module_reported = subprocess.run(
         [sys.executable, "-m", "ruff", "--version"],
         capture_output=True,
         text=True,
         check=True,
         timeout=10,
     ).stdout
-    assert pinned.group(1) in reported, (
-        f"ruff version mismatch: requirements.in pins {pinned.group(1)}, "
-        f"`python -m ruff` reports {reported.strip()!r}. Every finding count "
-        "in this suite is version-specific."
+    assert version in module_reported, (
+        f"ruff version mismatch: requirements.in pins {version}, "
+        f"`python -m ruff` reports {module_reported.strip()!r}. Every finding "
+        "count in this suite is version-specific."
+    )
+
+    path_ruff = shutil.which("ruff")
+    if path_ruff is None:
+        # CI installs ruff from requirements.txt into the same environment
+        # pytest runs in, so PATH resolution is present there. Locally it may
+        # not be, and the module invocation above is already pinned.
+        return
+    path_reported = subprocess.run(
+        [path_ruff, "--version"], capture_output=True, text=True, check=True, timeout=10
+    ).stdout
+    assert version in path_reported, (
+        f"PATH ruff does not match the pin: {path_ruff} reports "
+        f"{path_reported.strip()!r}, requirements.in pins {version}. CI and "
+        "lefthook invoke the bare `ruff` on PATH, so this suite would be "
+        "asserting parity for a different binary than the gates enforce."
+    )
+    assert path_reported.strip() == module_reported.strip(), (
+        f"`ruff` on PATH ({path_reported.strip()!r} at {path_ruff}) and "
+        f"`python -m ruff` ({module_reported.strip()!r}) are different "
+        "binaries. The gates use the former; this suite uses the latter."
+    )
+
+
+# The I001 suppression is scoped to exactly these files, each carrying exactly
+# one pre-existing unsorted block. Written as a LITERAL, not derived from the
+# config: deriving it would make the assertion below compare the config to
+# itself and pass under any edit.
+_SUPPRESSED_SCHEMA_FILES = {
+    "decision_writer.py",
+    "manifest_writer.py",
+    "_renderer_base.py",
+}
+
+
+@pytest.mark.skipif(_RUFF_MISSING, reason=_SKIP_REASON)
+def test_suppression_scope_is_exactly_the_schema_source_files(ruff_cache: Path) -> None:
+    """The per-file-ignores are a scoped exception, not a blanket amnesty.
+
+    Two independent assertions, because two different mutations must fail:
+
+    1. The configured key set equals the literal above. Deriving the expected
+       set from the config would make dropping a key a tautology.
+    2. Lifting the suppression yields exactly the known violations, compared
+       as (basename, row) pairs rather than a count. A count cannot work here:
+       I001 emits ONE diagnostic per unsorted BLOCK, so adding a fresh
+       misordered import to an already-violating block leaves the count at 1
+       while hiding a real regression. The row pins the block's position, so
+       a new import ahead of it shifts the row and fails.
+
+    These files clear entirely in the PR that pairs with SCAFFOLD_HANDSHAKE.md;
+    at that point delete this test along with the per-file-ignores block.
+    """
+    configured = set(
+        _load_ruff_config().get("lint", {}).get("per-file-ignores", {}).keys()
+    )
+    assert configured == _SUPPRESSED_SCHEMA_FILES, (
+        "the I001 suppression scope changed.\n"
+        f"  expected: {sorted(_SUPPRESSED_SCHEMA_FILES)}\n"
+        f"  in config: {sorted(configured)}\n"
+        "Adding a key widens a deliberately narrow exception. Removing one is "
+        "correct only if that file was re-sorted in a PR pairing with "
+        "SCAFFOLD_HANDSHAKE.md, in which case update this literal too."
+    )
+
+    proc = _run_ruff(
+        _REPO_ROOT,
+        [
+            "check",
+            "--select",
+            "I001",
+            "--output-format=json",
+            "--config",
+            str(_PYPROJECT),
+            "--config",
+            "lint.per-file-ignores={}",
+            str(_SCRIPTS),
+        ],
+        ruff_cache,
+    )
+    observed = {
+        (Path(f["filename"]).name, f["location"]["row"], f["end_location"]["row"])
+        for f in json.loads(proc.stdout or "[]")
+        if Path(f["filename"]).name in _SUPPRESSED_SCHEMA_FILES
+    }
+    # (basename, block start row, block END row). The end row is load-bearing:
+    # I001 emits one diagnostic per unsorted BLOCK, so adding a misordered
+    # import INSIDE an already-violating block leaves both the count and the
+    # start row unchanged while concealing a real regression. Only the span
+    # grows. Verified: inserting one import into decision_writer.py's block
+    # moves it from (21, 48) to (21, 49).
+    expected = {
+        ("decision_writer.py", 21, 48),
+        ("manifest_writer.py", 45, 57),
+        ("_renderer_base.py", 560, 567),
+    }
+    assert observed == expected, (
+        "the violations hiding behind the I001 suppression have changed.\n"
+        f"  expected (basename, start, end): {sorted(expected)}\n"
+        f"  observed                : {sorted(observed)}\n"
+        "A changed span means the import block moved or GREW, which is a NEW "
+        "import-order regression concealed by the suppression: re-sort the "
+        "file. A missing entry means the file is now clean, so drop its "
+        "per-file-ignores key and its entry here."
     )
 
 
