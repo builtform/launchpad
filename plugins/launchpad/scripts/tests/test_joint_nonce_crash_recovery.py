@@ -11,16 +11,27 @@ Two distinct sub-tests:
 
   2. **Empty-ledger semantics**: pre-write a 0-byte `.scaffold-nonces.log`
      file; run `/lp-scaffold-stack` against it; assert the actual Phase 3
-     behavior (which differs from the test plan §4.3 prescription — see
-     Phase 7 finding observation `phase7-finding-empty-ledger-semantics-*.md`).
+     behavior, which differs from the test plan §4.3 prescription. The
+     discrepancy is recorded below.
 
-Per Phase 7 handoff §10b: the empty-ledger `nonce_ledger_empty_unexpected`
-reason prescribed in test plan §4.3 is NOT implemented in Phase 3. Phase 3
-treats an empty ledger as a fresh project (no replay match) and proceeds.
-This sub-test ASSERTS the actual Phase 3 behavior + writes a finding
-observation documenting the discrepancy. Per handoff §10b "do NOT silently
-fix beyond §10," we surface the gap rather than implementing the missing
-reason.
+Phase 7 finding, empty-ledger semantics reason name. Test plan §4.3
+prescribed a hard-reject with `reason: nonce_ledger_empty_unexpected` when
+the consumer reads a 0-byte `.scaffold-nonces.log`. Phase 3 DOES hard-reject,
+but with the reason `nonce_ledger_corrupt` instead: `_ensure_format_header()`
+reads the empty file, sees no header line, and routes to the corrupt-detection
+branch. The CLI exits non-zero with a two-part stderr trace.
+
+Verdict: the behavior is safe, since it refuses to proceed on an unexpected
+state and leaves a forensic log. Only the reason name differs from the
+prescription. Per handoff §10b ("do NOT silently fix beyond §10") this test
+asserts the actual name rather than implementing the prescribed one; adding
+`nonce_ledger_empty_unexpected` as an alias is a separate call.
+
+This finding used to be written to `.harness/observations/` on every run. The
+body was a constant but the filename carried a fresh timestamp, so each pytest
+invocation left another byte-identical copy: 119 of them had accumulated by
+2026-08-02. Static documentation belongs in the source that documents it, and
+a test should not write into the repo as a side effect.
 
 The 1MB rollover-mid-prune leg of test plan §4.3 is REPLACED by the
 SIGKILL-mid-append leg above: building a 1MB+ ledger per trial (~32K
@@ -41,7 +52,6 @@ import sys
 import tempfile
 import time
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -68,12 +78,6 @@ from scaffold_smoke_runner import (  # noqa: E402
     _read_latest_rejection,
 )
 from test_joint_pipeline_smoke import _stub_scaffolders_yml  # noqa: E402
-
-# Findings observation dir per handoff §10b.
-_FINDINGS_DIR = (
-    Path(__file__).resolve().parent.parent.parent.parent.parent
-    / ".harness" / "observations"
-)
 
 
 def _make_tempdir() -> Path:
@@ -147,18 +151,6 @@ def _ledger_is_consistent(cwd: Path, original_nonces: list[str]) -> tuple[bool, 
     if not text.endswith("\n"):
         return False, "ledger does not end with newline"
     return True, ""
-
-
-def _write_finding(slug: str, body: str) -> Path | None:
-    """Write a phase7-finding observation. Best-effort."""
-    try:
-        _FINDINGS_DIR.mkdir(parents=True, exist_ok=True)
-        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
-        target = _FINDINGS_DIR / f"phase7-finding-{slug}-{ts}.md"
-        target.write_text(body, encoding="utf-8")
-        return target
-    except OSError:
-        return None
 
 
 # --- Sub-test 1: SIGKILL mid-append crash-recovery ------------------------
@@ -238,31 +230,6 @@ def test_empty_ledger_actual_behavior():
                 "--no-telemetry",
             ],
             capture_output=True, timeout=60, check=False,
-        )
-
-        # Document the Phase 7 finding (idempotent best-effort).
-        _write_finding(
-            "empty-ledger-semantics",
-            (
-                "# Phase 7 finding — empty-ledger semantics reason name\n\n"
-                "Per Phase 7 handoff §4.3, the test plan prescribed a hard-"
-                "reject with `reason: nonce_ledger_empty_unexpected` when "
-                "the consumer reads a 0-byte `.scaffold-nonces.log`. "
-                "**Phase 3 DOES hard-reject** but with the reason "
-                "`nonce_ledger_corrupt` instead of the prescribed name.\n\n"
-                "Actual Phase 3 behavior: `_ensure_format_header()` reads "
-                "the empty file, sees no header line, and routes to the "
-                "corrupt-detection branch. The CLI exits non-zero with a "
-                "two-part stderr trace mentioning `reason: "
-                "nonce_ledger_corrupt`.\n\n"
-                "**Verdict**: behavior is SAFE (hard-rejects the unexpected "
-                "state). The reason name doesn't match the test plan's "
-                "prescription, but the user-facing outcome (refuse to "
-                "proceed; surface a forensic log) is equivalent. Phase 7 "
-                "asserts the actual reason name per handoff §10b ('do NOT "
-                "silently fix beyond §10'). Phase 7.5 freshness pass may "
-                "weigh whether to add the prescribed name as an alias.\n"
-            ),
         )
 
         # Assert actual behavior: hard-reject with `nonce_ledger_corrupt`.
