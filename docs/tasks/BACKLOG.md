@@ -261,7 +261,9 @@ Either the regex tolerates an optional leading `- ` / `* ` bullet, or the Standa
 
 **Desired Behavior**
 
-Require the schema-doc side of the pairing to be a _semantically_ non-trivial change, so a formatting pass alone cannot satisfy the gate. The existing `Schema-Refactor-Only: <reason>` commit-footer escape hatch remains the intended path for genuine pure-refactor changes.
+Require the schema-doc side of the pairing to be a _semantically_ non-trivial change, so a formatting pass alone cannot satisfy the gate.
+
+**Correction (2026-08-02): the `Schema-Refactor-Only: <reason>` escape hatch does not exist.** This entry previously called it "the intended path for genuine pure-refactor changes" and reasoned its remedy around it. The gate's failure message does advertise the footer (`plugin-v2-handshake-lint.py:848`), but the string occurs exactly once in the codebase, inside that message; no code reads it, and the same message concedes "Token enforcement lands in Phase 7+". A security control whose error text documents a non-functional bypass trains the wrong reflex, so **implementing the footer is a prerequisite of this BL's remedy**, not an assumption of it. Until then the only routes past the gate are a genuine HANDSHAKE co-touch or keeping schema-source files out of the diff entirely (which is what the v2.1.12 lint-parity change does, via config-only `per-file-ignores`).
 
 **Do NOT use `git diff --ignore-all-space` for this. It does not work.** That was this entry's original proposed remedy; it was tested against the real PR #138 diff on 2026-08-01 and **still reports `SCAFFOLD_HANDSHAKE.md` as changed**. Prettier 3.9 rewrites markdown table _separator rows_ (`|--------|` becomes `| --- |`) in addition to cell padding, and a change in dash-run length is not a whitespace difference. Any remedy that only normalizes whitespace will fail to classify exactly the case that motivated this BL.
 
@@ -4250,3 +4252,47 @@ None of (1)-(5) bite this repo as-of 2026-05-24 (PostgreSQL provider, no Acceler
 - Multi-schema support, ESM-only rewrites, or other architectural shifts; not required by Prisma 7.
 
 **Default decision**: defer to v2.2 as a deliberate single-PR audit. Do NOT slip in via Dependabot. PR #86 (closed 2026-05-24) is the deferred artifact this BL replaces.
+
+---
+
+#### BL-384 - v2.2: generated ruff config and generated lint invocation must anchor at the same directory
+
+- **Priority**: P3
+- **Status**: TODO
+- **Area**: stack adapters
+
+**Encountered**
+
+- **Date**: 2026-08-02
+- **Location**: `plugins/launchpad/scripts/plugin_stack_adapters/`, adapters that materialize a nested `pyproject.toml`
+- **Scenario**: Surfaced while fixing LaunchPad's own ruff classification split (v2.1.12). Ruff anchors first-party import detection at the project root, which is the config file's directory under discovery but the process working directory when `--config <path>` is passed.
+
+**Current Behavior**
+
+No adapter generates a nested ruff config today, and every generated lint invocation is root-anchored, so nothing is broken. The hazard activates the first time an adapter emits a `pyproject.toml` carrying a `[tool.ruff]` block alongside a root-anchored `--config` command.
+
+**Proposed Resolution**
+
+State the **invariant**, not a mechanism: the generated lint invocation and the generated ruff config must anchor at the same directory. An adapter controls the layout it materializes, so it can satisfy this by discovery, by an explicit `src`, or by a `known-first-party` enumeration; mandating one would couple the contract to an implementation detail. Add an adapter-conformance assertion when the first such adapter lands. LaunchPad's own guard (`tests/test_lint_invocation_parity.py`) is the pattern to copy, including its non-ancestor-cwd cell.
+
+---
+
+#### BL-385 - v2.2: generated Definition-of-Done commands must derive from the same source as the generated gate
+
+- **Priority**: P2
+- **Status**: TODO
+- **Area**: generators / downstream contract
+
+**Encountered**
+
+- **Date**: 2026-08-02
+- **Location**: `plugin_stack_adapters/`, `lp_scaffold_stack/cross_cutting_wirer.py`, `plugin_default_generators/kernel/CLAUDE.md.j2`
+- **Scenario**: The user-facing version of the defect fixed in v2.1.12. LaunchPad's own DoD documented a ruff invocation that disagreed with its CI gate for at least two releases; downstream, the same class of drift is unguarded.
+
+**Current Behavior**
+
+LaunchPad emits **four different ruff spellings** across five generator call sites: `python -m ruff check .` (`cross_cutting_wirer.py:217`), `uv run ruff check .` (`fastapi_adapter.py:66`), `ruff check .` (`python_django.py:65`, `_package_managers.py:112`), and `pnpm lint && ruff check .` (`_package_managers.py:93`). A `nextjs_fastapi` project composites the ts_python half AND the `_python_gates` partial, so it receives several at once, potentially binding different ruff binaries. Meanwhile the generated Definition of Done (`kernel/CLAUDE.md.j2:31-37`) says only "Lint and typecheck pass": too vague to be wrong, rather than correct by construction.
+
+**Proposed Resolution**
+
+Derive the generated DoD command text from the same source as the generated gate command, so a consumer's documented check cannot drift from their executing check. Applies to every downstream Python project today, independent of BL-384's nested-config trigger.
