@@ -33,7 +33,6 @@ if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
 from decision_integrity import canonical_hash  # noqa: E402
-
 from lp_scaffold_stack import (  # noqa: E402
     TIER1_ARCHITECTURE_DOCS_RENDERED,
     WRITTEN_RECEIPT_VERSION,

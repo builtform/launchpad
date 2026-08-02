@@ -52,7 +52,6 @@ if str(_SCRIPTS_DIR) not in sys.path:
 
 from atomic_io import _fsync_parent, _full_fsync_darwin  # noqa: E402
 from lp_bootstrap import LAUNCHPAD_DIR_NAME  # noqa: E402
-
 from lp_update_identity import (  # noqa: E402
     IDENTITY_UPDATE_SENTINEL_NAME,
     IdentityUpdateErrorCode,

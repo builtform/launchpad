@@ -41,14 +41,6 @@ from datetime import (  # noqa: E402  (placed after sys.path mutation for siblin
 )
 
 from cwd_state import refuse_if_not_greenfield  # noqa: E402
-from plugin_stack_adapters.composition import (  # noqa: E402
-    CompositionAbortError,
-)
-from plugin_stack_adapters.contracts import (  # noqa: E402
-    ScaffoldStepFailedError,
-)
-from telemetry_writer import write_telemetry_entry  # noqa: E402
-
 from lp_scaffold_stack import EXPECTED_DECISION_VERSION  # noqa: E402
 from lp_scaffold_stack.cleanup_recorder import (  # noqa: E402
     CleanupRecordError,
@@ -85,6 +77,13 @@ from lp_scaffold_stack.v21_adapter_dispatch import (  # noqa: E402
     dispatch_by_stack_ids,
     fallback_ids_used,
 )
+from plugin_stack_adapters.composition import (  # noqa: E402
+    CompositionAbortError,
+)
+from plugin_stack_adapters.contracts import (  # noqa: E402
+    ScaffoldStepFailedError,
+)
+from telemetry_writer import write_telemetry_entry  # noqa: E402
 
 # v2.1.0 completion plan §3.3: legacy `RunInvoker` typed against the
 # deleted `layer_materializer.materialize_layer`. The kwarg is kept on
@@ -771,7 +770,6 @@ def _run_pipeline_after_sentinel(
                 from lp_pick_stack.decision_writer import (  # noqa: PLC0415
                     re_seal_decision_atomic,
                 )
-
                 from lp_scaffold_stack.decision_validator import (  # noqa: PLC0415
                     mark_kernel_seeded,
                 )
