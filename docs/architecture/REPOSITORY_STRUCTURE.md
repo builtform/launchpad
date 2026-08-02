@@ -293,7 +293,7 @@ Every subdirectory in `docs/` has a specific purpose. Do not use `docs/` as a ca
 | ---------------------- | ----------------------------------------------------------------------------------- |
 | `docs/architecture/`   | System design, ADRs, tech stack, design system, frontend/backend guidelines         |
 | `docs/archive/`        | Retired docs retained for reference (permanent, never delete)                       |
-| `docs/articles/`       | Long-form reference articles and research                                           |
+| `docs/articles/`       | Third-party reference material. **Gitignored: local-only, never committed.**        |
 | `docs/brainstorms/`    | Brainstorming documents                                                             |
 | `docs/consultants/`    | External consultant deliverables and briefs                                         |
 | `docs/eval/`           | Evaluation results (front_end/, back_end/)                                          |
@@ -330,7 +330,8 @@ Walk through in order. Stop at the first match.
 - Hand-authored release notes for a tag → `docs/releases/v<MAJOR>.<MINOR>.<PATCH>.md`
 - UI/UX design notes → `docs/ui/ux/`
 - Exploratory notes → `docs/experiments/` (move to `docs/archive/` when done)
-- Article or research → `docs/articles/`
+- Third-party article or reference material you are reading → `docs/articles/` (gitignored; stays on the author's machine)
+- How-to guide you are writing for this repo → `docs/guides/`
 - Consultant deliverable → `docs/consultants/`
 - Evaluation result → `docs/eval/front_end/` or `docs/eval/back_end/`
 - Skill catalog → `docs/skills-catalog/`

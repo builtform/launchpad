@@ -122,9 +122,22 @@ ZX_ALLOWED_PATHS = (
     "plugins/launchpad/scripts/tests/",  # tests legitimately verify the constant
 )
 
-# Directories scanned by the lint exclude these gitignored or third-party
-# trees: their contents never ship in the plugin artifact and frequently
-# contain false-positive markers in audit/research material.
+# Trees `_walk_grep` skips. Two distinct reasons, and the difference matters:
+#
+#   1. Local-only working trees (LOCAL_ONLY_TREES below). Gitignored, so they
+#      exist only on a contributor's disk. Scanning them would push private
+#      working notes into CI stderr, because `_emit` prints up to 30 matching
+#      lines on a hit.
+#   2. Build/cache/vendor noise, which is either binary or not ours.
+#
+# Reason 1 is only safe while nothing under those trees is tracked. A committed
+# file there would both ship AND be invisible to the private-origin leakage
+# gate, since `_walk_grep` filters on path prefix and knows nothing about
+# tracked-ness. `check_local_only_trees_untracked` enforces exactly that
+# precondition, which is what lets this exclusion stay.
+#
+# Do NOT add a tracked tree here. An excluded tree that carries tracked files
+# is a silent coverage hole, which is what LOCAL_ONLY_TREES exists to rule out.
 LINT_SCAN_EXCLUDES = (
     "docs/reports/launchpad_reports/",
     "docs/handoffs/launchpad_handoffs/",
@@ -139,6 +152,17 @@ LINT_SCAN_EXCLUDES = (
     # the leakage scanner picks them up as accidental matches. Cache dir is
     # gitignored.
     ".ruff_cache/",
+)
+
+# The subset of LINT_SCAN_EXCLUDES that is excluded for reason 1 above:
+# gitignored trees holding local working material that must never be
+# committed. `check_local_only_trees_untracked` asserts each is empty in
+# `git ls-files`, which is the precondition that makes skipping them safe.
+LOCAL_ONLY_TREES = (
+    "docs/plans/",
+    "docs/reports/launchpad_reports/",
+    "docs/handoffs/launchpad_handoffs/",
+    "docs/articles/",
 )
 
 # pull_request_target forbidden patterns — bracket/dot AST paths that resolve
@@ -685,6 +709,54 @@ def check_private_origin_leakage(failures: list[str]) -> None:
     _emit(failures, "private-origin-leakage", bad)
 
 
+def check_local_only_trees_untracked(failures: list[str]) -> None:
+    """Fail when anything is tracked under a gitignored, local-only tree.
+
+    This is the invariant that keeps the LOCAL_ONLY_TREES entries in
+    LINT_SCAN_EXCLUDES safe. `_walk_grep` filters purely on path prefix, so a
+    file committed under one of those trees would ship while remaining
+    invisible to `check_private_origin_leakage`: the precise gap that lets a
+    private plan reach a public branch unscanned.
+
+    Deliberately a tracked-file assertion rather than a content scan. Policy
+    here is "these trees are never committed", not "these trees must not
+    contain markers": a private plan for an unrelated product is a leak even
+    when it trips none of PRIVATE_ORIGIN_PATTERNS, and only the stricter rule
+    catches that.
+
+    Paths are reported, contents are not. A tracked file is already public in
+    the diff, so naming it discloses nothing further; its body may not be.
+    """
+    rule = "local-only-trees-untracked"
+    for tree in LOCAL_ONLY_TREES:
+        # cwd passed explicitly: `_run` binds its REPO_ROOT default at
+        # definition time, so relying on it would pin this check to whatever
+        # root was current at import.
+        rc, out = _run(["git", "ls-files", "--", tree], cwd=REPO_ROOT)
+        if rc != 0:
+            # Fail closed. The invariant is unverifiable without git, and the
+            # exclusion it guards stays active regardless.
+            failures.append(
+                f"[{rule}] `git ls-files -- {tree}` failed (rc={rc}); cannot "
+                f"verify that the tree is untracked. Output: {out.strip()[:200]!r}"
+            )
+            continue
+        tracked = sorted(line.strip() for line in out.splitlines() if line.strip())
+        if tracked:
+            failures.append(
+                f"[{rule}] {len(tracked)} file(s) tracked under local-only "
+                f"tree {tree}. These ship publicly AND are skipped by the "
+                f"private-origin leakage scan (LINT_SCAN_EXCLUDES). Untrack "
+                f"with `git rm --cached`, or remove {tree} from both "
+                f"LOCAL_ONLY_TREES and LINT_SCAN_EXCLUDES if it is meant to "
+                f"be a committed location:"
+            )
+            for path in tracked[:30]:
+                failures.append(f"  {path}")
+            if len(tracked) > 30:
+                failures.append(f"  ... ({len(tracked) - 30} more)")
+
+
 # Schema-source files for the v2.1 schema-CODEOWNERS gate (V3 plan §11.6
 # + §11.7, locked in HANDSHAKE §10.v2.1). When ANY of these change in a PR
 # diff, the same PR MUST also touch HANDSHAKE.md so the schema contract and
@@ -937,9 +1009,16 @@ def run_check_pin_registry_rotation_audit_log() -> int:
 def run_check_leakage() -> int:
     """Standalone leakage scan (verify-v2-ship #4 + Phase 7.5 §4.9 pre-push
     scrub). Same checker as the default-lint sub-rule, but isolated so the
-    release workflow can call it without running the rest of the lint."""
+    release workflow can call it without running the rest of the lint.
+
+    Includes the local-only-tree invariant: without it this entry point could
+    report PASS while a tracked file sat inside an excluded tree, unscanned.
+    A pre-push scrub that cannot see the files most likely to be private is
+    worse than no scrub, because it reports confidence it has not earned.
+    """
     failures: list[str] = []
     check_private_origin_leakage(failures)
+    check_local_only_trees_untracked(failures)
     if failures:
         print("private-origin leakage: FAIL", file=sys.stderr)
         for f in failures:
@@ -1773,6 +1852,9 @@ def run_default_lint() -> int:
     check_hyphen_test_files(failures)
     check_pull_request_target_safety(failures)
     check_private_origin_leakage(failures)
+    # Paired with the leakage scan: asserts the precondition that makes the
+    # LOCAL_ONLY_TREES entries in LINT_SCAN_EXCLUDES safe to skip.
+    check_local_only_trees_untracked(failures)
     check_atomic_write_replace_allowlist(failures)
     # Phase 1 catalog validation (only enforced when the catalog files exist;
     # at Phase -1 they did not, and the lint stayed silent on this surface).
