@@ -51,7 +51,6 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from lp_bootstrap import LAUNCHPAD_DIR_NAME  # noqa: E402
-
 from lp_update_identity import (  # noqa: E402
     IdentityUpdateErrorCode,
     IdentityUpdateSentinelError,

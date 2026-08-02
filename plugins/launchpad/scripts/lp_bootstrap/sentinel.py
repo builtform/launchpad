@@ -45,7 +45,6 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from atomic_io import _fsync_parent, _full_fsync_darwin  # noqa: E402
-
 from lp_bootstrap import (  # noqa: E402
     LAUNCHPAD_DIR_NAME,
     SENTINEL_NAME,

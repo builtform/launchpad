@@ -62,17 +62,6 @@ from datetime import (  # noqa: E402  (placed after sys.path mutation for siblin
 )
 
 from atomic_io import advisory_flock  # noqa: E402
-from plugin_default_generators._renderer_base import (  # noqa: E402
-    sha256_bytes,
-    sha256_file,
-)
-from plugin_default_generators.infrastructure_renderer import (  # noqa: E402
-    InfrastructureRenderer,
-    InfrastructureRenderError,
-    assert_workflow_self_consistency,
-)
-from telemetry_writer import write_telemetry_entry  # noqa: E402
-
 from lp_bootstrap import (  # noqa: E402
     INFRASTRUCTURE_FILES,
     INFRASTRUCTURE_TARGETS,
@@ -110,6 +99,16 @@ from lp_bootstrap.sentinel import (  # noqa: E402
     read_sentinel,
     write_sentinel,
 )
+from plugin_default_generators._renderer_base import (  # noqa: E402
+    sha256_bytes,
+    sha256_file,
+)
+from plugin_default_generators.infrastructure_renderer import (  # noqa: E402
+    InfrastructureRenderer,
+    InfrastructureRenderError,
+    assert_workflow_self_consistency,
+)
+from telemetry_writer import write_telemetry_entry  # noqa: E402
 
 # --- Per-module typed exception ------------------------------------------
 

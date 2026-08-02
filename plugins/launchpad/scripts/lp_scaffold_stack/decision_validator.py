@@ -47,12 +47,11 @@ if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
 from decision_integrity import canonical_hash  # noqa: E402
+from lp_scaffold_stack import EXPECTED_DECISION_VERSION  # noqa: E402
 from path_validator import (  # noqa: E402
     PathValidationError,
     validate_relative_path,
 )
-
-from lp_scaffold_stack import EXPECTED_DECISION_VERSION  # noqa: E402
 
 # v2.1 Codex PR #50 P1.3 (D9.2): v1.1 envelope identity required keys.
 # `validate_decision()` enforces a `schema_version == "1.1"` branch that

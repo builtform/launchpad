@@ -39,8 +39,6 @@ if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
 from cwd_state import refuse_if_not_greenfield  # noqa: E402
-from telemetry_writer import write_telemetry_entry  # noqa: E402
-
 from lp_pick_stack.brainstorm_summary_validator import (  # noqa: E402
     BrainstormSummaryError,
     validate_brainstorm_summary,
@@ -69,6 +67,7 @@ from lp_pick_stack.question_funnel import (  # noqa: E402
 )
 from lp_pick_stack.rationale_renderer import render_rationale  # noqa: E402
 from lp_pick_stack.rationale_summary_extractor import extract_summary  # noqa: E402
+from telemetry_writer import write_telemetry_entry  # noqa: E402
 
 COMMAND_NAME = "/lp-pick-stack"
 DEFAULT_CATEGORY_PATTERNS_PATH = (
