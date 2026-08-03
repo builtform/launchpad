@@ -249,11 +249,37 @@ def test_write_batch_pattern_cache_compiled_once(tmp_path):
     assert p1 == p2
 
 
+# Two budgets, because one number cannot serve both purposes here.
+#
+# SOFT is the design target from Phase 8.5 plan section 3.8, measured on a dev
+# machine. Exceeding it warns: worth a look, not worth blocking a merge.
+#
+# HARD is what fails the build. It exists to catch a catastrophic regression
+# (a subprocess spawned per file, an O(n^2) blowup) rather than to assert a
+# latency SLO. It is deliberately far above SOFT because this assertion runs
+# inside a REQUIRED status check on shared CI runners, where wall-clock time is
+# a property of the machine as much as the code. On 2026-08-02 a run measured
+# 498ms and failed the build; the same commit re-run passed, with total suite
+# time swinging 95.0s -> 70.3s on identical work. See BL entry on serial perf
+# tests for the pytest-xdist form of the same contention problem.
+#
+# The tradeoff is explicit: HARD will not catch a 2-3x regression. For a
+# scaffolder that runs once per project, 2x on a 30-file render is half a
+# second, once. SOFT still surfaces that as a warning.
+_WRITE_BATCH_SOFT_BUDGET_MS = 300
+_WRITE_BATCH_HARD_BUDGET_MS = 1000
+
+
 def test_write_batch_perf_under_300ms_30file_scaffold(tmp_path):
-    """Cumulative gate cost on a 30-file scaffold < 300ms (Phase 8.5 plan
-    section 3.8). Synthesizes a 30-file batch of ~2KB markdown each;
-    times scan_batch + write_batch end-to-end."""
+    """Cumulative gate cost on a 30-file scaffold (Phase 8.5 plan section 3.8).
+
+    Synthesizes a 30-file batch of ~2KB markdown each; times scan_batch +
+    write_batch end-to-end. Warns above the soft budget, fails above the hard
+    one. The measurement is always reported so CI history accumulates a real
+    baseline instead of the number being re-guessed.
+    """
     import time
+    import warnings
 
     renderer = _kernel_renderer()
     # 30 markdown files, each ~2KB, all clean.
@@ -265,9 +291,23 @@ def test_write_batch_perf_under_300ms_30file_scaffold(tmp_path):
     start = time.perf_counter()
     renderer.write_batch(batch, cwd=tmp_path)
     elapsed_ms = (time.perf_counter() - start) * 1000
-    assert elapsed_ms < 300, (
+
+    if elapsed_ms >= _WRITE_BATCH_SOFT_BUDGET_MS:
+        # Surfaces in pytest's warnings summary, which is shown by default,
+        # unlike a bare print() that capture swallows on a passing run.
+        warnings.warn(
+            f"render_batch 30-file scaffold took {elapsed_ms:.1f}ms, over the "
+            f"{_WRITE_BATCH_SOFT_BUDGET_MS}ms soft target (hard limit "
+            f"{_WRITE_BATCH_HARD_BUDGET_MS}ms). Expected on a loaded CI runner; "
+            f"investigate if it persists on an idle machine.",
+            stacklevel=2,
+        )
+
+    assert elapsed_ms < _WRITE_BATCH_HARD_BUDGET_MS, (
         f"render_batch flow on 30-file scaffold took {elapsed_ms:.1f}ms; "
-        f"target < 300ms (DA3 perf assertion)"
+        f"hard limit {_WRITE_BATCH_HARD_BUDGET_MS}ms (DA3 perf assertion). "
+        f"This threshold catches catastrophic regressions, so exceeding it "
+        f"means something is very wrong, not that the runner was slow."
     )
 
 
