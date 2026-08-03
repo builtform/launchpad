@@ -14,8 +14,9 @@ greenfield first render (Phase 8.5 plan section 3.10 DA5 lock).
 Compiled patterns are cached at module level (Phase 8.5 plan section 3.8
 DA3 lock): `_load_patterns_cached(file, mtime_ns)` re-compiles only when
 the patterns file's mtime changes. Cumulative gate cost on a 30-file
-scaffold stays under 300ms (asserted by
-test_phase8_5_decommission.test_write_batch_perf_under_300ms_30file_scaffold).
+scaffold targets 300ms, asserted with a 1000ms hard limit by
+test_phase8_5_decommission.test_write_batch_perf_30file_scaffold (the gap
+absorbs shared-CI-runner variance; see that test's budget comment).
 
 Behavior:
   - Return list of matches (pattern, line number, redacted preview)
