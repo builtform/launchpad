@@ -270,7 +270,7 @@ _WRITE_BATCH_SOFT_BUDGET_MS = 300
 _WRITE_BATCH_HARD_BUDGET_MS = 1000
 
 
-def test_write_batch_perf_30file_scaffold(tmp_path):
+def test_write_batch_perf_under_300ms_30file_scaffold(tmp_path):
     """Cumulative gate cost on a 30-file scaffold (Phase 8.5 plan section 3.8).
 
     Synthesizes a 30-file batch of ~2KB markdown each; times scan_batch +
