@@ -47,5 +47,5 @@ bandit==1.9.4          # security audit at MEDIUM+ (lefthook pre-commit)
 # semgrep past that pin: re-lock so mcp moves to >=1.28.1, then delete the
 # suppression entries. (The earlier click~=8.1.8 pin cleared at semgrep
 # 1.171.0 -- click is now 8.4.2 and its suppression has been removed.)
-semgrep==1.172.0       # general patterns (pre-commit) + LP-internal invariants (pre-push)
+semgrep==1.173.0       # general patterns (pre-commit) + LP-internal invariants (pre-push)
 pytest==9.1.1          # test runner (lefthook pre-push + CI v2-handshake-lint); pinned for hash coverage (Codex PR #62 P1 #2)
