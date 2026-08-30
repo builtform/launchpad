@@ -7,6 +7,19 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
+    # BL-375: Prisma 7 is not a drop-in bump. It removed `url` from the
+    # schema.prisma datasource block (P1012), so every 7.x proposal fails
+    # `prisma generate` at install time regardless of how recently it was
+    # rebased. Three separate Dependabot PRs (#54, #86, #155/#158) reached
+    # the same manual triage and were closed unmerged. Majors stay ignored
+    # until BL-375 lands the prisma.config.ts + adapter migration; minors
+    # and patches on 6.x still flow, so security fixes are unaffected.
+    # Remove this block as part of BL-375.
+    ignore:
+      - dependency-name: "prisma"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@prisma/client"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
