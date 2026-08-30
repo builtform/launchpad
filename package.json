@@ -14,7 +14,7 @@
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "eslint": "^9.39.4",
-    "lefthook": "^2.1.9",
+    "lefthook": "^2.1.10",
     "prettier": "^3.9.6",
     "turbo": "^2.9.16",
     "typescript": "^5.9.3",
