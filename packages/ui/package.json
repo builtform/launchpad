@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
-    "@types/react": "^19.2.15",
+    "@types/react": "^19.2.18",
     "tailwindcss": "^4.3.2",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"
