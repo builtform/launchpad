@@ -22,7 +22,7 @@
     "@types/react": "^19.2.15",
     "tailwindcss": "^4.3.2",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "peerDependencies": {
     "react": "^19.0.0"
