@@ -1,0 +1,371 @@
+{
+  "schema_version": 1,
+  "protocol_id": "launchpad-codex-adapter",
+  "protocol_version": "1.0.0",
+  "name_pattern": "^[a-z0-9][a-z0-9-]*$",
+  "metadata_namespace": "x-launchpad",
+  "component_kinds": ["command", "skill", "agent"],
+  "canonical_dialect": {
+    "nested_command": {
+      "source_construct": "/lp-<name>",
+      "typed_operation": "invoke_command",
+      "required_capability": "nested_command"
+    },
+    "plugin_root": {
+      "source_construct": "${CLAUDE_PLUGIN_ROOT}",
+      "typed_operation": "bind_installed_plugin_root",
+      "required_capability": "installed_root_binding"
+    },
+    "skill_or_resource_load": {
+      "source_construct": "declared skill, reference, asset, or script load",
+      "typed_operation": "read_declared_resource",
+      "required_capability": "canonical_resource_read"
+    },
+    "subagent_dispatch": {
+      "source_construct": "Task or subagent dispatch",
+      "typed_operation": "dispatch_declared_agent",
+      "required_capability": "generic_subagents"
+    },
+    "interaction_request": {
+      "source_construct": "interactive user request",
+      "typed_operation": "request_authenticated_interaction",
+      "required_capability": "authenticated_user_interaction"
+    },
+    "tool_capability": {
+      "source_construct": "declared tool-name capability",
+      "typed_operation": "invoke_permitted_tool",
+      "required_capability": "operation_authorization"
+    },
+    "claude_hook": {
+      "source_construct": "Claude-only hook statement",
+      "typed_operation": "require_host_hook",
+      "required_capability": "host_hooks"
+    },
+    "claude_presentation": {
+      "source_construct": "Claude-only presentation statement",
+      "typed_operation": "present_bounded_result",
+      "required_capability": "host_presentation"
+    }
+  },
+  "metadata_schema": {
+    "top_level_fields": [
+      "name",
+      "description",
+      "user-invocable",
+      "tools",
+      "model",
+      "color",
+      "argument-hint",
+      "disable-model-invocation",
+      "allowed-tools",
+      "context",
+      "agent",
+      "hooks",
+      "x-launchpad"
+    ],
+    "namespace_fields": [
+      "schema-version",
+      "component-kind",
+      "direct",
+      "capabilities",
+      "bounded-loop"
+    ],
+    "required_namespace_fields": ["schema-version", "component-kind", "capabilities"],
+    "direct_edge_fields": [
+      "commands",
+      "skills",
+      "agents",
+      "references",
+      "assets",
+      "scripts",
+      "external-tools"
+    ],
+    "capability_fields": [
+      "required",
+      "mutation",
+      "interaction",
+      "external-data-egress",
+      "write-scopes",
+      "tool-profile",
+      "fallback"
+    ],
+    "bounded_loop_fields": ["max-iterations", "reentry-command"]
+  },
+  "capability_ids": [
+    "canonical_resource_read",
+    "installed_root_binding",
+    "structured_arguments",
+    "explicit_invocation_provenance",
+    "interaction_mode_attestation",
+    "authenticated_user_interaction",
+    "detached_digest_attestation",
+    "first_executable_verification",
+    "repository_read",
+    "repository_write",
+    "shell_execution",
+    "prompt_free_shell_deny",
+    "network_egress",
+    "serialized_payload_mediation",
+    "nested_command",
+    "generic_subagents",
+    "subagent_cancel_final_join",
+    "operation_authorization",
+    "project_prompt_admission",
+    "plugin_durable_state",
+    "atomic_receipt_reservation",
+    "authoritative_budget_enforcement",
+    "effect_revocation_status",
+    "external_cli",
+    "browser",
+    "mcp_server",
+    "connector",
+    "host_hooks",
+    "host_presentation"
+  ],
+  "classes": {
+    "mutation": [
+      "none",
+      "project_files",
+      "repository_state",
+      "external_state",
+      "project_and_external"
+    ],
+    "interaction": ["none", "optional", "required", "authenticated_approval"],
+    "base_support_state": ["supported", "blocked"],
+    "applicability": ["applicable", "not_applicable"],
+    "effective_availability": ["available", "blocked"],
+    "release_stage": ["dogfood", "beta", "stable"],
+    "lifecycle_stage": ["inventory", "test_candidate", "release"],
+    "reporting": ["public_bug", "private_security"],
+    "fallback": ["inspect_only", "read_only_manual", "none"],
+    "tool_profile": ["inspect_only", "read_only", "workspace_write", "effectful"]
+  },
+  "cli_schema_spelling": {
+    "inventory": "inventory",
+    "test-candidate": "test_candidate",
+    "generate": "release"
+  },
+  "digest_domains": {
+    "runtime_payload_digest": {
+      "algorithm": "sha256",
+      "excludes": [
+        "codex/support-evidence.json",
+        "generated_documentation",
+        "detached_distribution_descriptors"
+      ]
+    },
+    "evidence_digest": {
+      "algorithm": "sha256",
+      "covers": ["codex/support-evidence.json"]
+    },
+    "artifact_digest": {
+      "algorithm": "sha256",
+      "covers": ["completed_plugin_package"],
+      "storage": "detached_attestation_only"
+    }
+  },
+  "record_schemas": {
+    "direct_edges": {
+      "required": [
+        "commands",
+        "skills",
+        "agents",
+        "references",
+        "assets",
+        "scripts",
+        "external_tools"
+      ]
+    },
+    "capability_summary": {
+      "required": [
+        "required",
+        "mutation",
+        "interaction",
+        "external_data_egress",
+        "write_scopes",
+        "tool_profile",
+        "fallback"
+      ]
+    },
+    "node_record": {
+      "required": [
+        "id",
+        "kind",
+        "source_path",
+        "source_digest",
+        "metadata_digest",
+        "aggregate_digest",
+        "direct",
+        "capabilities"
+      ]
+    },
+    "support_record": {
+      "required": ["resource_id", "base_support_state", "blocked_reason_codes", "fallback"]
+    },
+    "availability_record": {
+      "required": ["resource_id", "applicability", "effective_availability", "reason_codes"]
+    },
+    "qualification_record": {
+      "required": [
+        "qualification_id",
+        "runtime_payload_digest",
+        "host",
+        "operating_system",
+        "tool_versions",
+        "receipt_ids"
+      ]
+    },
+    "runtime_record": {
+      "required": [
+        "stage",
+        "release_stage",
+        "protocol_version",
+        "protocol_digest",
+        "runtime_payload_digest",
+        "root_ids",
+        "nodes",
+        "support",
+        "qualification_ids",
+        "generated_slots"
+      ]
+    },
+    "digest_record": {
+      "required": ["runtime_payload_digest", "evidence_digest", "artifact_digest"]
+    }
+  },
+  "defaults": {
+    "worker_count": 3,
+    "fallback_context_tokens": 32000
+  },
+  "minimums": {
+    "repository_work_output_context_percent": 50
+  },
+  "limits": {
+    "catalog_depth": 4,
+    "definitions_per_type": 256,
+    "direct_edges_per_definition": 64,
+    "aggregate_edges": 65536,
+    "frontmatter_bytes": 65536,
+    "body_bytes": 262144,
+    "yaml_nodes": 4096,
+    "yaml_depth": 32,
+    "yaml_scalar_bytes": 65536,
+    "yaml_aggregate_bytes": 1048576,
+    "worker_ceiling": 8,
+    "child_starts": 32,
+    "nested_invocations": 16,
+    "nested_depth": 8,
+    "child_timeout_seconds": 1200,
+    "wave_timeout_seconds": 3600,
+    "wall_clock_seconds": 7200,
+    "deadline_cancellation_seconds": 7170,
+    "retries_per_child": 2,
+    "retry_backoff_seconds": 30,
+    "cooperative_cancel_seconds": 10,
+    "final_cancel_join_seconds": 20,
+    "cancellation_drain_seconds": 30,
+    "estimated_input_tokens": 1000000,
+    "estimated_output_tokens": 250000,
+    "serialized_message_bytes": 8388608,
+    "aggregate_outbound_bytes": 67108864,
+    "diagnostic_field_characters": 512,
+    "log_events_per_run": 4096,
+    "log_bytes_per_run": 4194304,
+    "mutation_receipt_events_per_run": 2048,
+    "mutation_receipt_bytes_per_run": 2097152,
+    "retained_runs": 50,
+    "adapter_storage_bytes": 268435456,
+    "retention_days": 30,
+    "documentation_file_bytes": 2097152,
+    "documentation_aggregate_bytes": 67108864,
+    "control_instruction_context_percent": 25,
+    "bounded_loop_iterations": 16
+  },
+  "duration_contract": {
+    "total_includes_retry_backoff": true,
+    "total_includes_cancellation_drain": true
+  },
+  "errors": {
+    "PROTOCOL_FILE_INVALID": "private_security",
+    "PROTOCOL_VERSION_UNSUPPORTED": "public_bug",
+    "PROTOCOL_UNKNOWN_FIELD": "public_bug",
+    "PROTOCOL_TYPE_INVALID": "public_bug",
+    "PROTOCOL_VALUE_INVALID": "public_bug",
+    "PROTOCOL_DUPLICATE_VALUE": "public_bug",
+    "YAML_SOURCE_TOO_LARGE": "private_security",
+    "YAML_INVALID_UTF8": "private_security",
+    "YAML_SYNTAX_INVALID": "private_security",
+    "YAML_DUPLICATE_KEY": "private_security",
+    "YAML_ALIAS_FORBIDDEN": "private_security",
+    "YAML_ANCHOR_FORBIDDEN": "private_security",
+    "YAML_MERGE_KEY_FORBIDDEN": "private_security",
+    "YAML_EXPLICIT_TAG_FORBIDDEN": "private_security",
+    "YAML_MULTIDOC_FORBIDDEN": "private_security",
+    "YAML_NODE_LIMIT_EXCEEDED": "private_security",
+    "YAML_DEPTH_LIMIT_EXCEEDED": "private_security",
+    "YAML_SCALAR_LIMIT_EXCEEDED": "private_security",
+    "YAML_AGGREGATE_LIMIT_EXCEEDED": "private_security",
+    "FRONTMATTER_MISSING": "public_bug",
+    "FRONTMATTER_UNTERMINATED": "public_bug",
+    "FRONTMATTER_TOO_LARGE": "private_security",
+    "BODY_TOO_LARGE": "private_security",
+    "METADATA_INVALID": "public_bug",
+    "METADATA_UNKNOWN_FIELD": "public_bug",
+    "METADATA_EDGE_LIMIT_EXCEEDED": "private_security",
+    "RECORD_INVALID": "public_bug",
+    "RECORD_STAGE_INVALID": "private_security",
+    "DIGEST_INVALID": "private_security",
+    "CAPABILITY_BLOCKED": "public_bug",
+    "LIMIT_EXCEEDED": "private_security",
+    "INTEGRITY_MISMATCH": "private_security",
+    "UNKNOWN_COMMAND": "public_bug",
+    "UNKNOWN_SKILL": "public_bug",
+    "SKILL_NOT_USER_INVOCABLE": "public_bug",
+    "RESOURCE_UNTRUSTED": "private_security",
+    "INVOCATION_COLLISION": "private_security",
+    "INVOCATION_PROVENANCE_UNAVAILABLE": "private_security",
+    "ARGUMENT_TAIL_UNAVAILABLE": "private_security",
+    "INTERACTION_ATTESTATION_UNAVAILABLE": "private_security",
+    "DETACHED_ATTESTATION_UNAVAILABLE": "private_security",
+    "FIRST_EXECUTABLE_VERIFICATION_UNAVAILABLE": "private_security",
+    "TOOL_PROFILE_UNENFORCEABLE": "private_security",
+    "PAYLOAD_MEDIATION_UNAVAILABLE": "private_security",
+    "OPERATION_AUTHORIZATION_UNAVAILABLE": "private_security",
+    "PROJECT_PROMPT_ADMISSION_UNAVAILABLE": "private_security",
+    "DURABLE_STATE_UNAVAILABLE": "private_security",
+    "RECEIPT_RESERVATION_UNAVAILABLE": "private_security",
+    "BUDGET_ENFORCEMENT_UNAVAILABLE": "private_security",
+    "REVOCATION_STATUS_UNAVAILABLE": "private_security",
+    "CANCEL_FINAL_JOIN_UNAVAILABLE": "private_security",
+    "MINIMUM_HOST_VERSION_UNDECLARED": "public_bug",
+    "DESKTOP_CONFORMANCE_UNAVAILABLE": "public_bug",
+    "DEPENDENCY_CLOSURE_UNPROVEN": "private_security",
+    "SKILL_COLLISION_PRECEDENCE_UNSPECIFIED": "private_security",
+    "HOST_NO_AUTHENTICATED_EXPLICIT_INVOCATION_PROVENANCE": "private_security",
+    "HOST_NO_LOSSLESS_AUTHENTICATED_ARGUMENT_TAIL": "private_security",
+    "HOST_NO_INTERACTION_MODE_ATTESTATION": "private_security",
+    "HOST_NO_DETACHED_DIGEST_ATTESTATION": "private_security",
+    "HOST_NO_FIRST_EXECUTABLE_VERIFICATION_CHAIN": "private_security",
+    "HOST_NO_PROMPT_FREE_SHELL_DENY_PROFILE": "private_security",
+    "HOST_NO_COMPLETE_SERIALIZED_PAYLOAD_MEDIATION": "private_security",
+    "HOST_NO_NON_BYPASSABLE_OPERATION_AUTHORIZATION": "private_security",
+    "HOST_NO_AUTHENTICATED_PROJECT_PROMPT_ADMISSION": "private_security",
+    "HOST_NO_PLUGIN_DURABLE_STATE_API": "private_security",
+    "HOST_NO_ATOMIC_RECEIPT_RESERVATION": "private_security",
+    "HOST_NO_AUTHORITATIVE_BUDGET_PRICING_CAP": "private_security",
+    "HOST_NO_AUTHENTICATED_EFFECT_REVOCATION_STATUS": "private_security",
+    "HOST_NO_CANCEL_FINAL_JOIN_GUARANTEE": "private_security",
+    "CLAUDE_MINIMUM_VERSION_UNDECLARED": "public_bug",
+    "CODEX_MINIMUM_VERSION_UNDECLARED": "public_bug",
+    "HOST_DESKTOP_RUNTIME_CONFORMANCE_UNAVAILABLE": "public_bug",
+    "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN": "private_security",
+    "CANCELLED": "public_bug",
+    "DEADLINE_EXCEEDED": "public_bug",
+    "APPROVAL_REQUIRED": "public_bug",
+    "APPROVAL_INVALID": "private_security",
+    "EVIDENCE_EXPIRED": "private_security",
+    "EVIDENCE_REVOKED": "private_security",
+    "REPORT_REDACTION_FAILED": "private_security",
+    "UNKNOWN_ERROR": "private_security"
+  }
+}
