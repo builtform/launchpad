@@ -1,0 +1,16 @@
+{
+  "name": "launchpad-section1-fixture",
+  "owner": {
+    "name": "LaunchPad test fixture"
+  },
+  "metadata": {
+    "description": "Disposable local marketplace for Codex compatibility Section 1 probes."
+  },
+  "plugins": [
+    {
+      "name": "lp-section1-probe",
+      "description": "Disposable host-conformance probe for LaunchPad Section 1.",
+      "source": "./plugins/lp-section1-probe"
+    }
+  ]
+}
