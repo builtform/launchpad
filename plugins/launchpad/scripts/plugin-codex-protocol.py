@@ -639,6 +639,16 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
         "resource_origin",
         "admission_source",
         "project_selection_source",
+        "run_state",
+        "approval_state",
+        "approval_kind",
+        "mutation_state",
+        "terminal_state",
+        "gate_result",
+        "log_status",
+        "effect_kind",
+        "egress_transport",
+        "evidence_status",
     )
     _exact_keys(
         classes_raw,
@@ -670,6 +680,15 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
         "project_root_record",
         "project_selection_record",
         "project_admission_record",
+        "execution_frame",
+        "run_snapshot",
+        "preflight_record",
+        "approval_record",
+        "operation_permit",
+        "receipt_event",
+        "log_event",
+        "terminal_record",
+        "trace_event",
     )
     _exact_keys(
         record_raw,

@@ -135,6 +135,7 @@
     "generic_subagents",
     "subagent_cancel_final_join",
     "operation_authorization",
+    "persistent_instruction_write",
     "project_prompt_admission",
     "plugin_durable_state",
     "atomic_receipt_reservation",
@@ -166,7 +167,32 @@
     "tool_profile": ["inspect_only", "read_only", "workspace_write", "effectful"],
     "resource_origin": ["built_in", "project"],
     "admission_source": ["interactive", "headless"],
-    "project_selection_source": ["roster", "canonical_reference"]
+    "project_selection_source": ["roster", "canonical_reference"],
+    "run_state": [
+      "created",
+      "preflight_passed",
+      "approved",
+      "receipt_ready",
+      "effect_active",
+      "terminal"
+    ],
+    "approval_state": ["pending", "approved", "declined", "expired"],
+    "approval_kind": ["effect", "persistent_instruction_write"],
+    "mutation_state": ["not_started", "committed", "partial"],
+    "terminal_state": ["succeeded", "blocked", "declined", "failed", "partial"],
+    "gate_result": ["pass", "blocked"],
+    "log_status": ["checked", "allowed", "blocked", "started", "committed", "partial", "failed"],
+    "effect_kind": ["ai_child", "product_mutation", "external_effect"],
+    "egress_transport": [
+      "host_provider",
+      "subagent",
+      "browser",
+      "mcp",
+      "connector",
+      "cli",
+      "subprocess"
+    ],
+    "evidence_status": ["current", "expired", "revoked"]
   },
   "cli_schema_spelling": {
     "inventory": "inventory",
@@ -366,6 +392,146 @@
         "repository_ref",
         "source"
       ]
+    },
+    "execution_frame": {
+      "required": [
+        "run_id",
+        "command_id",
+        "command_digest",
+        "argument_digest",
+        "graph_digest",
+        "configuration_digest",
+        "roster_digest",
+        "repository_digest",
+        "repository_head",
+        "repository_index_digest",
+        "package_digest",
+        "manifest_digest",
+        "entry_skill_digest",
+        "resolver_digest",
+        "coordinator_digest",
+        "protocol_version",
+        "protocol_digest",
+        "support_evidence_version",
+        "evidence_digest",
+        "approval_digest",
+        "project_admission_digests",
+        "mutation_class",
+        "required_capabilities",
+        "tool_profile",
+        "write_scopes",
+        "active_call_stack",
+        "depth",
+        "cancellation_token_digest",
+        "remaining_child_starts",
+        "remaining_context_tokens",
+        "loaded_resource_digests"
+      ]
+    },
+    "run_snapshot": {
+      "required": [
+        "run_id",
+        "frame_digest",
+        "run_state",
+        "mutation_state",
+        "approval_state",
+        "approval_digest",
+        "receipt_id",
+        "receipt_synced",
+        "lease_held",
+        "terminal_state",
+        "remaining_child_starts",
+        "remaining_context_tokens",
+        "outbound_bytes"
+      ]
+    },
+    "preflight_record": {
+      "required": [
+        "run_id",
+        "required_capabilities",
+        "tool_profile",
+        "graph_digest",
+        "repository_digest",
+        "evidence_digest",
+        "gate_result"
+      ]
+    },
+    "approval_record": {
+      "required": [
+        "approval_id",
+        "nonce",
+        "expires_at",
+        "run_id",
+        "project_root_digest",
+        "command_argument_digest",
+        "graph_digest",
+        "mutation_class",
+        "effect_scope",
+        "approval_kind",
+        "exact_diff_digest",
+        "source",
+        "state"
+      ]
+    },
+    "operation_permit": {
+      "required": [
+        "permit_id",
+        "nonce",
+        "run_id",
+        "effect_kind",
+        "executable_digest",
+        "subcommand",
+        "allowed_flags",
+        "cwd_digest",
+        "path_digests",
+        "network_origin",
+        "network_method",
+        "account_digest",
+        "resource_digest",
+        "credential_class",
+        "expected_mutation_digest",
+        "request_digest",
+        "signature"
+      ]
+    },
+    "receipt_event": {
+      "required": [
+        "sequence",
+        "run_id",
+        "receipt_id",
+        "event_type",
+        "effect_kind",
+        "scope_digest",
+        "status",
+        "error_code"
+      ]
+    },
+    "log_event": {
+      "required": [
+        "sequence",
+        "run_id",
+        "capability_id",
+        "source_relative_path",
+        "digest",
+        "status",
+        "error_code",
+        "agent_id",
+        "timing_ms",
+        "gate_result"
+      ]
+    },
+    "terminal_record": {
+      "required": [
+        "run_id",
+        "terminal_state",
+        "mutation_state",
+        "receipt_id",
+        "error_code",
+        "frame_digest"
+      ]
+    },
+    "trace_event": {
+      "required": ["sequence", "run_id", "category", "operation", "record_digest"]
     }
   },
   "defaults": {
@@ -521,6 +687,23 @@
     "APPROVAL_EXPIRED": "private_security",
     "APPROVAL_REPLAYED": "private_security",
     "APPROVAL_SCOPE_MISMATCH": "private_security",
+    "RUN_STATE_INVALID": "private_security",
+    "SNAPSHOT_MISMATCH": "private_security",
+    "PREFLIGHT_REQUIRED": "private_security",
+    "PREFLIGHT_FAILED": "private_security",
+    "REPOSITORY_DRIFT": "private_security",
+    "MUTATION_LEASE_UNAVAILABLE": "private_security",
+    "RECEIPT_NOT_READY": "private_security",
+    "RECEIPT_CAPACITY_EXCEEDED": "private_security",
+    "OPERATION_PERMIT_INVALID": "private_security",
+    "OPERATION_PERMIT_REPLAYED": "private_security",
+    "OPERATION_SCOPE_MISMATCH": "private_security",
+    "UNMEDIATED_EFFECT_BLOCKED": "private_security",
+    "EGRESS_SECRET_DETECTED": "private_security",
+    "EXECUTABLE_IDENTITY_INVALID": "private_security",
+    "DIAGNOSTIC_NOT_ALLOWLISTED": "private_security",
+    "PARTIAL_MUTATION": "private_security",
+    "TERMINAL_STATE_INVALID": "private_security",
     "HEADLESS_POLICY_INVALID": "private_security",
     "HEADLESS_POLICY_UNAVAILABLE": "private_security",
     "EVIDENCE_EXPIRED": "private_security",
