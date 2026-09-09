@@ -6,6 +6,16 @@
   "stack_scope_pattern": "^(core_pipeline|stack:any|stack:[a-z_]{1,32}|design_quality|skill_quality)$",
   "metadata_namespace": "x-launchpad",
   "component_kinds": ["command", "skill", "agent"],
+  "project_extension_roster_fields": [
+    "review_agents",
+    "review_db_agents",
+    "review_design_agents",
+    "review_copy_agents",
+    "harden_plan_agents",
+    "harden_plan_conditional_agents",
+    "harden_document_agents",
+    "protected_branches"
+  ],
   "canonical_dialect": {
     "nested_command": {
       "source_construct": "/lp-<name>",
@@ -140,7 +150,10 @@
     "lifecycle_stage": ["inventory", "test_candidate", "release"],
     "reporting": ["public_bug", "private_security"],
     "fallback": ["inspect_only", "read_only_manual", "none"],
-    "tool_profile": ["inspect_only", "read_only", "workspace_write", "effectful"]
+    "tool_profile": ["inspect_only", "read_only", "workspace_write", "effectful"],
+    "resource_origin": ["built_in", "project"],
+    "admission_source": ["interactive", "headless"],
+    "project_selection_source": ["roster", "canonical_reference"]
   },
   "cli_schema_spelling": {
     "inventory": "inventory",
@@ -236,6 +249,63 @@
     },
     "agent_scope_record": {
       "required": ["resource_id", "stack_scope"]
+    },
+    "resolver_source_record": {
+      "required": [
+        "resource_id",
+        "kind",
+        "origin",
+        "source_path",
+        "source_digest",
+        "metadata_digest",
+        "size",
+        "user_invocable",
+        "quarantined"
+      ]
+    },
+    "resolver_resource_record": {
+      "required": [
+        "owner_id",
+        "owner_kind",
+        "origin",
+        "relative_path",
+        "source_digest",
+        "size",
+        "quarantined"
+      ]
+    },
+    "project_root_record": {
+      "required": ["canonical_root", "repository_identity", "root_device", "root_inode"]
+    },
+    "project_selection_record": {
+      "required": [
+        "resource_id",
+        "kind",
+        "selection_source",
+        "selector_path",
+        "selector_key",
+        "selector_digest",
+        "selection_digest"
+      ]
+    },
+    "project_admission_record": {
+      "required": [
+        "nonce",
+        "expires_at",
+        "repository_identity",
+        "canonical_root_digest",
+        "relative_path",
+        "kind",
+        "content_digest",
+        "selection_digest",
+        "protocol_version",
+        "requested_capability",
+        "run_id",
+        "child_id",
+        "workflow_id",
+        "repository_ref",
+        "source"
+      ]
     }
   },
   "defaults": {
@@ -284,7 +354,8 @@
     "documentation_file_bytes": 2097152,
     "documentation_aggregate_bytes": 67108864,
     "control_instruction_context_percent": 25,
-    "bounded_loop_iterations": 16
+    "bounded_loop_iterations": 16,
+    "project_approval_ttl_seconds": 600
   },
   "duration_contract": {
     "total_includes_retry_backoff": true,
@@ -326,7 +397,23 @@
     "UNKNOWN_COMMAND": "public_bug",
     "UNKNOWN_SKILL": "public_bug",
     "SKILL_NOT_USER_INVOCABLE": "public_bug",
+    "PROJECT_EXTENSION_NOT_PUBLIC": "public_bug",
     "RESOURCE_UNTRUSTED": "private_security",
+    "RESOURCE_UNDECLARED": "private_security",
+    "ROOT_INVALID": "private_security",
+    "ROOT_AMBIGUOUS": "public_bug",
+    "PATH_INVALID": "private_security",
+    "PATH_ESCAPE": "private_security",
+    "PATH_SYMLINK": "private_security",
+    "PATH_RACE": "private_security",
+    "SOURCE_NOT_FOUND": "public_bug",
+    "SOURCE_AMBIGUOUS": "private_security",
+    "SOURCE_DUPLICATE": "private_security",
+    "SOURCE_TOO_LARGE": "private_security",
+    "SOURCE_INVALID_UTF8": "private_security",
+    "SOURCE_DIGEST_MISMATCH": "private_security",
+    "SOURCE_TYPE_INVALID": "private_security",
+    "CATALOG_INVALID": "private_security",
     "INVOCATION_COLLISION": "private_security",
     "INVOCATION_PROVENANCE_UNAVAILABLE": "private_security",
     "ARGUMENT_TAIL_UNAVAILABLE": "private_security",
@@ -368,6 +455,11 @@
     "DEADLINE_EXCEEDED": "public_bug",
     "APPROVAL_REQUIRED": "public_bug",
     "APPROVAL_INVALID": "private_security",
+    "APPROVAL_EXPIRED": "private_security",
+    "APPROVAL_REPLAYED": "private_security",
+    "APPROVAL_SCOPE_MISMATCH": "private_security",
+    "HEADLESS_POLICY_INVALID": "private_security",
+    "HEADLESS_POLICY_UNAVAILABLE": "private_security",
     "EVIDENCE_EXPIRED": "private_security",
     "EVIDENCE_REVOKED": "private_security",
     "REPORT_REDACTION_FAILED": "private_security",

@@ -96,6 +96,7 @@ class ProtocolContract:
     stack_scope_pattern: re.Pattern[str]
     metadata_namespace: str
     component_kinds: frozenset[str]
+    project_extension_roster_fields: tuple[str, ...]
     canonical_dialect: Mapping[str, Mapping[str, str]]
     metadata_schema: Mapping[str, tuple[str, ...]]
     capability_ids: frozenset[str]
@@ -242,6 +243,68 @@ class AgentScopeRecord:
     stack_scope: str
 
 
+@dataclass(frozen=True)
+class ResolverSourceRecord:
+    resource_id: str
+    kind: str
+    origin: str
+    source_path: str
+    source_digest: str
+    metadata_digest: str
+    size: int
+    user_invocable: bool
+    quarantined: bool
+
+
+@dataclass(frozen=True)
+class ResolverResourceRecord:
+    owner_id: str
+    owner_kind: str
+    origin: str
+    relative_path: str
+    source_digest: str
+    size: int
+    quarantined: bool
+
+
+@dataclass(frozen=True)
+class ProjectRootRecord:
+    canonical_root: str
+    repository_identity: str
+    root_device: int
+    root_inode: int
+
+
+@dataclass(frozen=True)
+class ProjectSelectionRecord:
+    resource_id: str
+    kind: str
+    selection_source: str
+    selector_path: str
+    selector_key: str
+    selector_digest: str
+    selection_digest: str
+
+
+@dataclass(frozen=True)
+class ProjectAdmissionRecord:
+    nonce: str
+    expires_at: int
+    repository_identity: str
+    canonical_root_digest: str
+    relative_path: str
+    kind: str
+    content_digest: str
+    selection_digest: str
+    protocol_version: str
+    requested_capability: str
+    run_id: str
+    child_id: str
+    workflow_id: str
+    repository_ref: str
+    source: str
+
+
 def _error(
     contract: ProtocolContract,
     code: str,
@@ -286,6 +349,15 @@ def _as_int(value: object, context: str) -> int:
         raise ProtocolValidationError(
             "PROTOCOL_TYPE_INVALID",
             f"{context} must be a positive integer",
+        )
+    return value
+
+
+def _as_nonnegative_int(value: object, context: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ProtocolValidationError(
+            "PROTOCOL_TYPE_INVALID",
+            f"{context} must be a non-negative integer",
         )
     return value
 
@@ -461,6 +533,7 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
         "stack_scope_pattern",
         "metadata_namespace",
         "component_kinds",
+        "project_extension_roster_fields",
         "canonical_dialect",
         "metadata_schema",
         "capability_ids",
@@ -537,6 +610,9 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
         "reporting",
         "fallback",
         "tool_profile",
+        "resource_origin",
+        "admission_source",
+        "project_selection_source",
     )
     _exact_keys(
         classes_raw,
@@ -561,6 +637,11 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
         "runtime_record",
         "digest_record",
         "agent_scope_record",
+        "resolver_source_record",
+        "resolver_resource_record",
+        "project_root_record",
+        "project_selection_record",
+        "project_admission_record",
     )
     _exact_keys(
         record_raw,
@@ -654,6 +735,10 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
         metadata_namespace=_as_string(root["metadata_namespace"], "metadata_namespace"),
         component_kinds=frozenset(
             _string_tuple(root["component_kinds"], "component_kinds")
+        ),
+        project_extension_roster_fields=_string_tuple(
+            root["project_extension_roster_fields"],
+            "project_extension_roster_fields",
         ),
         canonical_dialect=_immutable_nested_mapping(dialect_raw, "canonical_dialect"),
         metadata_schema=metadata_schema,
@@ -1494,6 +1579,203 @@ def normalize_agent_scope_record(
     return AgentScopeRecord(resource_id=resource_id, stack_scope=stack_scope)
 
 
+def normalize_resolver_source_record(
+    value: object, contract: ProtocolContract | None = None
+) -> ResolverSourceRecord:
+    """Normalize one immutable command, skill, or agent inspection."""
+    protocol = contract or load_protocol()
+    mapping = _record_mapping(value, "resolver_source_record", protocol)
+    kind = mapping["kind"]
+    if not isinstance(kind, str) or kind not in protocol.component_kinds:
+        raise _error(protocol, "RECORD_INVALID", "resolver source kind is invalid")
+    origin = protocol.require_enum("resource_origin", mapping["origin"])
+    user_invocable = _as_bool(mapping["user_invocable"], "user_invocable")
+    quarantined = _as_bool(mapping["quarantined"], "quarantined")
+    if (origin == "project") != quarantined:
+        raise _error(
+            protocol, "RECORD_INVALID", "source quarantine differs from origin"
+        )
+    if user_invocable and (origin != "built_in" or kind == "agent"):
+        raise _error(protocol, "RECORD_INVALID", "source cannot be user invocable")
+    return ResolverSourceRecord(
+        resource_id=_record_id(mapping["resource_id"], "resource_id", protocol),
+        kind=kind,
+        origin=origin,
+        source_path=_relative_path(mapping["source_path"], "source_path", protocol),
+        source_digest=_digest(mapping["source_digest"], "source_digest", protocol),
+        metadata_digest=_digest(
+            mapping["metadata_digest"], "metadata_digest", protocol
+        ),
+        size=_as_nonnegative_int(mapping["size"], "size"),
+        user_invocable=user_invocable,
+        quarantined=quarantined,
+    )
+
+
+def normalize_resolver_resource_record(
+    value: object, contract: ProtocolContract | None = None
+) -> ResolverResourceRecord:
+    """Normalize one owner-confined resource inspection."""
+    protocol = contract or load_protocol()
+    mapping = _record_mapping(value, "resolver_resource_record", protocol)
+    owner_kind = mapping["owner_kind"]
+    if not isinstance(owner_kind, str) or owner_kind not in protocol.component_kinds:
+        raise _error(protocol, "RECORD_INVALID", "resource owner kind is invalid")
+    origin = protocol.require_enum("resource_origin", mapping["origin"])
+    quarantined = _as_bool(mapping["quarantined"], "quarantined")
+    if (origin == "project") != quarantined:
+        raise _error(
+            protocol, "RECORD_INVALID", "resource quarantine differs from origin"
+        )
+    return ResolverResourceRecord(
+        owner_id=_record_id(mapping["owner_id"], "owner_id", protocol),
+        owner_kind=owner_kind,
+        origin=origin,
+        relative_path=_relative_path(
+            mapping["relative_path"], "relative_path", protocol
+        ),
+        source_digest=_digest(mapping["source_digest"], "source_digest", protocol),
+        size=_as_nonnegative_int(mapping["size"], "size"),
+        quarantined=quarantined,
+    )
+
+
+def normalize_project_root_record(
+    value: object, contract: ProtocolContract | None = None
+) -> ProjectRootRecord:
+    """Normalize an explicitly anchored active-workspace root."""
+    protocol = contract or load_protocol()
+    mapping = _record_mapping(value, "project_root_record", protocol)
+    canonical_root = _as_string(mapping["canonical_root"], "canonical_root")
+    path = Path(canonical_root)
+    if not path.is_absolute() or any(ord(char) < 32 for char in canonical_root):
+        raise _error(protocol, "RECORD_INVALID", "canonical_root is invalid")
+    return ProjectRootRecord(
+        canonical_root=canonical_root,
+        repository_identity=_digest(
+            mapping["repository_identity"], "repository_identity", protocol
+        ),
+        root_device=_as_nonnegative_int(mapping["root_device"], "root_device"),
+        root_inode=_as_nonnegative_int(mapping["root_inode"], "root_inode"),
+    )
+
+
+def normalize_project_selection_record(
+    value: object, contract: ProtocolContract | None = None
+) -> ProjectSelectionRecord:
+    """Normalize proof that a project extension was explicitly selected."""
+    protocol = contract or load_protocol()
+    mapping = _record_mapping(value, "project_selection_record", protocol)
+    kind = mapping["kind"]
+    if not isinstance(kind, str) or kind not in {"skill", "agent"}:
+        raise _error(protocol, "RECORD_INVALID", "project selection kind is invalid")
+    selector_key = _as_string(mapping["selector_key"], "selector_key")
+    if (
+        any(ord(char) < 32 or ord(char) == 127 for char in selector_key)
+        or len(selector_key.encode("utf-8")) > protocol.limits["yaml_scalar_bytes"]
+    ):
+        raise _error(protocol, "RECORD_INVALID", "selector_key is invalid")
+    selection_source = protocol.require_enum(
+        "project_selection_source", mapping["selection_source"]
+    )
+    selector_path = _relative_path(mapping["selector_path"], "selector_path", protocol)
+    if selection_source == "roster" and (
+        kind != "agent"
+        or selector_path != ".launchpad/agents.yml"
+        or selector_key not in protocol.project_extension_roster_fields
+        or not selector_key.endswith("_agents")
+    ):
+        raise _error(protocol, "RECORD_INVALID", "roster selection is invalid")
+    if selection_source == "canonical_reference" and selector_key not in {
+        "skills",
+        "agents",
+    }:
+        raise _error(protocol, "RECORD_INVALID", "canonical selection is invalid")
+    if selection_source == "canonical_reference" and selector_key != f"{kind}s":
+        raise _error(protocol, "RECORD_INVALID", "canonical selector kind differs")
+    selector_digest = _digest(mapping["selector_digest"], "selector_digest", protocol)
+    selection_digest = _digest(
+        mapping["selection_digest"], "selection_digest", protocol
+    )
+    selection_payload = {
+        "resource_id": _record_id(mapping["resource_id"], "resource_id", protocol),
+        "kind": kind,
+        "selection_source": selection_source,
+        "selector_path": selector_path,
+        "selector_key": selector_key,
+        "selector_digest": selector_digest,
+    }
+    expected_digest = hashlib.sha256(
+        json.dumps(
+            selection_payload,
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    if selection_digest != expected_digest:
+        raise _error(protocol, "DIGEST_INVALID", "selection_digest differs")
+    return ProjectSelectionRecord(
+        resource_id=selection_payload["resource_id"],
+        kind=kind,
+        selection_source=selection_source,
+        selector_path=selector_path,
+        selector_key=selector_key,
+        selector_digest=selector_digest,
+        selection_digest=selection_digest,
+    )
+
+
+def normalize_project_admission_record(
+    value: object, contract: ProtocolContract | None = None
+) -> ProjectAdmissionRecord:
+    """Normalize one exact-digest, one-child, one-run admission envelope."""
+    protocol = contract or load_protocol()
+    mapping = _record_mapping(value, "project_admission_record", protocol)
+    kind = mapping["kind"]
+    if not isinstance(kind, str) or kind not in {"skill", "agent"}:
+        raise _error(protocol, "RECORD_INVALID", "admission kind is invalid")
+    requested_capability = _as_string(
+        mapping["requested_capability"], "requested_capability"
+    )
+    if requested_capability not in protocol.capability_ids:
+        raise _error(protocol, "RECORD_INVALID", "admission capability is invalid")
+    protocol_version = _as_string(mapping["protocol_version"], "protocol_version")
+    if protocol_version != protocol.protocol_version:
+        raise _error(protocol, "RECORD_INVALID", "admission protocol differs")
+    repository_ref = _as_string(mapping["repository_ref"], "repository_ref")
+    if len(repository_ref.encode("utf-8")) > protocol.limits["yaml_scalar_bytes"]:
+        raise _error(protocol, "LIMIT_EXCEEDED", "repository_ref is too large")
+    if any(ord(char) < 32 or ord(char) == 127 for char in repository_ref):
+        raise _error(protocol, "RECORD_INVALID", "repository_ref contains a control")
+    return ProjectAdmissionRecord(
+        nonce=_digest(mapping["nonce"], "nonce", protocol),
+        expires_at=_as_int(mapping["expires_at"], "expires_at"),
+        repository_identity=_digest(
+            mapping["repository_identity"], "repository_identity", protocol
+        ),
+        canonical_root_digest=_digest(
+            mapping["canonical_root_digest"], "canonical_root_digest", protocol
+        ),
+        relative_path=_relative_path(
+            mapping["relative_path"], "relative_path", protocol
+        ),
+        kind=kind,
+        content_digest=_digest(mapping["content_digest"], "content_digest", protocol),
+        selection_digest=_digest(
+            mapping["selection_digest"], "selection_digest", protocol
+        ),
+        protocol_version=protocol_version,
+        requested_capability=requested_capability,
+        run_id=_record_id(mapping["run_id"], "run_id", protocol),
+        child_id=_record_id(mapping["child_id"], "child_id", protocol),
+        workflow_id=_record_id(mapping["workflow_id"], "workflow_id", protocol),
+        repository_ref=repository_ref,
+        source=protocol.require_enum("admission_source", mapping["source"]),
+    )
+
+
 def detect_duplicate_protocol_constants(
     paths: Sequence[Path], contract: ProtocolContract | None = None
 ) -> tuple[str, ...]:
@@ -1542,7 +1824,12 @@ __all__ = [
     "NormalizedMetadata",
     "ProtocolContract",
     "ProtocolValidationError",
+    "ProjectAdmissionRecord",
+    "ProjectRootRecord",
+    "ProjectSelectionRecord",
     "QualificationRecord",
+    "ResolverResourceRecord",
+    "ResolverSourceRecord",
     "RuntimeRecord",
     "SupportRecord",
     "detect_duplicate_protocol_constants",
@@ -1557,8 +1844,13 @@ __all__ = [
     "normalize_document_metadata",
     "normalize_metadata",
     "normalize_node_record",
+    "normalize_project_admission_record",
+    "normalize_project_root_record",
+    "normalize_project_selection_record",
     "normalize_qualification_record",
     "normalize_runtime_record",
+    "normalize_resolver_resource_record",
+    "normalize_resolver_source_record",
     "normalize_support_record",
     "schema_stage_for_cli",
     "strict_load_yaml",
