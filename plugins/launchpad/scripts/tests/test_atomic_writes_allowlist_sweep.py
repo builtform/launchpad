@@ -173,6 +173,10 @@ def test_allowlist_constant_byte_for_byte_match() -> None:
         "plugins/launchpad/scripts/lp_pick_stack/decision_writer.py",
         # v2.1 Codex PR #50 Slice E: pre-squash audit-log filter.
         "plugins/launchpad/scripts/plugin-restamp-redact-wip.py",
+        # Codex compatibility support evidence, fixture docs, manifest,
+        # and sealed package projection.
+        "plugins/launchpad/scripts/plugin-codex-support.py",
+        "plugins/launchpad/scripts/plugin-codex-manifest.py",
     )
     assert allowed == expected, (
         f"ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS drifted from expected:\n"

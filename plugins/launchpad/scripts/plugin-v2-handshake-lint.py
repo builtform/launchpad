@@ -913,6 +913,10 @@ ATOMIC_WRITE_REPLACE_ALLOWED_CALLERS = (
     # before squash). Single atomic_write_replace at the end of the
     # filter pipeline.
     "plugins/launchpad/scripts/plugin-restamp-redact-wip.py",
+    # LaunchPad Codex packaging uses the shared primitive for deterministic,
+    # no-symlink manifest, evidence, documentation-fixture, and package writes.
+    "plugins/launchpad/scripts/plugin-codex-support.py",
+    "plugins/launchpad/scripts/plugin-codex-manifest.py",
 )
 # v2.1 Codex PR #50 post-review P1: `atomic_write_replace_batch` is the
 # two-phase shape introduced for `RendererBase.write_batch()`. It uses

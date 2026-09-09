@@ -115,6 +115,7 @@ def _runtime(stage: str = "inventory", **updates: object) -> dict[str, object]:
         "runtime_payload_digest": None if stage == "inventory" else "d" * 64,
         "root_ids": ["lp-alpha"],
         "nodes": [_node()],
+        "runtime_files": [],
         "support": [_support()],
         "qualification_ids": ["qual-1"] if stage == "release" else [],
         "generated_slots": ["codex/support-evidence.json"],
@@ -238,6 +239,32 @@ def test_protocol_rejects_unknown_root_field(tmp_path: Path) -> None:
     candidate = tmp_path / "unknown.json"
     candidate.write_text(json.dumps(data), encoding="utf-8")
     _assert_code("PROTOCOL_UNKNOWN_FIELD", lambda: protocol.load_protocol(candidate))
+
+
+@pytest.mark.parametrize(
+    ("mutate", "code"),
+    [
+        (lambda value: value["packaging"]["generated_slots"].reverse(), "PROTOCOL_FILE_INVALID"),
+        (
+            lambda value: value["packaging"]["manifest_host_fields"].update(
+                {"hooks": "./hooks/hooks.json"}
+            ),
+            "PROTOCOL_UNKNOWN_FIELD",
+        ),
+        (
+            lambda value: value["packaging"]["manifest_shared_fields"].remove(
+                "version"
+            ),
+            "PROTOCOL_FILE_INVALID",
+        ),
+    ],
+)
+def test_packaging_authority_fails_closed(tmp_path: Path, mutate, code: str) -> None:
+    data = json.loads(PROTOCOL_PATH.read_text(encoding="utf-8"))
+    mutate(data)
+    candidate = tmp_path / "packaging.json"
+    candidate.write_text(json.dumps(data), encoding="utf-8")
+    _assert_code(code, lambda: protocol.load_protocol(candidate))
 
 
 def test_cross_limit_inequalities_are_frozen() -> None:
@@ -520,6 +547,25 @@ def test_node_support_qualification_and_digest_records_normalize() -> None:
         )
     )
     assert support.base_support_state == "blocked"
+    runtime_file = protocol.normalize_runtime_file_record(
+        {"path": "commands/lp-alpha.md", "digest": "a" * 64, "size": 12}
+    )
+    assert runtime_file.path == "commands/lp-alpha.md"
+    predicate = protocol.normalize_compatibility_predicate_record(
+        {
+            "predicate_id": "lp-alpha-default",
+            "resource_id": "lp-alpha",
+            "host": "*",
+            "operating_system": "*",
+            "required_capabilities": [],
+            "tool_versions": {},
+            "base_support_state": "blocked",
+            "blocked_reason_codes": ["CAPABILITY_BLOCKED"],
+            "fallback": "inspect_only",
+            "qualification_ids": [],
+        }
+    )
+    assert predicate.resource_id == "lp-alpha"
     availability = protocol.normalize_availability_record(
         {
             "resource_id": "lp-alpha",

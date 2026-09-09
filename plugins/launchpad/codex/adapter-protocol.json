@@ -179,6 +179,33 @@
       "storage": "detached_attestation_only"
     }
   },
+  "packaging": {
+    "manifest_shared_fields": [
+      "author",
+      "description",
+      "homepage",
+      "keywords",
+      "license",
+      "name",
+      "repository",
+      "version"
+    ],
+    "manifest_host_fields": {
+      "skills": "./codex/skills/"
+    },
+    "runtime_helpers": [
+      "codex/adapter-protocol.json",
+      "scripts/plugin-codex-manifest.py",
+      "scripts/plugin-codex-protocol.py",
+      "scripts/plugin-codex-resolver.py",
+      "scripts/plugin-codex-support.py"
+    ],
+    "generated_slots": ["README.md", "codex/support-evidence.json", "docs/guides/HOW_IT_WORKS.md"],
+    "documentation_regions": {
+      "README.md": "codex-beta-summary",
+      "docs/guides/HOW_IT_WORKS.md": "codex-support-matrix"
+    }
+  },
   "record_schemas": {
     "direct_edges": {
       "required": [
@@ -217,6 +244,23 @@
     "support_record": {
       "required": ["resource_id", "base_support_state", "blocked_reason_codes", "fallback"]
     },
+    "runtime_file_record": {
+      "required": ["path", "digest", "size"]
+    },
+    "compatibility_predicate_record": {
+      "required": [
+        "predicate_id",
+        "resource_id",
+        "host",
+        "operating_system",
+        "required_capabilities",
+        "tool_versions",
+        "base_support_state",
+        "blocked_reason_codes",
+        "fallback",
+        "qualification_ids"
+      ]
+    },
     "availability_record": {
       "required": ["resource_id", "applicability", "effective_availability", "reason_codes"]
     },
@@ -239,6 +283,7 @@
         "runtime_payload_digest",
         "root_ids",
         "nodes",
+        "runtime_files",
         "support",
         "qualification_ids",
         "generated_slots"

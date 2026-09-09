@@ -103,6 +103,7 @@ class ProtocolContract:
     classes: Mapping[str, frozenset[str]]
     cli_schema_spelling: Mapping[str, str]
     digest_domains: Mapping[str, Mapping[str, object]]
+    packaging: Mapping[str, object]
     record_schemas: Mapping[str, tuple[str, ...]]
     defaults: Mapping[str, int]
     minimums: Mapping[str, int]
@@ -199,6 +200,27 @@ class SupportRecord:
 
 
 @dataclass(frozen=True)
+class RuntimeFileRecord:
+    path: str
+    digest: str
+    size: int
+
+
+@dataclass(frozen=True)
+class CompatibilityPredicateRecord:
+    predicate_id: str
+    resource_id: str
+    host: str
+    operating_system: str
+    required_capabilities: tuple[str, ...]
+    tool_versions: Mapping[str, str]
+    base_support_state: str
+    blocked_reason_codes: tuple[str, ...]
+    fallback: str
+    qualification_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class AvailabilityRecord:
     resource_id: str
     applicability: str
@@ -225,6 +247,7 @@ class RuntimeRecord:
     runtime_payload_digest: str | None
     root_ids: tuple[str, ...]
     nodes: tuple[NodeRecord, ...]
+    runtime_files: tuple[RuntimeFileRecord, ...]
     support: tuple[SupportRecord, ...]
     qualification_ids: tuple[str, ...]
     generated_slots: tuple[str, ...]
@@ -540,6 +563,7 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
         "classes",
         "cli_schema_spelling",
         "digest_domains",
+        "packaging",
         "record_schemas",
         "defaults",
         "minimums",
@@ -632,6 +656,8 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
         "capability_summary",
         "node_record",
         "support_record",
+        "runtime_file_record",
+        "compatibility_predicate_record",
         "availability_record",
         "qualification_record",
         "runtime_record",
@@ -723,6 +749,102 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
         required=("runtime_payload_digest", "evidence_digest", "artifact_digest"),
         context="digest_domains",
     )
+    packaging_raw = _as_mapping(root["packaging"], "packaging")
+    _exact_keys(
+        packaging_raw,
+        allowed=(
+            "manifest_shared_fields",
+            "manifest_host_fields",
+            "runtime_helpers",
+            "generated_slots",
+            "documentation_regions",
+        ),
+        required=(
+            "manifest_shared_fields",
+            "manifest_host_fields",
+            "runtime_helpers",
+            "generated_slots",
+            "documentation_regions",
+        ),
+        context="packaging",
+    )
+    manifest_shared_fields = _string_tuple(
+        packaging_raw["manifest_shared_fields"],
+        "packaging.manifest_shared_fields",
+    )
+    if set(manifest_shared_fields) != {
+        "author",
+        "description",
+        "homepage",
+        "keywords",
+        "license",
+        "name",
+        "repository",
+        "version",
+    }:
+        raise ProtocolValidationError(
+            "PROTOCOL_FILE_INVALID", "manifest shared-field authority differs"
+        )
+    runtime_helpers = _string_tuple(
+        packaging_raw["runtime_helpers"], "packaging.runtime_helpers"
+    )
+    generated_slots = _string_tuple(
+        packaging_raw["generated_slots"], "packaging.generated_slots"
+    )
+    for name, values in (
+        ("manifest_shared_fields", manifest_shared_fields),
+        ("runtime_helpers", runtime_helpers),
+        ("generated_slots", generated_slots),
+    ):
+        if values != tuple(sorted(values)):
+            raise ProtocolValidationError(
+                "PROTOCOL_FILE_INVALID", f"packaging.{name} must be sorted"
+            )
+    manifest_host_fields = _as_mapping(
+        packaging_raw["manifest_host_fields"], "packaging.manifest_host_fields"
+    )
+    _exact_keys(
+        manifest_host_fields,
+        allowed=("skills",),
+        required=("skills",),
+        context="packaging.manifest_host_fields",
+    )
+    if manifest_host_fields["skills"] != "./codex/skills/":
+        raise ProtocolValidationError(
+            "PROTOCOL_FILE_INVALID", "Codex skill discovery path differs"
+        )
+    documentation_regions = _as_mapping(
+        packaging_raw["documentation_regions"], "packaging.documentation_regions"
+    )
+    _exact_keys(
+        documentation_regions,
+        allowed=("README.md", "docs/guides/HOW_IT_WORKS.md"),
+        required=("README.md", "docs/guides/HOW_IT_WORKS.md"),
+        context="packaging.documentation_regions",
+    )
+    if set(runtime_helpers) & set(generated_slots):
+        raise ProtocolValidationError(
+            "PROTOCOL_FILE_INVALID", "runtime helpers overlap generated slots"
+        )
+    packaging = MappingProxyType(
+        {
+            "manifest_shared_fields": manifest_shared_fields,
+            "manifest_host_fields": MappingProxyType(
+                {
+                    key: _as_string(value, f"packaging.manifest_host_fields.{key}")
+                    for key, value in manifest_host_fields.items()
+                }
+            ),
+            "runtime_helpers": runtime_helpers,
+            "generated_slots": generated_slots,
+            "documentation_regions": MappingProxyType(
+                {
+                    key: _as_string(value, f"packaging.documentation_regions.{key}")
+                    for key, value in documentation_regions.items()
+                }
+            ),
+        }
+    )
     duration_raw = _as_mapping(root["duration_contract"], "duration_contract")
     contract = ProtocolContract(
         path=path,
@@ -758,6 +880,7 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
                 for key, value in digest_raw.items()
             }
         ),
+        packaging=packaging,
         record_schemas=MappingProxyType(record_schemas),
         defaults=integer_mapping("defaults"),
         minimums=integer_mapping("minimums"),
@@ -1404,6 +1527,66 @@ def normalize_support_record(
     )
 
 
+def normalize_runtime_file_record(
+    value: object, contract: ProtocolContract | None = None
+) -> RuntimeFileRecord:
+    protocol = contract or load_protocol()
+    mapping = _record_mapping(value, "runtime_file_record", protocol)
+    size = _as_int(mapping["size"], "runtime file size")
+    if size < 0:
+        raise _error(protocol, "RECORD_INVALID", "runtime file size is negative")
+    return RuntimeFileRecord(
+        path=_relative_path(mapping["path"], "runtime file path", protocol),
+        digest=_digest(mapping["digest"], "runtime file digest", protocol),
+        size=size,
+    )
+
+
+def normalize_compatibility_predicate_record(
+    value: object, contract: ProtocolContract | None = None
+) -> CompatibilityPredicateRecord:
+    protocol = contract or load_protocol()
+    mapping = _record_mapping(value, "compatibility_predicate_record", protocol)
+    capabilities = _normalize_values(
+        mapping["required_capabilities"], "required_capabilities", protocol
+    )
+    if set(capabilities) - protocol.capability_ids:
+        raise _error(protocol, "RECORD_INVALID", "predicate capability is unknown")
+    versions_raw = _as_mapping(mapping["tool_versions"], "tool_versions")
+    versions = MappingProxyType(
+        {
+            _as_string(key, "tool name"): _as_string(version, "tool version")
+            for key, version in sorted(versions_raw.items())
+        }
+    )
+    reasons = _normalize_values(
+        mapping["blocked_reason_codes"], "blocked_reason_codes", protocol
+    )
+    if set(reasons) - set(protocol.errors):
+        raise _error(protocol, "RECORD_INVALID", "unknown blocked reason code")
+    state = protocol.require_enum("base_support_state", mapping["base_support_state"])
+    if (state == "supported") == bool(reasons):
+        raise _error(
+            protocol,
+            "RECORD_INVALID",
+            "predicate support state and blocked reasons disagree",
+        )
+    return CompatibilityPredicateRecord(
+        predicate_id=_record_id(mapping["predicate_id"], "predicate_id", protocol),
+        resource_id=_record_id(mapping["resource_id"], "resource_id", protocol),
+        host=_as_string(mapping["host"], "host"),
+        operating_system=_as_string(mapping["operating_system"], "operating_system"),
+        required_capabilities=capabilities,
+        tool_versions=versions,
+        base_support_state=state,
+        blocked_reason_codes=reasons,
+        fallback=protocol.require_enum("fallback", mapping["fallback"]),
+        qualification_ids=_normalize_values(
+            mapping["qualification_ids"], "qualification_ids", protocol, names=True
+        ),
+    )
+
+
 def normalize_availability_record(
     value: object, contract: ProtocolContract | None = None
 ) -> AvailabilityRecord:
@@ -1493,10 +1676,22 @@ def normalize_runtime_record(
         )
 
     nodes_value = mapping["nodes"]
+    runtime_files_value = mapping["runtime_files"]
     support_value = mapping["support"]
-    if not isinstance(nodes_value, list) or not isinstance(support_value, list):
-        raise _error(protocol, "RECORD_INVALID", "nodes and support must be lists")
+    if (
+        not isinstance(nodes_value, list)
+        or not isinstance(runtime_files_value, list)
+        or not isinstance(support_value, list)
+    ):
+        raise _error(
+            protocol,
+            "RECORD_INVALID",
+            "nodes, runtime_files, and support must be lists",
+        )
     nodes = tuple(normalize_node_record(item, protocol) for item in nodes_value)
+    runtime_files = tuple(
+        normalize_runtime_file_record(item, protocol) for item in runtime_files_value
+    )
     support = tuple(normalize_support_record(item, protocol) for item in support_value)
     if (
         len(nodes)
@@ -1505,6 +1700,7 @@ def normalize_runtime_record(
         raise _error(protocol, "LIMIT_EXCEEDED", "runtime node table is too large")
     node_ids = [node.id for node in nodes]
     support_ids = [item.resource_id for item in support]
+    runtime_paths = [item.path for item in runtime_files]
     if node_ids != sorted(node_ids) or len(node_ids) != len(set(node_ids)):
         raise _error(
             protocol, "RECORD_INVALID", "node records must be unique and sorted"
@@ -1512,6 +1708,12 @@ def normalize_runtime_record(
     if support_ids != sorted(support_ids) or len(support_ids) != len(set(support_ids)):
         raise _error(
             protocol, "RECORD_INVALID", "support records must be unique and sorted"
+        )
+    if runtime_paths != sorted(runtime_paths) or len(runtime_paths) != len(
+        set(runtime_paths)
+    ):
+        raise _error(
+            protocol, "RECORD_INVALID", "runtime files must be unique and sorted"
         )
     root_ids = _normalize_values(mapping["root_ids"], "root_ids", protocol, names=True)
     if not set(root_ids).issubset(node_ids):
@@ -1539,6 +1741,7 @@ def normalize_runtime_record(
         runtime_payload_digest=runtime_digest,
         root_ids=root_ids,
         nodes=nodes,
+        runtime_files=runtime_files,
         support=support,
         qualification_ids=qualification_ids,
         generated_slots=generated_slots,
@@ -1818,6 +2021,7 @@ __all__ = [
     "AvailabilityRecord",
     "BoundedLoop",
     "CapabilitySummary",
+    "CompatibilityPredicateRecord",
     "DigestRecord",
     "DirectEdges",
     "NodeRecord",
@@ -1831,6 +2035,7 @@ __all__ = [
     "ResolverResourceRecord",
     "ResolverSourceRecord",
     "RuntimeRecord",
+    "RuntimeFileRecord",
     "SupportRecord",
     "detect_duplicate_protocol_constants",
     "enforce_limit",
@@ -1841,6 +2046,7 @@ __all__ = [
     "normalize_digest_record",
     "normalize_agent_scope_record",
     "normalize_availability_record",
+    "normalize_compatibility_predicate_record",
     "normalize_document_metadata",
     "normalize_metadata",
     "normalize_node_record",
@@ -1849,6 +2055,7 @@ __all__ = [
     "normalize_project_selection_record",
     "normalize_qualification_record",
     "normalize_runtime_record",
+    "normalize_runtime_file_record",
     "normalize_resolver_resource_record",
     "normalize_resolver_source_record",
     "normalize_support_record",

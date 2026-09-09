@@ -22,7 +22,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
-from typing import Any, Final
+from typing import Any, Final, cast
 
 from safe_run import safe_run
 
@@ -598,6 +598,55 @@ def _leaf_digest(plugin_root: Path, entry: CorpusEntry, family: str, value: str)
     return _sha256(path.read_bytes())
 
 
+def _aggregate_capability_records(
+    records: Sequence[Mapping[str, object]],
+) -> dict[str, object]:
+    """Conservatively combine direct summaries using the protocol vocabulary."""
+    required: set[str] = set()
+    mutations: set[str] = set()
+    interactions: list[str] = []
+    write_scopes: set[str] = set()
+    tool_profiles: list[str] = []
+    fallbacks: set[str] = set()
+    external_data_egress = False
+    for record in records:
+        required.update(cast(Sequence[str], record["required"]))
+        mutations.add(cast(str, record["mutation"]))
+        interactions.append(cast(str, record["interaction"]))
+        write_scopes.update(cast(Sequence[str], record["write_scopes"]))
+        tool_profiles.append(cast(str, record["tool_profile"]))
+        fallbacks.add(cast(str, record["fallback"]))
+        external_data_egress = external_data_egress or cast(
+            bool, record["external_data_egress"]
+        )
+    effects = set().union(*(_MUTATION_EFFECTS[item] for item in mutations))
+    if "external_state" in effects and effects & {"project_files", "repository_state"}:
+        mutation = "project_and_external"
+    elif "external_state" in effects:
+        mutation = "external_state"
+    elif "repository_state" in effects:
+        mutation = "repository_state"
+    elif "project_files" in effects:
+        mutation = "project_files"
+    else:
+        mutation = "none"
+    if "none" in fallbacks:
+        fallback = "none"
+    elif "inspect_only" in fallbacks:
+        fallback = "inspect_only"
+    else:
+        fallback = "read_only_manual"
+    return {
+        "required": sorted(required),
+        "mutation": mutation,
+        "interaction": max(interactions, key=_INTERACTION_RANK.__getitem__),
+        "external_data_egress": external_data_egress,
+        "write_scopes": sorted(write_scopes),
+        "tool_profile": max(tool_profiles, key=_TOOL_PROFILE_RANK.__getitem__),
+        "fallback": fallback,
+    }
+
+
 def build_inventory(
     entries: Sequence[CorpusEntry], plugin_root: Path = PLUGIN_ROOT
 ) -> Any:
@@ -606,6 +655,7 @@ def build_inventory(
     by_id = {entry.resource_id: entry for entry in entries}
     state: dict[str, int] = {}
     aggregate: dict[str, str] = {}
+    aggregate_capabilities: dict[str, dict[str, object]] = {}
 
     def visit(resource_id: str) -> str:
         marker = state.get(resource_id, 0)
@@ -620,6 +670,12 @@ def build_inventory(
         child_digests = [
             (target, visit(target)) for target in _component_targets(entry)
         ]
+        aggregate_capabilities[resource_id] = _aggregate_capability_records(
+            [
+                _capability_record(entry.metadata.capabilities),
+                *(aggregate_capabilities[target] for target, _digest in child_digests),
+            ]
+        )
         leaf_digests: list[tuple[str, str, str]] = []
         direct = entry.metadata.direct
         for family, values in (
@@ -659,7 +715,7 @@ def build_inventory(
                 "metadata_digest": _sha256(_canonical_json(metadata)),
                 "aggregate_digest": aggregate[entry.resource_id],
                 "direct": metadata["direct"],
-                "capabilities": metadata["capabilities"],
+                "capabilities": aggregate_capabilities[entry.resource_id],
             }
         )
     root_ids = sorted(entry.resource_id for entry in entries if entry.user_invocable)
@@ -671,6 +727,7 @@ def build_inventory(
         "runtime_payload_digest": None,
         "root_ids": root_ids,
         "nodes": nodes,
+        "runtime_files": [],
         "support": [],
         "qualification_ids": [],
         "generated_slots": [],

@@ -166,3 +166,14 @@ def test_inventory_serialization_round_trips_through_protocol(corpus, audit) -> 
     serialized = corpus.inventory_as_dict(audit.inventory)
     normalized = corpus._PROTOCOL.normalize_runtime_record(serialized)
     assert normalized == audit.inventory
+
+
+def test_node_capability_summaries_include_direct_children(audit) -> None:
+    nodes = {node.id: node for node in audit.inventory.nodes}
+    command = nodes["lp-harden-plan"]
+    child_ids = (*command.direct.commands, *command.direct.skills, *command.direct.agents)
+    child_requirements = {
+        capability for child_id in child_ids for capability in nodes[child_id].capabilities.required
+    }
+    assert child_requirements.issubset(command.capabilities.required)
+    assert command.capabilities.tool_profile == "effectful"
