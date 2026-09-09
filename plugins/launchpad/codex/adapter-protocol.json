@@ -58,6 +58,19 @@
       "required_capability": "host_presentation"
     }
   },
+  "router": {
+    "entry_skill": "lp",
+    "command_prefix": "lp-",
+    "reserved_tokens": ["help", "lp", "skill"],
+    "zero_mutation_required_capabilities": [
+      "detached_digest_attestation",
+      "explicit_invocation_provenance",
+      "first_executable_verification",
+      "prompt_free_shell_deny",
+      "serialized_payload_mediation",
+      "structured_arguments"
+    ]
+  },
   "metadata_schema": {
     "top_level_fields": [
       "name",
@@ -195,9 +208,11 @@
     },
     "runtime_helpers": [
       "codex/adapter-protocol.json",
+      "codex/skills/lp/SKILL.md",
       "scripts/plugin-codex-manifest.py",
       "scripts/plugin-codex-protocol.py",
       "scripts/plugin-codex-resolver.py",
+      "scripts/plugin-codex-router.py",
       "scripts/plugin-codex-support.py"
     ],
     "generated_slots": ["README.md", "codex/support-evidence.json", "docs/guides/HOW_IT_WORKS.md"],
@@ -387,6 +402,7 @@
     "estimated_input_tokens": 1000000,
     "estimated_output_tokens": 250000,
     "serialized_message_bytes": 8388608,
+    "router_tokens": 1024,
     "aggregate_outbound_bytes": 67108864,
     "diagnostic_field_characters": 512,
     "log_events_per_run": 4096,
@@ -460,6 +476,7 @@
     "SOURCE_TYPE_INVALID": "private_security",
     "CATALOG_INVALID": "private_security",
     "INVOCATION_COLLISION": "private_security",
+    "INVOCATION_GRAMMAR_INVALID": "public_bug",
     "INVOCATION_PROVENANCE_UNAVAILABLE": "private_security",
     "ARGUMENT_TAIL_UNAVAILABLE": "private_security",
     "INTERACTION_ATTESTATION_UNAVAILABLE": "private_security",
@@ -477,6 +494,7 @@
     "MINIMUM_HOST_VERSION_UNDECLARED": "public_bug",
     "DESKTOP_CONFORMANCE_UNAVAILABLE": "public_bug",
     "DEPENDENCY_CLOSURE_UNPROVEN": "private_security",
+    "SUPPORT_EVIDENCE_UNAVAILABLE": "private_security",
     "SKILL_COLLISION_PRECEDENCE_UNSPECIFIED": "private_security",
     "HOST_NO_AUTHENTICATED_EXPLICIT_INVOCATION_PROVENANCE": "private_security",
     "HOST_NO_LOSSLESS_AUTHENTICATED_ARGUMENT_TAIL": "private_security",

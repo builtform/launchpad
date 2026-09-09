@@ -966,7 +966,13 @@ class SecureResolver:
         builtins = catalog.skills if kind == "skill" else catalog.agents
         projects = catalog.project_skills if kind == "skill" else catalog.project_agents
         if identifier in builtins:
-            return builtins[identifier]
+            record = builtins[identifier]
+            if kind == "skill" and not internal and not record.user_invocable:
+                _fail(
+                    "SKILL_NOT_USER_INVOCABLE",
+                    "built-in skill metadata forbids direct invocation",
+                )
+            return record
         record = projects.get(identifier)
         if record is None:
             _fail(
@@ -1384,9 +1390,12 @@ def _b64_encode(value: bytes) -> str:
 def _b64_decode(value: str, *, error_code: str = "APPROVAL_INVALID") -> bytes:
     padding = "=" * (-len(value) % 4)
     try:
-        return base64.urlsafe_b64decode((value + padding).encode("ascii"))
+        decoded = base64.urlsafe_b64decode((value + padding).encode("ascii"))
     except (UnicodeEncodeError, ValueError, binascii.Error):
         _fail(error_code, "approval token encoding is invalid")
+    if not hmac.compare_digest(_b64_encode(decoded), value):
+        _fail(error_code, "approval token encoding is not canonical")
+    return decoded
 
 
 class ProjectTrustAuthority:

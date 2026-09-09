@@ -178,6 +178,26 @@ def test_protocol_contract_has_no_per_command_aliases() -> None:
     assert not any(key.startswith("lp-") for key in data["canonical_dialect"])
 
 
+def test_router_grammar_and_zero_mutation_boundary_are_protocol_owned() -> None:
+    contract = protocol.load_protocol()
+    assert contract.router == {
+        "entry_skill": "lp",
+        "command_prefix": "lp-",
+        "reserved_tokens": ("help", "lp", "skill"),
+        "zero_mutation_required_capabilities": (
+            "detached_digest_attestation",
+            "explicit_invocation_provenance",
+            "first_executable_verification",
+            "prompt_free_shell_deny",
+            "serialized_payload_mediation",
+            "structured_arguments",
+        ),
+    }
+    assert contract.limits["router_tokens"] == 1024
+    assert "codex/skills/lp/SKILL.md" in contract.packaging["runtime_helpers"]
+    assert "scripts/plugin-codex-router.py" in contract.packaging["runtime_helpers"]
+
+
 def test_test_candidate_spelling_is_explicit_and_one_way() -> None:
     assert protocol.schema_stage_for_cli("test-candidate") == "test_candidate"
     _assert_code(
@@ -255,6 +275,16 @@ def test_protocol_rejects_unknown_root_field(tmp_path: Path) -> None:
             lambda value: value["packaging"]["manifest_shared_fields"].remove(
                 "version"
             ),
+            "PROTOCOL_FILE_INVALID",
+        ),
+        (
+            lambda value: value["router"]["reserved_tokens"].remove("help"),
+            "PROTOCOL_FILE_INVALID",
+        ),
+        (
+            lambda value: value["router"][
+                "zero_mutation_required_capabilities"
+            ].append("unknown-capability"),
             "PROTOCOL_FILE_INVALID",
         ),
     ],

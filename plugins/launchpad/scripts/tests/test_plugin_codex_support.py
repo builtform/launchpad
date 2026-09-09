@@ -163,6 +163,42 @@ def test_specific_predicate_selection_and_overlay_are_monotone(candidate) -> Non
     assert raised.value.code == "CAPABILITY_BLOCKED"
 
 
+def test_help_diagnostics_include_support_requirements_and_fixed_bounds(candidate) -> None:
+    contract = support._PROTOCOL.load_protocol()
+    hydrate = support.build_entry_diagnostics(
+        candidate,
+        "lp-hydrate",
+        host="fixture",
+        operating_system="darwin",
+        capabilities=sorted(contract.capability_ids),
+        tool_versions={},
+    )
+    assert hydrate.base_support_state == "blocked"
+    assert hydrate.reason_codes == ("WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN",)
+    assert hydrate.mutation == "none"
+    assert hydrate.maximum_child_starts == 0
+    assert hydrate.maximum_workers == 0
+    assert hydrate.authoritative_cost_available is False
+    assert set(contract.router["zero_mutation_required_capabilities"]).issubset(
+        hydrate.required_capabilities
+    )
+
+    review = support.build_entry_diagnostics(
+        candidate,
+        "lp-review",
+        host="fixture",
+        operating_system="darwin",
+        capabilities=sorted(contract.capability_ids),
+        tool_versions={},
+    )
+    assert review.maximum_child_starts == contract.limits["child_starts"]
+    assert review.maximum_workers == contract.limits["worker_ceiling"]
+    assert (
+        review.maximum_wave_duration_seconds
+        == contract.limits["wave_timeout_seconds"]
+    )
+
+
 def test_render_docs_write_changes_only_marked_regions_and_check_writes_nothing(
     candidate, tmp_path: Path
 ) -> None:

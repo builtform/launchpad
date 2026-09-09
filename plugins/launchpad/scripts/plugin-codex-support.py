@@ -185,6 +185,33 @@ class SupportBundle:
     qualifications: tuple[Any, ...]
 
 
+@dataclass(frozen=True)
+class EntryDiagnostics:
+    """Bounded help data derived from one normalized support bundle."""
+
+    resource_id: str
+    kind: str
+    base_support_state: str
+    effective_availability: str
+    reason_codes: tuple[str, ...]
+    required_capabilities: tuple[str, ...]
+    mutation: str
+    interaction: str
+    external_data_egress: bool
+    tool_profile: str
+    fallback: str
+    qualification_ids: tuple[str, ...]
+    authoritative_cost_available: bool
+    estimated_input_tokens_ceiling: int
+    estimated_output_tokens_ceiling: int
+    maximum_child_starts: int
+    maximum_workers: int
+    maximum_wave_duration_seconds: int
+    maximum_run_duration_seconds: int
+    recovery: str
+    reporting_class: str
+
+
 def bundle_as_dict(bundle: SupportBundle) -> dict[str, object]:
     value = _jsonable(bundle)
     if not isinstance(value, dict):
@@ -350,6 +377,11 @@ def _blocked_predicates(runtime: Any, protocol: Any) -> tuple[Any, ...]:
     records = []
     for resource_id in runtime.root_ids:
         node = nodes[resource_id]
+        required_capabilities = set(node.capabilities.required)
+        if node.capabilities.mutation == "none":
+            required_capabilities.update(
+                protocol.router["zero_mutation_required_capabilities"]
+            )
         records.append(
             _PROTOCOL.normalize_compatibility_predicate_record(
                 {
@@ -357,7 +389,7 @@ def _blocked_predicates(runtime: Any, protocol: Any) -> tuple[Any, ...]:
                     "resource_id": resource_id,
                     "host": "*",
                     "operating_system": "*",
-                    "required_capabilities": list(node.capabilities.required),
+                    "required_capabilities": sorted(required_capabilities),
                     "tool_versions": {},
                     "base_support_state": "blocked",
                     "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
@@ -560,7 +592,7 @@ def verify_runtime_set(bundle: SupportBundle, plugin_root: Path) -> None:
         _fail("INTEGRITY_MISMATCH", "generated package slots changed")
 
 
-def select_compatibility_predicate(
+def _select_compatibility_rule(
     bundle: SupportBundle,
     resource_id: str,
     *,
@@ -568,7 +600,7 @@ def select_compatibility_predicate(
     operating_system: str,
     capabilities: Sequence[str],
     tool_versions: Mapping[str, str],
-) -> Any:
+) -> tuple[Any, frozenset[str]]:
     candidates = []
     available = set(capabilities)
     for item in bundle.compatibility_predicates:
@@ -597,7 +629,26 @@ def select_compatibility_predicate(
     best = [item for item in candidates if item[0] == best_score]
     if len(best) != 1:
         _fail("RECORD_INVALID", "compatible support predicate is ambiguous")
-    predicate, missing = best[0][1], best[0][2]
+    return best[0][1], frozenset(best[0][2])
+
+
+def select_compatibility_predicate(
+    bundle: SupportBundle,
+    resource_id: str,
+    *,
+    host: str,
+    operating_system: str,
+    capabilities: Sequence[str],
+    tool_versions: Mapping[str, str],
+) -> Any:
+    predicate, missing = _select_compatibility_rule(
+        bundle,
+        resource_id,
+        host=host,
+        operating_system=operating_system,
+        capabilities=capabilities,
+        tool_versions=tool_versions,
+    )
     if missing:
         return _PROTOCOL.normalize_availability_record(
             {
@@ -623,6 +674,90 @@ def select_compatibility_predicate(
             "effective_availability": "available",
             "reason_codes": [],
         }
+    )
+
+
+def build_entry_diagnostics(
+    bundle: SupportBundle,
+    resource_id: str,
+    *,
+    host: str,
+    operating_system: str,
+    capabilities: Sequence[str],
+    tool_versions: Mapping[str, str],
+    contract: Any | None = None,
+) -> EntryDiagnostics:
+    """Build help data without retraversing or reinterpreting definitions."""
+    protocol = contract or _PROTOCOL.load_protocol()
+    nodes = {item.id: item for item in bundle.runtime.nodes}
+    support = {item.resource_id: item for item in bundle.runtime.support}
+    node = nodes.get(resource_id)
+    record = support.get(resource_id)
+    if node is None or record is None or resource_id not in bundle.runtime.root_ids:
+        _fail(
+            "SUPPORT_EVIDENCE_UNAVAILABLE",
+            "resource is absent from normalized support evidence",
+        )
+    predicate, _missing = _select_compatibility_rule(
+        bundle,
+        resource_id,
+        host=host,
+        operating_system=operating_system,
+        capabilities=capabilities,
+        tool_versions=tool_versions,
+    )
+    availability = select_compatibility_predicate(
+        bundle,
+        resource_id,
+        host=host,
+        operating_system=operating_system,
+        capabilities=capabilities,
+        tool_versions=tool_versions,
+    )
+    required = tuple(
+        sorted(set(node.capabilities.required) | set(predicate.required_capabilities))
+    )
+    has_children = "generic_subagents" in required
+    if record.fallback == "inspect_only":
+        recovery = (
+            "Inspect diagnostics only. Use a supported host for workflow execution."
+        )
+    elif record.fallback == "read_only_manual":
+        recovery = "Use only the qualified read-only manual fallback."
+    else:
+        recovery = "Use a supported host for workflow execution."
+    reporting_class = (
+        "private_security"
+        if any(
+            protocol.reporting_class_for_error(code) == "private_security"
+            for code in availability.reason_codes
+        )
+        else "public_bug"
+    )
+    return EntryDiagnostics(
+        resource_id=resource_id,
+        kind=node.kind,
+        base_support_state=record.base_support_state,
+        effective_availability=availability.effective_availability,
+        reason_codes=availability.reason_codes,
+        required_capabilities=required,
+        mutation=node.capabilities.mutation,
+        interaction=node.capabilities.interaction,
+        external_data_egress=node.capabilities.external_data_egress,
+        tool_profile=node.capabilities.tool_profile,
+        fallback=record.fallback,
+        qualification_ids=predicate.qualification_ids,
+        authoritative_cost_available=False,
+        estimated_input_tokens_ceiling=protocol.limits["estimated_input_tokens"],
+        estimated_output_tokens_ceiling=protocol.limits["estimated_output_tokens"],
+        maximum_child_starts=(protocol.limits["child_starts"] if has_children else 0),
+        maximum_workers=(protocol.limits["worker_ceiling"] if has_children else 0),
+        maximum_wave_duration_seconds=(
+            protocol.limits["wave_timeout_seconds"] if has_children else 0
+        ),
+        maximum_run_duration_seconds=protocol.limits["wall_clock_seconds"],
+        recovery=recovery,
+        reporting_class=reporting_class,
     )
 
 

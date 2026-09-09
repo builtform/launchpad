@@ -20,3 +20,16 @@ possible. It does not invoke a model, write to the repository, or touch
 The local `_sections` plan is the only authoritative Section 1 capability
 record. The runner's JSON output is disposable test evidence, not a support
 matrix or a second status ledger.
+
+## Section 6 router smoke
+
+`run_router_smoke.py` projects the exact Section 6 runtime set into a temporary
+local marketplace, installs it with isolated Codex state, confirms that Codex
+advertises exactly the packaged `launchpad:lp` skill, and removes the plugin and
+marketplace registration. It does not invoke a model or claim that bare `$lp`
+has authenticated argument routing.
+
+```bash
+smoke_home="$(mktemp -d /private/tmp/lp-codex-section6.XXXXXX)"
+python run_router_smoke.py --codex-home "$smoke_home"
+```

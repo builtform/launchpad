@@ -235,6 +235,16 @@ def test_project_extensions_are_quarantined_internal_and_cannot_shadow_builtins(
     assert project_agent.origin == "project"
 
 
+def test_public_resolution_honors_builtin_user_invocable_metadata() -> None:
+    live = resolver_module.SecureResolver()
+    _assert_code(
+        "SKILL_NOT_USER_INVOCABLE",
+        lambda: live.resolve("skill", "lp-tasks", internal=False),
+    )
+    allowed = live.resolve("skill", "lp-creating-agents", internal=False)
+    assert allowed.user_invocable is True
+
+
 def test_duplicate_project_definitions_fail_the_tier(fixture_resolver, tmp_path: Path) -> None:
     resolver, _root = fixture_resolver
     project = _make_project(tmp_path)

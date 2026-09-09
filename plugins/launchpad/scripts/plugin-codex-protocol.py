@@ -98,6 +98,7 @@ class ProtocolContract:
     component_kinds: frozenset[str]
     project_extension_roster_fields: tuple[str, ...]
     canonical_dialect: Mapping[str, Mapping[str, str]]
+    router: Mapping[str, object]
     metadata_schema: Mapping[str, tuple[str, ...]]
     capability_ids: frozenset[str]
     classes: Mapping[str, frozenset[str]]
@@ -558,6 +559,7 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
         "component_kinds",
         "project_extension_roster_fields",
         "canonical_dialect",
+        "router",
         "metadata_schema",
         "capability_ids",
         "classes",
@@ -735,6 +737,41 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
             required=("source_construct", "typed_operation", "required_capability"),
             context=f"canonical_dialect.{dialect_name}",
         )
+    router_raw = _as_mapping(root["router"], "router")
+    _exact_keys(
+        router_raw,
+        allowed=(
+            "entry_skill",
+            "command_prefix",
+            "reserved_tokens",
+            "zero_mutation_required_capabilities",
+        ),
+        required=(
+            "entry_skill",
+            "command_prefix",
+            "reserved_tokens",
+            "zero_mutation_required_capabilities",
+        ),
+        context="router",
+    )
+    entry_skill = _as_string(router_raw["entry_skill"], "router.entry_skill")
+    command_prefix = _as_string(router_raw["command_prefix"], "router.command_prefix")
+    reserved_tokens = _string_tuple(
+        router_raw["reserved_tokens"], "router.reserved_tokens"
+    )
+    zero_mutation_required_capabilities = _string_tuple(
+        router_raw["zero_mutation_required_capabilities"],
+        "router.zero_mutation_required_capabilities",
+    )
+    if (
+        entry_skill != "lp"
+        or command_prefix != "lp-"
+        or reserved_tokens != tuple(sorted(set(reserved_tokens)))
+        or set(reserved_tokens) != {"help", "lp", "skill"}
+    ):
+        raise ProtocolValidationError(
+            "PROTOCOL_FILE_INVALID", "router grammar authority differs"
+        )
     cli_raw = _as_mapping(root["cli_schema_spelling"], "cli_schema_spelling")
     _exact_keys(
         cli_raw,
@@ -863,6 +900,14 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
             "project_extension_roster_fields",
         ),
         canonical_dialect=_immutable_nested_mapping(dialect_raw, "canonical_dialect"),
+        router=MappingProxyType(
+            {
+                "entry_skill": entry_skill,
+                "command_prefix": command_prefix,
+                "reserved_tokens": reserved_tokens,
+                "zero_mutation_required_capabilities": zero_mutation_required_capabilities,
+            }
+        ),
         metadata_schema=metadata_schema,
         capability_ids=frozenset(
             _string_tuple(root["capability_ids"], "capability_ids")
@@ -901,6 +946,12 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
             contract,
             "PROTOCOL_FILE_INVALID",
             "canonical dialect references an unknown capability",
+        )
+    if set(zero_mutation_required_capabilities) - contract.capability_ids:
+        raise _error(
+            contract,
+            "PROTOCOL_FILE_INVALID",
+            "router zero-mutation requirements reference an unknown capability",
         )
     _validate_cross_limits(contract)
     if contract.cli_schema_spelling.get("test-candidate") != "test_candidate":
