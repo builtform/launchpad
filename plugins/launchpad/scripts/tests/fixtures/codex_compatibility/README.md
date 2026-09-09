@@ -25,9 +25,14 @@ matrix or a second status ledger.
 
 `run_router_smoke.py` projects the exact Section 6 runtime set into a temporary
 local marketplace, installs it with isolated Codex state, confirms that Codex
-advertises exactly the packaged `launchpad:lp` skill, and removes the plugin and
-marketplace registration. It does not invoke a model or claim that bare `$lp`
-has authenticated argument routing.
+advertises exactly one internally qualified packaged `lp` component, and
+removes the plugin and marketplace registration. The internal component label
+is diagnostic evidence, not public command syntax.
+
+The runner also verifies the bare `$lp` CLI prompt shape, the app-server typed
+skill-input fields, and the host's plugin-hook capability status. It records
+missing authenticated binding as `BLOCKED`. It does not invoke a model or claim
+that bare `$lp` has authenticated argument routing.
 
 ```bash
 smoke_home="$(mktemp -d /private/tmp/lp-codex-section6.XXXXXX)"

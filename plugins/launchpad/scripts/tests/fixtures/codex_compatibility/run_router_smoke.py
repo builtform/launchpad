@@ -130,7 +130,11 @@ def main() -> int:
     try:
         version = _run([args.codex_bin, "--version"], env=env, cwd=host_home)
         results.append(
-            {"probe": "codex-version", "result": "PASS", "detail": version.stdout.strip()}
+            {
+                "probe": "codex-version",
+                "result": "PASS",
+                "detail": version.stdout.strip(),
+            }
         )
         _run(
             [
@@ -198,9 +202,109 @@ def main() -> int:
             raise RuntimeError("Codex did not advertise the isolated router skill")
         results.append(
             {
-                "probe": "host-discovery",
+                "probe": "internal-plugin-discovery",
                 "result": "PASS",
-                "detail": "launchpad:lp advertised from the sealed package",
+                "detail": (
+                    "the sealed package advertises one internally qualified lp "
+                    "component; this is not accepted as public command syntax"
+                ),
+            }
+        )
+
+        request = '$lp help hydrate α "β gamma" --path=a/b'
+        prompt_payload = json.loads(
+            _run(
+                [args.codex_bin, "debug", "prompt-input", request],
+                env=env,
+                cwd=host_home,
+            ).stdout
+        )
+        final_message = prompt_payload[-1]
+        if final_message.get("role") != "user" or final_message.get("content") != [
+            {"type": "input_text", "text": request}
+        ]:
+            raise RuntimeError("Codex changed the bare lp prompt text")
+        if any(
+            "This is the single Codex entry skill" in str(content.get("text", ""))
+            for message in prompt_payload
+            for content in message.get("content", [])
+        ):
+            raise RuntimeError("Codex unexpectedly injected the lp skill body")
+        results.append(
+            {
+                "probe": "cli-bare-lp-binding",
+                "result": "BLOCKED",
+                "detail": (
+                    "the CLI prompt surface preserves bare $lp as ordinary user text "
+                    "and does not bind the installed skill"
+                ),
+            }
+        )
+
+        schema_dir = codex_home / "app-server-schema"
+        _run(
+            [
+                args.codex_bin,
+                "app-server",
+                "generate-json-schema",
+                "--experimental",
+                "--out",
+                str(schema_dir),
+            ],
+            env=env,
+            cwd=host_home,
+        )
+        turn_schema = json.loads(
+            (schema_dir / "v2" / "TurnStartParams.json").read_text(encoding="utf-8")
+        )
+        user_input_variants = turn_schema["definitions"]["UserInput"]["oneOf"]
+        skill_input = next(
+            variant
+            for variant in user_input_variants
+            if variant.get("title") == "SkillUserInput"
+        )
+        skill_fields = set(skill_input["properties"])
+        if skill_fields != {"name", "path", "type"}:
+            raise RuntimeError(f"unexpected SkillUserInput fields: {skill_fields}")
+        results.append(
+            {
+                "probe": "app-server-typed-skill-selection",
+                "result": "PASS",
+                "detail": "SkillUserInput authenticates only name, path, and type",
+            }
+        )
+        results.append(
+            {
+                "probe": "app-server-argument-tail-binding",
+                "result": "BLOCKED",
+                "detail": (
+                    "SkillUserInput has no argument field; the complete tail remains "
+                    "separate free-form text"
+                ),
+            }
+        )
+
+        feature_listing = _run(
+            [args.codex_bin, "features", "list"],
+            env=env,
+            cwd=host_home,
+        ).stdout
+        plugin_hook_fields = next(
+            (
+                line.split()
+                for line in feature_listing.splitlines()
+                if line.split() and line.split()[0] == "plugin_hooks"
+            ),
+            None,
+        )
+        if plugin_hook_fields is None or len(plugin_hook_fields) < 3:
+            raise RuntimeError("Codex did not report plugin_hooks capability status")
+        plugin_hooks_enabled = plugin_hook_fields[-1].lower() == "true"
+        results.append(
+            {
+                "probe": "plugin-hook-ingress",
+                "result": "PASS" if plugin_hooks_enabled else "BLOCKED",
+                "detail": " ".join(plugin_hook_fields),
             }
         )
         results.append(
@@ -208,8 +312,8 @@ def main() -> int:
                 "probe": "bare-lp-authenticated-routing",
                 "result": "BLOCKED",
                 "detail": (
-                    "host exposes a namespaced skill and no authenticated argument-tail "
-                    "binding to packaged router code"
+                    "the installed component is internally qualified, the CLI supplies "
+                    "only text, and the typed host input has no authenticated tail"
                 ),
             }
         )
