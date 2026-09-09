@@ -2,11 +2,31 @@
 
 ## Status
 
-The Section 10 implementation candidate is qualified for local, unpublished staging only. The implementation PR must remain blocked and unmerged because Codex CLI 0.153.4 does not authenticate bare `$lp` skill selection or bind its argument tail. No LaunchPad workflow is currently advertised as supported on Codex.
+The local documentation and completed-package phase is complete. The candidate remains qualified for local, unpublished staging only. Codex CLI 0.153.4 does not authenticate bare `$lp` skill selection or bind its argument tail, so no LaunchPad workflow is advertised as supported on Codex.
 
 Do not publish, list, tag, or install this candidate into a maintainer's normal Codex state. Do not install the raw `plugins/launchpad/` source tree. The installable candidate must be produced by the sealed package projector because Codex supplements custom skill paths and migrates root `commands/` content.
 
-## Frozen implementation identity
+## Documentation completion attestation
+
+The first real-document render exposed a temporary implementation-phase lock that still prohibited the repository root. Removing that lock changed the sealed runtime, as required, so the Section 10 entry identity below was invalidated. The corrected renderer was made Prettier-stable, the 166-file runtime was resealed, pinned host receipts were rerun, and release evidence was regenerated before documentation validation resumed.
+
+- Final runtime payload digest: `5d0f307aedc92335b332847cc9f354f64f6cb8d448565346652f972310a878e5`
+- Final evidence digest: `5eae9eeaadd3800d846b8aa96f00307d22b75963cc8a7ac8871eb40ec1c9d26c`
+- Final detached artifact digest: `fa200f358e9d20cd8661c44dc1a89aae7218f52b5f4136ee4964bfe44173990f`
+- Runtime closure: 166 files
+- Completed package closure: 169 files
+- Generated package slots: `README.md`, `codex/support-evidence.json`, `docs/guides/HOW_IT_WORKS.md`
+- Final package lifecycle: passed for Codex CLI 0.153.4 and Claude Code 2.1.258 in disposable state
+- Overall support: blocked
+- Supported roots: 0
+- Blocked roots: 44
+- Advertised capability families: none
+
+The artifact digest is detached from the package and recorded here for local branch review. No push, pull request, marketplace change, normal Codex installation, tag, or publication was performed.
+
+## Superseded Section 10 entry identity
+
+This identity records the implementation-to-documentation handoff only. Do not use it to verify the completed package.
 
 - Exact implementation commit: `30041ec05d5a61ca9b776d96765c0e0b7a393018`
 - Plugin version: `2.1.11`

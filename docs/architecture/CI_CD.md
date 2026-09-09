@@ -6,11 +6,12 @@ Continuous integration and deployment for "{{PROJECT_NAME}}".
 
 Three workflows under `.github/workflows/`:
 
-| File               | Purpose                                                                                 | Triggers                         |
-| ------------------ | --------------------------------------------------------------------------------------- | -------------------------------- |
-| `ci.yml`           | Required-to-merge quality gates: Type Check, Lint, Build, Test, Repo Structure, Install | Pull requests + pushes to `main` |
-| `codex-review.yml` | Advisory AI code review (line-level / narrow) via OpenAI Codex                          | Pull requests                    |
-| `deploy.yml`       | Deployment workflow (configure for your hosting target)                                 | Configurable                     |
+| File                      | Purpose                                                                                 | Triggers                                                          |
+| ------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `ci.yml`                  | Required-to-merge quality gates: Type Check, Lint, Build, Test, Repo Structure, Install | Pull requests + pushes to `main`                                  |
+| `codex-review.yml`        | Advisory AI code review (line-level / narrow) via OpenAI Codex                          | Pull requests                                                     |
+| `codex-compatibility.yml` | Hermetic protocol tests plus pinned isolated Codex and Claude host lifecycle gates      | Relevant PRs, `main`, schedule, manual dispatch, and release tags |
+| `deploy.yml`              | Deployment workflow (configure for your hosting target)                                 | Configurable                                                      |
 
 ### Required status checks
 
@@ -25,7 +26,19 @@ The branch ruleset on `main` requires these `ci.yml` jobs to pass before any PR 
 
 The branch ruleset also blocks force pushes and direct deletions of `main`.
 
+## Codex plugin compatibility gates
+
+`codex-compatibility.yml` has three evidence tiers:
+
+1. Hermetic compatibility validates protocol parsing, the bounded canonical graph, resolver behavior, manifest projection, support generation, qualification, package closure, and the full 44-root acceptance report.
+2. The pinned macOS host lane installs the exact Codex CLI version into disposable state and verifies the bare `$lp` host boundary.
+3. Nightly, manual, and release-tag lanes add Claude coexistence, update repair, disable and enable, stale-session refusal, removal isolation, host-state allowlisting, and cleanup.
+
+Runtime, evidence, and completed-package digests are separate. A runtime change invalidates qualification and must regenerate host-bound evidence. Public documentation is rendered only from qualified evidence, and the exact completed package must pass its detached artifact-digest check before any later listing or visibility action. Current dogfood evidence remains fail-closed with all 44 roots blocked.
+
 ## AI code review — two complementary lanes
+
+The Codex reviewer in this section is the advisory PR integration. It is not the LaunchPad Codex plugin runtime. Runtime qualification belongs to `codex-compatibility.yml`; configuring `OPENAI_API_KEY` for PR review does not install or enable `$lp`.
 
 This repo uses **two AI reviewers in parallel**, each focused on a different lane. Both are **advisory only** (not required for merge), so quota outages or false positives never block legitimate work.
 

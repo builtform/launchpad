@@ -1,6 +1,6 @@
 # How It Works
 
-LaunchPad is an agentic coding harness with two main layers under the hood: a **governance kernel** plus a **Claude Code plugin** that ride together inside any repository. The kernel is the persistent substrate (`REPOSITORY_STRUCTURE.md` whitelist, `lefthook.yml` pre-commit gates, `.launchpad/config.yml`, `.harness/` runtime, `docs/architecture/` core docs) that survives between sessions; the plugin is the 42 slash commands, 36 sub-agents, and 16 skills that operate against the kernel. The kernel lets each agent run inherit the previous run's findings instead of starting cold; the plugin gives Claude Code the verbs to brainstorm, define, plan, build, review, ship, and learn.
+LaunchPad is an agentic coding harness with a persistent **governance kernel** and host-specific adapters. The kernel (`REPOSITORY_STRUCTURE.md`, `lefthook.yml`, `.launchpad/config.yml`, `.harness/`, and `docs/architecture/`) survives between sessions. One canonical set of commands, agent prompts, and skills defines the workflows. The released Claude adapter exposes those workflows as `/lp-*` commands. An unpublished Codex adapter candidate reserves the `$lp <command>` grammar but currently blocks every workflow because the tested host did not authenticate bare-router selection or preserve an authenticated argument tail.
 
 Brownfield projects pick up the kernel by adding the plugin to an existing repo and running `/lp-define`, while greenfield projects materialize the kernel from scratch through the four-command v2.0 pipeline (`/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`). Both paths converge on the same operating model. For the framing of why this works, see [README.md](../../README.md). For the day-to-day pipeline below, read on.
 
@@ -11,6 +11,7 @@ This guide walks the full pipeline day-to-day. For the "why" behind the design, 
 **Contents:**
 
 - [Installing the plugin](#installing-the-plugin)
+- [Codex compatibility candidate](#codex-compatibility-candidate)
 - [The Greenfield Pipeline (v2.0)](#the-greenfield-pipeline-v20)
 - [Post-scaffold lifecycle: `/lp-update-identity`](#post-scaffold-lifecycle-lp-update-identity)
 - [The four meta-orchestrators](#the-four-meta-orchestrators)
@@ -93,6 +94,166 @@ v2.x greenfield projects scaffolded via `/lp-brainstorm` → `/lp-pick-stack` �
 ```
 
 Restart Claude Code after updating. The install cache (`~/.claude/plugins/cache/builtform/launchpad/<version>/`) is a snapshot taken at install time, so uninstall + marketplace-update + reinstall is the supported refresh flow.
+
+---
+
+## Codex compatibility candidate
+
+This section describes an unpublished local dogfood candidate, not an available Codex release. Do not install the raw `plugins/launchpad/` source tree and do not install the candidate into normal maintainer or user Codex state. The only verified installation surface is a sealed package projected into a disposable local marketplace under an isolated `CODEX_HOME`.
+
+The package exposes exactly two active Codex discovery surfaces:
+
+```text
+.codex-plugin/plugin.json
+codex/skills/lp/SKILL.md
+```
+
+The projector relocates the canonical commands, skills, agents, and their owned resources under `codex/canonical/`. No per-command Codex skills, agents, wrappers, or TOML files are generated. The router, resolver, protocol loader, support producer, and manifest projector consume the same sealed direct-edge graph. Stateful coordinator endpoints are conditional and cannot promote a blocked workflow.
+
+### Invocation grammar
+
+The complete public grammar is reserved as follows:
+
+```text
+$lp help
+$lp help <command>
+$lp <command> [arguments...]
+$lp skill <released-built-in-canonical-skill-id> [arguments...]
+```
+
+`$lp-review`, `$lp agent`, and a fully qualified plugin prefix are not LaunchPad commands. `$lp skill` applies only to a released built-in skill whose canonical metadata says `user-invocable: true`. Agents remain internal, and project skills remain approved workflow dependencies rather than direct public entries.
+
+Codex CLI 0.153.4 preserved bare `$lp` as ordinary user text in the acceptance probe. Its typed skill input authenticated a skill name, path, and type, but did not supply a lossless authenticated argument-tail field. LaunchPad therefore cannot prove that `$lp help`, `$lp hydrate`, or `$lp harden-plan` reached the router through the required authenticated path. All execution fails closed before workflow mutation.
+
+### Installation, update, and recovery status
+
+There is no public Codex install, update, rollback, or removal procedure yet. The clean isolated harness verified package installation, update repair, disable and enable, concurrent read-only use, stale-session refusal, removal isolation, Claude coexistence, host-state allowlisting, and cleanup. Those tests use a disposable local marketplace and delete it after the run. They do not authorize a normal installation.
+
+If an isolated contributor test leaves a partial cache, rerun the exact local selector in the same disposable environment, then remove the plugin and marketplace. If any digest or package check fails, discard the isolated state, regenerate from the frozen source, and requalify. Never hand edit support evidence, reuse a stale task, auto-resume a partial mutation, or recover by changing normal user Codex state.
+
+### Trust and package identity
+
+The candidate uses three non-self-referential SHA-256 domains:
+
+| Digest                   | Covers                                                                    | Storage                   |
+| ------------------------ | ------------------------------------------------------------------------- | ------------------------- |
+| `runtime_payload_digest` | Sealed manifest, router, runtime helpers, and relocated canonical closure | Release evidence          |
+| `evidence_digest`        | The deterministic `codex/support-evidence.json` bytes                     | Qualification output      |
+| `artifact_digest`        | The exact completed package, including fixed generated slots              | Detached attestation only |
+
+An installed path is a locator, not a trust decision. The host must authenticate the detached expected digests, verify the entry surface and first helper or interpreter, and only then allow the resolver to anchor the real installed root. Installed packages are snapshots. Changed canonical bytes cause stale-session refusal, and expired or revoked evidence blocks effects while leaving host-native remediation available.
+
+Project prompts remain quarantined data until an authenticated session approval admits one exact digest to one named child context, one run, and one capability envelope. Headless approval must come from a protected administrator source with ownership, mode, expiry, repository, workflow, ref, and replay checks. Arguments, environment variables, model output, repository files, and workflow-created artifacts cannot grant that approval.
+
+### Codex support matrix
+
+This region is generated from sealed release evidence. Do not edit its rows by hand.
+
+<!-- BEGIN LAUNCHPAD GENERATED:codex-support-matrix -->
+
+| Resource                            | Base support | Fallback     | Qualifications                          |
+| ----------------------------------- | ------------ | ------------ | --------------------------------------- |
+| `lp-bootstrap`                      | blocked      | none         | qualification-section10-blocked-support |
+| `lp-brainstorm`                     | blocked      | none         | qualification-section10-blocked-support |
+| `lp-build`                          | blocked      | none         | qualification-section10-blocked-support |
+| `lp-commit`                         | blocked      | none         | qualification-section10-blocked-support |
+| `lp-copy`                           | blocked      | inspect_only | qualification-section10-blocked-support |
+| `lp-copy-review`                    | blocked      | inspect_only | qualification-section10-blocked-support |
+| `lp-create-agent`                   | blocked      | none         | qualification-section10-blocked-support |
+| `lp-create-skill`                   | blocked      | none         | qualification-section10-blocked-support |
+| `lp-creating-agents`                | blocked      | none         | qualification-section10-blocked-support |
+| `lp-defer`                          | blocked      | none         | qualification-section10-blocked-support |
+| `lp-define`                         | blocked      | none         | qualification-section10-blocked-support |
+| `lp-define-architecture`            | blocked      | none         | qualification-section10-blocked-support |
+| `lp-define-design`                  | blocked      | none         | qualification-section10-blocked-support |
+| `lp-define-product`                 | blocked      | none         | qualification-section10-blocked-support |
+| `lp-design-onboard`                 | blocked      | none         | qualification-section10-blocked-support |
+| `lp-design-polish`                  | blocked      | none         | qualification-section10-blocked-support |
+| `lp-design-review`                  | blocked      | none         | qualification-section10-blocked-support |
+| `lp-feature-video`                  | blocked      | none         | qualification-section10-blocked-support |
+| `lp-harden-plan`                    | blocked      | none         | qualification-section10-blocked-support |
+| `lp-hydrate`                        | blocked      | inspect_only | qualification-section10-blocked-support |
+| `lp-implement-plan`                 | blocked      | none         | qualification-section10-blocked-support |
+| `lp-inf`                            | blocked      | none         | qualification-section10-blocked-support |
+| `lp-kickoff`                        | blocked      | none         | qualification-section10-blocked-support |
+| `lp-learn`                          | blocked      | none         | qualification-section10-blocked-support |
+| `lp-memory-report`                  | blocked      | none         | qualification-section10-blocked-support |
+| `lp-pick-stack`                     | blocked      | none         | qualification-section10-blocked-support |
+| `lp-plan`                           | blocked      | none         | qualification-section10-blocked-support |
+| `lp-pnf`                            | blocked      | none         | qualification-section10-blocked-support |
+| `lp-port-skill`                     | blocked      | none         | qualification-section10-blocked-support |
+| `lp-preflight`                      | blocked      | none         | qualification-section10-blocked-support |
+| `lp-pull-launchpad`                 | blocked      | inspect_only | qualification-section10-blocked-support |
+| `lp-regenerate-backlog`             | blocked      | none         | qualification-section10-blocked-support |
+| `lp-resolve-pr-comments`            | blocked      | none         | qualification-section10-blocked-support |
+| `lp-resolve-todo-parallel`          | blocked      | none         | qualification-section10-blocked-support |
+| `lp-review`                         | blocked      | none         | qualification-section10-blocked-support |
+| `lp-scaffold-stack`                 | blocked      | none         | qualification-section10-blocked-support |
+| `lp-shape-section`                  | blocked      | none         | qualification-section10-blocked-support |
+| `lp-ship`                           | blocked      | none         | qualification-section10-blocked-support |
+| `lp-test-browser`                   | blocked      | none         | qualification-section10-blocked-support |
+| `lp-triage`                         | blocked      | none         | qualification-section10-blocked-support |
+| `lp-update-identity`                | blocked      | none         | qualification-section10-blocked-support |
+| `lp-update-skill`                   | blocked      | none         | qualification-section10-blocked-support |
+| `lp-update-spec`                    | blocked      | none         | qualification-section10-blocked-support |
+| `lp-verification-before-completion` | blocked      | inspect_only | qualification-section10-blocked-support |
+
+<!-- END LAUNCHPAD GENERATED:codex-support-matrix -->
+
+Every row is blocked in the current dogfood evidence. Unknown hosts default to `inspect_only`. No workflow has qualified `read_only_manual` execution. A blocked mutating, autonomous, or agent-dispatch workflow may be inspected, but execution must move to a supported native host.
+
+### Protocol budgets
+
+These are the exact upper bounds carried by adapter protocol v1. Limit tests accept the boundary and reject `limit + 1`.
+
+| Budget                          |             Limit | Budget                      |            Limit |
+| ------------------------------- | ----------------: | --------------------------- | ---------------: |
+| Adapter storage                 | 268,435,456 bytes | Aggregate graph edges       |           65,536 |
+| Aggregate outbound payload      |  67,108,864 bytes | Body                        |    262,144 bytes |
+| Bounded loop iterations         |                16 | Cancellation drain          |       30 seconds |
+| Catalog depth                   |                 4 | Child starts                |               32 |
+| Child timeout                   |     1,200 seconds | Control instruction context |              25% |
+| Cooperative cancellation        |        10 seconds | Deadline cancellation       |    7,170 seconds |
+| Definitions per type            |               256 | Diagnostic field            |   512 characters |
+| Direct edges per definition     |                64 | Documentation aggregate     | 67,108,864 bytes |
+| Documentation file              |   2,097,152 bytes | Estimated input allocation  | 1,000,000 tokens |
+| Estimated output allocation     |    250,000 tokens | Final cancel and join       |       20 seconds |
+| Frontmatter                     |      65,536 bytes | Log per run                 |  4,194,304 bytes |
+| Log events per run              |             4,096 | Mutation receipt per run    |  2,097,152 bytes |
+| Mutation receipt events per run |             2,048 | Nested depth                |                8 |
+| Nested invocations              |                16 | Project approval TTL        |      600 seconds |
+| Retained runs                   |                50 | Retention                   |          30 days |
+| Retries per child               |                 2 | Retry backoff               |       30 seconds |
+| Router input                    |      1,024 tokens | Serialized message          |  8,388,608 bytes |
+| Total wall clock                |     7,200 seconds | Wave timeout                |    3,600 seconds |
+| Worker ceiling                  |                 8 | YAML aggregate              |  1,048,576 bytes |
+| YAML depth                      |                32 | YAML nodes                  |            4,096 |
+| YAML scalar                     |      65,536 bytes |                             |                  |
+
+The 120-minute wall-clock maximum includes retry backoff and the 30-second cancellation drain. Help and pre-dispatch diagnostics disclose expected and maximum agents, waves, duration, conservative token allocation, mutation and interaction class, and whether confirmation is required. Token and monetary enforcement may be called authoritative only when the qualified host supplies authoritative usage plus provider and model pricing identity. Delayed or absent usage data never increases the conservative remaining budget.
+
+### Safety, diagnostics, and privacy
+
+The adapter separates instruction inputs from data inputs. Only digest-pinned canonical prompts, a project prompt admitted by the authenticated trust gate, and the finite canonical-dialect map enter an instruction context. Repository content, arguments, tool output, external data, artifacts, and child output remain bounded data with validated schemas. This reduces prompt-injection exposure but does not cryptographically eliminate it.
+
+Persistent instruction writes require a separate interactive approval. Unmediated browser, MCP, connector, and subprocess networking remain blocked when those tools could read files or form payloads outside the qualified mediation path. Each destination and redirect hop requires normalized authorization. Diagnostics persist only bounded relative IDs, digests, and statuses; raw prompts, arguments, environment data, control characters, and absolute home paths are excluded or redacted. Public bugs and private security reports follow the protocol classification, and unknown classifications fail private. No report is submitted automatically.
+
+For an effectful workflow, the order is authenticated approval, durable fixed-capacity receipt reservation, synced pre-action intent, then the first product, worktree, index, branch, or network effect. Outcomes are `not_started`, `committed`, or `partial`. A partial run is fail-stop: present the bounded receipt, release owned resources, preserve pre-existing user work, and require approval for a fresh run. Automatic rollback and resume-in-place are unavailable.
+
+Before the entry surface, detached attestation, first helper, interpreter, and runtime payload are verified, use only fixed host-native plugin-management remediation. After verification, the execution-disabled bootstrap may validate manifest, protocol, and evidence without loading prompt bodies or dispatching agents. Diagnose in this order:
+
+1. Verify the official source, version, and package identity.
+2. Start the required new task after an update.
+3. Check whether `$lp help` is authenticated and lists the command status.
+4. Check core and workflow dependencies.
+5. Run protocol and capability preflight.
+6. Confirm the surface can enforce its interaction and safety requirements.
+7. Determine whether any mutation started.
+8. Update, use an exactly qualified manual fallback, switch to Claude Code, file a sanitized public issue, or use the private security channel.
+
+### Codex plugin runtime versus Codex PR reviewer
+
+The **Codex plugin runtime** is the local LaunchPad host adapter described above. The **Codex PR reviewer** is the separate advisory GitHub Actions integration described under [CI/CD](#cicd). They have different installation paths, permissions, evidence, and failure modes.
 
 ---
 
@@ -633,7 +794,7 @@ Additionally, **two AI code reviewers post advisory reviews** on every PR. Both 
 
 Both `/lp-inf` and `/lp-commit` monitor PR review comments and surface findings to the user. The two lanes overlap on local logic bugs; they don't on cross-file or architecture concerns. Running both at advisory-only level is the safest balance, broad coverage, no false-positive blocks.
 
-### Required GitHub Secret for Codex review
+### Required GitHub Secret for the Codex PR reviewer
 
 Add `OPENAI_API_KEY` to your GitHub repository secrets (Settings → Secrets and variables → Actions). Without it, the Codex review job skips silently.
 
@@ -905,7 +1066,7 @@ For the canonical post-tag verification flow and the rollback procedure if `veri
 
 **PR creation fails: "gh: not logged in."** Run `gh auth login` and verify with `gh auth status`.
 
-**Codex review never runs on PRs.** Add `OPENAI_API_KEY` to GitHub repository secrets (Settings → Secrets and variables → Actions). The Codex job skips silently if the secret is absent.
+**The Codex PR reviewer never runs on PRs.** Add `OPENAI_API_KEY` to GitHub repository secrets (Settings → Secrets and variables → Actions). The Codex job skips silently if the secret is absent. This does not enable the LaunchPad Codex plugin runtime.
 
 **`/lp-test-browser` reports no browser tool.** Install agent-browser (`npm install -g agent-browser && agent-browser install`) or ensure Playwright MCP is configured.
 

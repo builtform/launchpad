@@ -35,11 +35,13 @@
 ```
 /
 ├── .claude-plugin/          # Marketplace manifest (marketplace.json) — points at plugins/launchpad/
-├── plugins/launchpad/       # The LaunchPad plugin (commands, agents, skills, plugin.json)
-│   ├── .claude-plugin/      # plugin.json (plugin metadata)
-│   ├── commands/            # /lp-* slash commands
-│   ├── agents/              # Sub-agents (research/, review/, resolve/, design/, skills/, document-review/)
-│   └── skills/              # Plugin skills (lp-*/SKILL.md)
+├── plugins/launchpad/       # One canonical LaunchPad kernel plus host adapters
+│   ├── .claude-plugin/      # Claude manifest
+│   ├── .codex-plugin/       # Codex manifest projected from shared metadata
+│   ├── codex/               # Codex protocol, evidence, and single lp router skill
+│   ├── commands/            # Canonical workflows; Claude exposes these as /lp-* commands
+│   ├── agents/              # Canonical sub-agent prompts
+│   └── skills/              # Canonical plugin skills
 ├── apps/web/                # Next.js 15 frontend (App Router, Tailwind v4)
 ├── apps/api/                # Hono API server (CORS, /health endpoint)
 ├── packages/db/             # Prisma schema, client singleton, migrations

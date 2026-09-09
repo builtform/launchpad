@@ -6,6 +6,19 @@
 
 LaunchPad ships versioned releases via the GitHub release flow. Every release follows this exact sequence to ensure each tag has hand-authored release notes published as a durable artifact in the repo.
 
+## Codex compatibility pre-publication gate
+
+Codex compatibility follows a two-phase local preparation sequence before any catalog or tag action:
+
+1. Freeze and qualify the sealed runtime payload. The support evidence must bind the exact runtime digest and pinned isolated-host receipts.
+2. Render the protocol-owned README and How It Works regions from that evidence, validate active documentation, append only the fixed generated slots to a disposable package, compute the completed-package artifact digest in a detached attestation, and smoke that exact package.
+
+Any runtime closure change after qualification invalidates the candidate. Return to the implementation gate, regenerate the acceptance report and host receipts, issue new evidence, and restart dependent documentation validation. Never hand edit `codex/support-evidence.json`.
+
+The raw `plugins/launchpad/` tree is a projection source, not an installable Codex package. Local acceptance uses a sealed package, a disposable marketplace, and an isolated `CODEX_HOME`. Do not mutate a maintainer's normal Codex state during preparation.
+
+Marketplace staging, public or unlisted visibility, pushing, pull-request creation, tagging, and publication are separate authorized operations. A local completed package does not authorize any of them. If a later activation is authorized, point the verified Git-backed marketplace at one immutable commit, run the clean-user probe, and only then perform the separately reviewed tag and visibility transition. Withdrawal stops new discovery but does not revoke installed bytes; effectful support therefore also requires current authenticated expiry and revocation evidence.
+
 ## Why this process exists
 
 A tag without hand-authored notes leaves two bad options: accept GitHub's auto-generated diff as the project's first impression of the release (looks amateurish), or backfill notes via a follow-up PR after the release is already public. Pre-writing the notes file is the cheapest way to avoid both failure modes.

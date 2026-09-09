@@ -68,6 +68,14 @@ Two products ship from this repo:
 
 Most contributions touch only `plugins/launchpad/`. Reference-monorepo changes (under `apps/`, `packages/`) are reviewed for whether they degrade the plugin path.
 
+### One kernel and host adapters
+
+Canonical workflow meaning lives once under `plugins/launchpad/commands/`, `agents/`, and `skills/`. Claude Code discovers the command files directly. The Codex package projector relocates the sealed canonical closure under `codex/canonical/` and exposes one `$lp` router skill. Do not add per-command Codex wrappers, copied prompts, or generated TOML files.
+
+Any canonical definition change must preserve the direct-edge and capability metadata contract, pass resolver and preflight checks, regenerate deterministic support evidence when the runtime digest changes, and run both Claude regression coverage and the isolated Codex lifecycle gate. Discovery does not imply support: every workflow stays blocked until qualification evidence and live preflight pass.
+
+Never install a working-tree candidate into normal Codex state. Contributor tests use the sealed package projector, a disposable local marketplace, and an isolated `CODEX_HOME`. The public syntax is bare `$lp <command>` only.
+
 ## Pull request guidelines
 
 1. **Branch from `main`.** Use a conventional-commit prefix in the branch name: `feat/<topic>`, `fix/<topic>`, `chore/<topic>`, `docs/<topic>`, `refactor/<topic>`, `test/<topic>`, `perf/<topic>`, `style/<topic>`, `ci/<topic>`.
