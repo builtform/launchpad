@@ -226,6 +226,20 @@ def test_render_docs_write_changes_only_marked_regions_and_check_writes_nothing(
     }
 
 
+def test_render_docs_allows_frozen_repository_root(
+    candidate, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    release = _release(candidate)
+    docs = tmp_path / "docs-root"
+    shutil.copytree(DOC_FIXTURE, docs)
+    monkeypatch.setattr(support, "REPOSITORY_ROOT", docs)
+
+    assert support.render_documents(release, docs, write=True) == (
+        "README.md",
+        "docs/guides/HOW_IT_WORKS.md",
+    )
+
+
 @pytest.mark.parametrize(
     "content",
     [

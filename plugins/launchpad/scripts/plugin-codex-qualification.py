@@ -27,12 +27,12 @@ MANIFEST_PATH: Final = SCRIPT_DIR / "plugin-codex-manifest.py"
 ACCEPTANCE_PATH: Final = SCRIPT_DIR / "plugin-codex-acceptance.py"
 DEFAULT_EVIDENCE_PATH: Final = PLUGIN_ROOT / "codex" / "support-evidence.json"
 
-# Resealed after the Section 10 lifecycle gate found and corrected the missing
-# self-hosted import closure and active root command surface. The affected
-# Section 5 and Section 9 gates must pass again before this exact 166-file
-# runtime payload can be promoted.
+# Resealed for the documentation phase after retiring the temporary
+# fixture-only renderer lock. The runtime closure remains 166 files, and the
+# affected qualification and lifecycle gates must pass again before this exact
+# payload can be promoted.
 SECTION9_RUNTIME_PAYLOAD_DIGEST: Final = (
-    "d444890666ad7a587eee92bae68c93fc89ec0ea9315a6c19bf6422c338af9b94"
+    "5d0f307aedc92335b332847cc9f354f64f6cb8d448565346652f972310a878e5"
 )
 QUALIFICATION_ID: Final = "qualification-section10-blocked-support"
 QUALIFICATION_RECEIPT_IDS: Final = (
@@ -341,6 +341,7 @@ def validate_candidate_lifecycle_receipt(
     release: Any,
     codex_version: str,
     claude_version: str,
+    artifact_digest: str | None = None,
 ) -> dict[str, object]:
     """Validate the isolated exact-candidate lifecycle and coexistence receipt."""
 
@@ -355,7 +356,16 @@ def validate_candidate_lifecycle_receipt(
         "host_state_allowlist_version",
         "results",
     }
-    if set(receipt) != expected_fields or receipt.get("schema_version") != 1:
+    schema_version = receipt.get("schema_version")
+    if artifact_digest is None:
+        valid_shape = set(receipt) == expected_fields and schema_version == 1
+    else:
+        valid_shape = (
+            set(receipt) == expected_fields | {"artifact_digest"}
+            and schema_version == 2
+            and receipt.get("artifact_digest") == artifact_digest
+        )
+    if not valid_shape:
         _fail("HOST_RECEIPT_INVALID", "candidate lifecycle fields differ")
     if receipt.get("overall") != "BLOCKED":
         _fail("HOST_RECEIPT_INVALID", "candidate lifecycle must remain fail-closed")
@@ -410,13 +420,16 @@ def validate_candidate_lifecycle_receipt(
         by_id[item] != "BLOCKED" for item in _CANDIDATE_LIFECYCLE_BLOCKED
     ):
         _fail("HOST_RECEIPT_INVALID", "candidate lifecycle outcome changed")
-    return {
+    result: dict[str, object] = {
         "status": "pass",
         "overall_support": "blocked",
         "runtime_payload_digest": release.runtime.runtime_payload_digest,
         "evidence_digest": _SUPPORT.evidence_digest(release),
         "advertised_capability_families": [],
     }
+    if artifact_digest is not None:
+        result["artifact_digest"] = artifact_digest
+    return result
 
 
 def verify_candidate_lifecycle(
@@ -425,6 +438,7 @@ def verify_candidate_lifecycle(
     plugin_root: Path,
     codex_version: str,
     claude_version: str,
+    artifact_digest: str | None = None,
 ) -> dict[str, object]:
     release = check_release(plugin_root=plugin_root)
     return validate_candidate_lifecycle_receipt(
@@ -432,6 +446,7 @@ def verify_candidate_lifecycle(
         release=release,
         codex_version=codex_version,
         claude_version=claude_version,
+        artifact_digest=artifact_digest,
     )
 
 
@@ -455,6 +470,7 @@ def _parser() -> argparse.ArgumentParser:
     lifecycle.add_argument("--receipt", type=Path, required=True)
     lifecycle.add_argument("--codex-version", required=True)
     lifecycle.add_argument("--claude-version", required=True)
+    lifecycle.add_argument("--artifact-digest")
     return parser
 
 
@@ -482,6 +498,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 plugin_root=args.plugin_root,
                 codex_version=args.codex_version,
                 claude_version=args.claude_version,
+                artifact_digest=args.artifact_digest,
             )
         sys.stdout.buffer.write(_pretty_json(result))
         return 0

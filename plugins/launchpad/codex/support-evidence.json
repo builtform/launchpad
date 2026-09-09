@@ -1126,7 +1126,7 @@
         "section9-router-host-blocked",
         "section9-whole-corpus-acceptance"
       ],
-      "runtime_payload_digest": "d444890666ad7a587eee92bae68c93fc89ec0ea9315a6c19bf6422c338af9b94",
+      "runtime_payload_digest": "5d0f307aedc92335b332847cc9f354f64f6cb8d448565346652f972310a878e5",
       "tool_versions": {
         "claude-code": "2.1.258",
         "codex-cli": "0.153.4"
@@ -5135,9 +5135,9 @@
         "size": 27970
       },
       {
-        "digest": "48d6872f73c3186a4eb8a0d477f7458f3ce9c4259b8f58dd59aa1cd0c0f09de0",
+        "digest": "e1d71ce6c6aedada0838e3e157204ede16d9c261c53fff6afe8a770f60517a0a",
         "path": "scripts/plugin-codex-support.py",
-        "size": 39232
+        "size": 39521
       },
       {
         "digest": "750f14f16c11bfa9269468a2e46a1a2a6ae94977d6b30ca4b129fba4b65dc272",
@@ -5265,7 +5265,7 @@
         "size": 220
       }
     ],
-    "runtime_payload_digest": "d444890666ad7a587eee92bae68c93fc89ec0ea9315a6c19bf6422c338af9b94",
+    "runtime_payload_digest": "5d0f307aedc92335b332847cc9f354f64f6cb8d448565346652f972310a878e5",
     "stage": "release",
     "support": [
       {

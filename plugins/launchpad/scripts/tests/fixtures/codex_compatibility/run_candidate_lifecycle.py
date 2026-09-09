@@ -74,6 +74,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--codex-home", required=True, type=Path)
     parser.add_argument("--codex-bin", default="codex")
     parser.add_argument("--claude-bin", default="claude")
+    parser.add_argument("--package-root", type=Path)
+    parser.add_argument("--artifact-digest")
     return parser
 
 
@@ -203,19 +205,25 @@ def _assert_host_state_allowlist(codex_home: Path) -> tuple[str, ...]:
     return files
 
 
-def _check_intermediate_candidate(
+def _check_candidate(
     manifest: Any,
     support: Any,
     release: Any,
     root: Path,
+    *,
+    include_generated: bool,
 ) -> tuple[str, ...]:
-    """Check the Section 10 runtime plus evidence package before docs exist."""
+    """Check either the intermediate or completed candidate closure."""
 
     support.verify_runtime_set(release, root)
+    generated = (
+        list(release.runtime.generated_slots)
+        if include_generated
+        else ["codex/support-evidence.json"]
+    )
     expected = tuple(
         sorted(
-            [item.path for item in release.runtime.runtime_files]
-            + ["codex/support-evidence.json"]
+            [item.path for item in release.runtime.runtime_files] + generated
         )
     )
     actual = manifest._walk_package(root)
@@ -343,6 +351,8 @@ def _stale_session_probe(
 
 def main() -> int:
     args = _parser().parse_args()
+    if (args.package_root is None) != (args.artifact_digest is None):
+        raise SystemExit("--package-root and --artifact-digest must be provided together")
     codex_home = args.codex_home.resolve()
     normal_codex_home = Path.home().resolve() / ".codex"
     if (
@@ -367,24 +377,41 @@ def main() -> int:
     runtime_digest = release.runtime.runtime_payload_digest
     evidence_digest = qualification._SUPPORT.evidence_digest(release)
 
-    candidate_package = workspace / "candidate-package"
-    candidate_package.mkdir()
-    packaged_paths = manifest.project_package(
-        release,
-        PLUGIN_ROOT,
-        candidate_package,
-        include_generated=False,
-    )
-    shutil.copy2(
-        PLUGIN_ROOT / "codex" / "support-evidence.json",
-        candidate_package / "codex" / "support-evidence.json",
-    )
-    packaged_paths = _check_intermediate_candidate(
-        manifest,
-        qualification._SUPPORT,
-        release,
-        candidate_package,
-    )
+    completed_package = args.package_root is not None
+    if completed_package:
+        candidate_package = args.package_root.resolve(strict=True)
+        if candidate_package.is_symlink() or codex_home in candidate_package.parents:
+            raise SystemExit("--package-root must be a separate non-symlink path")
+        actual_artifact_digest = manifest.artifact_digest(release, candidate_package)
+        if actual_artifact_digest != args.artifact_digest:
+            raise SystemExit("--artifact-digest does not match the completed package")
+        packaged_paths = _check_candidate(
+            manifest,
+            qualification._SUPPORT,
+            release,
+            candidate_package,
+            include_generated=True,
+        )
+    else:
+        candidate_package = workspace / "candidate-package"
+        candidate_package.mkdir()
+        manifest.project_package(
+            release,
+            PLUGIN_ROOT,
+            candidate_package,
+            include_generated=False,
+        )
+        shutil.copy2(
+            PLUGIN_ROOT / "codex" / "support-evidence.json",
+            candidate_package / "codex" / "support-evidence.json",
+        )
+        packaged_paths = _check_candidate(
+            manifest,
+            qualification._SUPPORT,
+            release,
+            candidate_package,
+            include_generated=False,
+        )
     version = _manifest_version(candidate_package)
     baseline_version = _baseline_version(version)
     _stale_session_probe(candidate_package, release, workspace)
@@ -467,11 +494,12 @@ def main() -> int:
         if update.get("version") != version:
             raise RuntimeError("candidate update did not install the exact version")
         installed_root = _installed_root(codex_home, version)
-        _check_intermediate_candidate(
+        _check_candidate(
             manifest,
             qualification._SUPPORT,
             release,
             installed_root,
+            include_generated=completed_package,
         )
         _record(
             results,
@@ -651,8 +679,8 @@ def main() -> int:
 
     if not cleanup_ok:
         raise RuntimeError("candidate lifecycle cleanup did not complete")
-    output = {
-        "schema_version": 1,
+    output: dict[str, object] = {
+        "schema_version": 2 if completed_package else 1,
         "overall": "BLOCKED",
         "runtime_payload_digest": runtime_digest,
         "evidence_digest": evidence_digest,
@@ -661,6 +689,8 @@ def main() -> int:
         "host_state_allowlist_version": HOST_STATE_ALLOWLIST_VERSION,
         "results": sorted(results, key=lambda item: item["id"]),
     }
+    if completed_package:
+        output["artifact_digest"] = args.artifact_digest
     print(json.dumps(output, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
 

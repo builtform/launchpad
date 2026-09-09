@@ -836,19 +836,33 @@ def _render_summary(bundle: SupportBundle) -> str:
 
 
 def _render_matrix(bundle: SupportBundle) -> str:
-    lines = [
-        "| Resource | Base support | Fallback | Qualifications |",
-        "| --- | --- | --- | --- |",
-    ]
+    rows = [("Resource", "Base support", "Fallback", "Qualifications")]
     by_resource: dict[str, set[str]] = {item: set() for item in bundle.runtime.root_ids}
     for predicate in bundle.compatibility_predicates:
         by_resource[predicate.resource_id].update(predicate.qualification_ids)
     for item in bundle.runtime.support:
         qualifications = ", ".join(sorted(by_resource[item.resource_id])) or "None"
-        lines.append(
-            f"| `{item.resource_id}` | {item.base_support_state} | "
-            f"{item.fallback} | {qualifications} |"
+        rows.append(
+            (
+                f"`{item.resource_id}`",
+                item.base_support_state,
+                item.fallback,
+                qualifications,
+            )
         )
+    widths = tuple(max(len(row[index]) for row in rows) for index in range(4))
+    lines = [
+        "| "
+        + " | ".join(cell.ljust(widths[index]) for index, cell in enumerate(rows[0]))
+        + " |"
+    ]
+    lines.append("| " + " | ".join("-" * width for width in widths) + " |")
+    lines.extend(
+        "| "
+        + " | ".join(cell.ljust(widths[index]) for index, cell in enumerate(row))
+        + " |"
+        for row in rows[1:]
+    )
     return "\n".join(lines)
 
 
@@ -865,7 +879,7 @@ def _replace_region(source: bytes, region: str, rendered: str, maximum: int) -> 
     finish = text.index(end)
     if finish < start:
         _fail("RECORD_INVALID", "documentation markers are malformed")
-    replacement = f"\n{rendered.rstrip()}\n"
+    replacement = f"\n\n{rendered.rstrip()}\n\n"
     encoded = (text[:start] + replacement + text[finish:]).encode("utf-8")
     if len(encoded) > maximum:
         _fail("LIMIT_EXCEEDED", "rendered documentation exceeds its file limit")
@@ -883,8 +897,6 @@ def render_documents(
     if docs_root.is_symlink():
         _fail("PATH_SYMLINK", "documentation root is a symlink")
     canonical_docs_root = docs_root.resolve(strict=True)
-    if canonical_docs_root == REPOSITORY_ROOT.resolve(strict=True):
-        _fail("PATH_INVALID", "Section 5 may render fixture documentation only")
     protocol = _PROTOCOL.load_protocol()
     regions = protocol.packaging.get("documentation_regions")
     if not isinstance(regions, Mapping) or set(regions) != {
@@ -909,13 +921,13 @@ def render_documents(
             original = target.read_bytes()
             after = target.stat(follow_symlinks=False)
         except OSError:
-            _fail("SOURCE_NOT_FOUND", "fixture documentation cannot be read")
+            _fail("SOURCE_NOT_FOUND", "documentation cannot be read")
         if not stat.S_ISREG(before.st_mode) or (
             before.st_dev,
             before.st_ino,
             before.st_size,
         ) != (after.st_dev, after.st_ino, after.st_size):
-            _fail("PATH_RACE", "fixture documentation changed while it was read")
+            _fail("PATH_RACE", "documentation changed while it was read")
         aggregate += len(original)
         if aggregate > protocol.limits["documentation_aggregate_bytes"]:
             _fail("LIMIT_EXCEEDED", "documentation aggregate exceeds its limit")

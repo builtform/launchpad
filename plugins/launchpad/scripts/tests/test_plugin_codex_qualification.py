@@ -158,6 +158,33 @@ def test_candidate_lifecycle_rejects_personal_codex_state() -> None:
     assert raised.value.code == "HOST_RECEIPT_INVALID"
 
 
+def test_completed_candidate_lifecycle_binds_detached_artifact_digest() -> None:
+    release = qualification.check_release()
+    receipt = _candidate_receipt(release)
+    artifact_digest = "a" * 64
+    receipt["schema_version"] = 2
+    receipt["artifact_digest"] = artifact_digest
+
+    result = qualification.validate_candidate_lifecycle_receipt(
+        receipt,
+        release=release,
+        codex_version="0.153.4",
+        claude_version="2.1.258",
+        artifact_digest=artifact_digest,
+    )
+    assert result["artifact_digest"] == artifact_digest
+
+    with pytest.raises(qualification.QualificationError) as raised:
+        qualification.validate_candidate_lifecycle_receipt(
+            receipt,
+            release=release,
+            codex_version="0.153.4",
+            claude_version="2.1.258",
+            artifact_digest="b" * 64,
+        )
+    assert raised.value.code == "HOST_RECEIPT_INVALID"
+
+
 def test_release_package_surface_is_manifest_plus_bare_lp_router(
     tmp_path: Path,
 ) -> None:
