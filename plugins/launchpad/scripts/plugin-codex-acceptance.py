@@ -129,6 +129,7 @@ _REQUIRED_JOBS: Final = frozenset(
 )
 _PINNED_ACTION_RE: Final = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 _IDENTIFIER_RE: Final = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+_CONVENTIONAL_COMMAND_RE: Final = re.compile(r"^commands/[^/]+\.md$")
 _CONVENTIONAL_SKILL_RE: Final = re.compile(r"^(?:skills|codex/skills)/[^/]+/SKILL\.md$")
 _CONVENTIONAL_AGENT_RE: Final = re.compile(
     r"^(?:\.codex/agents|codex/agents|agents)/[^/]+\.toml$"
@@ -371,7 +372,9 @@ def validate_workflow(path: Path = DEFAULT_WORKFLOW_PATH) -> dict[str, object]:
             "tests/test_plugin_codex_coordinator.py",
             "tests/test_plugin_codex_harden_plan.py",
             "tests/test_plugin_codex_acceptance.py",
+            "tests/test_plugin_codex_qualification.py",
             "plugin-codex-acceptance.py check",
+            "plugin-codex-qualification.py check",
             "plugin-workflow-sha-pin-check.py",
         ),
         "hermetic tier",
@@ -414,8 +417,11 @@ def validate_workflow(path: Path = DEFAULT_WORKFLOW_PATH) -> dict[str, object]:
             "tests/test_plugin_codex_coordinator.py",
             "tests/test_plugin_codex_harden_plan.py",
             "tests/test_plugin_codex_acceptance.py",
+            "tests/test_plugin_codex_qualification.py",
             "run_conformance.py",
+            "run_candidate_lifecycle.py",
             "verify-lifecycle-host",
+            "verify-candidate-lifecycle",
         ),
         "nightly/release tier",
     )
@@ -470,6 +476,7 @@ def _walk_regular_files(root: Path) -> tuple[str, ...]:
 def _is_conventional_surface(path: str) -> bool:
     return bool(
         path in _CONVENTIONAL_EXACT
+        or _CONVENTIONAL_COMMAND_RE.fullmatch(path)
         or _CONVENTIONAL_SKILL_RE.fullmatch(path)
         or _CONVENTIONAL_AGENT_RE.fullmatch(path)
         or _OPENAI_SKILL_AGENT_RE.fullmatch(path)
@@ -500,7 +507,7 @@ def generate_surface_inventory(
 ) -> SurfaceInventory:
     """Generate a closed surface inventory and reject anything not allowlisted."""
 
-    if stage not in {"source", "test_candidate"}:
+    if stage not in {"source", "qualified_source", "test_candidate", "release"}:
         _fail("RECORD_INVALID", "surface stage is invalid")
     files = _walk_regular_files(root)
     manifest_skills = _load_manifest_skills(root)
@@ -511,33 +518,64 @@ def generate_surface_inventory(
         _fail("PROTOCOL_FILE_INVALID", "router entry skill is invalid")
     router_path = f"codex/skills/{entry}/SKILL.md"
     if canonical_skill_paths is None:
-        canonical_skill_paths = frozenset(
-            node.source_path
-            for node in _SUPPORT.build_inventory(root).runtime.nodes
-            if node.kind == "skill"
+        canonical_skill_paths = (
+            frozenset(
+                node.source_path
+                for node in _SUPPORT.build_inventory(root).runtime.nodes
+                if node.kind == "skill"
+            )
+            if stage in {"source", "qualified_source"}
+            else frozenset()
         )
     records: list[SurfaceRecord] = []
     for path in files:
         if not _is_conventional_surface(path):
             continue
         if path == ".codex-plugin/plugin.json":
-            if stage != "test_candidate":
+            if stage == "source":
                 _fail("UNEXPECTED_CODEX_SURFACE", "production manifest appeared early")
+            if stage == "qualified_source":
+                records.append(
+                    SurfaceRecord(
+                        path,
+                        "compatibility_manifest",
+                        "source_only",
+                        "package_projection_source",
+                    )
+                )
+                continue
+            reason = "qualified_release" if stage == "release" else "staged_only"
             records.append(
-                SurfaceRecord(path, "compatibility_manifest", "active", "staged_only")
+                SurfaceRecord(path, "compatibility_manifest", "active", reason)
             )
         elif path == router_path:
-            disposition = "active" if stage == "test_candidate" else "source_only"
+            disposition = (
+                "source_only" if stage in {"source", "qualified_source"} else "active"
+            )
             records.append(
                 SurfaceRecord(path, "router_skill", disposition, "single_public_entry")
+            )
+        elif _CONVENTIONAL_COMMAND_RE.fullmatch(path):
+            if stage not in {"source", "qualified_source"}:
+                _fail(
+                    "UNEXPECTED_CODEX_SURFACE",
+                    f"canonical command escaped package projection: {path}",
+                )
+            records.append(
+                SurfaceRecord(
+                    path,
+                    "canonical_command",
+                    "source_only",
+                    "excluded_by_package_projection",
+                )
             )
         elif path in canonical_skill_paths and path.startswith("skills/"):
             records.append(
                 SurfaceRecord(
                     path,
                     "canonical_skill",
-                    "inert",
-                    "legacy_manifest_redirects_skill_discovery",
+                    "source_only",
+                    "excluded_by_package_projection",
                 )
             )
         else:
@@ -552,7 +590,12 @@ def generate_surface_inventory(
         )
     active = {item.path for item in records if item.disposition == "active"}
     expected_active = (
-        set() if stage == "source" else {".codex-plugin/plugin.json", router_path}
+        set()
+        if stage in {"source", "qualified_source"}
+        else {
+            ".codex-plugin/plugin.json",
+            router_path,
+        }
     )
     if active != expected_active:
         _fail("UNEXPECTED_CODEX_SURFACE", "active surface set differs")
@@ -679,7 +722,12 @@ def build_report(
     ):
         _fail("INTEGRITY_MISMATCH", "cold and warm inventories differ")
 
-    source_surfaces = generate_surface_inventory(plugin_root, stage="source")
+    source_stage = (
+        "qualified_source"
+        if (plugin_root / ".codex-plugin" / "plugin.json").is_file()
+        else "source"
+    )
+    source_surfaces = generate_surface_inventory(plugin_root, stage=source_stage)
     with tempfile.TemporaryDirectory(prefix="lp-codex-section9-") as temporary:
         temporary_root = Path(temporary).resolve()
         staged = temporary_root / "launchpad"
@@ -861,7 +909,10 @@ def _receipt_records(
 
 
 def verify_router_host_receipt(
-    path: Path, *, expected_codex_version: str
+    path: Path,
+    *,
+    expected_codex_version: str,
+    expected_runtime_payload_digest: str | None = None,
 ) -> dict[str, object]:
     """Validate the pinned real-host router smoke without promoting support."""
 
@@ -871,9 +922,19 @@ def verify_router_host_receipt(
     )
     records, _root = _receipt_records(
         value,
-        root_fields=frozenset({"codex_home", "results"}),
+        root_fields=frozenset({"codex_home", "runtime_payload_digest", "results"}),
         id_field="probe",
     )
+    runtime_payload_digest = _root.get("runtime_payload_digest")
+    if (
+        not isinstance(runtime_payload_digest, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", runtime_payload_digest)
+        or (
+            expected_runtime_payload_digest is not None
+            and runtime_payload_digest != expected_runtime_payload_digest
+        )
+    ):
+        _fail("HOST_RECEIPT_INVALID", "router receipt runtime digest differs")
     by_id = {item["probe"]: item for item in records}
     expected = {
         "app-server-argument-tail-binding",
@@ -908,6 +969,7 @@ def verify_router_host_receipt(
     return {
         "status": "pass",
         "host": f"codex-cli {expected_codex_version}",
+        "runtime_payload_digest": runtime_payload_digest,
         "advertised_capability_families": [],
         "blocked_reason_codes": list(_ROUTER_HOST_BLOCKERS),
     }
@@ -976,6 +1038,7 @@ def _parser() -> argparse.ArgumentParser:
     router = subparsers.add_parser("verify-router-host")
     router.add_argument("--receipt", type=Path, required=True)
     router.add_argument("--codex-version", required=True)
+    router.add_argument("--runtime-payload-digest")
     lifecycle = subparsers.add_parser("verify-lifecycle-host")
     lifecycle.add_argument("--receipt", type=Path, required=True)
     lifecycle.add_argument("--codex-version", required=True)
@@ -995,6 +1058,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = verify_router_host_receipt(
                 args.receipt,
                 expected_codex_version=args.codex_version,
+                expected_runtime_payload_digest=args.runtime_payload_digest,
             )
         else:
             result = verify_lifecycle_host_receipt(

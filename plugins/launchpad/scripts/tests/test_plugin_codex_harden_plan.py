@@ -397,7 +397,8 @@ def test_only_bare_lp_is_public_and_auto_or_noninteractive_execution_is_blocked(
         ),
     )
     assert not (SCRIPTS / "plugin-codex-runtime.py").exists()
-    assert not (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").exists()
+    assert (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").is_file()
+    assert (PLUGIN_ROOT / "codex" / "support-evidence.json").is_file()
     assert not list((PLUGIN_ROOT / "codex").glob("agents/**/*.toml"))
 
 

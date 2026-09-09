@@ -328,7 +328,31 @@ def _owned_path(node: Any, family: str, value: str) -> str:
     return lexical.as_posix()
 
 
-def _runtime_paths(runtime: Any, protocol: Any) -> tuple[str, ...]:
+_CANONICAL_SOURCE_ROOTS: Final = frozenset({"agents", "commands", "skills"})
+
+
+def package_path_for_source(path: str, protocol: Any) -> str:
+    """Map a canonical source path to its inert Codex package location."""
+    lexical = PurePosixPath(path)
+    if lexical.parts and lexical.parts[0] in _CANONICAL_SOURCE_ROOTS:
+        prefix = PurePosixPath(protocol.packaging["canonical_package_prefix"])
+        return (prefix / lexical).as_posix()
+    return lexical.as_posix()
+
+
+def source_path_for_package(path: str, protocol: Any) -> str:
+    """Map an inert Codex package path back to its canonical source path."""
+    lexical = PurePosixPath(path)
+    prefix = PurePosixPath(protocol.packaging["canonical_package_prefix"])
+    prefix_parts = prefix.parts
+    if lexical.parts[: len(prefix_parts)] == prefix_parts:
+        remainder = lexical.parts[len(prefix_parts) :]
+        if remainder and remainder[0] in _CANONICAL_SOURCE_ROOTS:
+            return PurePosixPath(*remainder).as_posix()
+    return lexical.as_posix()
+
+
+def _runtime_source_paths(runtime: Any, protocol: Any) -> tuple[str, ...]:
     paths = set(_packaging_sequence(protocol, "runtime_helpers"))
     paths.add(".codex-plugin/plugin.json")
     for node in _reachable_nodes(runtime, protocol):
@@ -344,6 +368,18 @@ def _runtime_paths(runtime: Any, protocol: Any) -> tuple[str, ...]:
     return tuple(sorted(paths))
 
 
+def _runtime_paths(runtime: Any, protocol: Any) -> tuple[str, ...]:
+    paths = tuple(
+        sorted(
+            package_path_for_source(path, protocol)
+            for path in _runtime_source_paths(runtime, protocol)
+        )
+    )
+    if len(paths) != len(set(paths)):
+        _fail("PROTOCOL_FILE_INVALID", "runtime package paths collide")
+    return paths
+
+
 def _seal_runtime_files(
     plugin_root: Path, runtime: Any, protocol: Any
 ) -> tuple[Any, ...]:
@@ -352,15 +388,20 @@ def _seal_runtime_files(
         protocol.limits["documentation_file_bytes"],
     )
     records = []
-    for path in _runtime_paths(runtime, protocol):
-        snapshot = _snapshot(plugin_root, path, maximum)
+    for source_path in _runtime_source_paths(runtime, protocol):
+        package_path = package_path_for_source(source_path, protocol)
+        snapshot = _snapshot(plugin_root, source_path, maximum)
         records.append(
             _PROTOCOL.normalize_runtime_file_record(
-                {"path": path, "digest": snapshot.digest, "size": snapshot.size},
+                {
+                    "path": package_path,
+                    "digest": snapshot.digest,
+                    "size": snapshot.size,
+                },
                 protocol,
             )
         )
-    return tuple(records)
+    return tuple(sorted(records, key=lambda item: item.path))
 
 
 def _runtime_digest(files: Sequence[Any], protocol: Any) -> str:
@@ -569,11 +610,17 @@ def verify_runtime_set(bundle: SupportBundle, plugin_root: Path) -> None:
     if bundle.runtime.stage == "inventory":
         _fail("RECORD_STAGE_INVALID", "inventory has no sealed runtime set")
     protocol = _PROTOCOL.load_protocol(plugin_root / "codex" / "adapter-protocol.json")
+    source_layout = (plugin_root / ".claude-plugin" / "plugin.json").is_file()
     actual = []
     for record in bundle.runtime.runtime_files:
+        snapshot_path = (
+            source_path_for_package(record.path, protocol)
+            if source_layout
+            else record.path
+        )
         snapshot = _snapshot(
             plugin_root,
-            record.path,
+            snapshot_path,
             max(protocol.limits["documentation_file_bytes"], record.size),
         )
         actual.append(

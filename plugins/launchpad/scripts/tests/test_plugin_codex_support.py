@@ -90,6 +90,12 @@ def test_candidate_runtime_set_and_digest_are_deterministic(staged_plugin: Path)
     paths = [item.path for item in first.runtime.runtime_files]
     assert paths == sorted(set(paths))
     assert ".codex-plugin/plugin.json" in paths
+    assert any(path.startswith("codex/canonical/commands/") for path in paths)
+    assert any(path.startswith("codex/canonical/skills/") for path in paths)
+    assert any(path.startswith("codex/canonical/agents/") for path in paths)
+    assert not any(path.startswith("commands/") for path in paths)
+    assert not any(path.startswith("skills/") for path in paths)
+    assert not any(path.startswith("agents/") for path in paths)
     assert "codex/support-evidence.json" not in paths
     assert "README.md" not in paths
     support.verify_runtime_set(first, staged_plugin)

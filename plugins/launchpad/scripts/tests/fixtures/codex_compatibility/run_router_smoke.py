@@ -339,7 +339,16 @@ def main() -> int:
                 cwd=host_home,
                 check=False,
             )
-    print(json.dumps({"codex_home": str(codex_home), "results": results}, indent=2))
+    print(
+        json.dumps(
+            {
+                "codex_home": str(codex_home),
+                "runtime_payload_digest": candidate.runtime.runtime_payload_digest,
+                "results": results,
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

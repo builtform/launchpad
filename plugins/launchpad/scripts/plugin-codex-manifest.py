@@ -270,9 +270,16 @@ def project_package(
     if destination == source_root.resolve(strict=True):
         _fail("PATH_INVALID", "package destination must be disposable")
     records = _package_records(bundle, source_root, include_generated=include_generated)
+    protocol = _PROTOCOL.load_protocol(source_root / "codex" / "adapter-protocol.json")
+    runtime_paths = {item.path for item in bundle.runtime.runtime_files}
     batch: dict[Path, bytes] = {}
     for path, digest, size in records:
-        snapshot = _snapshot(source_root, path, max(size, 1))
+        source_path = (
+            support.source_path_for_package(path, protocol)
+            if path in runtime_paths
+            else path
+        )
+        snapshot = _snapshot(source_root, source_path, max(size, 1))
         if snapshot.digest != digest or snapshot.size != size:
             _fail("INTEGRITY_MISMATCH", "sealed package source changed")
         batch[_safe_destination_path(destination, path)] = snapshot.content
@@ -322,6 +329,12 @@ def check_package(
     )
     if set(actual) & set(conventional):
         _fail("INTEGRITY_MISMATCH", "undeclared conventional Codex surface packaged")
+    if any(
+        PurePosixPath(path).parts
+        and PurePosixPath(path).parts[0] in {"agents", "commands", "skills"}
+        for path in actual
+    ):
+        _fail("INTEGRITY_MISMATCH", "canonical source surface exposed at package root")
     return actual
 
 

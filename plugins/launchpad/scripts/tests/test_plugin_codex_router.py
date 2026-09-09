@@ -439,12 +439,19 @@ def test_sealed_candidate_contains_exact_single_router_surface(
     paths = {item.path for item in candidate.runtime.runtime_files}
     assert "codex/skills/lp/SKILL.md" in paths
     assert "scripts/plugin-codex-router.py" in paths
+    assert ".codex-plugin/plugin.json" in paths
+    assert "codex/support-evidence.json" not in paths
     assert not (staged_plugin / "codex" / "skills" / "lp" / "agents").exists()
-    assert not (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").exists()
-    assert not (PLUGIN_ROOT / "codex" / "support-evidence.json").exists()
+    assert (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").is_file()
+    assert (PLUGIN_ROOT / "codex" / "support-evidence.json").is_file()
 
 
-def test_installed_router_fails_closed_without_release_evidence() -> None:
+def test_installed_router_fails_closed_without_release_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    missing_release = tmp_path / "launchpad"
+    (missing_release / "codex").mkdir(parents=True)
+    monkeypatch.setattr(router, "PLUGIN_ROOT", missing_release)
     with pytest.raises(router.RouterError) as raised:
         router.RouterSession.installed(_host())
     assert raised.value.code == "SUPPORT_EVIDENCE_UNAVAILABLE"

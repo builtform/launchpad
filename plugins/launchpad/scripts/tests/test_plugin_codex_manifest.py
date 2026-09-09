@@ -15,7 +15,9 @@ SCRIPTS = Path(__file__).resolve().parents[1]
 PLUGIN_ROOT = SCRIPTS.parent
 MANIFEST_PATH = SCRIPTS / "plugin-codex-manifest.py"
 SUPPORT_PATH = SCRIPTS / "plugin-codex-support.py"
-DOC_FIXTURE = Path(__file__).parent / "fixtures" / "codex_compatibility" / "support_docs"
+DOC_FIXTURE = (
+    Path(__file__).parent / "fixtures" / "codex_compatibility" / "support_docs"
+)
 
 
 def _load(name: str, path: Path):
@@ -73,7 +75,7 @@ def _release(candidate):
 def test_manifest_projects_shared_identity_and_only_fixed_host_fields(
     staged_plugin: Path,
 ) -> None:
-    assert not (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").exists()
+    assert (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").is_file()
     assert manifest.sync_manifest(PLUGIN_ROOT, staged_plugin, write=True)
     value = json.loads((staged_plugin / ".codex-plugin" / "plugin.json").read_text())
     authority = json.loads((PLUGIN_ROOT / ".claude-plugin" / "plugin.json").read_text())
@@ -85,6 +87,7 @@ def test_manifest_projects_shared_identity_and_only_fixed_host_fields(
 
 
 def test_manifest_check_is_side_effect_free_when_absent(staged_plugin: Path) -> None:
+    shutil.rmtree(staged_plugin / ".codex-plugin")
     before = set(path.relative_to(staged_plugin) for path in staged_plugin.rglob("*"))
     assert not manifest.sync_manifest(PLUGIN_ROOT, staged_plugin, write=False)
     after = set(path.relative_to(staged_plugin) for path in staged_plugin.rglob("*"))
@@ -107,6 +110,7 @@ def test_manifest_rejects_symlinked_target_and_parent(
     outside = tmp_path / "outside.json"
     outside.write_text("{}", encoding="utf-8")
     target_dir = staged_plugin / ".codex-plugin"
+    shutil.rmtree(target_dir)
     target_dir.mkdir()
     (target_dir / "plugin.json").symlink_to(outside)
     with pytest.raises((manifest.ManifestError, OSError)):
@@ -160,6 +164,76 @@ def test_package_consumes_sealed_set_plus_generated_slots_only(
     assert "artifact_digest" not in evidence_path.read_text(encoding="utf-8")
 
 
+def test_runtime_package_contains_router_import_closure(
+    staged_plugin: Path, tmp_path: Path
+) -> None:
+    candidate = _candidate(staged_plugin)
+    package = tmp_path / "runtime-package"
+    package.mkdir()
+    paths = set(
+        manifest.project_package(
+            candidate,
+            staged_plugin,
+            package,
+            include_generated=False,
+        )
+    )
+    required = {
+        "scripts/atomic_io.py",
+        "scripts/plugin-codex-corpus.py",
+        "scripts/plugin-codex-manifest.py",
+        "scripts/plugin-codex-protocol.py",
+        "scripts/plugin-codex-resolver.py",
+        "scripts/plugin-codex-router.py",
+        "scripts/plugin-codex-support.py",
+        "scripts/plugin_stack_adapters/_vendor/yaml/__init__.py",
+        "scripts/safe_run.py",
+    }
+    assert required.issubset(paths)
+    assert not (package / "commands").exists()
+    assert not (package / "skills").exists()
+    assert not (package / "agents").exists()
+    assert any(path.startswith("codex/canonical/commands/") for path in paths)
+    assert any(path.startswith("codex/canonical/skills/") for path in paths)
+    assert any(path.startswith("codex/canonical/agents/") for path in paths)
+
+    sys.path.insert(0, str(package / "scripts"))
+    try:
+        _load(
+            "plugin_codex_router_from_sealed_package",
+            package / "scripts" / "plugin-codex-router.py",
+        )
+        packaged_resolver = _load(
+            "plugin_codex_resolver_from_sealed_package",
+            package / "scripts" / "plugin-codex-resolver.py",
+        )
+        catalog = packaged_resolver.SecureResolver().catalog()
+        command_paths = {
+            path
+            for path in paths
+            if path.startswith("codex/canonical/commands/")
+            and path.count("/") == 3
+            and path.endswith(".md")
+        }
+        skill_paths = {
+            path
+            for path in paths
+            if path.startswith("codex/canonical/skills/")
+            and path.endswith("/SKILL.md")
+        }
+        agent_paths = {
+            path
+            for path in paths
+            if path.startswith("codex/canonical/agents/") and path.endswith(".md")
+        }
+        assert {item.source_path for item in catalog.commands.values()} == command_paths
+        assert {item.source_path for item in catalog.skills.values()} == skill_paths
+        assert {item.source_path for item in catalog.agents.values()} == agent_paths
+        assert catalog.invalid_entries == ()
+    finally:
+        sys.path.remove(str(package / "scripts"))
+
+
 def test_package_rejects_extra_file_symlink_and_interrupted_temp(
     staged_plugin: Path, tmp_path: Path
 ) -> None:
@@ -185,7 +259,9 @@ def test_package_rejects_extra_file_symlink_and_interrupted_temp(
     assert symlink.value.code == "PATH_SYMLINK"
 
 
-def test_package_recovery_rewrites_corrupt_file(staged_plugin: Path, tmp_path: Path) -> None:
+def test_package_recovery_rewrites_corrupt_file(
+    staged_plugin: Path, tmp_path: Path
+) -> None:
     candidate = _candidate(staged_plugin)
     package = tmp_path / "package"
     package.mkdir()

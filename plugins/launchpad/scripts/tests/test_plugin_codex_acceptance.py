@@ -111,7 +111,9 @@ def test_workflow_rejects_unpinned_action_and_gate_bypass(tmp_path: Path) -> Non
 
     bypass = tmp_path / "bypass.yml"
     bypass.write_text(
-        source.replace("    name: Hermetic", "    continue-on-error: true\n    name: Hermetic", 1),
+        source.replace(
+            "    name: Hermetic", "    continue-on-error: true\n    name: Hermetic", 1
+        ),
         encoding="utf-8",
     )
     with pytest.raises(acceptance.AcceptanceError) as weakened:
@@ -124,7 +126,10 @@ def test_workflow_rejects_unpinned_action_and_gate_bypass(tmp_path: Path) -> Non
     [
         ("          tests/test_plugin_codex_support.py\n", "CI_TIER_INCOMPLETE"),
         ("    needs: hermetic-compatibility\n", "CI_TIER_INCOMPLETE"),
-        ("          python plugins/launchpad/scripts/tests/fixtures/codex_compatibility/run_conformance.py \\\n", "CI_TIER_INCOMPLETE"),
+        (
+            "          python plugins/launchpad/scripts/tests/fixtures/codex_compatibility/run_conformance.py \\\n",
+            "CI_TIER_INCOMPLETE",
+        ),
         ("  cancel-in-progress: true\n", "CI_TIER_INCOMPLETE"),
     ],
 )
@@ -142,17 +147,29 @@ def test_workflow_rejects_missing_tier_execution_or_dependency(
     assert raised.value.code == expected_code
 
 
-def test_source_surface_inventory_is_router_only_and_not_discoverable() -> None:
-    inventory = acceptance.generate_surface_inventory(PLUGIN_ROOT, stage="source")
+def test_source_surface_inventory_is_projection_only() -> None:
+    inventory = acceptance.generate_surface_inventory(
+        PLUGIN_ROOT, stage="qualified_source"
+    )
     active = [item for item in inventory.records if item.disposition == "active"]
     source_only = [
         item for item in inventory.records if item.disposition == "source_only"
     ]
-    inert = [item for item in inventory.records if item.disposition == "inert"]
     assert active == []
-    assert [item.path for item in source_only] == ["codex/skills/lp/SKILL.md"]
-    assert len(inert) == 16
-    assert not (PLUGIN_ROOT / ".codex-plugin/plugin.json").exists()
+    assert len(source_only) == 61
+    assert sum(item.kind == "canonical_command" for item in source_only) == 43
+    assert {item.kind for item in source_only} == {
+        "canonical_command",
+        "canonical_skill",
+        "compatibility_manifest",
+        "router_skill",
+    }
+    assert all(
+        item.reason == "excluded_by_package_projection"
+        for item in source_only
+        if item.kind in {"canonical_command", "canonical_skill"}
+    )
+    assert (PLUGIN_ROOT / ".codex-plugin/plugin.json").is_file()
     assert set(inventory.confirmed_absent) == set(acceptance._CONFIRMED_ABSENT)
 
 
@@ -292,7 +309,9 @@ def test_support_producer_closure_limit_accepts_limit_and_rejects_plus_one() -> 
         direct=SimpleNamespace(commands=(), skills=(), agents=(), count=limit),
     )
     exact_runtime = SimpleNamespace(nodes=(exact_node,), root_ids=("lp-root",))
-    assert acceptance._SUPPORT._reachable_nodes(exact_runtime, protocol) == (exact_node,)
+    assert acceptance._SUPPORT._reachable_nodes(exact_runtime, protocol) == (
+        exact_node,
+    )
 
     overflow_node = SimpleNamespace(
         id="lp-root",
@@ -323,6 +342,7 @@ def _router_receipt() -> dict[str, object]:
     )
     return {
         "codex_home": "/private/tmp/lp-codex-router-fixture",
+        "runtime_payload_digest": "a" * 64,
         "results": [
             {
                 "probe": probe,
@@ -342,6 +362,7 @@ def test_router_host_receipt_preserves_real_host_blockers(tmp_path: Path) -> Non
         expected_codex_version="0.153.4",
     )
     assert result["status"] == "pass"
+    assert result["runtime_payload_digest"] == "a" * 64
     assert result["advertised_capability_families"] == []
     assert result["blocked_reason_codes"] == [
         "HOST_NO_AUTHENTICATED_EXPLICIT_INVOCATION_PROVENANCE",

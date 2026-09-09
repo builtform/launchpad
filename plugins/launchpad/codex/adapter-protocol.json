@@ -219,6 +219,7 @@
     }
   },
   "packaging": {
+    "canonical_package_prefix": "codex/canonical",
     "manifest_shared_fields": [
       "author",
       "description",
@@ -235,11 +236,31 @@
     "runtime_helpers": [
       "codex/adapter-protocol.json",
       "codex/skills/lp/SKILL.md",
+      "scripts/atomic_io.py",
+      "scripts/plugin-codex-corpus.py",
       "scripts/plugin-codex-manifest.py",
       "scripts/plugin-codex-protocol.py",
       "scripts/plugin-codex-resolver.py",
       "scripts/plugin-codex-router.py",
-      "scripts/plugin-codex-support.py"
+      "scripts/plugin-codex-support.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/__init__.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/composer.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/constructor.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/cyaml.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/dumper.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/emitter.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/error.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/events.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/loader.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/nodes.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/parser.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/reader.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/representer.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/resolver.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/scanner.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/serializer.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/tokens.py",
+      "scripts/safe_run.py"
     ],
     "generated_slots": ["README.md", "codex/support-evidence.json", "docs/guides/HOW_IT_WORKS.md"],
     "documentation_regions": {

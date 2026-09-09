@@ -78,12 +78,16 @@ def _make_plugin(tmp_path: Path) -> Path:
     root = tmp_path / "plugin root ü"
     (root / "codex").mkdir(parents=True)
     (root / ".claude-plugin").mkdir()
+    (root / ".codex-plugin").mkdir()
     (root / "commands").mkdir()
     (root / "skills" / "lp-tool" / "references").mkdir(parents=True)
     (root / "agents" / "review").mkdir(parents=True)
     (root / "scripts").mkdir()
     shutil.copyfile(PROTOCOL_PATH, root / "codex" / "adapter-protocol.json")
     (root / ".claude-plugin" / "plugin.json").write_text(
+        json.dumps({"name": "fixture", "version": "1.2.3"}), encoding="utf-8"
+    )
+    (root / ".codex-plugin" / "plugin.json").write_text(
         json.dumps({"name": "fixture", "version": "1.2.3"}), encoding="utf-8"
     )
     (root / "commands" / "lp-alpha.md").write_text(

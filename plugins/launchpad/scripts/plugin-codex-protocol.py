@@ -809,6 +809,7 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
     _exact_keys(
         packaging_raw,
         allowed=(
+            "canonical_package_prefix",
             "manifest_shared_fields",
             "manifest_host_fields",
             "runtime_helpers",
@@ -816,6 +817,7 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
             "documentation_regions",
         ),
         required=(
+            "canonical_package_prefix",
             "manifest_shared_fields",
             "manifest_host_fields",
             "runtime_helpers",
@@ -824,6 +826,14 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
         ),
         context="packaging",
     )
+    canonical_package_prefix = _as_string(
+        packaging_raw["canonical_package_prefix"],
+        "packaging.canonical_package_prefix",
+    )
+    if canonical_package_prefix != "codex/canonical":
+        raise ProtocolValidationError(
+            "PROTOCOL_FILE_INVALID", "canonical package prefix differs"
+        )
     manifest_shared_fields = _string_tuple(
         packaging_raw["manifest_shared_fields"],
         "packaging.manifest_shared_fields",
@@ -884,6 +894,7 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
         )
     packaging = MappingProxyType(
         {
+            "canonical_package_prefix": canonical_package_prefix,
             "manifest_shared_fields": manifest_shared_fields,
             "manifest_host_fields": MappingProxyType(
                 {

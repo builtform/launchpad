@@ -194,8 +194,16 @@ def test_router_grammar_and_zero_mutation_boundary_are_protocol_owned() -> None:
         ),
     }
     assert contract.limits["router_tokens"] == 1024
+    assert contract.packaging["canonical_package_prefix"] == "codex/canonical"
     assert "codex/skills/lp/SKILL.md" in contract.packaging["runtime_helpers"]
+    assert "scripts/atomic_io.py" in contract.packaging["runtime_helpers"]
+    assert "scripts/plugin-codex-corpus.py" in contract.packaging["runtime_helpers"]
     assert "scripts/plugin-codex-router.py" in contract.packaging["runtime_helpers"]
+    assert "scripts/safe_run.py" in contract.packaging["runtime_helpers"]
+    assert (
+        "scripts/plugin_stack_adapters/_vendor/yaml/__init__.py"
+        in contract.packaging["runtime_helpers"]
+    )
 
 
 def test_test_candidate_spelling_is_explicit_and_one_way() -> None:
@@ -264,7 +272,10 @@ def test_protocol_rejects_unknown_root_field(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("mutate", "code"),
     [
-        (lambda value: value["packaging"]["generated_slots"].reverse(), "PROTOCOL_FILE_INVALID"),
+        (
+            lambda value: value["packaging"]["generated_slots"].reverse(),
+            "PROTOCOL_FILE_INVALID",
+        ),
         (
             lambda value: value["packaging"]["manifest_host_fields"].update(
                 {"hooks": "./hooks/hooks.json"}
@@ -282,9 +293,9 @@ def test_protocol_rejects_unknown_root_field(tmp_path: Path) -> None:
             "PROTOCOL_FILE_INVALID",
         ),
         (
-            lambda value: value["router"][
-                "zero_mutation_required_capabilities"
-            ].append("unknown-capability"),
+            lambda value: value["router"]["zero_mutation_required_capabilities"].append(
+                "unknown-capability"
+            ),
             "PROTOCOL_FILE_INVALID",
         ),
     ],

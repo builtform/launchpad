@@ -95,6 +95,7 @@ jobs:
           tests/test_plugin_codex_coordinator.py
           tests/test_plugin_codex_harden_plan.py
           tests/test_plugin_codex_acceptance.py
+          tests/test_plugin_codex_qualification.py
 
       - name: Generate and verify Section 9 acceptance report
         run: |
@@ -103,6 +104,12 @@ jobs:
             --workflow .github/workflows/codex-compatibility.yml \
             --output "${RUNNER_TEMP}/codex-acceptance.json"
           python -m json.tool "${RUNNER_TEMP}/codex-acceptance.json"
+
+      - name: Verify qualified release evidence
+        run: >-
+          python plugins/launchpad/scripts/plugin-codex-qualification.py check
+          --plugin-root plugins/launchpad
+          --evidence plugins/launchpad/codex/support-evidence.json
 
       - name: Verify workflow action SHA pins
         run: python plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py
@@ -184,6 +191,7 @@ jobs:
           tests/test_plugin_codex_coordinator.py
           tests/test_plugin_codex_harden_plan.py
           tests/test_plugin_codex_acceptance.py
+          tests/test_plugin_codex_qualification.py
 
       - name: Run isolated lifecycle and Claude coexistence probe
         run: |
@@ -194,5 +202,18 @@ jobs:
             | tee "${RUNNER_TEMP}/codex-lifecycle-host.json"
           python plugins/launchpad/scripts/plugin-codex-acceptance.py verify-lifecycle-host \
             --receipt "${RUNNER_TEMP}/codex-lifecycle-host.json" \
+            --codex-version "${CODEX_CLI_VERSION}" \
+            --claude-version "${CLAUDE_CODE_VERSION}"
+
+      - name: Run exact candidate lifecycle and coexistence probe
+        run: |
+          set -euo pipefail
+          candidate_home="$(mktemp -d "${RUNNER_TEMP}/lp-codex-candidate.XXXXXX")"
+          python plugins/launchpad/scripts/tests/fixtures/codex_compatibility/run_candidate_lifecycle.py \
+            --codex-home "${candidate_home}" \
+            | tee "${RUNNER_TEMP}/codex-candidate-lifecycle.json"
+          python plugins/launchpad/scripts/plugin-codex-qualification.py verify-candidate-lifecycle \
+            --plugin-root plugins/launchpad \
+            --receipt "${RUNNER_TEMP}/codex-candidate-lifecycle.json" \
             --codex-version "${CODEX_CLI_VERSION}" \
             --claude-version "${CLAUDE_CODE_VERSION}"

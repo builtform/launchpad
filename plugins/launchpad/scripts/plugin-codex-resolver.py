@@ -441,6 +441,7 @@ class SecureResolver:
     def __init__(self) -> None:
         self.protocol = _PROTOCOL.load_protocol()
         self._plugin_path = PLUGIN_ROOT
+        self._canonical_prefix = self._canonical_catalog_prefix(self._plugin_path)
         self._fixture = False
         self._builtin_catalog: Catalog | None = None
         self._catalog_cache: dict[tuple[str, str], Catalog] = {}
@@ -453,10 +454,32 @@ class SecureResolver:
             plugin_root / "codex" / "adapter-protocol.json"
         )
         resolver._plugin_path = _validate_absolute_path(plugin_root)
+        resolver._canonical_prefix = resolver._canonical_catalog_prefix(
+            resolver._plugin_path
+        )
         resolver._fixture = True
         resolver._builtin_catalog = None
         resolver._catalog_cache = {}
         return resolver
+
+    def _canonical_catalog_prefix(self, plugin_root: Path) -> str:
+        if (plugin_root / ".claude-plugin" / "plugin.json").is_file():
+            return ""
+        value = self.protocol.packaging["canonical_package_prefix"]
+        if not isinstance(value, str):
+            _fail("PROTOCOL_FILE_INVALID", "canonical package prefix is invalid")
+        return value
+
+    def _builtin_path(self, relative: str) -> str:
+        if not self._canonical_prefix:
+            return relative
+        return f"{self._canonical_prefix}/{relative}"
+
+    def _path_depth_limit(self, origin: str) -> int:
+        base = self.protocol.limits["catalog_depth"]
+        if origin != "built_in" or not self._canonical_prefix:
+            return base
+        return base + len(PurePosixPath(self._canonical_prefix).parts)
 
     def _source_limit(self) -> int:
         return (
@@ -539,7 +562,7 @@ class SecureResolver:
             root,
             relative_path,
             maximum_bytes=self._source_limit(),
-            maximum_depth=self.protocol.limits["catalog_depth"],
+            maximum_depth=self._path_depth_limit(origin),
             race_hook=race_hook,
         )
         return self._record_from_snapshot(
@@ -560,7 +583,15 @@ class SecureResolver:
     ) -> tuple[tuple[str, ...], tuple[str, ...]]:
         files: list[str] = []
         invalid: list[str] = []
-        maximum_depth = self.protocol.limits["catalog_depth"]
+        maximum_depth = (
+            self._path_depth_limit("built_in")
+            if self._canonical_prefix
+            and (
+                base == self._canonical_prefix
+                or base.startswith(f"{self._canonical_prefix}/")
+            )
+            else self.protocol.limits["catalog_depth"]
+        )
 
         def walk(relative: str, depth: int) -> None:
             if depth > maximum_depth:
@@ -602,16 +633,21 @@ class SecureResolver:
         agents: dict[str, Any] = {}
         invalid: list[str] = []
         with _anchor_directory(self._plugin_path) as root:
-            for name in _list_directory(root, "commands", maximum_depth=1):
+            commands_root = self._builtin_path("commands")
+            for name in _list_directory(
+                root,
+                commands_root,
+                maximum_depth=self._path_depth_limit("built_in"),
+            ):
                 if not (name.startswith("lp-") and name.endswith(".md")):
                     continue
-                path = f"commands/{name}"
+                path = f"{commands_root}/{name}"
                 try:
                     snapshot = _read_snapshot(
                         root,
                         path,
                         maximum_bytes=self._source_limit(),
-                        maximum_depth=self.protocol.limits["catalog_depth"],
+                        maximum_depth=self._path_depth_limit("built_in"),
                     )
                     if not snapshot.content.startswith(b"---\n"):
                         continue
@@ -626,10 +662,15 @@ class SecureResolver:
                     self._insert_unique(commands, record)
                 except ResolverError as exc:
                     invalid.append(f"{path}:{exc.code}")
-            for name in _list_directory(root, "skills", maximum_depth=1):
+            skills_root = self._builtin_path("skills")
+            for name in _list_directory(
+                root,
+                skills_root,
+                maximum_depth=self._path_depth_limit("built_in"),
+            ):
                 if not name.startswith("lp-"):
                     continue
-                path = f"skills/{name}/SKILL.md"
+                path = f"{skills_root}/{name}/SKILL.md"
                 try:
                     record = self._inspect_path(
                         root,
@@ -643,7 +684,7 @@ class SecureResolver:
                 except ResolverError as exc:
                     invalid.append(f"{path}:{exc.code}")
             agent_paths, agent_invalid = self._walk_agents(
-                root, "agents", require_lp_prefix=True
+                root, self._builtin_path("agents"), require_lp_prefix=True
             )
             invalid.extend(agent_invalid)
             for path in agent_paths:
@@ -680,7 +721,7 @@ class SecureResolver:
     def _plugin_version(self, root: AnchoredRoot) -> str:
         snapshot = _read_snapshot(
             root,
-            ".claude-plugin/plugin.json",
+            ".codex-plugin/plugin.json",
             maximum_bytes=self.protocol.limits["yaml_scalar_bytes"],
             maximum_depth=self.protocol.limits["catalog_depth"],
         )
@@ -689,11 +730,11 @@ class SecureResolver:
                 snapshot.content, object_pairs_hook=_strict_json_pairs
             )
         except (UnicodeDecodeError, json.JSONDecodeError, _DuplicateJsonKey):
-            _fail("CATALOG_INVALID", "plugin manifest is invalid")
+            _fail("CATALOG_INVALID", "Codex plugin manifest is invalid")
         if not isinstance(manifest, dict) or not isinstance(
             manifest.get("version"), str
         ):
-            _fail("CATALOG_INVALID", "plugin manifest version is invalid")
+            _fail("CATALOG_INVALID", "Codex plugin manifest version is invalid")
         return manifest["version"]
 
     def _insert_unique(self, table: dict[str, Any], record: Any) -> None:
@@ -932,7 +973,7 @@ class SecureResolver:
         catalog = self.catalog(project_root)
         if reference_class == "explicit_path":
             parts = _validate_relative_path(
-                identifier, max_depth=self.protocol.limits["catalog_depth"]
+                identifier, max_depth=self._path_depth_limit("built_in")
             )
             matches = [
                 item
@@ -1236,7 +1277,7 @@ class SecureResolver:
                 root,
                 record.source_path,
                 maximum_bytes=self._source_limit(),
-                maximum_depth=self.protocol.limits["catalog_depth"],
+                maximum_depth=self._path_depth_limit(record.origin),
                 race_hook=race_hook,
             )
         if snapshot.digest != expected_digest:
@@ -1285,7 +1326,7 @@ class SecureResolver:
             resolved = PurePosixPath(relative_path).as_posix()
             owner_root = ""
         resolved_parts = _validate_relative_path(
-            resolved, max_depth=self.protocol.limits["catalog_depth"]
+            resolved, max_depth=self._path_depth_limit(owner.origin)
         )
         if owner_root:
             root_parts = PurePosixPath(owner_root).parts
@@ -1308,7 +1349,7 @@ class SecureResolver:
                 root,
                 resolved,
                 maximum_bytes=self.protocol.limits["body_bytes"],
-                maximum_depth=self.protocol.limits["catalog_depth"],
+                maximum_depth=self._path_depth_limit(owner.origin),
                 race_hook=race_hook,
             )
         return _PROTOCOL.normalize_resolver_resource_record(
@@ -1351,7 +1392,7 @@ class SecureResolver:
                 root,
                 resolved,
                 maximum_bytes=self.protocol.limits["body_bytes"],
-                maximum_depth=self.protocol.limits["catalog_depth"],
+                maximum_depth=self._path_depth_limit(owner.origin),
                 race_hook=race_hook,
             )
         if snapshot.digest != expected_digest:

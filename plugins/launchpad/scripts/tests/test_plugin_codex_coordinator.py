@@ -263,15 +263,14 @@ def _assert_code(code: str, call) -> coordinator.CoordinatorError:
     return raised.value
 
 
-def test_fixture_contract_is_protocol_owned_and_production_runtime_stays_absent() -> (
-    None
-):
+def test_fixture_contract_is_protocol_owned_and_release_runtime_is_declarative() -> None:
     protocol = coordinator._PROTOCOL.load_protocol()
     coordinator.assert_protocol_schema_alignment(protocol)
     assert "persistent_instruction_write" in protocol.capability_ids
     assert set(coordinator._SCHEMA_TYPES) <= set(protocol.record_schemas)
     assert not (SCRIPTS / "plugin-codex-runtime.py").exists()
-    assert not (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").exists()
+    assert (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").is_file()
+    assert (PLUGIN_ROOT / "codex" / "support-evidence.json").is_file()
 
 
 def test_frame_pins_control_state_and_rejects_cycle_depth_and_digest_forgery(

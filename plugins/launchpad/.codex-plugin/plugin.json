@@ -1,0 +1,25 @@
+{
+  "author": {
+    "name": "Foad Shafighi",
+    "url": "https://github.com/foadshafighi"
+  },
+  "description": "Autonomous software-engineering harness. Brownfield-safe adaptation pipeline (detect → define → plan → build) across TypeScript, Python, Go, Django, and polyglot codebases.",
+  "homepage": "https://github.com/builtform/launchpad",
+  "keywords": [
+    "harness",
+    "brownfield",
+    "greenfield",
+    "scaffolding",
+    "typescript",
+    "python",
+    "go",
+    "django",
+    "workflow-automation",
+    "code-review"
+  ],
+  "license": "MIT",
+  "name": "launchpad",
+  "repository": "https://github.com/builtform/launchpad",
+  "skills": "./codex/skills/",
+  "version": "2.1.11"
+}
