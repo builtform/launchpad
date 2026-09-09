@@ -79,3 +79,22 @@ This remains a test-only conformance slice. It cannot dispatch a real child or
 write the returned artifact bytes to disk, Codex `--auto` remains blocked, and
 the absent production coordinator keeps every real-host effectful route
 fail-closed.
+
+## Section 9 compatibility acceptance
+
+`plugin-codex-acceptance.py` generates the deny-by-default inventory for every
+conventionally discovered Codex surface, consumes the support producer's one
+direct-edge graph, classifies every public canonical root, validates the CI
+trigger set, and records package and catalog observations. It does not create
+release evidence or promote a blocked entry.
+
+The compatibility workflow runs three tiers. Every relevant pull request runs
+the hermetic whole-corpus suite. Adapter and canonical changes run the isolated
+pinned Codex host smoke. Scheduled, manually dispatched, and release-tag runs
+also repeat the workflow-family boundaries and the disposable Codex lifecycle
+plus Claude coexistence probe.
+
+Real-host receipts must retain the bare `$lp` ingress blockers until the host
+provides authenticated explicit selection and a lossless authenticated argument
+tail. A fixture pass never changes that classification, and no command family
+is advertised by Section 9.
