@@ -1,6 +1,44 @@
 ---
 name: lp-brainstorm
 description: Collaborative brainstorming with codebase research, structured dialogue, and design document capture. NEVER writes code.
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    skills:
+      - lp-brainstorming
+      - lp-document-review
+    agents:
+      - lp-code-analyzer
+      - lp-pattern-finder
+    scripts:
+      - scripts/cwd_state.py
+    external-tools:
+      - python3
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - generic_subagents
+      - installed_root_binding
+      - interaction_mode_attestation
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - shell_execution
+      - structured_arguments
+      - subagent_cancel_final_join
+    mutation: project_files
+    interaction: required
+    external-data-egress: true
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # /lp-brainstorm

@@ -4,6 +4,19 @@ description: Challenges assumptions, finds logical flaws, and stress-tests claim
 stack_scope: core_pipeline
 tools: Read
 model: inherit
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 You are the devil's advocate. Actively poke holes in the plan.

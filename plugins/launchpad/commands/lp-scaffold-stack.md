@@ -1,6 +1,33 @@
 ---
 name: lp-scaffold-stack
 description: Consume scaffold-decision.json, materialize the chosen stack layers, and write scaffold-receipt.json for /lp-define. Greenfield-only; refuses on brownfield/ambiguous cwd.
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    scripts:
+      - scripts/plugin-scaffold-stack.py
+    external-tools:
+      - python3
+  capabilities:
+    required:
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - installed_root_binding
+      - interaction_mode_attestation
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - shell_execution
+      - structured_arguments
+    mutation: project_files
+    interaction: optional
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # /lp-scaffold-stack

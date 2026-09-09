@@ -3,6 +3,7 @@
   "protocol_id": "launchpad-codex-adapter",
   "protocol_version": "1.0.0",
   "name_pattern": "^[a-z0-9][a-z0-9-]*$",
+  "stack_scope_pattern": "^(core_pipeline|stack:any|stack:[a-z_]{1,32}|design_quality|skill_quality)$",
   "metadata_namespace": "x-launchpad",
   "component_kinds": ["command", "skill", "agent"],
   "canonical_dialect": {
@@ -55,6 +56,7 @@
       "tools",
       "model",
       "color",
+      "stack_scope",
       "argument-hint",
       "disable-model-invocation",
       "allowed-tools",
@@ -231,6 +233,9 @@
     },
     "digest_record": {
       "required": ["runtime_payload_digest", "evidence_digest", "artifact_digest"]
+    },
+    "agent_scope_record": {
+      "required": ["resource_id", "stack_scope"]
     }
   },
   "defaults": {

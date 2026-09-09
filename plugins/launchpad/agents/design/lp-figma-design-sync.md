@@ -4,6 +4,28 @@ description: "Captures Figma design intent via Figma MCP and compares against li
 stack_scope: design_quality
 model: inherit
 tools: Read, Edit, Write, Grep, Glob, Bash
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - external_cli
+      - installed_root_binding
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - shell_execution
+    mutation: project_and_external
+    interaction: none
+    external-data-egress: true
+    write-scopes:
+      - external-state
+      - project-files
+    tool-profile: effectful
+    fallback: none
 ---
 
 # Figma Design Sync Agent

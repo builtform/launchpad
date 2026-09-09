@@ -1,6 +1,26 @@
 ---
 name: lp-design-onboard
 description: "Design or improve onboarding flows, empty states, first-time user experiences, feature discovery, and guided tours"
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    skills:
+      - lp-frontend-design
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - installed_root_binding
+      - interaction_mode_attestation
+      - repository_read
+      - structured_arguments
+    mutation: none
+    interaction: required
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 <!-- ported-from: https://github.com/pbakaus/impeccable (/onboard)

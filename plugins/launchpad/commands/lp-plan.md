@@ -1,6 +1,59 @@
 ---
 name: lp-plan
 description: Meta-orchestrator for interactive planning pipeline. Chains design → /lp-pnf → /lp-harden-plan → human approval based on section registry status.
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    commands:
+      - lp-copy
+      - lp-copy-review
+      - lp-design-onboard
+      - lp-design-polish
+      - lp-design-review
+      - lp-feature-video
+      - lp-harden-plan
+    skills:
+      - lp-frontend-design
+      - lp-responsive-design
+      - lp-web-design-guidelines
+    agents:
+      - lp-design-iterator
+      - lp-figma-design-sync
+    scripts:
+      - scripts/plugin-config-loader.py
+      - scripts/plugin_stack_adapters/autonomous_guard.py
+      - scripts/plugin_stack_adapters/section_registry.py
+    external-tools:
+      - agent-browser
+      - python3
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - browser
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - generic_subagents
+      - host_presentation
+      - installed_root_binding
+      - interaction_mode_attestation
+      - nested_command
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - shell_execution
+      - structured_arguments
+      - subagent_cancel_final_join
+    mutation: project_files
+    interaction: required
+    external-data-egress: true
+    write-scopes:
+      - project-files
+    tool-profile: effectful
+    fallback: none
 ---
 
 # /lp-plan

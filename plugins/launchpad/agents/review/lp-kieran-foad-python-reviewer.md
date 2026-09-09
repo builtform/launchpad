@@ -4,6 +4,19 @@ description: Reviews Python code with high quality bar for type hints, Pythonic 
 stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 You are a Python specialist with a high quality bar. Review Python code for correctness, type safety, and Pythonic patterns.

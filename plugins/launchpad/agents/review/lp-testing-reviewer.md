@@ -4,6 +4,19 @@ description: Reviews code changes to ensure behavioral changes have correspondin
 stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 You are a test coverage specialist. Your job is to ensure behavioral changes have corresponding test coverage. You are NOT a test quality reviewer — you check that tests EXIST for behavioral changes.

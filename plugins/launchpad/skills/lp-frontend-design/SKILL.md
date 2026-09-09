@@ -2,6 +2,32 @@
 name: lp-frontend-design
 description: "Create distinctive, production-grade frontend interfaces with high design quality. Use this skill when the user asks to build web components, pages, or applications. Generates creative, polished code that avoids generic AI aesthetics. Triggers on: build a landing page, create a dashboard, design a component, style this UI, make it look good, frontend design, build a page."
 user-invocable: false
+x-launchpad:
+  schema-version: 1
+  component-kind: skill
+  direct:
+    references:
+      - references/color-and-contrast.md
+      - references/interaction-design.md
+      - references/motion-design.md
+      - references/responsive-design.md
+      - references/spatial-design.md
+      - references/typography.md
+      - references/ux-writing.md
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - operation_authorization
+      - repository_read
+      - repository_write
+    mutation: project_files
+    interaction: none
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 <!-- ported-from: https://github.com/pbakaus/impeccable (consolidated)

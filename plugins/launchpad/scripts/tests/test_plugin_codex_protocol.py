@@ -604,3 +604,36 @@ def test_no_downstream_codex_component_reowns_protocol_constants() -> None:
         path for path in SCRIPTS.glob("plugin-codex-*.py") if path != MODULE_PATH
     )
     assert protocol.detect_duplicate_protocol_constants(downstream) == ()
+
+
+def test_agent_scope_record_uses_protocol_grammar() -> None:
+    record = protocol.normalize_agent_scope_record(
+        {"resource_id": "lp-reviewer", "stack_scope": "stack:rails"}
+    )
+    assert record.resource_id == "lp-reviewer"
+    assert record.stack_scope == "stack:rails"
+    _assert_code(
+        "RECORD_INVALID",
+        lambda: protocol.normalize_agent_scope_record(
+            {"resource_id": "lp-reviewer", "stack_scope": "stack:" + "a" * 33}
+        ),
+    )
+
+
+def test_protocol_accepts_existing_stack_scope_host_field() -> None:
+    document = b"""---
+name: lp-reviewer
+description: Review fixture.
+stack_scope: stack:any
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    mutation: none
+    interaction: none
+---
+Body.
+"""
+    metadata, body = protocol.normalize_document_metadata(document)
+    assert metadata.component_kind == "agent"
+    assert body == b"Body.\n"

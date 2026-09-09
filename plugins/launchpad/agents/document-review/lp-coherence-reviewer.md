@@ -4,6 +4,19 @@ description: Checks document consistency, flow, and internal agreement across se
 stack_scope: core_pipeline
 tools: Read
 model: inherit
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 You are an internal consistency checker. Ensure the document doesn't contradict itself.

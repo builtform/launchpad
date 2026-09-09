@@ -1,6 +1,31 @@
 ---
 name: lp-kickoff
 description: Meta-orchestrator for brainstorming. Runs Step 0 prereq check, delegates to /lp-brainstorm for collaborative idea exploration, then hands off to /lp-define.
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    commands:
+      - lp-brainstorm
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - installed_root_binding
+      - interaction_mode_attestation
+      - nested_command
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - structured_arguments
+    mutation: project_files
+    interaction: required
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # /lp-kickoff

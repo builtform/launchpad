@@ -8,6 +8,24 @@ description: >
   Triggers on: implementing payments, adding Stripe checkout, building subscription billing,
   writing webhook handlers, integrating Stripe Connect.
 user-invocable: false
+x-launchpad:
+  schema-version: 1
+  component-kind: skill
+  direct:
+    references:
+      - references/integration-guide.md
+      - references/prisma-billing-models.md
+      - references/webhook-patterns.md
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 <!-- ported-from: anthropics/claude-plugins-official/external_plugins/stripe/skills/stripe-best-practices

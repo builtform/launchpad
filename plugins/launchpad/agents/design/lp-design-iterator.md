@@ -5,6 +5,25 @@ stack_scope: design_quality
 model: inherit
 tools: Read, Edit, Write, Grep, Glob, Bash
 color: violet
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - external_cli
+      - installed_root_binding
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - shell_execution
+    mutation: project_files
+    interaction: none
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # Design Iterator

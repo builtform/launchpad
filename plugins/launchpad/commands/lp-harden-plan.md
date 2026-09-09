@@ -1,6 +1,60 @@
 ---
 name: lp-harden-plan
 description: Stress-tests implementation plans using multiple review agents. Dispatches code-focused and document-review agents, with optional interactive deepening.
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    skills:
+      - lp-document-review
+    agents:
+      - lp-adversarial-document-reviewer
+      - lp-architecture-strategist
+      - lp-code-simplicity-reviewer
+      - lp-coherence-reviewer
+      - lp-design-lens-reviewer
+      - lp-feasibility-reviewer
+      - lp-frontend-races-reviewer
+      - lp-learnings-researcher
+      - lp-pattern-finder
+      - lp-performance-auditor
+      - lp-product-lens-reviewer
+      - lp-schema-drift-detector
+      - lp-scope-guardian-reviewer
+      - lp-security-auditor
+      - lp-security-lens-reviewer
+      - lp-spec-flow-analyzer
+    scripts:
+      - scripts/plugin-agent-scope-filter.py
+      - scripts/plugin-prereq-check.sh
+    external-tools:
+      - bash
+      - context7
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - generic_subagents
+      - installed_root_binding
+      - interaction_mode_attestation
+      - mcp_server
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - shell_execution
+      - structured_arguments
+      - subagent_cancel_final_join
+    mutation: project_files
+    interaction: required
+    external-data-egress: true
+    write-scopes:
+      - project-files
+    tool-profile: effectful
+    fallback: none
 ---
 
 # /lp-harden-plan

@@ -4,6 +4,19 @@ description: "Responsive design audit: 6 checks covering breakpoints, mobile-fir
 stack_scope: design_quality
 model: inherit
 tools: Read, Grep, Glob
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 # Design Responsive Auditor

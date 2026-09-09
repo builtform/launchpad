@@ -1,6 +1,30 @@
 ---
 name: lp-design-polish
 description: "Pre-ship refinement pass — fixes alignment, spacing, copy, design system consistency, interaction states, resilience, and edge cases"
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    skills:
+      - lp-frontend-design
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - installed_root_binding
+      - interaction_mode_attestation
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - structured_arguments
+    mutation: project_files
+    interaction: required
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 <!-- ported-from: https://github.com/pbakaus/impeccable (consolidated /polish + /normalize + /clarify + /harden)

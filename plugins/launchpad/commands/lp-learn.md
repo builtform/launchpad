@@ -1,6 +1,39 @@
 ---
 name: lp-learn
 description: "Captures learnings from resolved problems into structured solution docs. 5-agent parallel research pipeline with YAML-validated frontmatter."
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    skills:
+      - lp-compound-docs
+    scripts:
+      - scripts/plugin-prereq-check.sh
+    external-tools:
+      - bash
+  capabilities:
+    required:
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - generic_subagents
+      - installed_root_binding
+      - interaction_mode_attestation
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - shell_execution
+      - structured_arguments
+      - subagent_cancel_final_join
+    mutation: project_files
+    interaction: optional
+    external-data-egress: true
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 ---

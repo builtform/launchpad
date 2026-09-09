@@ -1,6 +1,48 @@
 ---
 name: lp-commit
 description: "Stage changes, run quality gates, generate a conventional commit message, and optionally create a PR with CI monitoring"
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    commands:
+      - lp-review
+      - lp-triage
+    scripts:
+      - scripts/plugin-build-runner.py
+      - scripts/plugin-prereq-check.sh
+    external-tools:
+      - gh
+      - git
+      - lefthook
+      - python3
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - generic_subagents
+      - installed_root_binding
+      - interaction_mode_attestation
+      - nested_command
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - shell_execution
+      - structured_arguments
+      - subagent_cancel_final_join
+    mutation: project_and_external
+    interaction: authenticated_approval
+    external-data-egress: true
+    write-scopes:
+      - external-state
+      - project-files
+      - repository-state
+    tool-profile: effectful
+    fallback: none
 ---
 
 # Commit Workflow

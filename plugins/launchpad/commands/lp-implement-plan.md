@@ -1,6 +1,34 @@
 ---
 name: lp-implement-plan
 description: "Implement an approved technical plan from docs/plans/ with phase-by-phase execution and verification"
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    agents:
+      - lp-docs-analyzer
+      - lp-pattern-finder
+  capabilities:
+    required:
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - generic_subagents
+      - installed_root_binding
+      - interaction_mode_attestation
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - structured_arguments
+      - subagent_cancel_final_join
+    mutation: project_files
+    interaction: optional
+    external-data-egress: true
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # Implement Plan

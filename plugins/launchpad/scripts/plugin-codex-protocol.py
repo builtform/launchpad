@@ -93,6 +93,7 @@ class ProtocolContract:
     protocol_id: str
     protocol_version: str
     name_pattern: re.Pattern[str]
+    stack_scope_pattern: re.Pattern[str]
     metadata_namespace: str
     component_kinds: frozenset[str]
     canonical_dialect: Mapping[str, Mapping[str, str]]
@@ -233,6 +234,12 @@ class DigestRecord:
     runtime_payload_digest: str
     evidence_digest: str
     artifact_digest: str
+
+
+@dataclass(frozen=True)
+class AgentScopeRecord:
+    resource_id: str
+    stack_scope: str
 
 
 def _error(
@@ -451,6 +458,7 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
         "protocol_id",
         "protocol_version",
         "name_pattern",
+        "stack_scope_pattern",
         "metadata_namespace",
         "component_kinds",
         "canonical_dialect",
@@ -485,6 +493,15 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
     except re.error as exc:
         raise ProtocolValidationError(
             "PROTOCOL_FILE_INVALID", "name_pattern is not a valid regex"
+        ) from exc
+    stack_scope_pattern_text = _as_string(
+        root["stack_scope_pattern"], "stack_scope_pattern"
+    )
+    try:
+        stack_scope_pattern = re.compile(stack_scope_pattern_text)
+    except re.error as exc:
+        raise ProtocolValidationError(
+            "PROTOCOL_FILE_INVALID", "stack_scope_pattern is not a valid regex"
         ) from exc
 
     metadata_raw = _as_mapping(root["metadata_schema"], "metadata_schema")
@@ -543,6 +560,7 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
         "qualification_record",
         "runtime_record",
         "digest_record",
+        "agent_scope_record",
     )
     _exact_keys(
         record_raw,
@@ -632,6 +650,7 @@ def _load_protocol_uncached(path: Path) -> ProtocolContract:
         protocol_id=_as_string(root["protocol_id"], "protocol_id"),
         protocol_version=_as_string(root["protocol_version"], "protocol_version"),
         name_pattern=name_pattern,
+        stack_scope_pattern=stack_scope_pattern,
         metadata_namespace=_as_string(root["metadata_namespace"], "metadata_namespace"),
         component_kinds=frozenset(
             _string_tuple(root["component_kinds"], "component_kinds")
@@ -1459,6 +1478,22 @@ def normalize_digest_record(
     )
 
 
+def normalize_agent_scope_record(
+    value: object, contract: ProtocolContract | None = None
+) -> AgentScopeRecord:
+    """Normalize the pure stack-filter record supplied by corpus discovery."""
+    protocol = contract or load_protocol()
+    mapping = _record_mapping(value, "agent_scope_record", protocol)
+    resource_id = _record_id(mapping["resource_id"], "resource_id", protocol)
+    stack_scope = mapping["stack_scope"]
+    if (
+        not isinstance(stack_scope, str)
+        or protocol.stack_scope_pattern.fullmatch(stack_scope) is None
+    ):
+        raise _error(protocol, "RECORD_INVALID", "stack_scope is invalid")
+    return AgentScopeRecord(resource_id=resource_id, stack_scope=stack_scope)
+
+
 def detect_duplicate_protocol_constants(
     paths: Sequence[Path], contract: ProtocolContract | None = None
 ) -> tuple[str, ...]:
@@ -1497,6 +1532,7 @@ def detect_duplicate_protocol_constants(
 
 
 __all__ = [
+    "AgentScopeRecord",
     "AvailabilityRecord",
     "BoundedLoop",
     "CapabilitySummary",
@@ -1516,6 +1552,7 @@ __all__ = [
     "extract_frontmatter",
     "load_protocol",
     "normalize_digest_record",
+    "normalize_agent_scope_record",
     "normalize_availability_record",
     "normalize_document_metadata",
     "normalize_metadata",

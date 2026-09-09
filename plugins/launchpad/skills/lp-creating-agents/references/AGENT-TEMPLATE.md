@@ -14,6 +14,19 @@ name: kebab-case-name # Required. Matches filename. [domain]-[role] pattern.
 description: Routing signal # Required. When Claude should delegate to this agent.
 tools: Read, Grep, Glob, LS # Required. Least-privilege set from TOOL-TIERS.md.
 model: inherit # Required. Use "inherit" unless user specifies otherwise.
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  direct: {}
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+    mutation: { { mutation-class } }
+    interaction: none
+    external-data-egress: { { true-or-false } }
+    tool-profile: { { tool-profile } }
+    fallback: { { fallback-class } }
 # --- Optional fields below ---
 memory: project # Persistent memory scope: user, project, or local
 hooks: # Lifecycle hooks scoped to this agent
@@ -41,6 +54,14 @@ initialPrompt: "Start by..." # Auto-submitted first turn (only for --agent main 
 - `description`: Written as a routing signal, not a job title. Include WHEN to delegate: "Call `agent-name` when you need to [specific trigger]. Use after [specific context]." The description is what Claude reads to decide whether to delegate work to this agent.
 - `tools`: Comma-separated allowlist. Assign based on TOOL-TIERS.md. Never include the `Agent` tool — subagents cannot spawn subagents.
 - `model`: Default to `inherit`. The agent runs on whatever model the calling context uses.
+
+### LaunchPad Metadata Rules
+
+- `x-launchpad.schema-version` is `1` and `component-kind` is `agent`.
+- `direct` lists only resources this agent reads or invokes itself. Do not copy transitive dependencies into the agent.
+- `capabilities.required` uses capability IDs from `codex/adapter-protocol.json`.
+- `mutation`, `interaction`, `external-data-egress`, `tool-profile`, and `fallback` describe actual behavior. A write-capable tool set cannot claim a read-only profile.
+- Remove every metadata placeholder and validate the completed frontmatter before saving the agent.
 
 ---
 

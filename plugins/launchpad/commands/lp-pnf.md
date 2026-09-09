@@ -1,5 +1,50 @@
 ---
 description: "Plan Next Feature — create an implementation plan from a section spec"
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    skills:
+      - lp-react-best-practices
+      - lp-stripe-best-practices
+    agents:
+      - lp-code-analyzer
+      - lp-docs-analyzer
+      - lp-docs-locator
+      - lp-file-locator
+      - lp-pattern-finder
+      - lp-web-researcher
+    scripts:
+      - scripts/plugin-config-loader.py
+      - scripts/plugin-prereq-check.sh
+      - scripts/plugin_stack_adapters/section_registry.py
+    external-tools:
+      - bash
+      - python3
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - generic_subagents
+      - installed_root_binding
+      - interaction_mode_attestation
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - shell_execution
+      - structured_arguments
+      - subagent_cancel_final_join
+    mutation: project_files
+    interaction: required
+    external-data-egress: true
+    write-scopes:
+      - project-files
+    tool-profile: effectful
+    fallback: none
 ---
 
 # Plan Next Feature (PNF)

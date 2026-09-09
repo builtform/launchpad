@@ -1,6 +1,57 @@
 ---
 name: lp-review
 description: Multi-agent code review with confidence scoring, secret scanning, and headless mode for programmatic callers.
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    agents:
+      - lp-architecture-strategist
+      - lp-code-simplicity-reviewer
+      - lp-data-integrity-auditor
+      - lp-data-migration-auditor
+      - lp-design-alignment-checker
+      - lp-design-implementation-reviewer
+      - lp-design-responsive-auditor
+      - lp-design-ui-auditor
+      - lp-kieran-foad-ts-reviewer
+      - lp-pattern-finder
+      - lp-performance-auditor
+      - lp-schema-drift-detector
+      - lp-security-auditor
+      - lp-testing-reviewer
+    scripts:
+      - scripts/plugin-agent-scope-filter.py
+      - scripts/plugin-config-loader.py
+      - scripts/plugin-prereq-check.sh
+    external-tools:
+      - bash
+      - gh
+      - git
+      - python3
+  capabilities:
+    required:
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - generic_subagents
+      - installed_root_binding
+      - interaction_mode_attestation
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - shell_execution
+      - structured_arguments
+      - subagent_cancel_final_join
+    mutation: project_files
+    interaction: optional
+    external-data-egress: true
+    write-scopes:
+      - project-files
+    tool-profile: effectful
+    fallback: none
 ---
 
 # /lp-review

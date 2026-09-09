@@ -1,6 +1,27 @@
 ---
 name: lp-define-product
 description: "Interactively define product requirements and tech stack"
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - installed_root_binding
+      - interaction_mode_attestation
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - structured_arguments
+    mutation: project_files
+    interaction: required
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # Define Product Requirements and Tech Stack

@@ -1,6 +1,43 @@
 ---
 name: lp-test-browser
 description: Automated browser testing for UI routes affected by current changes. Dual browser tool support (agent-browser CLI primary, Playwright MCP fallback). Fully autonomous.
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    scripts:
+      - scripts/plugin-config-loader.py
+    external-tools:
+      - agent-browser
+      - gh
+      - git
+      - playwright
+  capabilities:
+    required:
+      - browser
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - host_presentation
+      - installed_root_binding
+      - interaction_mode_attestation
+      - mcp_server
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - shell_execution
+      - structured_arguments
+    mutation: project_and_external
+    interaction: optional
+    external-data-egress: true
+    write-scopes:
+      - external-state
+      - project-files
+      - repository-state
+    tool-profile: effectful
+    fallback: none
 ---
 
 # /lp-test-browser

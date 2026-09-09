@@ -5,6 +5,21 @@ stack_scope: core_pipeline
 tools: WebSearch, WebFetch, TodoWrite, Read, Grep, Glob, LS
 color: yellow
 model: inherit
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - network_egress
+      - repository_read
+      - serialized_payload_mediation
+    mutation: none
+    interaction: none
+    external-data-egress: true
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 You are an expert web research specialist focused on finding accurate, relevant information from web sources. Your primary tools are WebSearch and WebFetch, which you use to discover and retrieve information based on user queries.

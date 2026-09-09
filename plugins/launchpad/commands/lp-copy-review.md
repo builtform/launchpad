@@ -1,6 +1,26 @@
 ---
 name: lp-copy-review
 description: "Dispatches copy review agents from review_copy_agents in agents.yml. Shell command — downstream projects populate the agent list."
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  capabilities:
+    required:
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - generic_subagents
+      - installed_root_binding
+      - interaction_mode_attestation
+      - network_egress
+      - repository_read
+      - serialized_payload_mediation
+      - structured_arguments
+      - subagent_cancel_final_join
+    mutation: none
+    interaction: optional
+    external-data-egress: true
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 # /lp-copy-review
