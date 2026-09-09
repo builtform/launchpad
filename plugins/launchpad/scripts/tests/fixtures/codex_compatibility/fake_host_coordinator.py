@@ -824,6 +824,8 @@ class StatefulSafetyCoordinator:
         self._prepared_effects: list[tuple[str, str, str]] = []
         self._mediated_egress: set[str] = set()
         self._last_effect_kind: str | None = None
+        self._approval_ceiling: ApprovalRecord | None = None
+        self._narrowed_diff_approval_started = False
         snapshot = self._control_snapshot()
         if self.host.control_snapshot is None:
             self.host.control_snapshot = snapshot
@@ -1242,7 +1244,8 @@ class StatefulSafetyCoordinator:
         now: int,
         nonce: str | None = None,
     ) -> ApprovalRecord:
-        self._require_state("preflight_passed")
+        self._require_state("preflight_passed", "receipt_ready")
+        narrowing = self.run_state == "receipt_ready"
         scope = _require_sorted_unique(effect_scope, "effect_scope", self.protocol)
         if not scope:
             _fail("APPROVAL_INVALID", "approval scope cannot be empty", self.protocol)
@@ -1269,12 +1272,16 @@ class StatefulSafetyCoordinator:
                     "persistent instruction approval is not eligible",
                     self.protocol,
                 )
-        elif exact_diff_digest is not None:
+        elif exact_diff_digest is not None and not all(
+            item.startswith("product-write:") for item in scope
+        ):
             _fail(
                 "APPROVAL_SCOPE_MISMATCH",
-                "generic approval cannot bind an instruction diff",
+                "effect diff approval is limited to controlled product writes",
                 self.protocol,
             )
+        self._verify_control_snapshot()
+        self._verify_effect_evidence(now)
         cmd_args = command_argument_digest(
             self.frame.command_digest, self.frame.argument_digest
         )
@@ -1288,7 +1295,37 @@ class StatefulSafetyCoordinator:
             approval_kind=approval_kind,
             exact_diff_digest=exact_diff_digest,
         )
-        if not hmac.compare_digest(expected_scope, self.frame.approval_digest):
+        if narrowing:
+            ceiling = self._approval_ceiling
+            narrowed_scope = (
+                all(
+                    item in ceiling.effect_scope
+                    or (
+                        item.startswith("product-write:")
+                        and f"product-proposal:{item.removeprefix('product-write:')}"
+                        in ceiling.effect_scope
+                    )
+                    for item in scope
+                )
+                if ceiling is not None
+                else False
+            )
+            if (
+                ceiling is None
+                or ceiling.state != "approved"
+                or self._narrowed_diff_approval_started
+                or approval_kind != "effect"
+                or exact_diff_digest is None
+                or not narrowed_scope
+                or not all(item.startswith("product-write:") for item in scope)
+            ):
+                _fail(
+                    "APPROVAL_SCOPE_MISMATCH",
+                    "follow-up approval is not an exact product-write narrowing",
+                    self.protocol,
+                )
+            self._narrowed_diff_approval_started = True
+        elif not hmac.compare_digest(expected_scope, self.frame.approval_digest):
             _fail(
                 "APPROVAL_SCOPE_MISMATCH",
                 "approval expanded beyond the frame",
@@ -1317,7 +1354,7 @@ class StatefulSafetyCoordinator:
     def resolve_approval(
         self, request: ApprovalRecord, event_id: str, *, now: int
     ) -> ApprovalRecord:
-        self._require_state("preflight_passed")
+        self._require_state("preflight_passed", "receipt_ready")
         if self.approval != request or request.state != "pending":
             _fail(
                 "APPROVAL_INVALID", "approval request is stale or forged", self.protocol
@@ -1331,11 +1368,11 @@ class StatefulSafetyCoordinator:
         )
         if (
             request.approval_kind == "persistent_instruction_write"
-            and source != "interactive"
-        ):
+            or request.exact_diff_digest is not None
+        ) and source != "interactive":
             _fail(
                 "APPROVAL_SCOPE_MISMATCH",
-                "persistent instruction approval is interactive-only",
+                "exact-diff approval is interactive-only",
                 self.protocol,
             )
         state = "approved" if decision == "approved" else "declined"
@@ -1343,6 +1380,8 @@ class StatefulSafetyCoordinator:
         self.approval = approved
         if state == "declined":
             return approved
+        if self._approval_ceiling is None:
+            self._approval_ceiling = approved
         self.run_state = "approved"
         return approved
 

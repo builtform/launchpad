@@ -57,3 +57,25 @@ open a network connection. Production `plugin-codex-runtime.py` remains absent
 because the real host boundary is still blocked. Real-host effectful paths
 therefore continue to fail closed while Sections 7 and 8 use injected
 capabilities for deterministic testing.
+
+## Section 8 bounded scheduler and harden-plan slice
+
+`fake_host_harden_plan.py` composes only the frozen Section 7 coordinator
+endpoints. It loads the canonical harden-plan command and agent prompts by
+exact digest, reads an injected `.launchpad/agents.yml` snapshot, applies the
+canonical stack filter and banners, reserves the complete run budget, and
+executes deterministic code and document waves through an in-memory event
+loop.
+
+The fixture covers bounded workers, queueing, fan-in, retries, wave barriers,
+fresh minimal child contexts, strict child-result schemas, estimated versus
+authoritative accounting, cancellation, task-tree termination, final join,
+late-result rejection, deterministic finding synthesis, and one controlled
+artifact proposal. The initial approval cannot authorize a product write. A
+second authenticated approval must narrow the approved closure to the product
+path and bind the exact escaped diff before the fake mutation can occur.
+
+This remains a test-only conformance slice. It cannot dispatch a real child or
+write the returned artifact bytes to disk, Codex `--auto` remains blocked, and
+the absent production coordinator keeps every real-host effectful route
+fail-closed.
