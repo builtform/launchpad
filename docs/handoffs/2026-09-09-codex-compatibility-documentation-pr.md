@@ -12,9 +12,11 @@ The first real-document render exposed a temporary implementation-phase lock tha
 
 The raw-byte evidence and independent generated-document validation corrections changed the sealed runtime again. Fresh isolated router and lifecycle receipts were produced with Codex CLI 0.153.4 and Claude Code 2.1.258, the qualification generator consumed those receipts, and the completed-package lifecycle passed with the detached digest below. The host result remains fail-closed.
 
-- Final runtime payload digest: `01064af2911825a2e59d14cb62a35285657e817fa3194b1ffb81144486c9a05c`
-- Final raw-byte evidence digest: `a368b37f424fe2f90466e9cb493ba7a9265e72f6dc0ccc998ecd84e207081117`
-- Final detached artifact digest: `0d671e70b3fdb722c186f5bf82e60c7d12bf9eea71c19e97bd83930b81f35818`
+The PR review metadata correction completed the `lp-plan` dependency graph and declared the browser, MCP, network, mediation, and external-tool requirements used by its design agents. Fresh receipts and attestations were produced because those canonical metadata changes alter the sealed runtime. Public support remains unchanged.
+
+- Final runtime payload digest: `e1233bb51283314d22f2fa5f3167db1b23792de13674a3e27686acf419f791e3`
+- Final raw-byte evidence digest: `eec92f1e0f921a982f768e11569cf2037ef9c41f10f178b2754885df8b1dd1ac`
+- Final detached artifact digest: `200a3ca3b06e6e036f9e3606d8dd23797114fbafbea13a98b119db1ff74b256c`
 - Runtime closure: 166 files
 - Completed package closure: 169 files
 - Generated package slots: `README.md`, `codex/support-evidence.json`, `docs/guides/HOW_IT_WORKS.md`
@@ -24,7 +26,7 @@ The raw-byte evidence and independent generated-document validation corrections 
 - Blocked roots: 44
 - Advertised capability families: none
 
-The artifact digest is detached from the package and recorded here for local branch review. No push, pull request, marketplace change, normal Codex installation, tag, or publication was performed.
+The artifact digest is detached from the package and recorded here for branch review in [PR #185](https://github.com/builtform/launchpad/pull/185). No marketplace change, normal Codex installation, tag, or publication was performed.
 
 ## Superseded Section 10 entry identity
 
@@ -164,5 +166,14 @@ The documentation PR must preserve Claude instructions, state that all 44 Codex 
 - Pyright: 0 errors, 30 existing warnings.
 - Ruff check, Ruff format check, repository structure, workflow SHA pins, exact workflow acceptance, release qualification, and generated-document drift checks: passed.
 - Fresh isolated router, lifecycle, and completed-package receipts: passed with Codex CLI 0.153.4 and Claude Code 2.1.258; bare `$lp` support remains blocked as required.
+
+### Greptile metadata correction validation
+
+- Complete Python suite: 2,437 passed, 4 skipped.
+- Workflow-equivalent Codex compatibility suite: 398 passed.
+- Pyright: 0 errors, 30 existing warnings.
+- Ruff check, Ruff format check, repository tests, typecheck, lint, exact workflow acceptance, release qualification, generated-document drift, and completed-package closure: passed.
+- Fresh isolated router, coexistence, and completed-package lifecycle receipts: passed with Codex CLI 0.153.4 and Claude Code 2.1.258.
+- Support remains fail-closed with 44 blocked roots, 0 supported roots, and no advertised capability families.
 
 This handoff is the Section 10 mandatory stopping point. Do not begin public-document rendering, final artifact assembly, or activation work in the implementation PR.

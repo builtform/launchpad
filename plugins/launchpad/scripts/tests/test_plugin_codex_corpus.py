@@ -177,3 +177,44 @@ def test_node_capability_summaries_include_direct_children(audit) -> None:
     }
     assert child_requirements.issubset(command.capabilities.required)
     assert command.capabilities.tool_profile == "effectful"
+
+
+def test_lp_plan_declares_direct_orchestration_edges(audit) -> None:
+    nodes = {node.id: node for node in audit.inventory.nodes}
+    plan = nodes["lp-plan"]
+    assert "lp-pnf" in plan.direct.commands
+    assert "lp-build" not in plan.direct.commands
+    assert {
+        "lp-design-alignment-checker",
+        "lp-design-implementation-reviewer",
+        "lp-design-responsive-auditor",
+        "lp-design-ui-auditor",
+    }.issubset(plan.direct.agents)
+
+
+@pytest.mark.parametrize(
+    ("resource_id", "expected_external_tools"),
+    (
+        (
+            "lp-design-implementation-reviewer",
+            {"agent-browser", "figma", "playwright"},
+        ),
+        ("lp-design-iterator", {"agent-browser", "playwright"}),
+        ("lp-figma-design-sync", {"agent-browser", "figma", "playwright"}),
+    ),
+)
+def test_design_agents_declare_browser_and_mcp_requirements(
+    audit, resource_id: str, expected_external_tools: set[str]
+) -> None:
+    nodes = {node.id: node for node in audit.inventory.nodes}
+    agent = nodes[resource_id]
+    assert {
+        "browser",
+        "external_cli",
+        "mcp_server",
+        "network_egress",
+        "serialized_payload_mediation",
+        "shell_execution",
+    }.issubset(agent.capabilities.required)
+    assert agent.capabilities.external_data_egress is True
+    assert expected_external_tools.issubset(agent.direct.external_tools)

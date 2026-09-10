@@ -110,12 +110,14 @@
       ],
       "required_capabilities": [
         "authenticated_user_interaction",
+        "browser",
         "canonical_resource_read",
         "explicit_invocation_provenance",
         "external_cli",
         "generic_subagents",
         "installed_root_binding",
         "interaction_mode_attestation",
+        "mcp_server",
         "nested_command",
         "network_egress",
         "operation_authorization",
@@ -1013,12 +1015,14 @@
         "qualification-section10-blocked-support"
       ],
       "required_capabilities": [
+        "browser",
         "canonical_resource_read",
         "explicit_invocation_provenance",
         "external_cli",
         "generic_subagents",
         "installed_root_binding",
         "interaction_mode_attestation",
+        "mcp_server",
         "network_egress",
         "operation_authorization",
         "repository_read",
@@ -1100,12 +1104,14 @@
       ],
       "required_capabilities": [
         "authenticated_user_interaction",
+        "browser",
         "canonical_resource_read",
         "explicit_invocation_provenance",
         "external_cli",
         "generic_subagents",
         "installed_root_binding",
         "interaction_mode_attestation",
+        "mcp_server",
         "nested_command",
         "network_egress",
         "operation_authorization",
@@ -1302,7 +1308,7 @@
         "section9-router-host-blocked",
         "section9-whole-corpus-acceptance"
       ],
-      "runtime_payload_digest": "01064af2911825a2e59d14cb62a35285657e817fa3194b1ffb81144486c9a05c",
+      "runtime_payload_digest": "e1233bb51283314d22f2fa5f3167db1b23792de13674a3e27686acf419f791e3",
       "tool_versions": {
         "claude-code": "2.1.258",
         "codex-cli": "0.153.4"
@@ -1513,7 +1519,7 @@
         "source_path": "skills/lp-brainstorming/SKILL.md"
       },
       {
-        "aggregate_digest": "f544c7c7b412db7bfbb2d3990c4b5efde272997dbe16d9667b84fce8291baeb2",
+        "aggregate_digest": "e1bdbb522dc26d119d8aa5321990f89f93cba3aa0fe67755789a8f60f521b77a",
         "capabilities": {
           "external_data_egress": true,
           "fallback": "none",
@@ -1670,7 +1676,7 @@
         "source_path": "agents/document-review/lp-coherence-reviewer.md"
       },
       {
-        "aggregate_digest": "c97110d198dde5ecfd2fd2696f86935e60f200e1a310159b5fa6e51077dfa012",
+        "aggregate_digest": "3768f62f53e00bbdc2eda0245f5a3b4e554d0fa8f20eeadb2f91f5dd699516cd",
         "capabilities": {
           "external_data_egress": true,
           "fallback": "none",
@@ -1678,12 +1684,14 @@
           "mutation": "project_and_external",
           "required": [
             "authenticated_user_interaction",
+            "browser",
             "canonical_resource_read",
             "explicit_invocation_provenance",
             "external_cli",
             "generic_subagents",
             "installed_root_binding",
             "interaction_mode_attestation",
+            "mcp_server",
             "nested_command",
             "network_egress",
             "operation_authorization",
@@ -2352,16 +2360,22 @@
         "source_path": "agents/design/lp-design-alignment-checker.md"
       },
       {
-        "aggregate_digest": "a266104c1995b03e007d7b1ea199b37c126a73bda1d9c2303ad18a753d7a76ba",
+        "aggregate_digest": "ee11e2afcbbb77640c81e3c2ddf7d501e416e78b564d8c1f0705331ed65a46e9",
         "capabilities": {
-          "external_data_egress": false,
+          "external_data_egress": true,
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
           "required": [
+            "browser",
             "canonical_resource_read",
+            "external_cli",
             "installed_root_binding",
-            "repository_read"
+            "mcp_server",
+            "network_egress",
+            "repository_read",
+            "serialized_payload_mediation",
+            "shell_execution"
           ],
           "tool_profile": "read_only",
           "write_scopes": []
@@ -2370,31 +2384,39 @@
           "agents": [],
           "assets": [],
           "commands": [],
-          "external_tools": [],
+          "external_tools": [
+            "agent-browser",
+            "figma",
+            "playwright"
+          ],
           "references": [],
           "scripts": [],
           "skills": []
         },
         "id": "lp-design-implementation-reviewer",
         "kind": "agent",
-        "metadata_digest": "70e7486dbe047bcc79c9b0200a52203599f6256557cfb46a949221bfc8663ea9",
-        "source_digest": "9b461035c368270cc0bdb11ce74d7c2095b9a89dd7c073823d7c7150ff82483e",
+        "metadata_digest": "37b989e0a1cf2c6436c15328af0567cd96d61a65b1b41c7c31816339e169ed19",
+        "source_digest": "7377fb730a98f57e53b424ef5dc19964619d853cce46c707e9d6bebfc90e1a64",
         "source_path": "agents/design/lp-design-implementation-reviewer.md"
       },
       {
-        "aggregate_digest": "5ca288976b893b40d51a6564dce390fa8ddf32817f96b49339b2df425bbe8f9d",
+        "aggregate_digest": "5fae332ba88ae4b4e0e767df8241bdcbb3054f3f1390c213cb096fe5b98c8f61",
         "capabilities": {
-          "external_data_egress": false,
+          "external_data_egress": true,
           "fallback": "none",
           "interaction": "none",
           "mutation": "project_files",
           "required": [
+            "browser",
             "canonical_resource_read",
             "external_cli",
             "installed_root_binding",
+            "mcp_server",
+            "network_egress",
             "operation_authorization",
             "repository_read",
             "repository_write",
+            "serialized_payload_mediation",
             "shell_execution"
           ],
           "tool_profile": "workspace_write",
@@ -2406,15 +2428,18 @@
           "agents": [],
           "assets": [],
           "commands": [],
-          "external_tools": [],
+          "external_tools": [
+            "agent-browser",
+            "playwright"
+          ],
           "references": [],
           "scripts": [],
           "skills": []
         },
         "id": "lp-design-iterator",
         "kind": "agent",
-        "metadata_digest": "509c12255218fa84eac58b4c6c24cd3b694241fe5eb831b7c8c398695140058c",
-        "source_digest": "a49cc3f625507bd1c8cd2e8514846b051cdba731880423ed61010b706e177649",
+        "metadata_digest": "95feff1ccb954b0b28805a99443989c1bc6f54121385586e83c662a455ccb627",
+        "source_digest": "1aa5fa28516288dd40fb2bcfc10a508d01d7fce7e9a21cff7f3288ef61ca4712",
         "source_path": "agents/design/lp-design-iterator.md"
       },
       {
@@ -2807,16 +2832,18 @@
         "source_path": "commands/lp-feature-video.md"
       },
       {
-        "aggregate_digest": "418bbbb09e2f5a2d8e25b255bed8a6497c1d6bc63a3a3a5c60d4ac22de72aff8",
+        "aggregate_digest": "8ae28c2b59be48aad44b1071938efba20a0f9a13e222c31b5fa0c5e9826722a2",
         "capabilities": {
           "external_data_egress": true,
           "fallback": "none",
           "interaction": "none",
           "mutation": "project_and_external",
           "required": [
+            "browser",
             "canonical_resource_read",
             "external_cli",
             "installed_root_binding",
+            "mcp_server",
             "network_egress",
             "operation_authorization",
             "repository_read",
@@ -2834,15 +2861,19 @@
           "agents": [],
           "assets": [],
           "commands": [],
-          "external_tools": [],
+          "external_tools": [
+            "agent-browser",
+            "figma",
+            "playwright"
+          ],
           "references": [],
           "scripts": [],
           "skills": []
         },
         "id": "lp-figma-design-sync",
         "kind": "agent",
-        "metadata_digest": "0404337784cd628b54dbd3d292faa1cd1a3bff7a085027a749a28dce0099a72c",
-        "source_digest": "711eea4d5cd496a43f5820c034521c53b834d59d2bbad16e52c7fef92652b1c5",
+        "metadata_digest": "51145c4d3fab005fe9235267a81512d40711a28dcb2f455285e33147f004f919",
+        "source_digest": "6a27f31e7a392afa896ff8a17348d3f3ee7323207c05d7aa32b72e72790ee24b",
         "source_path": "agents/design/lp-figma-design-sync.md"
       },
       {
@@ -3541,7 +3572,7 @@
         "source_path": "commands/lp-pick-stack.md"
       },
       {
-        "aggregate_digest": "b982a37d55e39f0dfd4bd2236b5abb9a50f50e13ed9e2ca35efee442bafd2611",
+        "aggregate_digest": "bbd1ca57408421f2b180cc46ffa15b0432dfb072e0c0a31ec097ac9e95d51513",
         "capabilities": {
           "external_data_egress": true,
           "fallback": "none",
@@ -3577,7 +3608,11 @@
         },
         "direct": {
           "agents": [
+            "lp-design-alignment-checker",
+            "lp-design-implementation-reviewer",
             "lp-design-iterator",
+            "lp-design-responsive-auditor",
+            "lp-design-ui-auditor",
             "lp-figma-design-sync"
           ],
           "assets": [],
@@ -3588,10 +3623,12 @@
             "lp-design-polish",
             "lp-design-review",
             "lp-feature-video",
-            "lp-harden-plan"
+            "lp-harden-plan",
+            "lp-pnf"
           ],
           "external_tools": [
             "agent-browser",
+            "playwright",
             "python3"
           ],
           "references": [],
@@ -3608,8 +3645,8 @@
         },
         "id": "lp-plan",
         "kind": "command",
-        "metadata_digest": "981789b2943c13f3f7051b4352099b25e2992b1503110341d4245019edcfa48b",
-        "source_digest": "184d9ac6f5651c2a57b592d4faf91bf477594713fc67cb35228276b12c688452",
+        "metadata_digest": "7314b088c47c4577b38eb7abf322f9aa1b0ea5eacec8438dabaf2f79f77568ed",
+        "source_digest": "f3fe0f0950f919848a17552a61155c55043c193f7087312e34cfd8cee2e141e1",
         "source_path": "commands/lp-plan.md"
       },
       {
@@ -4148,19 +4185,21 @@
         "source_path": "skills/lp-responsive-design/SKILL.md"
       },
       {
-        "aggregate_digest": "42fd695734175ab21617399dfcbd356261f605225dd79f8f6f1b02003977081e",
+        "aggregate_digest": "eb600c2c8f02028f9a4adf2144a7175b5ef1bb34054babaca9294decefaf3de4",
         "capabilities": {
           "external_data_egress": true,
           "fallback": "none",
           "interaction": "optional",
           "mutation": "project_files",
           "required": [
+            "browser",
             "canonical_resource_read",
             "explicit_invocation_provenance",
             "external_cli",
             "generic_subagents",
             "installed_root_binding",
             "interaction_mode_attestation",
+            "mcp_server",
             "network_egress",
             "operation_authorization",
             "repository_read",
@@ -4424,7 +4463,7 @@
         "source_path": "commands/lp-shape-section.md"
       },
       {
-        "aggregate_digest": "595d70ebcd1b81aad975a7c3b77cbae0112e046ae4e301d64065eb0c7a983090",
+        "aggregate_digest": "2206caf831e1ed401e01de8afac4494dcdcfce3135066bbab6d6f551ec91f6cd",
         "capabilities": {
           "external_data_egress": true,
           "fallback": "none",
@@ -4432,12 +4471,14 @@
           "mutation": "project_and_external",
           "required": [
             "authenticated_user_interaction",
+            "browser",
             "canonical_resource_read",
             "explicit_invocation_provenance",
             "external_cli",
             "generic_subagents",
             "installed_root_binding",
             "interaction_mode_attestation",
+            "mcp_server",
             "nested_command",
             "network_egress",
             "operation_authorization",
@@ -5069,14 +5110,14 @@
         "size": 3443
       },
       {
-        "digest": "9b461035c368270cc0bdb11ce74d7c2095b9a89dd7c073823d7c7150ff82483e",
+        "digest": "7377fb730a98f57e53b424ef5dc19964619d853cce46c707e9d6bebfc90e1a64",
         "path": "codex/canonical/agents/design/lp-design-implementation-reviewer.md",
-        "size": 3333
+        "size": 3557
       },
       {
-        "digest": "a49cc3f625507bd1c8cd2e8514846b051cdba731880423ed61010b706e177649",
+        "digest": "1aa5fa28516288dd40fb2bcfc10a508d01d7fce7e9a21cff7f3288ef61ca4712",
         "path": "codex/canonical/agents/design/lp-design-iterator.md",
-        "size": 4081
+        "size": 4246
       },
       {
         "digest": "4b2c5501fdfe65b801c4d8be8241beff565548483ce81343072b8ca02ac7f59f",
@@ -5089,9 +5130,9 @@
         "size": 2698
       },
       {
-        "digest": "711eea4d5cd496a43f5820c034521c53b834d59d2bbad16e52c7fef92652b1c5",
+        "digest": "6a27f31e7a392afa896ff8a17348d3f3ee7323207c05d7aa32b72e72790ee24b",
         "path": "codex/canonical/agents/design/lp-figma-design-sync.md",
-        "size": 4859
+        "size": 4979
       },
       {
         "digest": "13b2cb28a8ca1af6d64db0f38eba171dd605d1aeaff35d14926b74002435e212",
@@ -5359,9 +5400,9 @@
         "size": 21749
       },
       {
-        "digest": "184d9ac6f5651c2a57b592d4faf91bf477594713fc67cb35228276b12c688452",
+        "digest": "f3fe0f0950f919848a17552a61155c55043c193f7087312e34cfd8cee2e141e1",
         "path": "codex/canonical/commands/lp-plan.md",
-        "size": 12746
+        "size": 12943
       },
       {
         "digest": "4ba4b85f3c35aa1846b9b2c64e45399b0888933466c7ce57e12fdbf2c81a6664",
@@ -5884,7 +5925,7 @@
         "size": 220
       }
     ],
-    "runtime_payload_digest": "01064af2911825a2e59d14cb62a35285657e817fa3194b1ffb81144486c9a05c",
+    "runtime_payload_digest": "e1233bb51283314d22f2fa5f3167db1b23792de13674a3e27686acf419f791e3",
     "stage": "release",
     "support": [
       {

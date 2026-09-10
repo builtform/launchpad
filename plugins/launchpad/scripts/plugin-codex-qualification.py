@@ -27,12 +27,12 @@ MANIFEST_PATH: Final = SCRIPT_DIR / "plugin-codex-manifest.py"
 ACCEPTANCE_PATH: Final = SCRIPT_DIR / "plugin-codex-acceptance.py"
 DEFAULT_EVIDENCE_PATH: Final = PLUGIN_ROOT / "codex" / "support-evidence.json"
 
-# Resealed for the documentation phase after retiring the temporary
-# fixture-only renderer lock. The runtime closure remains 166 files, and the
-# affected qualification and lifecycle gates must pass again before this exact
-# payload can be promoted.
+# Resealed after PR review completed the planning dependency graph and the
+# design-agent capability declarations. The runtime closure remains 166 files,
+# and the affected qualification and lifecycle gates must pass again before
+# this exact payload can be promoted.
 SECTION9_RUNTIME_PAYLOAD_DIGEST: Final = (
-    "01064af2911825a2e59d14cb62a35285657e817fa3194b1ffb81144486c9a05c"
+    "e1233bb51283314d22f2fa5f3167db1b23792de13674a3e27686acf419f791e3"
 )
 QUALIFICATION_ID: Final = "qualification-section10-blocked-support"
 QUALIFICATION_RECEIPT_IDS: Final = (

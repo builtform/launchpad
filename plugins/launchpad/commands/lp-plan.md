@@ -13,12 +13,17 @@ x-launchpad:
       - lp-design-review
       - lp-feature-video
       - lp-harden-plan
+      - lp-pnf
     skills:
       - lp-frontend-design
       - lp-responsive-design
       - lp-web-design-guidelines
     agents:
+      - lp-design-alignment-checker
+      - lp-design-implementation-reviewer
       - lp-design-iterator
+      - lp-design-responsive-auditor
+      - lp-design-ui-auditor
       - lp-figma-design-sync
     scripts:
       - scripts/plugin-config-loader.py
@@ -26,6 +31,7 @@ x-launchpad:
       - scripts/plugin_stack_adapters/section_registry.py
     external-tools:
       - agent-browser
+      - playwright
       - python3
   capabilities:
     required:
@@ -38,6 +44,7 @@ x-launchpad:
       - host_presentation
       - installed_root_binding
       - interaction_mode_attestation
+      - mcp_server
       - nested_command
       - network_egress
       - operation_authorization

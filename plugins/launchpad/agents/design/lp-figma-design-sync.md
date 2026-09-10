@@ -7,11 +7,18 @@ tools: Read, Edit, Write, Grep, Glob, Bash
 x-launchpad:
   schema-version: 1
   component-kind: agent
+  direct:
+    external-tools:
+      - agent-browser
+      - figma
+      - playwright
   capabilities:
     required:
+      - browser
       - canonical_resource_read
       - external_cli
       - installed_root_binding
+      - mcp_server
       - network_egress
       - operation_authorization
       - repository_read
