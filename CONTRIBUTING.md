@@ -68,6 +68,14 @@ Two products ship from this repo:
 
 Most contributions touch only `plugins/launchpad/`. Reference-monorepo changes (under `apps/`, `packages/`) are reviewed for whether they degrade the plugin path.
 
+### One kernel and host adapters
+
+Canonical workflow meaning lives once under `plugins/launchpad/commands/`, `agents/`, and `skills/`. Claude Code discovers the command files directly. The Codex package projector relocates the sealed canonical closure under `codex/canonical/` and exposes one `$lp` router skill. Do not add per-command Codex wrappers, copied prompts, or generated TOML files.
+
+Any canonical definition change must preserve the direct-edge and capability metadata contract, pass resolver and preflight checks, regenerate deterministic support evidence when the runtime digest changes, and run both Claude regression coverage and the isolated Codex lifecycle gate. Discovery does not imply support: every workflow stays blocked until qualification evidence and live preflight pass.
+
+Never install a working-tree candidate into normal Codex state. Contributor tests use the sealed package projector, a disposable local marketplace, and an isolated `CODEX_HOME`. The public syntax is bare `$lp <command>` only.
+
 ## Pull request guidelines
 
 1. **Branch from `main`.** Use a conventional-commit prefix in the branch name: `feat/<topic>`, `fix/<topic>`, `chore/<topic>`, `docs/<topic>`, `refactor/<topic>`, `test/<topic>`, `perf/<topic>`, `style/<topic>`, `ci/<topic>`.
@@ -132,13 +140,13 @@ Multi-agent review findings are scored 0.00 to 1.00 with a 0.60 threshold. Findi
 
 ### Multi-layer merge prevention
 
-Three layers prevent unsafe merges, and the project assumes all three are active:
+Three layers reduce unsafe merges, with Codex host dispatch subject to its own trust gates:
 
 1. Commands refuse to run `gh pr merge` and `git merge main`
-2. A `PreToolUse` hook intercepts those commands at the tool level (file: `.claude/hooks/block-merges.sh`)
-3. GitHub branch protection backs the rule server-side
+2. Project-level Claude and Codex `PreToolUse` configuration points to the canonical policy in `.claude/hooks/block-merges.sh`. The configuration and handlers are locally validated. Codex host dispatch occurs only after the project `.codex/` layer is trusted and the exact hook definition is reviewed and trusted. Repository validation does not attest that host dispatch occurred.
+3. GitHub branch protection independently enforces the rule server-side, regardless of local hook dispatch
 
-PRs that weaken any of these layers — including bypassing the hook — will be rejected. The `--no-verify` flag is never acceptable; if a hook is broken, fix the hook.
+PRs that weaken any of these protections, including the configuration, handler, trust boundary, or branch rule, will be rejected. The `--no-verify` flag is never acceptable; fix the underlying hook failure.
 
 ### Plugin-first, template-second
 

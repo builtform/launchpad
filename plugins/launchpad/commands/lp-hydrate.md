@@ -1,6 +1,22 @@
 ---
 name: lp-hydrate
 description: "Read and present the project backlog from BACKLOG.md as a session briefing"
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  capabilities:
+    required:
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - installed_root_binding
+      - interaction_mode_attestation
+      - repository_read
+      - structured_arguments
+    mutation: none
+    interaction: optional
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 # Hydrate — Session Briefing

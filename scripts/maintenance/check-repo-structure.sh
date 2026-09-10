@@ -133,6 +133,7 @@ ALLOWED_DIRS=(
   ".github"
   ".vscode"
   ".claude"
+  ".codex"
   ".harness"
   ".launchpad"
   "node_modules"
@@ -415,6 +416,142 @@ if [ -f "$AGENTS_YML" ]; then
   fi
 else
   echo "   ⚠️  No .launchpad/agents.yml found (skipping)"
+fi
+
+echo ""
+
+# ============================================================================
+# Check 7: Codex Project Hook Contract
+# ============================================================================
+echo "📋 Validating Codex project hooks..."
+
+CODEX_HOOKS="$REPO_ROOT/.codex/hooks.json"
+CODEX_HOOK_ERRORS=""
+
+if [ -f "$CODEX_HOOKS" ]; then
+  if ! python3 - "$CODEX_HOOKS" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+    raise SystemExit(f"invalid .codex/hooks.json: {exc}") from exc
+
+if not isinstance(payload, dict) or set(payload) != {"description", "hooks"}:
+    raise SystemExit(".codex/hooks.json top-level fields differ")
+if not isinstance(payload["description"], str) or not payload["description"]:
+    raise SystemExit(".codex/hooks.json description must be a non-empty string")
+
+hooks = payload.get("hooks")
+if not isinstance(hooks, dict):
+    raise SystemExit(".codex/hooks.json must contain a hooks object")
+
+if set(hooks) != {"PreToolUse", "SessionStart"}:
+    raise SystemExit(
+        ".codex/hooks.json must expose only PreToolUse and SessionStart"
+    )
+
+session = hooks.get("SessionStart")
+pre_tool = hooks.get("PreToolUse")
+if not isinstance(session, list) or len(session) != 1:
+    raise SystemExit("SessionStart must contain exactly one matcher group")
+if not isinstance(pre_tool, list) or len(pre_tool) != 1:
+    raise SystemExit("PreToolUse must contain exactly one matcher group")
+
+expected = (
+    (
+        session[0],
+        "^(startup|resume|clear|compact)$",
+        'bash "$(git rev-parse --show-toplevel)/scripts/agent_hydration/hydrate.sh" --project-root "$(git rev-parse --show-toplevel)"',
+        "Loading LaunchPad project context",
+    ),
+    (
+        pre_tool[0],
+        "^Bash$",
+        'bash "$(git rev-parse --show-toplevel)/.claude/hooks/block-merges.sh"',
+        "Checking LaunchPad repository policy",
+    ),
+)
+
+for group, matcher, command, status_message in expected:
+    if not isinstance(group, dict) or group.get("matcher") != matcher:
+        raise SystemExit(f"Codex hook matcher must be {matcher!r}")
+    if set(group) != {"matcher", "hooks"}:
+        raise SystemExit(f"Codex hook {matcher!r} matcher group has unknown fields")
+    handlers = group.get("hooks")
+    if not isinstance(handlers, list) or len(handlers) != 1:
+        raise SystemExit(f"Codex hook {matcher!r} must have exactly one handler")
+    handler = handlers[0]
+    if not isinstance(handler, dict) or handler.get("type") != "command":
+        raise SystemExit(f"Codex hook {matcher!r} must use a command handler")
+    if set(handler) != {"type", "command", "timeout", "statusMessage"}:
+        raise SystemExit(f"Codex hook {matcher!r} handler has unknown fields")
+    if handler.get("command") != command:
+        raise SystemExit(f"Codex hook {matcher!r} command is not portable")
+    if handler.get("timeout") != 30:
+        raise SystemExit(f"Codex hook {matcher!r} timeout must be 30 seconds")
+    if handler.get("statusMessage") != status_message:
+        raise SystemExit(f"Codex hook {matcher!r} status message is invalid")
+
+serialized = json.dumps(payload, sort_keys=True)
+for forbidden in ("/Users/", "CLAUDE_PROJECT_DIR", "CLAUDE_TOOL_"):
+    if forbidden in serialized:
+        raise SystemExit(f"Codex hook config contains forbidden token: {forbidden}")
+PY
+  then
+    CODEX_HOOK_ERRORS="invalid or non-portable .codex/hooks.json"
+  fi
+
+  if [ -e "$REPO_ROOT/.codex/hooks/block-merges.sh" ]; then
+    CODEX_HOOK_ERRORS="${CODEX_HOOK_ERRORS:+$CODEX_HOOK_ERRORS; }duplicate merge hook exists under .codex/hooks/"
+  fi
+
+  if [ ! -x "$REPO_ROOT/.claude/hooks/block-merges.sh" ]; then
+    CODEX_HOOK_ERRORS="${CODEX_HOOK_ERRORS:+$CODEX_HOOK_ERRORS; }canonical merge hook is missing or not executable"
+  fi
+
+  if [ ! -f "$REPO_ROOT/scripts/agent_hydration/hydrate.sh" ]; then
+    CODEX_HOOK_ERRORS="${CODEX_HOOK_ERRORS:+$CODEX_HOOK_ERRORS; }hydration script is missing"
+  fi
+
+  CODEX_PRE_TOOL_COMMAND='bash "$(git rev-parse --show-toplevel)/.claude/hooks/block-merges.sh"'
+
+  set +e
+  printf '%s' '{"tool_input":{"command":"git merge main"}}' | \
+    (cd "$REPO_ROOT" && bash -c "$CODEX_PRE_TOOL_COMMAND") >/dev/null 2>&1
+  BLOCK_STATUS=$?
+  printf '%s' '{"tool_input":{"command":"git merge origin/main"}}' | \
+    (cd "$REPO_ROOT" && bash -c "$CODEX_PRE_TOOL_COMMAND") >/dev/null 2>&1
+  ALLOW_STATUS=$?
+  printf '%s' '{"tool_input":' | \
+    (cd "$REPO_ROOT" && bash -c "$CODEX_PRE_TOOL_COMMAND") >/dev/null 2>&1
+  MALFORMED_STATUS=$?
+  printf '%s' '{"tool_input":{}}' | \
+    (cd "$REPO_ROOT" && bash -c "$CODEX_PRE_TOOL_COMMAND") >/dev/null 2>&1
+  MISSING_COMMAND_STATUS=$?
+  set -e
+
+  if [ "$BLOCK_STATUS" -ne 2 ] || \
+     [ "$ALLOW_STATUS" -ne 0 ] || \
+     [ "$MALFORMED_STATUS" -ne 2 ] || \
+     [ "$MISSING_COMMAND_STATUS" -ne 2 ]; then
+    CODEX_HOOK_ERRORS="${CODEX_HOOK_ERRORS:+$CODEX_HOOK_ERRORS; }canonical merge hook contract failed"
+  fi
+
+  if [ -n "$CODEX_HOOK_ERRORS" ]; then
+    echo "   ❌ $CODEX_HOOK_ERRORS"
+    ERRORS=$((ERRORS + 1))
+  else
+    echo "   ✅ Codex project hook configuration and local handlers are valid"
+    echo "      Host dispatch remains subject to Codex project hook review and trust"
+  fi
+else
+  echo "   ❌ Required .codex/hooks.json is missing"
+  ERRORS=$((ERRORS + 1))
 fi
 
 echo ""

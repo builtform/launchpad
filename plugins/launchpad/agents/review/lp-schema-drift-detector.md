@@ -4,6 +4,19 @@ description: Detects schema.prisma changes without corresponding migrations, mig
 stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 You are a Prisma schema drift specialist. Detect mismatches between `schema.prisma` edits and migration files in the current diff.

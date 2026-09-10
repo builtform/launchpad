@@ -2,6 +2,35 @@
 name: lp-creating-skills
 description: "Creates new Claude Code skills using the 7-phase Meta-Skill Forge methodology. Produces quality-validated skills with progressive disclosure, evaluation loops, and contrarian analysis. Use when creating a new skill, teaching Claude a new workflow, building a custom agent capability, or automating a repeatable task. Triggers on: create skill, new skill, build skill, teach Claude, make a skill for."
 user-invocable: false
+x-launchpad:
+  schema-version: 1
+  component-kind: skill
+  direct:
+    references:
+      - references/CONTRARIAN-FRAME.md
+      - references/EVAL-TEMPLATE.md
+      - references/METHODOLOGY.md
+      - references/QUALITY-GATES.md
+      - references/REFERENCE-TEMPLATE.md
+      - references/SKILL-TEMPLATE.md
+  capabilities:
+    required:
+      - canonical_resource_read
+      - generic_subagents
+      - installed_root_binding
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - subagent_cancel_final_join
+    mutation: project_files
+    interaction: none
+    external-data-egress: true
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # Meta-Skill Forge

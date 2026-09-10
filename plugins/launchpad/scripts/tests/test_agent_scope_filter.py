@@ -224,3 +224,53 @@ def test_filter_module_invariants(filter_mod):
 
     # Empty input returns [] without raising.
     assert filter_mod.filter_agents_by_stacks([], stacks=["ts_monorepo"]) == []
+
+
+def test_record_api_has_identical_survivors_and_drop_warning(filter_mod, caplog):
+    """Codex records preserve the current Claude survivor and warning behavior."""
+    import logging
+
+    index = filter_mod._load_agent_index()
+    records = {
+        name: filter_mod._PROTOCOL.normalize_agent_scope_record(
+            {"resource_id": name, "stack_scope": metadata["stack_scope"]},
+            filter_mod._PROTOCOL_CONTRACT,
+        )
+        for name, metadata in index.items()
+    }
+    names = ["lp-file-locator", "lp-security-auditor", "lp-not-real-agent"]
+    caplog.set_level(logging.WARNING)
+    legacy = filter_mod.filter_agents_by_stacks(names, stacks=["ts_monorepo"])
+    legacy_messages = [record.message for record in caplog.records]
+    caplog.clear()
+    record_survivors, record_dropped = filter_mod.filter_agent_records_by_stacks(
+        names, ["ts_monorepo"], records
+    )
+    record_messages = [record.message for record in caplog.records]
+    assert record_survivors == legacy
+    assert record_dropped == filter_mod.last_dropped_names() == ["lp-not-real-agent"]
+    assert record_messages == legacy_messages
+
+
+def test_record_api_rejects_unvalidated_scope_record(filter_mod):
+    bad = {"lp-file-locator": object()}
+    with pytest.raises(ValueError, match="invalid normalized scope record"):
+        filter_mod.filter_agent_records_by_stacks(
+            ["lp-file-locator"], ["ts_monorepo"], bad
+        )
+
+
+def test_claude_fallback_and_partial_drop_banners_remain_exact():
+    expected_fallback = (
+        "> ⚠ stack-filter unavailable (\\<exception type\\>); dispatching full\n"
+        "> roster of N agents"
+    )
+    expected_partial = (
+        "> ⚠ stack-filter dropped unknown names: \\[\\<name1\\>, \\<name2\\>\\];\n"
+        "> dispatching M of N agents"
+    )
+    commands = _SCRIPTS.parent / "commands"
+    for command in ("lp-review.md", "lp-harden-plan.md"):
+        body = (commands / command).read_text(encoding="utf-8")
+        assert expected_fallback in body
+        assert expected_partial in body

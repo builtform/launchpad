@@ -41,6 +41,19 @@ Copy everything below this line into your new `SKILL.md` file.
 ---
 name: { { skill-name } }
 description: "{{What it does in third person. When to use it. Triggers on: phrase1, phrase2, phrase3.}}"
+x-launchpad:
+  schema-version: 1
+  component-kind: skill
+  direct: {}
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+    mutation: { { mutation-class } }
+    interaction: { { interaction-class } }
+    external-data-egress: { { true-or-false } }
+    tool-profile: { { tool-profile } }
+    fallback: { { fallback-class } }
 ---
 
 # {{Skill Title}}

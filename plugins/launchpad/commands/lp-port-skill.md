@@ -1,6 +1,32 @@
 ---
 name: lp-port-skill
 description: "Port an external skill into the project format using the 4-phase Skill Porting workflow"
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    skills:
+      - lp-creating-skills
+    references:
+      - skills/lp-creating-skills/references/PORTING-GUIDE.md
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - installed_root_binding
+      - interaction_mode_attestation
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - structured_arguments
+    mutation: project_files
+    interaction: required
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # Port Skill

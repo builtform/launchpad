@@ -1,6 +1,29 @@
 ---
 name: lp-define-design
 description: "Interactively define your design system, app flow, and frontend guidelines with Jobs/Ive quality bar"
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - installed_root_binding
+      - interaction_mode_attestation
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - structured_arguments
+    mutation: project_files
+    interaction: required
+    external-data-egress: true
+    write-scopes:
+      - project-files
+    tool-profile: effectful
+    fallback: none
 ---
 
 # Define Design

@@ -4,6 +4,19 @@ description: Analyzes documentation to extract high-value insights — decisions
 stack_scope: core_pipeline
 tools: Read, Grep, Glob, LS
 model: inherit
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 You are a specialist at extracting HIGH-VALUE insights from project documentation. Your job is to analyze document contents, parse YAML frontmatter for metadata, and surface the decisions, constraints, rejected approaches, and lessons that matter for the current task.

@@ -18,11 +18,21 @@ Security fixes are released as patch versions on the latest minor. Older minors 
 
 **Tag signing posture.** Tags before v2.2 are unsigned; verify ship integrity via release SHA against the tag annotation. Signed tags arrive in v2.2 (BL-214).
 
+## Codex adapter security boundary
+
+The Codex adapter is an unpublished dogfood candidate. Its sealed package and isolated lifecycle are verified, but all 44 public roots remain blocked because the tested host did not authenticate bare `$lp` router selection or preserve a lossless authenticated argument tail. No normal Codex installation, public listing, tag, or availability claim is authorized by this evidence.
+
+The adapter treats only digest-pinned canonical prompts, a project prompt admitted through an authenticated one-run trust gate, and the finite canonical-dialect map as instructions. Repository files, arguments, environment data, external content, artifacts, and child output remain bounded data. Persistent instruction writes need separate interactive approval. This separation reduces prompt-injection exposure but does not eliminate it cryptographically.
+
+Read, effect, and egress permissions are distinct. Browser, MCP, connector, and subprocess networking stay blocked when the exact host path cannot mediate scoped reads and authorize every normalized destination and redirect hop. Mutations require authenticated approval, durable receipt-capacity reservation, synced pre-action intent, and one mutation owner before the first effect. Partial outcomes fail stopped and require manual recovery; the adapter does not auto-rollback pre-existing user work or resume in place.
+
+Before the host verifies the entry surface, detached digest attestation, first helper or interpreter, and runtime payload, use only host-native plugin-management remediation. Diagnostics exclude raw prompts, arguments, environment data, control characters, and absolute home paths. They retain bounded relative identifiers, digests, and statuses. Public bugs and private security reports follow the protocol classification, unknown classifications fail private, and no report is submitted automatically.
+
 ## What the harness controls
 
 These are protections that ship in the box. You do not need to configure anything to get them.
 
-1. **Pull requests, never direct merges.** `/lp-ship` and `/lp-commit` refuse to run `gh pr merge` or `git merge main`. A `PreToolUse` hook (`.claude/hooks/block-merges.sh`) intercepts the blocked commands at the tool level before execution. GitHub branch protection on `main` backs the same rule server-side. The hook also blocks `git push --force`, push to `main`/`master`, and `gh pr review --approve`.
+1. **Pull requests, never direct merges.** `/lp-ship` and `/lp-commit` refuse to run `gh pr merge` or `git merge main`. Project-level `PreToolUse` configuration in `.claude/settings.json` and `.codex/hooks.json` configures the canonical `.claude/hooks/block-merges.sh` policy for matching Bash calls. Codex dispatches the project hook only after its exact definition has been reviewed and trusted, so repository validation proves the configuration and local handler behavior but not host dispatch. GitHub branch protection on `main` backs the same rule server-side. The hook also blocks `git push --force`, push to `main`/`master`, and `gh pr review --approve`.
 
 2. **Realpath-confined writes.** Commands that create or move project files (`/lp-define`, `/lp-shape-section`, `/lp-build`) resolve every write path through `realpath` and refuse anything that escapes the project root. A symlink trick or `..` traversal cannot reach outside the repo.
 

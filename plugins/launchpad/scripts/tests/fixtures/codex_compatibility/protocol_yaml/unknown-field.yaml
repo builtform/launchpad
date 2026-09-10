@@ -1,0 +1,8 @@
+name: lp-protocol-probe
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  capabilities:
+    mutation: none
+    interaction: none
+  command-specific-alias: forbidden

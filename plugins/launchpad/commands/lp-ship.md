@@ -1,6 +1,48 @@
 ---
 name: lp-ship
 description: Autonomous shipping pipeline — quality gates, commit, PR creation, and CI monitoring. NEVER merges.
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    commands:
+      - lp-resolve-todo-parallel
+      - lp-review
+    scripts:
+      - scripts/lp_preflight.py
+      - scripts/plugin-build-runner.py
+      - scripts/plugin-prereq-check.sh
+      - scripts/plugin_stack_adapters/autonomous_guard.py
+    external-tools:
+      - gh
+      - git
+      - lefthook
+      - python3
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - installed_root_binding
+      - interaction_mode_attestation
+      - nested_command
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - shell_execution
+      - structured_arguments
+    mutation: project_and_external
+    interaction: authenticated_approval
+    external-data-egress: true
+    write-scopes:
+      - external-state
+      - project-files
+      - repository-state
+    tool-profile: effectful
+    fallback: none
 ---
 
 # /lp-ship

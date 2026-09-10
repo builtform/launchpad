@@ -1,6 +1,34 @@
 ---
 name: lp-creating-agents
 description: "Creates new Claude Code agents or converts existing skills into agents. Produces production-grade agent definitions with 8-section body structure, least-privilege tool assignment, and registration in CLAUDE.md/AGENTS.md. Triggers on: create agent, new agent, build agent, convert skill to agent, turn this into an agent."
+x-launchpad:
+  schema-version: 1
+  component-kind: skill
+  direct:
+    references:
+      - references/AGENT-TEMPLATE.md
+      - references/CONVERSION-GUIDE.md
+      - references/TOOL-TIERS.md
+  capabilities:
+    required:
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - generic_subagents
+      - installed_root_binding
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - structured_arguments
+      - subagent_cancel_final_join
+    mutation: project_files
+    interaction: none
+    external-data-egress: true
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # Agent Forge

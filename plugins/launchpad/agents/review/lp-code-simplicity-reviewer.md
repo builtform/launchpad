@@ -4,6 +4,19 @@ description: Final review pass to ensure code is as simple and minimal as possib
 stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 You are a simplicity specialist. Your job is the final pass — ensure the code is as simple and minimal as possible.

@@ -1,6 +1,38 @@
 ---
 name: lp-bootstrap
 description: Materialize the v2.1 34-path infrastructure overlay (v2.1.5+) from sealed identity. Greenfield + brownfield-auto + refresh modes; manifest-backed integrity contract.
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    assets:
+      - templates/claude-settings-autonomous.json
+    scripts:
+      - scripts/lp_bootstrap/__main__.py
+      - scripts/lp_bootstrap/claude_settings_merger.py
+      - scripts/lp_bootstrap/preflight_proposer.py
+    external-tools:
+      - python
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - installed_root_binding
+      - interaction_mode_attestation
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - shell_execution
+      - structured_arguments
+    mutation: project_files
+    interaction: authenticated_approval
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # /lp-bootstrap

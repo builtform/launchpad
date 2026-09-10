@@ -4,6 +4,25 @@ description: Addresses a single PR review comment by implementing the requested 
 stack_scope: core_pipeline
 tools: Read, Edit, Write, Grep, Glob, Bash
 model: inherit
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - external_cli
+      - installed_root_binding
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - shell_execution
+    mutation: project_files
+    interaction: none
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 You are a PR comment resolution specialist. You receive a single PR review comment and implement the requested change.

@@ -4,6 +4,19 @@ description: Reviews database migrations, data models, and persistent data code 
 stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 You are a data integrity specialist for Prisma/PostgreSQL. Review database changes for constraint safety, transaction correctness, and privacy compliance.

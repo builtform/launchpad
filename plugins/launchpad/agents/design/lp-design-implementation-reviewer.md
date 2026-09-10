@@ -4,6 +4,30 @@ description: "Captures live implementation state and compares against Figma desi
 stack_scope: design_quality
 model: inherit
 tools: Read, Grep, Glob
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  direct:
+    external-tools:
+      - agent-browser
+      - figma
+      - playwright
+  capabilities:
+    required:
+      - browser
+      - canonical_resource_read
+      - external_cli
+      - installed_root_binding
+      - mcp_server
+      - network_egress
+      - repository_read
+      - serialized_payload_mediation
+      - shell_execution
+    mutation: none
+    interaction: none
+    external-data-egress: true
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 # Design Implementation Reviewer

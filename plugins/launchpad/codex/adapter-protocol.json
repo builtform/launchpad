@@ -1,0 +1,735 @@
+{
+  "schema_version": 1,
+  "protocol_id": "launchpad-codex-adapter",
+  "protocol_version": "1.0.0",
+  "name_pattern": "^[a-z0-9][a-z0-9-]*$",
+  "stack_scope_pattern": "^(core_pipeline|stack:any|stack:[a-z_]{1,32}|design_quality|skill_quality)$",
+  "metadata_namespace": "x-launchpad",
+  "component_kinds": ["command", "skill", "agent"],
+  "project_extension_roster_fields": [
+    "review_agents",
+    "review_db_agents",
+    "review_design_agents",
+    "review_copy_agents",
+    "harden_plan_agents",
+    "harden_plan_conditional_agents",
+    "harden_document_agents",
+    "protected_branches"
+  ],
+  "canonical_dialect": {
+    "nested_command": {
+      "source_construct": "/lp-<name>",
+      "typed_operation": "invoke_command",
+      "required_capability": "nested_command"
+    },
+    "plugin_root": {
+      "source_construct": "${CLAUDE_PLUGIN_ROOT}",
+      "typed_operation": "bind_installed_plugin_root",
+      "required_capability": "installed_root_binding"
+    },
+    "skill_or_resource_load": {
+      "source_construct": "declared skill, reference, asset, or script load",
+      "typed_operation": "read_declared_resource",
+      "required_capability": "canonical_resource_read"
+    },
+    "subagent_dispatch": {
+      "source_construct": "Task or subagent dispatch",
+      "typed_operation": "dispatch_declared_agent",
+      "required_capability": "generic_subagents"
+    },
+    "interaction_request": {
+      "source_construct": "interactive user request",
+      "typed_operation": "request_authenticated_interaction",
+      "required_capability": "authenticated_user_interaction"
+    },
+    "tool_capability": {
+      "source_construct": "declared tool-name capability",
+      "typed_operation": "invoke_permitted_tool",
+      "required_capability": "operation_authorization"
+    },
+    "claude_hook": {
+      "source_construct": "Claude-only hook statement",
+      "typed_operation": "require_host_hook",
+      "required_capability": "host_hooks"
+    },
+    "claude_presentation": {
+      "source_construct": "Claude-only presentation statement",
+      "typed_operation": "present_bounded_result",
+      "required_capability": "host_presentation"
+    }
+  },
+  "router": {
+    "entry_skill": "lp",
+    "command_prefix": "lp-",
+    "reserved_tokens": ["help", "lp", "skill"],
+    "zero_mutation_required_capabilities": [
+      "detached_digest_attestation",
+      "explicit_invocation_provenance",
+      "first_executable_verification",
+      "prompt_free_shell_deny",
+      "serialized_payload_mediation",
+      "structured_arguments"
+    ]
+  },
+  "metadata_schema": {
+    "top_level_fields": [
+      "name",
+      "description",
+      "user-invocable",
+      "tools",
+      "model",
+      "color",
+      "stack_scope",
+      "argument-hint",
+      "disable-model-invocation",
+      "allowed-tools",
+      "context",
+      "agent",
+      "hooks",
+      "x-launchpad"
+    ],
+    "namespace_fields": [
+      "schema-version",
+      "component-kind",
+      "direct",
+      "capabilities",
+      "bounded-loop"
+    ],
+    "required_namespace_fields": ["schema-version", "component-kind", "capabilities"],
+    "direct_edge_fields": [
+      "commands",
+      "skills",
+      "agents",
+      "references",
+      "assets",
+      "scripts",
+      "external-tools"
+    ],
+    "capability_fields": [
+      "required",
+      "mutation",
+      "interaction",
+      "external-data-egress",
+      "write-scopes",
+      "tool-profile",
+      "fallback"
+    ],
+    "bounded_loop_fields": ["max-iterations", "reentry-command"]
+  },
+  "capability_ids": [
+    "canonical_resource_read",
+    "installed_root_binding",
+    "structured_arguments",
+    "explicit_invocation_provenance",
+    "interaction_mode_attestation",
+    "authenticated_user_interaction",
+    "detached_digest_attestation",
+    "first_executable_verification",
+    "repository_read",
+    "repository_write",
+    "shell_execution",
+    "prompt_free_shell_deny",
+    "network_egress",
+    "serialized_payload_mediation",
+    "nested_command",
+    "generic_subagents",
+    "subagent_cancel_final_join",
+    "operation_authorization",
+    "persistent_instruction_write",
+    "project_prompt_admission",
+    "plugin_durable_state",
+    "atomic_receipt_reservation",
+    "authoritative_budget_enforcement",
+    "effect_revocation_status",
+    "external_cli",
+    "browser",
+    "mcp_server",
+    "connector",
+    "host_hooks",
+    "host_presentation"
+  ],
+  "classes": {
+    "mutation": [
+      "none",
+      "project_files",
+      "repository_state",
+      "external_state",
+      "project_and_external"
+    ],
+    "interaction": ["none", "optional", "required", "authenticated_approval"],
+    "base_support_state": ["supported", "blocked"],
+    "applicability": ["applicable", "not_applicable"],
+    "effective_availability": ["available", "blocked"],
+    "release_stage": ["dogfood", "beta", "stable"],
+    "lifecycle_stage": ["inventory", "test_candidate", "release"],
+    "reporting": ["public_bug", "private_security"],
+    "fallback": ["inspect_only", "read_only_manual", "none"],
+    "tool_profile": ["inspect_only", "read_only", "workspace_write", "effectful"],
+    "resource_origin": ["built_in", "project"],
+    "admission_source": ["interactive", "headless"],
+    "project_selection_source": ["roster", "canonical_reference"],
+    "run_state": [
+      "created",
+      "preflight_passed",
+      "approved",
+      "receipt_ready",
+      "effect_active",
+      "terminal"
+    ],
+    "approval_state": ["pending", "approved", "declined", "expired"],
+    "approval_kind": ["effect", "persistent_instruction_write"],
+    "mutation_state": ["not_started", "committed", "partial"],
+    "terminal_state": ["succeeded", "blocked", "declined", "failed", "partial"],
+    "gate_result": ["pass", "blocked"],
+    "log_status": ["checked", "allowed", "blocked", "started", "committed", "partial", "failed"],
+    "effect_kind": ["ai_child", "product_mutation", "external_effect"],
+    "egress_transport": [
+      "host_provider",
+      "subagent",
+      "browser",
+      "mcp",
+      "connector",
+      "cli",
+      "subprocess"
+    ],
+    "evidence_status": ["current", "expired", "revoked"]
+  },
+  "cli_schema_spelling": {
+    "inventory": "inventory",
+    "test-candidate": "test_candidate",
+    "generate": "release"
+  },
+  "digest_domains": {
+    "runtime_payload_digest": {
+      "algorithm": "sha256",
+      "excludes": [
+        "codex/support-evidence.json",
+        "generated_documentation",
+        "detached_distribution_descriptors"
+      ]
+    },
+    "evidence_digest": {
+      "algorithm": "sha256",
+      "covers": ["codex/support-evidence.json"]
+    },
+    "artifact_digest": {
+      "algorithm": "sha256",
+      "covers": ["completed_plugin_package"],
+      "storage": "detached_attestation_only"
+    }
+  },
+  "packaging": {
+    "canonical_package_prefix": "codex/canonical",
+    "manifest_shared_fields": [
+      "author",
+      "description",
+      "homepage",
+      "keywords",
+      "license",
+      "name",
+      "repository",
+      "version"
+    ],
+    "manifest_host_fields": {
+      "skills": "./codex/skills/"
+    },
+    "runtime_helpers": [
+      "codex/adapter-protocol.json",
+      "codex/skills/lp/SKILL.md",
+      "scripts/atomic_io.py",
+      "scripts/plugin-codex-corpus.py",
+      "scripts/plugin-codex-manifest.py",
+      "scripts/plugin-codex-protocol.py",
+      "scripts/plugin-codex-resolver.py",
+      "scripts/plugin-codex-router.py",
+      "scripts/plugin-codex-support.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/__init__.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/composer.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/constructor.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/cyaml.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/dumper.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/emitter.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/error.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/events.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/loader.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/nodes.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/parser.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/reader.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/representer.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/resolver.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/scanner.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/serializer.py",
+      "scripts/plugin_stack_adapters/_vendor/yaml/tokens.py",
+      "scripts/safe_run.py"
+    ],
+    "generated_slots": ["README.md", "codex/support-evidence.json", "docs/guides/HOW_IT_WORKS.md"],
+    "documentation_regions": {
+      "README.md": "codex-beta-summary",
+      "docs/guides/HOW_IT_WORKS.md": "codex-support-matrix"
+    }
+  },
+  "record_schemas": {
+    "direct_edges": {
+      "required": [
+        "commands",
+        "skills",
+        "agents",
+        "references",
+        "assets",
+        "scripts",
+        "external_tools"
+      ]
+    },
+    "capability_summary": {
+      "required": [
+        "required",
+        "mutation",
+        "interaction",
+        "external_data_egress",
+        "write_scopes",
+        "tool_profile",
+        "fallback"
+      ]
+    },
+    "node_record": {
+      "required": [
+        "id",
+        "kind",
+        "source_path",
+        "source_digest",
+        "metadata_digest",
+        "aggregate_digest",
+        "direct",
+        "capabilities"
+      ]
+    },
+    "support_record": {
+      "required": ["resource_id", "base_support_state", "blocked_reason_codes", "fallback"]
+    },
+    "runtime_file_record": {
+      "required": ["path", "digest", "size"]
+    },
+    "compatibility_predicate_record": {
+      "required": [
+        "predicate_id",
+        "resource_id",
+        "host",
+        "operating_system",
+        "required_capabilities",
+        "tool_versions",
+        "base_support_state",
+        "blocked_reason_codes",
+        "fallback",
+        "qualification_ids"
+      ]
+    },
+    "availability_record": {
+      "required": ["resource_id", "applicability", "effective_availability", "reason_codes"]
+    },
+    "qualification_record": {
+      "required": [
+        "qualification_id",
+        "runtime_payload_digest",
+        "host",
+        "operating_system",
+        "tool_versions",
+        "receipt_ids"
+      ]
+    },
+    "runtime_record": {
+      "required": [
+        "stage",
+        "release_stage",
+        "protocol_version",
+        "protocol_digest",
+        "runtime_payload_digest",
+        "root_ids",
+        "nodes",
+        "runtime_files",
+        "support",
+        "qualification_ids",
+        "generated_slots"
+      ]
+    },
+    "digest_record": {
+      "required": ["runtime_payload_digest", "evidence_digest", "artifact_digest"]
+    },
+    "agent_scope_record": {
+      "required": ["resource_id", "stack_scope"]
+    },
+    "resolver_source_record": {
+      "required": [
+        "resource_id",
+        "kind",
+        "origin",
+        "source_path",
+        "source_digest",
+        "metadata_digest",
+        "size",
+        "user_invocable",
+        "quarantined"
+      ]
+    },
+    "resolver_resource_record": {
+      "required": [
+        "owner_id",
+        "owner_kind",
+        "origin",
+        "relative_path",
+        "source_digest",
+        "size",
+        "quarantined"
+      ]
+    },
+    "project_root_record": {
+      "required": ["canonical_root", "repository_identity", "root_device", "root_inode"]
+    },
+    "project_selection_record": {
+      "required": [
+        "resource_id",
+        "kind",
+        "selection_source",
+        "selector_path",
+        "selector_key",
+        "selector_digest",
+        "selection_digest"
+      ]
+    },
+    "project_admission_record": {
+      "required": [
+        "nonce",
+        "expires_at",
+        "repository_identity",
+        "canonical_root_digest",
+        "relative_path",
+        "kind",
+        "content_digest",
+        "selection_digest",
+        "protocol_version",
+        "requested_capability",
+        "run_id",
+        "child_id",
+        "workflow_id",
+        "repository_ref",
+        "source"
+      ]
+    },
+    "execution_frame": {
+      "required": [
+        "run_id",
+        "command_id",
+        "command_digest",
+        "argument_digest",
+        "graph_digest",
+        "configuration_digest",
+        "roster_digest",
+        "repository_digest",
+        "repository_head",
+        "repository_index_digest",
+        "package_digest",
+        "manifest_digest",
+        "entry_skill_digest",
+        "resolver_digest",
+        "coordinator_digest",
+        "protocol_version",
+        "protocol_digest",
+        "support_evidence_version",
+        "evidence_digest",
+        "approval_digest",
+        "project_admission_digests",
+        "mutation_class",
+        "required_capabilities",
+        "tool_profile",
+        "write_scopes",
+        "active_call_stack",
+        "depth",
+        "cancellation_token_digest",
+        "remaining_child_starts",
+        "remaining_context_tokens",
+        "loaded_resource_digests"
+      ]
+    },
+    "run_snapshot": {
+      "required": [
+        "run_id",
+        "frame_digest",
+        "run_state",
+        "mutation_state",
+        "approval_state",
+        "approval_digest",
+        "receipt_id",
+        "receipt_synced",
+        "lease_held",
+        "terminal_state",
+        "remaining_child_starts",
+        "remaining_context_tokens",
+        "outbound_bytes"
+      ]
+    },
+    "preflight_record": {
+      "required": [
+        "run_id",
+        "required_capabilities",
+        "tool_profile",
+        "graph_digest",
+        "repository_digest",
+        "evidence_digest",
+        "gate_result"
+      ]
+    },
+    "approval_record": {
+      "required": [
+        "approval_id",
+        "nonce",
+        "expires_at",
+        "run_id",
+        "project_root_digest",
+        "command_argument_digest",
+        "graph_digest",
+        "mutation_class",
+        "effect_scope",
+        "approval_kind",
+        "exact_diff_digest",
+        "source",
+        "state"
+      ]
+    },
+    "operation_permit": {
+      "required": [
+        "permit_id",
+        "nonce",
+        "run_id",
+        "effect_kind",
+        "executable_digest",
+        "subcommand",
+        "allowed_flags",
+        "cwd_digest",
+        "path_digests",
+        "network_origin",
+        "network_method",
+        "account_digest",
+        "resource_digest",
+        "credential_class",
+        "expected_mutation_digest",
+        "request_digest",
+        "signature"
+      ]
+    },
+    "receipt_event": {
+      "required": [
+        "sequence",
+        "run_id",
+        "receipt_id",
+        "event_type",
+        "effect_kind",
+        "scope_digest",
+        "status",
+        "error_code"
+      ]
+    },
+    "log_event": {
+      "required": [
+        "sequence",
+        "run_id",
+        "capability_id",
+        "source_relative_path",
+        "digest",
+        "status",
+        "error_code",
+        "agent_id",
+        "timing_ms",
+        "gate_result"
+      ]
+    },
+    "terminal_record": {
+      "required": [
+        "run_id",
+        "terminal_state",
+        "mutation_state",
+        "receipt_id",
+        "error_code",
+        "frame_digest"
+      ]
+    },
+    "trace_event": {
+      "required": ["sequence", "run_id", "category", "operation", "record_digest"]
+    }
+  },
+  "defaults": {
+    "worker_count": 3,
+    "fallback_context_tokens": 32000
+  },
+  "minimums": {
+    "repository_work_output_context_percent": 50
+  },
+  "limits": {
+    "catalog_depth": 4,
+    "definitions_per_type": 256,
+    "direct_edges_per_definition": 64,
+    "aggregate_edges": 65536,
+    "frontmatter_bytes": 65536,
+    "body_bytes": 262144,
+    "yaml_nodes": 4096,
+    "yaml_depth": 32,
+    "yaml_scalar_bytes": 65536,
+    "yaml_aggregate_bytes": 1048576,
+    "worker_ceiling": 8,
+    "child_starts": 32,
+    "nested_invocations": 16,
+    "nested_depth": 8,
+    "child_timeout_seconds": 1200,
+    "wave_timeout_seconds": 3600,
+    "wall_clock_seconds": 7200,
+    "deadline_cancellation_seconds": 7170,
+    "retries_per_child": 2,
+    "retry_backoff_seconds": 30,
+    "cooperative_cancel_seconds": 10,
+    "final_cancel_join_seconds": 20,
+    "cancellation_drain_seconds": 30,
+    "estimated_input_tokens": 1000000,
+    "estimated_output_tokens": 250000,
+    "serialized_message_bytes": 8388608,
+    "router_tokens": 1024,
+    "aggregate_outbound_bytes": 67108864,
+    "diagnostic_field_characters": 512,
+    "log_events_per_run": 4096,
+    "log_bytes_per_run": 4194304,
+    "mutation_receipt_events_per_run": 2048,
+    "mutation_receipt_bytes_per_run": 2097152,
+    "retained_runs": 50,
+    "adapter_storage_bytes": 268435456,
+    "retention_days": 30,
+    "documentation_file_bytes": 2097152,
+    "documentation_aggregate_bytes": 67108864,
+    "control_instruction_context_percent": 25,
+    "bounded_loop_iterations": 16,
+    "project_approval_ttl_seconds": 600
+  },
+  "duration_contract": {
+    "total_includes_retry_backoff": true,
+    "total_includes_cancellation_drain": true
+  },
+  "errors": {
+    "PROTOCOL_FILE_INVALID": "private_security",
+    "PROTOCOL_VERSION_UNSUPPORTED": "public_bug",
+    "PROTOCOL_UNKNOWN_FIELD": "public_bug",
+    "PROTOCOL_TYPE_INVALID": "public_bug",
+    "PROTOCOL_VALUE_INVALID": "public_bug",
+    "PROTOCOL_DUPLICATE_VALUE": "public_bug",
+    "YAML_SOURCE_TOO_LARGE": "private_security",
+    "YAML_INVALID_UTF8": "private_security",
+    "YAML_SYNTAX_INVALID": "private_security",
+    "YAML_DUPLICATE_KEY": "private_security",
+    "YAML_ALIAS_FORBIDDEN": "private_security",
+    "YAML_ANCHOR_FORBIDDEN": "private_security",
+    "YAML_MERGE_KEY_FORBIDDEN": "private_security",
+    "YAML_EXPLICIT_TAG_FORBIDDEN": "private_security",
+    "YAML_MULTIDOC_FORBIDDEN": "private_security",
+    "YAML_NODE_LIMIT_EXCEEDED": "private_security",
+    "YAML_DEPTH_LIMIT_EXCEEDED": "private_security",
+    "YAML_SCALAR_LIMIT_EXCEEDED": "private_security",
+    "YAML_AGGREGATE_LIMIT_EXCEEDED": "private_security",
+    "FRONTMATTER_MISSING": "public_bug",
+    "FRONTMATTER_UNTERMINATED": "public_bug",
+    "FRONTMATTER_TOO_LARGE": "private_security",
+    "BODY_TOO_LARGE": "private_security",
+    "METADATA_INVALID": "public_bug",
+    "METADATA_UNKNOWN_FIELD": "public_bug",
+    "METADATA_EDGE_LIMIT_EXCEEDED": "private_security",
+    "RECORD_INVALID": "public_bug",
+    "RECORD_STAGE_INVALID": "private_security",
+    "DIGEST_INVALID": "private_security",
+    "CAPABILITY_BLOCKED": "public_bug",
+    "LIMIT_EXCEEDED": "private_security",
+    "INTEGRITY_MISMATCH": "private_security",
+    "UNKNOWN_COMMAND": "public_bug",
+    "UNKNOWN_SKILL": "public_bug",
+    "SKILL_NOT_USER_INVOCABLE": "public_bug",
+    "PROJECT_EXTENSION_NOT_PUBLIC": "public_bug",
+    "RESOURCE_UNTRUSTED": "private_security",
+    "RESOURCE_UNDECLARED": "private_security",
+    "ROOT_INVALID": "private_security",
+    "ROOT_AMBIGUOUS": "public_bug",
+    "PATH_INVALID": "private_security",
+    "PATH_ESCAPE": "private_security",
+    "PATH_SYMLINK": "private_security",
+    "PATH_RACE": "private_security",
+    "SOURCE_NOT_FOUND": "public_bug",
+    "SOURCE_AMBIGUOUS": "private_security",
+    "SOURCE_DUPLICATE": "private_security",
+    "SOURCE_TOO_LARGE": "private_security",
+    "SOURCE_INVALID_UTF8": "private_security",
+    "SOURCE_DIGEST_MISMATCH": "private_security",
+    "SOURCE_TYPE_INVALID": "private_security",
+    "CATALOG_INVALID": "private_security",
+    "INVOCATION_COLLISION": "private_security",
+    "INVOCATION_GRAMMAR_INVALID": "public_bug",
+    "INVOCATION_PROVENANCE_UNAVAILABLE": "private_security",
+    "ARGUMENT_TAIL_UNAVAILABLE": "private_security",
+    "INTERACTION_ATTESTATION_UNAVAILABLE": "private_security",
+    "DETACHED_ATTESTATION_UNAVAILABLE": "private_security",
+    "FIRST_EXECUTABLE_VERIFICATION_UNAVAILABLE": "private_security",
+    "TOOL_PROFILE_UNENFORCEABLE": "private_security",
+    "PAYLOAD_MEDIATION_UNAVAILABLE": "private_security",
+    "OPERATION_AUTHORIZATION_UNAVAILABLE": "private_security",
+    "PROJECT_PROMPT_ADMISSION_UNAVAILABLE": "private_security",
+    "DURABLE_STATE_UNAVAILABLE": "private_security",
+    "RECEIPT_RESERVATION_UNAVAILABLE": "private_security",
+    "BUDGET_ENFORCEMENT_UNAVAILABLE": "private_security",
+    "REVOCATION_STATUS_UNAVAILABLE": "private_security",
+    "CANCEL_FINAL_JOIN_UNAVAILABLE": "private_security",
+    "MINIMUM_HOST_VERSION_UNDECLARED": "public_bug",
+    "DESKTOP_CONFORMANCE_UNAVAILABLE": "public_bug",
+    "DEPENDENCY_CLOSURE_UNPROVEN": "private_security",
+    "SUPPORT_EVIDENCE_UNAVAILABLE": "private_security",
+    "SKILL_COLLISION_PRECEDENCE_UNSPECIFIED": "private_security",
+    "HOST_NO_AUTHENTICATED_EXPLICIT_INVOCATION_PROVENANCE": "private_security",
+    "HOST_NO_LOSSLESS_AUTHENTICATED_ARGUMENT_TAIL": "private_security",
+    "HOST_NO_INTERACTION_MODE_ATTESTATION": "private_security",
+    "HOST_NO_DETACHED_DIGEST_ATTESTATION": "private_security",
+    "HOST_NO_FIRST_EXECUTABLE_VERIFICATION_CHAIN": "private_security",
+    "HOST_NO_PROMPT_FREE_SHELL_DENY_PROFILE": "private_security",
+    "HOST_NO_COMPLETE_SERIALIZED_PAYLOAD_MEDIATION": "private_security",
+    "HOST_NO_NON_BYPASSABLE_OPERATION_AUTHORIZATION": "private_security",
+    "HOST_NO_AUTHENTICATED_PROJECT_PROMPT_ADMISSION": "private_security",
+    "HOST_NO_PLUGIN_DURABLE_STATE_API": "private_security",
+    "HOST_NO_ATOMIC_RECEIPT_RESERVATION": "private_security",
+    "HOST_NO_AUTHORITATIVE_BUDGET_PRICING_CAP": "private_security",
+    "HOST_NO_AUTHENTICATED_EFFECT_REVOCATION_STATUS": "private_security",
+    "HOST_NO_CANCEL_FINAL_JOIN_GUARANTEE": "private_security",
+    "CLAUDE_MINIMUM_VERSION_UNDECLARED": "public_bug",
+    "CODEX_MINIMUM_VERSION_UNDECLARED": "public_bug",
+    "HOST_DESKTOP_RUNTIME_CONFORMANCE_UNAVAILABLE": "public_bug",
+    "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN": "private_security",
+    "CANCELLED": "public_bug",
+    "DEADLINE_EXCEEDED": "public_bug",
+    "APPROVAL_REQUIRED": "public_bug",
+    "APPROVAL_INVALID": "private_security",
+    "APPROVAL_EXPIRED": "private_security",
+    "APPROVAL_REPLAYED": "private_security",
+    "APPROVAL_SCOPE_MISMATCH": "private_security",
+    "RUN_STATE_INVALID": "private_security",
+    "SNAPSHOT_MISMATCH": "private_security",
+    "PREFLIGHT_REQUIRED": "private_security",
+    "PREFLIGHT_FAILED": "private_security",
+    "REPOSITORY_DRIFT": "private_security",
+    "MUTATION_LEASE_UNAVAILABLE": "private_security",
+    "RECEIPT_NOT_READY": "private_security",
+    "RECEIPT_CAPACITY_EXCEEDED": "private_security",
+    "OPERATION_PERMIT_INVALID": "private_security",
+    "OPERATION_PERMIT_REPLAYED": "private_security",
+    "OPERATION_SCOPE_MISMATCH": "private_security",
+    "UNMEDIATED_EFFECT_BLOCKED": "private_security",
+    "EGRESS_SECRET_DETECTED": "private_security",
+    "EXECUTABLE_IDENTITY_INVALID": "private_security",
+    "DIAGNOSTIC_NOT_ALLOWLISTED": "private_security",
+    "PARTIAL_MUTATION": "private_security",
+    "TERMINAL_STATE_INVALID": "private_security",
+    "HEADLESS_POLICY_INVALID": "private_security",
+    "HEADLESS_POLICY_UNAVAILABLE": "private_security",
+    "EVIDENCE_EXPIRED": "private_security",
+    "EVIDENCE_REVOKED": "private_security",
+    "REPORT_REDACTION_FAILED": "private_security",
+    "UNKNOWN_ERROR": "private_security"
+  }
+}

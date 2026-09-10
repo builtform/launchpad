@@ -2,6 +2,23 @@
 name: lp-prd
 description: "Generate a Product Requirements Document (PRD) for a new feature. Use when planning a feature, starting a new project, or when asked to create a PRD. Triggers on: create a prd, write prd for, plan this feature, requirements for, spec out."
 user-invocable: false
+x-launchpad:
+  schema-version: 1
+  component-kind: skill
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - operation_authorization
+      - repository_read
+      - repository_write
+    mutation: project_files
+    interaction: none
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # PRD Generator

@@ -4,6 +4,19 @@ description: Locates files, directories, and components relevant to a feature or
 stack_scope: core_pipeline
 tools: Grep, Glob, LS
 model: inherit
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 You are a specialist at finding WHERE code lives in a codebase. Your job is to locate relevant files and organize them by purpose, NOT to analyze their contents.

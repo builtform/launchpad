@@ -1,0 +1,6 @@
+{
+  "name": "lp-section1-probe",
+  "version": "0.1.0",
+  "description": "Disposable host-conformance probe for LaunchPad Section 1.",
+  "skills": "./skills/"
+}

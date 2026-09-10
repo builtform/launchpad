@@ -1,0 +1,265 @@
+name: Codex compatibility
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".claude-plugin/marketplace.json"
+      - ".claude/hooks/**"
+      - ".codex/**"
+      - ".github/workflows/**"
+      - ".launchpad/agents.yml"
+      - ".prettierignore"
+      - "CHANGELOG.md"
+      - "README.md"
+      - "docs/guides/HOW_IT_WORKS.md"
+      - "docs/releases/**"
+      - "plugins/launchpad/.claude-plugin/plugin.json"
+      - "plugins/launchpad/.codex-plugin/plugin.json"
+      - "plugins/launchpad/agents/**"
+      - "plugins/launchpad/codex/**"
+      - "plugins/launchpad/commands/**"
+      - "plugins/launchpad/hooks/**"
+      - "plugins/launchpad/preflight-profiles/**"
+      - "plugins/launchpad/scaffolders.yml"
+      - "plugins/launchpad/scaffolders/**"
+      - "plugins/launchpad/scripts/**"
+      - "plugins/launchpad/scripts/plugin_default_generators/**"
+      - "plugins/launchpad/scripts/plugin_stack_adapters/**"
+      - "plugins/launchpad/skills/**"
+      - "plugins/launchpad/templates/**"
+      - "scripts/agent_hydration/**"
+      - "scripts/maintenance/check-repo-structure.sh"
+      - "scripts/maintenance/detect-structure-drift.sh"
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+    paths:
+      - ".claude-plugin/marketplace.json"
+      - ".claude/hooks/**"
+      - ".codex/**"
+      - ".github/workflows/**"
+      - ".launchpad/agents.yml"
+      - ".prettierignore"
+      - "CHANGELOG.md"
+      - "README.md"
+      - "docs/guides/HOW_IT_WORKS.md"
+      - "docs/releases/**"
+      - "plugins/launchpad/.claude-plugin/plugin.json"
+      - "plugins/launchpad/.codex-plugin/plugin.json"
+      - "plugins/launchpad/agents/**"
+      - "plugins/launchpad/codex/**"
+      - "plugins/launchpad/commands/**"
+      - "plugins/launchpad/hooks/**"
+      - "plugins/launchpad/preflight-profiles/**"
+      - "plugins/launchpad/scaffolders.yml"
+      - "plugins/launchpad/scaffolders/**"
+      - "plugins/launchpad/scripts/**"
+      - "plugins/launchpad/scripts/plugin_default_generators/**"
+      - "plugins/launchpad/scripts/plugin_stack_adapters/**"
+      - "plugins/launchpad/skills/**"
+      - "plugins/launchpad/templates/**"
+      - "scripts/agent_hydration/**"
+      - "scripts/maintenance/check-repo-structure.sh"
+      - "scripts/maintenance/detect-structure-drift.sh"
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  CLAUDE_CODE_VERSION: "2.1.258"
+  CODEX_CLI_VERSION: "0.153.4"
+  PYTHON_VERSION: "3.13"
+
+concurrency:
+  group: codex-compatibility-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hermetic-compatibility:
+    name: Hermetic compatibility and whole corpus
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - id: checkout-source
+        name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: setup-python
+        name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: plugins/launchpad/scripts/requirements.txt
+
+      - id: install-python-dependencies
+        name: Install hash-pinned Python dependencies
+        run: python -m pip install --require-hashes -r plugins/launchpad/scripts/requirements.txt
+
+      - id: run-compatibility-suite
+        name: Run Codex compatibility acceptance suite
+        working-directory: plugins/launchpad/scripts
+        run: >-
+          python -m pytest -q
+          tests/test_codex_project_hooks.py
+          tests/test_plugin_codex_protocol.py
+          tests/test_plugin_codex_corpus.py
+          tests/test_plugin_codex_resolver.py
+          tests/test_plugin_codex_support.py
+          tests/test_plugin_codex_manifest.py
+          tests/test_plugin_codex_router.py
+          tests/test_plugin_codex_coordinator.py
+          tests/test_plugin_codex_harden_plan.py
+          tests/test_plugin_codex_acceptance.py
+          tests/test_plugin_codex_qualification.py
+
+      - id: generate-acceptance-report
+        name: Generate Section 9 acceptance report
+        run: >-
+          python plugins/launchpad/scripts/plugin-codex-acceptance.py check
+          --workflow .github/workflows/codex-compatibility.yml
+          --output "${RUNNER_TEMP}/codex-acceptance.json"
+
+      - id: verify-release-evidence
+        name: Verify qualified release evidence
+        run: >-
+          python plugins/launchpad/scripts/plugin-codex-qualification.py check
+          --plugin-root plugins/launchpad
+          --evidence plugins/launchpad/codex/support-evidence.json
+
+      - id: verify-generated-documentation
+        name: Verify generated Codex documentation
+        run: >-
+          python plugins/launchpad/scripts/plugin-codex-support.py render-docs
+          --check
+          --evidence plugins/launchpad/codex/support-evidence.json
+          --docs-root .
+
+      - id: verify-action-sha-pins
+        name: Verify workflow action SHA pins
+        run: python plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py
+
+  pinned-host:
+    name: Pinned Codex host smoke
+    needs: hermetic-compatibility
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - id: checkout-source
+        name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: setup-python
+        name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - id: setup-node
+        name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+
+      - id: install-codex-cli
+        name: Install pinned Codex CLI
+        run: npm install --global "@openai/codex@${CODEX_CLI_VERSION}"
+
+      - id: verify-router-host-receipt
+        name: Run isolated bare lp host smoke
+        run: |-
+          set -euo pipefail
+          probe_home="$(mktemp -d "${RUNNER_TEMP}/lp-codex-host.XXXXXX")"
+          python plugins/launchpad/scripts/tests/fixtures/codex_compatibility/run_router_smoke.py \
+            --codex-home "${probe_home}" \
+            | tee "${RUNNER_TEMP}/codex-router-host.json"
+          python plugins/launchpad/scripts/plugin-codex-acceptance.py verify-router-host \
+            --receipt "${RUNNER_TEMP}/codex-router-host.json" \
+            --codex-version "${CODEX_CLI_VERSION}"
+
+  nightly-release:
+    name: Nightly and release workflow families
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/')
+    needs: [hermetic-compatibility, pinned-host]
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - id: checkout-source
+        name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: setup-python
+        name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: plugins/launchpad/scripts/requirements.txt
+
+      - id: setup-node
+        name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+
+      - id: install-codex-cli
+        name: Install pinned Codex CLI
+        run: npm install --global "@openai/codex@${CODEX_CLI_VERSION}"
+
+      - id: install-claude-code
+        name: Install pinned Claude Code CLI
+        run: npm install --global "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+
+      - id: install-python-dependencies
+        name: Install hash-pinned Python dependencies
+        run: python -m pip install --require-hashes -r plugins/launchpad/scripts/requirements.txt
+
+      - id: run-workflow-family-suite
+        name: Re-run workflow-family cancellation and boundary tests
+        working-directory: plugins/launchpad/scripts
+        run: >-
+          python -m pytest -q
+          tests/test_plugin_codex_router.py
+          tests/test_plugin_codex_coordinator.py
+          tests/test_plugin_codex_harden_plan.py
+          tests/test_plugin_codex_acceptance.py
+          tests/test_plugin_codex_qualification.py
+
+      - id: verify-lifecycle-host-receipt
+        name: Run isolated lifecycle and Claude coexistence probe
+        run: |-
+          set -euo pipefail
+          probe_home="$(mktemp -d "${RUNNER_TEMP}/lp-codex-lifecycle.XXXXXX")"
+          python plugins/launchpad/scripts/tests/fixtures/codex_compatibility/run_conformance.py \
+            --codex-home "${probe_home}" \
+            | tee "${RUNNER_TEMP}/codex-lifecycle-host.json"
+          python plugins/launchpad/scripts/plugin-codex-acceptance.py verify-lifecycle-host \
+            --receipt "${RUNNER_TEMP}/codex-lifecycle-host.json" \
+            --codex-version "${CODEX_CLI_VERSION}" \
+            --claude-version "${CLAUDE_CODE_VERSION}"
+
+      - id: verify-candidate-lifecycle-receipt
+        name: Run exact candidate lifecycle and coexistence probe
+        run: |-
+          set -euo pipefail
+          candidate_home="$(mktemp -d "${RUNNER_TEMP}/lp-codex-candidate.XXXXXX")"
+          python plugins/launchpad/scripts/tests/fixtures/codex_compatibility/run_candidate_lifecycle.py \
+            --codex-home "${candidate_home}" \
+            | tee "${RUNNER_TEMP}/codex-candidate-lifecycle.json"
+          python plugins/launchpad/scripts/plugin-codex-qualification.py verify-candidate-lifecycle \
+            --plugin-root plugins/launchpad \
+            --receipt "${RUNNER_TEMP}/codex-candidate-lifecycle.json" \
+            --codex-version "${CODEX_CLI_VERSION}" \
+            --claude-version "${CLAUDE_CODE_VERSION}"

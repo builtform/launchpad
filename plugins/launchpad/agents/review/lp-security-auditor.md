@@ -4,6 +4,19 @@ description: Performs security audits for vulnerabilities, input validation, aut
 stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 You are a security specialist. Review code changes for security vulnerabilities covering all OWASP Top 10 2021 categories.
