@@ -15,6 +15,7 @@ from typing import Any
 
 SCRIPT_PATH = Path(__file__).resolve()
 PLUGIN_ROOT = SCRIPT_PATH.parents[4]
+REPOSITORY_ROOT = PLUGIN_ROOT.parents[1]
 SCRIPTS = PLUGIN_ROOT / "scripts"
 MANIFEST_PATH = SCRIPTS / "plugin-codex-manifest.py"
 QUALIFICATION_PATH = SCRIPTS / "plugin-codex-qualification.py"
@@ -215,6 +216,14 @@ def _check_candidate(
 ) -> tuple[str, ...]:
     """Check either the intermediate or completed candidate closure."""
 
+    if include_generated:
+        return manifest.check_package(
+            release,
+            root,
+            include_generated=True,
+            source_root=PLUGIN_ROOT,
+            documentation_root=REPOSITORY_ROOT,
+        )
     support.verify_runtime_set(release, root)
     generated = (
         list(release.runtime.generated_slots)
@@ -233,11 +242,14 @@ def _check_candidate(
         raise RuntimeError(
             f"intermediate candidate closure differs; missing={missing}; extra={extra}"
         )
-    loaded = support.load_bundle(
+    loaded, raw = support.load_bundle_with_bytes(
         root / "codex" / "support-evidence.json",
         protocol_path=root / "codex" / "adapter-protocol.json",
     )
-    if support.evidence_bytes(loaded) != support.evidence_bytes(release):
+    if (
+        raw != support.evidence_bytes(release)
+        or support.bundle_as_dict(loaded) != support.bundle_as_dict(release)
+    ):
         raise RuntimeError("intermediate candidate evidence differs")
     return actual
 
@@ -373,16 +385,21 @@ def main() -> int:
 
     manifest = _load("launchpad_section10_manifest", MANIFEST_PATH)
     qualification = _load("launchpad_section10_qualification", QUALIFICATION_PATH)
-    release = qualification.check_release(plugin_root=PLUGIN_ROOT)
+    release, evidence_raw = qualification._checked_release(plugin_root=PLUGIN_ROOT)
     runtime_digest = release.runtime.runtime_payload_digest
-    evidence_digest = qualification._SUPPORT.evidence_digest(release)
+    evidence_digest = qualification._SUPPORT.evidence_digest(evidence_raw)
 
     completed_package = args.package_root is not None
     if completed_package:
         candidate_package = args.package_root.resolve(strict=True)
         if candidate_package.is_symlink() or codex_home in candidate_package.parents:
             raise SystemExit("--package-root must be a separate non-symlink path")
-        actual_artifact_digest = manifest.artifact_digest(release, candidate_package)
+        actual_artifact_digest = manifest.artifact_digest(
+            release,
+            candidate_package,
+            source_root=PLUGIN_ROOT,
+            documentation_root=REPOSITORY_ROOT,
+        )
         if actual_artifact_digest != args.artifact_digest:
             raise SystemExit("--artifact-digest does not match the completed package")
         packaged_paths = _check_candidate(

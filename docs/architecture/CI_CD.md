@@ -34,7 +34,7 @@ The branch ruleset also blocks force pushes and direct deletions of `main`.
 2. The pinned macOS host lane installs the exact Codex CLI version into disposable state and verifies the bare `$lp` host boundary.
 3. Nightly, manual, and release-tag lanes add Claude coexistence, update repair, disable and enable, stale-session refusal, removal isolation, host-state allowlisting, and cleanup.
 
-Runtime, evidence, and completed-package digests are separate. A runtime change invalidates qualification and must regenerate host-bound evidence. Public documentation is rendered only from qualified evidence, and the exact completed package must pass its detached artifact-digest check before any later listing or visibility action. Current dogfood evidence remains fail-closed with all 44 roots blocked.
+Runtime, evidence, and completed-package digests are separate. A runtime change invalidates qualification and must regenerate host-bound evidence. The evidence digest covers the exact raw bytes emitted by the deterministic support producer, so formatting-only changes fail qualification. Public documentation is rendered only from qualified evidence. Changes to `README.md` or `docs/guides/HOW_IT_WORKS.md` trigger this workflow, whose hermetic tier runs the exact `plugin-codex-support.py render-docs --check` command. Completed-package validation derives expected generated documents from the canonical source and protocol before the detached artifact-digest check. Current dogfood evidence remains fail-closed with all 44 roots blocked.
 
 ## AI code review — two complementary lanes
 

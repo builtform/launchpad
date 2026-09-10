@@ -116,7 +116,7 @@ def _jsonable(value: object) -> object:
     return value
 
 
-def _strict_load_json(path: Path, *, maximum_bytes: int) -> object:
+def _strict_load_json_bytes(path: Path, *, maximum_bytes: int) -> tuple[object, bytes]:
     _assert_path_safe(path, path.parent.resolve(strict=True))
     try:
         before = path.lstat()
@@ -143,9 +143,14 @@ def _strict_load_json(path: Path, *, maximum_bytes: int) -> object:
     ):
         _fail("PATH_RACE", f"{path.name} changed while it was read")
     try:
-        return json.loads(raw, object_pairs_hook=_strict_json_pairs)
+        return json.loads(raw, object_pairs_hook=_strict_json_pairs), raw
     except (_DuplicateJsonKey, UnicodeDecodeError, json.JSONDecodeError):
         _fail("RECORD_INVALID", f"{path.name} is not strict JSON")
+
+
+def _strict_load_json(path: Path, *, maximum_bytes: int) -> object:
+    value, _raw = _strict_load_json_bytes(path, maximum_bytes=maximum_bytes)
+    return value
 
 
 def _packaging_sequence(protocol: Any, field: str) -> tuple[str, ...]:
@@ -219,6 +224,50 @@ def bundle_as_dict(bundle: SupportBundle) -> dict[str, object]:
     return value
 
 
+def _validate_supported_qualification_bindings(
+    predicates: Sequence[Any], qualifications: Sequence[Any]
+) -> None:
+    """Require every supported rule to be backed by concrete test scope."""
+    qualifications_by_id = {item.qualification_id: item for item in qualifications}
+    for predicate in predicates:
+        if predicate.base_support_state != "supported":
+            continue
+        if (
+            not predicate.qualification_ids
+            or predicate.host == "*"
+            or predicate.operating_system == "*"
+            or not predicate.tool_versions
+        ):
+            _fail(
+                "UNVERIFIED_SUPPORT_ADVERTISED",
+                "supported predicates require concrete qualified scope",
+            )
+        for qualification_id in predicate.qualification_ids:
+            qualification = qualifications_by_id.get(qualification_id)
+            if qualification is None:
+                _fail(
+                    "INTEGRITY_MISMATCH",
+                    "supported predicate references an unknown qualification",
+                )
+            if not qualification.receipt_ids:
+                _fail(
+                    "UNVERIFIED_SUPPORT_ADVERTISED",
+                    "supported predicate qualification has no receipts",
+                )
+            if (
+                qualification.host != predicate.host
+                or qualification.operating_system != predicate.operating_system
+                or any(
+                    qualification.tool_versions.get(tool) != version
+                    for tool, version in predicate.tool_versions.items()
+                )
+            ):
+                _fail(
+                    "UNVERIFIED_SUPPORT_ADVERTISED",
+                    "supported predicate exceeds its qualification scope",
+                )
+
+
 def _normalize_bundle(
     value: object, *, protocol_path: Path | None = None
 ) -> SupportBundle:
@@ -270,6 +319,7 @@ def _normalize_bundle(
         for item in predicates
     ):
         _fail("INTEGRITY_MISMATCH", "predicate references an unknown qualification")
+    _validate_supported_qualification_bindings(predicates, qualifications)
     support = {item.resource_id: item for item in runtime.support}
     for resource_id in root_ids:
         rules = [item for item in predicates if item.resource_id == resource_id]
@@ -293,11 +343,20 @@ def _normalize_bundle(
 
 
 def load_bundle(path: Path, *, protocol_path: Path | None = None) -> SupportBundle:
+    bundle, _raw = load_bundle_with_bytes(path, protocol_path=protocol_path)
+    return bundle
+
+
+def load_bundle_with_bytes(
+    path: Path, *, protocol_path: Path | None = None
+) -> tuple[SupportBundle, bytes]:
+    """Load one normalized bundle while preserving its attested file bytes."""
+
     protocol = _PROTOCOL.load_protocol(protocol_path)
-    raw = _strict_load_json(
+    value, raw = _strict_load_json_bytes(
         path, maximum_bytes=protocol.limits["documentation_file_bytes"]
     )
-    return _normalize_bundle(raw, protocol_path=protocol_path)
+    return _normalize_bundle(value, protocol_path=protocol_path), raw
 
 
 def _reachable_nodes(runtime: Any, protocol: Any) -> tuple[Any, ...]:
@@ -602,8 +661,12 @@ def evidence_bytes(bundle: SupportBundle) -> bytes:
     return _pretty_json(bundle_as_dict(bundle))
 
 
-def evidence_digest(bundle: SupportBundle) -> str:
-    return _sha256(evidence_bytes(bundle))
+def evidence_digest(raw: bytes) -> str:
+    """Hash the exact support-evidence.json file bytes."""
+
+    if not isinstance(raw, bytes):
+        raise TypeError("evidence digest input must be raw bytes")
+    return _sha256(raw)
 
 
 def verify_runtime_set(bundle: SupportBundle, plugin_root: Path) -> None:
@@ -676,7 +739,9 @@ def _select_compatibility_rule(
     best = [item for item in candidates if item[0] == best_score]
     if len(best) != 1:
         _fail("RECORD_INVALID", "compatible support predicate is ambiguous")
-    return best[0][1], frozenset(best[0][2])
+    predicate = best[0][1]
+    _validate_supported_qualification_bindings((predicate,), bundle.qualifications)
+    return predicate, frozenset(best[0][2])
 
 
 def select_compatibility_predicate(
@@ -886,12 +951,9 @@ def _replace_region(source: bytes, region: str, rendered: str, maximum: int) -> 
     return encoded
 
 
-def render_documents(
-    bundle: SupportBundle,
-    docs_root: Path,
-    *,
-    write: bool,
-) -> tuple[str, ...]:
+def _document_render_plan(
+    bundle: SupportBundle, docs_root: Path
+) -> tuple[Path, tuple[tuple[str, bytes, bytes], ...]]:
     if bundle.runtime.stage != "release":
         _fail("RECORD_STAGE_INVALID", "documentation requires release evidence")
     if docs_root.is_symlink():
@@ -908,8 +970,7 @@ def render_documents(
         "codex-beta-summary": _render_summary(bundle),
         "codex-support-matrix": _render_matrix(bundle),
     }
-    batch: dict[Path, bytes] = {}
-    changed: list[str] = []
+    records: list[tuple[str, bytes, bytes]] = []
     aggregate = 0
     for relative, region in sorted(regions.items()):
         if not isinstance(relative, str) or not isinstance(region, str):
@@ -937,16 +998,48 @@ def render_documents(
             rendered_by_region[region],
             protocol.limits["documentation_file_bytes"],
         )
-        if replacement != original:
-            changed.append(relative)
-            batch[target] = replacement
+        records.append((relative, original, replacement))
+    return canonical_docs_root, tuple(records)
+
+
+def expected_document_bytes(
+    bundle: SupportBundle,
+    docs_root: Path,
+    *,
+    require_fresh: bool,
+) -> dict[str, bytes]:
+    """Derive protocol-owned document bytes from the canonical source files."""
+
+    _root, records = _document_render_plan(bundle, docs_root)
+    if require_fresh and any(original != expected for _, original, expected in records):
+        _fail("INTEGRITY_MISMATCH", "generated documentation is stale")
+    return {relative: expected for relative, _original, expected in records}
+
+
+def render_documents(
+    bundle: SupportBundle,
+    docs_root: Path,
+    *,
+    write: bool,
+) -> tuple[str, ...]:
+    canonical_docs_root, records = _document_render_plan(bundle, docs_root)
+    batch = {
+        canonical_docs_root / relative: replacement
+        for relative, original, replacement in records
+        if replacement != original
+    }
+    changed = tuple(
+        relative
+        for relative, original, replacement in records
+        if replacement != original
+    )
     if write and batch:
         atomic_write_replace_batch(
             batch,
             default_mode=0o644,
             trusted_root=canonical_docs_root,
         )
-    return tuple(changed)
+    return changed
 
 
 def write_bundle(bundle: SupportBundle, path: Path, *, trusted_root: Path) -> None:
@@ -956,13 +1049,13 @@ def write_bundle(bundle: SupportBundle, path: Path, *, trusted_root: Path) -> No
         else _pretty_json(bundle_as_dict(bundle))
     )
     atomic_write_replace(path, content, mode=0o644, trusted_root=trusted_root)
-    loaded = load_bundle(
+    loaded, raw = load_bundle_with_bytes(
         path,
         protocol_path=trusted_root / "codex" / "adapter-protocol.json"
         if (trusted_root / "codex" / "adapter-protocol.json").is_file()
         else None,
     )
-    if bundle_as_dict(loaded) != bundle_as_dict(bundle):
+    if raw != content or bundle_as_dict(loaded) != bundle_as_dict(bundle):
         _fail("INTEGRITY_MISMATCH", "written support bundle did not verify")
 
 
@@ -1011,24 +1104,33 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             bundle = promote_release(candidate, raw)
             write_bundle(bundle, args.output, trusted_root=args.output.parent)
+            content = evidence_bytes(bundle)
             output = _pretty_json(
-                {"evidence_digest": evidence_digest(bundle), "output": str(args.output)}
+                {
+                    "evidence_digest": evidence_digest(content),
+                    "output": str(args.output),
+                }
             )
         elif args.command == "check":
-            bundle = load_bundle(
+            bundle, raw = load_bundle_with_bytes(
                 args.evidence,
                 protocol_path=args.plugin_root / "codex" / "adapter-protocol.json",
             )
+            if raw != evidence_bytes(bundle):
+                _fail("INTEGRITY_MISMATCH", "release evidence serialization differs")
             verify_runtime_set(bundle, args.plugin_root)
             output = _pretty_json(
                 {
                     "status": "ok",
                     "runtime_payload_digest": bundle.runtime.runtime_payload_digest,
+                    "evidence_digest": evidence_digest(raw),
                     "generated_slots": list(bundle.runtime.generated_slots),
                 }
             )
         else:
-            bundle = load_bundle(args.evidence)
+            bundle, raw = load_bundle_with_bytes(args.evidence)
+            if raw != evidence_bytes(bundle):
+                _fail("INTEGRITY_MISMATCH", "release evidence serialization differs")
             changed = render_documents(bundle, args.docs_root, write=args.write)
             if args.check and changed:
                 _fail("INTEGRITY_MISMATCH", "generated documentation is stale")

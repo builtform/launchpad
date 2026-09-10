@@ -1,13 +1,13 @@
 {
-  "description": "Portable Codex project hooks for LaunchPad repository policy and session hydration.",
+  "description": "Portable Codex project hooks for LaunchPad repository policy and session hydration. Codex runs project hooks only after the project hook definitions are reviewed and trusted.",
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "^(startup|clear)$",
+        "matcher": "^(startup|resume|clear|compact)$",
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/scripts/agent_hydration/hydrate.sh\"",
+            "command": "bash \"$(git rev-parse --show-toplevel)/scripts/agent_hydration/hydrate.sh\" --project-root \"$(git rev-parse --show-toplevel)\"",
             "timeout": 30,
             "statusMessage": "Loading LaunchPad project context"
           }

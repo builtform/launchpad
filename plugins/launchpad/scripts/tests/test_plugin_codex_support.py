@@ -71,6 +71,50 @@ def _release(candidate):
     )
 
 
+def _supported_release(
+    candidate,
+    *,
+    predicate_updates=None,
+    qualification_updates=None,
+):
+    resource_id = candidate.runtime.root_ids[0]
+    qualification = {
+        "qualification_id": "qual-supported",
+        "runtime_payload_digest": candidate.runtime.runtime_payload_digest,
+        "host": "codex-fixture",
+        "operating_system": "fixture-os",
+        "tool_versions": {
+            "claude-code": "fixture",
+            "codex": "fixture",
+        },
+        "receipt_ids": ["receipt-supported"],
+    }
+    qualification.update(qualification_updates or {})
+    predicates = []
+    for item in candidate.compatibility_predicates:
+        value = support._jsonable(item)
+        if item.resource_id == resource_id:
+            value.update(
+                {
+                    "host": "codex-fixture",
+                    "operating_system": "fixture-os",
+                    "tool_versions": {"codex": "fixture"},
+                    "base_support_state": "supported",
+                    "blocked_reason_codes": [],
+                    "qualification_ids": ["qual-supported"],
+                }
+            )
+            value.update(predicate_updates or {})
+        predicates.append(value)
+    return support.promote_release(
+        candidate,
+        {
+            "compatibility_predicates": predicates,
+            "qualifications": [qualification],
+        },
+    )
+
+
 def test_inventory_uses_one_normalized_direct_edge_graph() -> None:
     bundle = support.build_inventory()
     assert bundle.runtime.stage == "inventory"
@@ -116,9 +160,42 @@ def test_release_promotion_copies_candidate_graph_without_rebuild(candidate) -> 
     assert release.runtime.nodes == candidate.runtime.nodes
     assert release.runtime.runtime_files == candidate.runtime.runtime_files
     assert release.runtime.qualification_ids == ("qual-section5",)
-    assert len(support.evidence_digest(release)) == 64
+    assert len(support.evidence_digest(support.evidence_bytes(release))) == 64
     assert "evidence_digest" not in support.bundle_as_dict(release)
     assert "artifact_digest" not in support.bundle_as_dict(release)
+
+
+def test_evidence_digest_attests_exact_raw_bytes(candidate) -> None:
+    release = _release(candidate)
+    raw = support.evidence_bytes(release)
+
+    assert support.evidence_digest(raw) != support.evidence_digest(raw + b"\n")
+    with pytest.raises(TypeError):
+        support.evidence_digest(release)
+
+
+def test_support_check_rejects_format_only_evidence_rewrite(
+    candidate, staged_plugin: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    release = _release(candidate)
+    evidence = tmp_path / "support-evidence.json"
+    support.write_bundle(release, evidence, trusted_root=tmp_path)
+    value = json.loads(evidence.read_text(encoding="utf-8"))
+    evidence.write_text(json.dumps(value, separators=(",", ":")), encoding="utf-8")
+
+    assert (
+        support.main(
+            [
+                "check",
+                "--evidence",
+                str(evidence),
+                "--plugin-root",
+                str(staged_plugin),
+            ]
+        )
+        == 2
+    )
+    assert '"error": "INTEGRITY_MISMATCH"' in capsys.readouterr().err
 
 
 def test_qualification_for_another_payload_is_rejected(candidate) -> None:
@@ -144,6 +221,88 @@ def test_qualification_for_another_payload_is_rejected(candidate) -> None:
             },
         )
     assert raised.value.code == "INTEGRITY_MISMATCH"
+
+
+def test_supported_predicate_rejects_missing_or_mismatched_qualification_scope(
+    candidate,
+) -> None:
+    unqualified_candidate = support.bundle_as_dict(candidate)
+    resource_id = candidate.runtime.root_ids[0]
+    runtime = unqualified_candidate["runtime"]
+    predicates = unqualified_candidate["compatibility_predicates"]
+    assert isinstance(runtime, dict) and isinstance(predicates, list)
+    runtime_support = runtime["support"]
+    assert isinstance(runtime_support, list)
+    for item in predicates:
+        if item["resource_id"] == resource_id:
+            item.update(
+                {
+                    "host": "codex-fixture",
+                    "operating_system": "fixture-os",
+                    "tool_versions": {"codex": "fixture"},
+                    "base_support_state": "supported",
+                    "blocked_reason_codes": [],
+                }
+            )
+    for item in runtime_support:
+        if item["resource_id"] == resource_id:
+            item["base_support_state"] = "supported"
+            item["blocked_reason_codes"] = []
+    with pytest.raises(support.SupportError) as empty_qualifications:
+        support._normalize_bundle(unqualified_candidate)
+    assert empty_qualifications.value.code == "UNVERIFIED_SUPPORT_ADVERTISED"
+
+    cases = (
+        ("empty qualification IDs", {"qualification_ids": []}, {}),
+        ("wildcard host", {"host": "*"}, {}),
+        ("wildcard operating system", {"operating_system": "*"}, {}),
+        ("empty predicate tool versions", {"tool_versions": {}}, {}),
+        ("host mismatch", {}, {"host": "another-host"}),
+        (
+            "operating system mismatch",
+            {},
+            {"operating_system": "another-os"},
+        ),
+        ("missing qualified tool version", {}, {"tool_versions": {}}),
+        (
+            "mismatched qualified tool version",
+            {},
+            {"tool_versions": {"codex": "another-version"}},
+        ),
+        ("receiptless qualification", {}, {"receipt_ids": []}),
+    )
+    for label, predicate_updates, qualification_updates in cases:
+        with pytest.raises(support.SupportError) as raised:
+            _supported_release(
+                candidate,
+                predicate_updates=predicate_updates,
+                qualification_updates=qualification_updates,
+            )
+        assert raised.value.code == "UNVERIFIED_SUPPORT_ADVERTISED", label
+
+
+def test_supported_predicate_with_exact_qualification_scope_is_available(
+    candidate,
+) -> None:
+    release = _supported_release(candidate)
+    resource_id = candidate.runtime.root_ids[0]
+    availability = support.select_compatibility_predicate(
+        release,
+        resource_id,
+        host="codex-fixture",
+        operating_system="fixture-os",
+        capabilities=sorted(support._PROTOCOL.load_protocol().capability_ids),
+        tool_versions={"codex": "fixture"},
+    )
+
+    assert availability.effective_availability == "available"
+    predicate = next(
+        item
+        for item in release.compatibility_predicates
+        if item.resource_id == resource_id
+    )
+    assert predicate.qualification_ids == ("qual-supported",)
+    assert release.qualifications[0].tool_versions["claude-code"] == "fixture"
 
 
 def test_specific_predicate_selection_and_overlay_are_monotone(candidate) -> None:

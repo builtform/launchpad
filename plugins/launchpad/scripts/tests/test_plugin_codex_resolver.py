@@ -278,6 +278,33 @@ def test_batch_inspection_is_ordered_unique_and_bounded(fixture_resolver) -> Non
     _assert_code("LIMIT_EXCEEDED", lambda: resolver.inspect_batch("agent", too_many))
 
 
+def test_batch_inspection_builds_one_project_catalog_snapshot(
+    fixture_resolver, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    resolver, _root = fixture_resolver
+    project = _make_project(tmp_path)
+    builds = 0
+    build_project_tables = resolver._project_tables
+
+    def counted_build(project_record: Any):
+        nonlocal builds
+        builds += 1
+        return build_project_tables(project_record)
+
+    monkeypatch.setattr(resolver, "_project_tables", counted_build)
+    records = resolver.inspect_batch(
+        "agent",
+        ["lp-reviewer", "project-agent"],
+        project_root=project,
+    )
+
+    assert [record.resource_id for record in records] == [
+        "lp-reviewer",
+        "project-agent",
+    ]
+    assert builds == 1
+
+
 def test_owner_relative_resources_are_declared_and_digest_pinned(fixture_resolver) -> None:
     resolver, root = fixture_resolver
     skill = resolver.resolve("skill", "lp-tool")

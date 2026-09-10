@@ -6,16 +6,24 @@ set -euo pipefail
 
 INPUT=$(cat) || true
 
-# Fail closed: if jq is missing or input is empty
+# Fail closed if jq is missing, input is empty, JSON is malformed, or the
+# Bash command field is missing or invalid.
 if ! command -v jq >/dev/null 2>&1 || [ -z "$INPUT" ]; then
   echo "BLOCKED: Could not parse hook input (jq missing or empty stdin). Failing closed." >&2
   exit 2
 fi
 
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null) || true
-
-if [ -z "$COMMAND" ]; then
-  exit 0
+if ! COMMAND=$(printf '%s' "$INPUT" | jq -er '
+  if type == "object"
+    and (.tool_input | type) == "object"
+    and (.tool_input.command | type) == "string"
+    and (.tool_input.command | test("\\S"))
+  then .tool_input.command
+  else error("invalid Bash hook input")
+  end
+' 2>/dev/null); then
+  echo "BLOCKED: Could not parse a non-empty Bash command from hook input. Failing closed." >&2
+  exit 2
 fi
 
 # Normalize: convert newlines to ;; (treating each line as a separate command)

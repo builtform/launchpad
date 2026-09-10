@@ -32,7 +32,7 @@ DEFAULT_EVIDENCE_PATH: Final = PLUGIN_ROOT / "codex" / "support-evidence.json"
 # affected qualification and lifecycle gates must pass again before this exact
 # payload can be promoted.
 SECTION9_RUNTIME_PAYLOAD_DIGEST: Final = (
-    "5d0f307aedc92335b332847cc9f354f64f6cb8d448565346652f972310a878e5"
+    "01064af2911825a2e59d14cb62a35285657e817fa3194b1ffb81144486c9a05c"
 )
 QUALIFICATION_ID: Final = "qualification-section10-blocked-support"
 QUALIFICATION_RECEIPT_IDS: Final = (
@@ -293,7 +293,39 @@ def generate_release(
         expected_claude_version=pins["CLAUDE_CODE_VERSION"],
     )
     _SUPPORT.write_bundle(release, expected_output, trusted_root=root)
-    return qualification_summary(release)
+    actual, raw = _SUPPORT.load_bundle_with_bytes(
+        expected_output,
+        protocol_path=root / "codex" / "adapter-protocol.json",
+    )
+    if raw != _SUPPORT.evidence_bytes(release) or _SUPPORT.bundle_as_dict(
+        actual
+    ) != _SUPPORT.bundle_as_dict(release):
+        _fail("INTEGRITY_MISMATCH", "generated release evidence did not verify")
+    return qualification_summary(actual, evidence_raw=raw)
+
+
+def _checked_release(
+    *,
+    plugin_root: Path = PLUGIN_ROOT,
+    evidence_path: Path = DEFAULT_EVIDENCE_PATH,
+) -> tuple[Any, bytes]:
+    """Return release evidence only after exact raw-byte verification."""
+
+    root = plugin_root.resolve(strict=True)
+    expected_path = root / "codex" / "support-evidence.json"
+    if evidence_path.absolute() != expected_path:
+        _fail("PATH_INVALID", "release evidence must use the protocol-fixed slot")
+    expected = build_expected_release(root)
+    actual, raw = _SUPPORT.load_bundle_with_bytes(
+        expected_path,
+        protocol_path=root / "codex" / "adapter-protocol.json",
+    )
+    if raw != _SUPPORT.evidence_bytes(expected):
+        _fail(
+            "INTEGRITY_MISMATCH", "release evidence bytes differ from generated output"
+        )
+    _SUPPORT.verify_runtime_set(actual, root)
+    return actual, raw
 
 
 def check_release(
@@ -303,22 +335,14 @@ def check_release(
 ) -> Any:
     """Reject stale, hand-edited, or self-inconsistent release evidence."""
 
-    root = plugin_root.resolve(strict=True)
-    expected_path = root / "codex" / "support-evidence.json"
-    if evidence_path.absolute() != expected_path:
-        _fail("PATH_INVALID", "release evidence must use the protocol-fixed slot")
-    expected = build_expected_release(root)
-    actual = _SUPPORT.load_bundle(
-        expected_path,
-        protocol_path=root / "codex" / "adapter-protocol.json",
+    actual, _raw = _checked_release(
+        plugin_root=plugin_root,
+        evidence_path=evidence_path,
     )
-    if _SUPPORT.evidence_bytes(actual) != _SUPPORT.evidence_bytes(expected):
-        _fail("INTEGRITY_MISMATCH", "release evidence differs from generated output")
-    _SUPPORT.verify_runtime_set(actual, root)
     return actual
 
 
-def qualification_summary(release: Any) -> dict[str, object]:
+def qualification_summary(release: Any, *, evidence_raw: bytes) -> dict[str, object]:
     supported = sum(
         item.base_support_state == "supported" for item in release.runtime.support
     )
@@ -326,7 +350,7 @@ def qualification_summary(release: Any) -> dict[str, object]:
         "status": "pass",
         "release_stage": release.runtime.release_stage,
         "runtime_payload_digest": release.runtime.runtime_payload_digest,
-        "evidence_digest": _SUPPORT.evidence_digest(release),
+        "evidence_digest": _SUPPORT.evidence_digest(evidence_raw),
         "qualification_ids": list(release.runtime.qualification_ids),
         "receipt_ids": list(release.qualifications[0].receipt_ids),
         "supported_roots": supported,
@@ -341,6 +365,7 @@ def validate_candidate_lifecycle_receipt(
     release: Any,
     codex_version: str,
     claude_version: str,
+    expected_evidence_digest: str,
     artifact_digest: str | None = None,
 ) -> dict[str, object]:
     """Validate the isolated exact-candidate lifecycle and coexistence receipt."""
@@ -369,11 +394,10 @@ def validate_candidate_lifecycle_receipt(
         _fail("HOST_RECEIPT_INVALID", "candidate lifecycle fields differ")
     if receipt.get("overall") != "BLOCKED":
         _fail("HOST_RECEIPT_INVALID", "candidate lifecycle must remain fail-closed")
-    if receipt.get(
-        "runtime_payload_digest"
-    ) != release.runtime.runtime_payload_digest or receipt.get(
-        "evidence_digest"
-    ) != _SUPPORT.evidence_digest(release):
+    if (
+        receipt.get("runtime_payload_digest") != release.runtime.runtime_payload_digest
+        or receipt.get("evidence_digest") != expected_evidence_digest
+    ):
         _fail("INTEGRITY_MISMATCH", "candidate lifecycle binds another release")
     codex_home = receipt.get("codex_home")
     if (
@@ -424,7 +448,7 @@ def validate_candidate_lifecycle_receipt(
         "status": "pass",
         "overall_support": "blocked",
         "runtime_payload_digest": release.runtime.runtime_payload_digest,
-        "evidence_digest": _SUPPORT.evidence_digest(release),
+        "evidence_digest": expected_evidence_digest,
         "advertised_capability_families": [],
     }
     if artifact_digest is not None:
@@ -440,13 +464,14 @@ def verify_candidate_lifecycle(
     claude_version: str,
     artifact_digest: str | None = None,
 ) -> dict[str, object]:
-    release = check_release(plugin_root=plugin_root)
+    release, raw = _checked_release(plugin_root=plugin_root)
     return validate_candidate_lifecycle_receipt(
         _load_json(path),
         release=release,
         codex_version=codex_version,
         claude_version=claude_version,
         artifact_digest=artifact_digest,
+        expected_evidence_digest=_SUPPORT.evidence_digest(raw),
     )
 
 
@@ -486,12 +511,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 output_path=args.output,
             )
         elif args.command == "check":
-            result = qualification_summary(
-                check_release(
-                    plugin_root=args.plugin_root,
-                    evidence_path=args.evidence,
-                )
+            release, raw = _checked_release(
+                plugin_root=args.plugin_root,
+                evidence_path=args.evidence,
             )
+            result = qualification_summary(release, evidence_raw=raw)
         else:
             result = verify_candidate_lifecycle(
                 args.receipt,

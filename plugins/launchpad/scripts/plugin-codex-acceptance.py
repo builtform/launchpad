@@ -14,6 +14,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
 import sys
@@ -101,9 +102,14 @@ class ClassificationRecord(TypedDict):
 _REQUIRED_PROTECTED_PATHS: Final = frozenset(
     {
         ".claude-plugin/marketplace.json",
+        ".claude/hooks/**",
+        ".codex/**",
         ".github/workflows/**",
         ".launchpad/agents.yml",
+        ".prettierignore",
         "CHANGELOG.md",
+        "README.md",
+        "docs/guides/HOW_IT_WORKS.md",
         "docs/releases/**",
         "plugins/launchpad/.claude-plugin/plugin.json",
         "plugins/launchpad/.codex-plugin/plugin.json",
@@ -119,6 +125,9 @@ _REQUIRED_PROTECTED_PATHS: Final = frozenset(
         "plugins/launchpad/scripts/plugin_stack_adapters/**",
         "plugins/launchpad/skills/**",
         "plugins/launchpad/templates/**",
+        "scripts/agent_hydration/**",
+        "scripts/maintenance/check-repo-structure.sh",
+        "scripts/maintenance/detect-structure-drift.sh",
     }
 )
 _REQUIRED_EVENTS: Final = frozenset(
@@ -161,6 +170,149 @@ _CONFIRMED_ABSENT: Final = (
 _ROUTER_HOST_BLOCKERS: Final = (
     "HOST_NO_AUTHENTICATED_EXPLICIT_INVOCATION_PROVENANCE",
     "HOST_NO_LOSSLESS_AUTHENTICATED_ARGUMENT_TAIL",
+)
+_HERMETIC_TESTS: Final = (
+    "tests/test_codex_project_hooks.py",
+    "tests/test_plugin_codex_protocol.py",
+    "tests/test_plugin_codex_corpus.py",
+    "tests/test_plugin_codex_resolver.py",
+    "tests/test_plugin_codex_support.py",
+    "tests/test_plugin_codex_manifest.py",
+    "tests/test_plugin_codex_router.py",
+    "tests/test_plugin_codex_coordinator.py",
+    "tests/test_plugin_codex_harden_plan.py",
+    "tests/test_plugin_codex_acceptance.py",
+    "tests/test_plugin_codex_qualification.py",
+)
+_NIGHTLY_TESTS: Final = (
+    "tests/test_plugin_codex_router.py",
+    "tests/test_plugin_codex_coordinator.py",
+    "tests/test_plugin_codex_harden_plan.py",
+    "tests/test_plugin_codex_acceptance.py",
+    "tests/test_plugin_codex_qualification.py",
+)
+_HERMETIC_COMMANDS: Final = (
+    ("python", "-m", "pytest", "-q", *_HERMETIC_TESTS),
+    (
+        "python",
+        "plugins/launchpad/scripts/plugin-codex-acceptance.py",
+        "check",
+        "--workflow",
+        ".github/workflows/codex-compatibility.yml",
+        "--output",
+        "${RUNNER_TEMP}/codex-acceptance.json",
+    ),
+    (
+        "python",
+        "plugins/launchpad/scripts/plugin-codex-qualification.py",
+        "check",
+        "--plugin-root",
+        "plugins/launchpad",
+        "--evidence",
+        "plugins/launchpad/codex/support-evidence.json",
+    ),
+    (
+        "python",
+        "plugins/launchpad/scripts/plugin-codex-support.py",
+        "render-docs",
+        "--check",
+        "--evidence",
+        "plugins/launchpad/codex/support-evidence.json",
+        "--docs-root",
+        ".",
+    ),
+    ("python", "plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py"),
+)
+_PINNED_HOST_COMMANDS: Final = (
+    ("npm", "install", "--global", "@openai/codex@${CODEX_CLI_VERSION}"),
+    (
+        "python",
+        "plugins/launchpad/scripts/tests/fixtures/codex_compatibility/run_router_smoke.py",
+        "--codex-home",
+        "${probe_home}",
+    ),
+    (
+        "python",
+        "plugins/launchpad/scripts/plugin-codex-acceptance.py",
+        "verify-router-host",
+        "--receipt",
+        "${RUNNER_TEMP}/codex-router-host.json",
+        "--codex-version",
+        "${CODEX_CLI_VERSION}",
+    ),
+)
+_NIGHTLY_COMMANDS: Final = (
+    ("npm", "install", "--global", "@openai/codex@${CODEX_CLI_VERSION}"),
+    (
+        "npm",
+        "install",
+        "--global",
+        "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}",
+    ),
+    ("python", "-m", "pytest", "-q", *_NIGHTLY_TESTS),
+    (
+        "python",
+        "plugins/launchpad/scripts/tests/fixtures/codex_compatibility/run_conformance.py",
+        "--codex-home",
+        "${probe_home}",
+    ),
+    (
+        "python",
+        "plugins/launchpad/scripts/plugin-codex-acceptance.py",
+        "verify-lifecycle-host",
+        "--receipt",
+        "${RUNNER_TEMP}/codex-lifecycle-host.json",
+        "--codex-version",
+        "${CODEX_CLI_VERSION}",
+        "--claude-version",
+        "${CLAUDE_CODE_VERSION}",
+    ),
+    (
+        "python",
+        "plugins/launchpad/scripts/tests/fixtures/codex_compatibility/run_candidate_lifecycle.py",
+        "--codex-home",
+        "${candidate_home}",
+    ),
+    (
+        "python",
+        "plugins/launchpad/scripts/plugin-codex-qualification.py",
+        "verify-candidate-lifecycle",
+        "--plugin-root",
+        "plugins/launchpad",
+        "--receipt",
+        "${RUNNER_TEMP}/codex-candidate-lifecycle.json",
+        "--codex-version",
+        "${CODEX_CLI_VERSION}",
+        "--claude-version",
+        "${CLAUDE_CODE_VERSION}",
+    ),
+)
+_SHELL_COMMAND_SEPARATORS: Final = frozenset({"\n", "|"})
+_SHELL_REJECTED_OPERATORS: Final = frozenset(
+    {";", ";;", ";&", ";;&", "&", "&&", "||", "<", "<<", "<<<", ">", ">>"}
+)
+_SHELL_REJECTED_CONTROL_WORDS: Final = frozenset(
+    {
+        "case",
+        "coproc",
+        "do",
+        "done",
+        "elif",
+        "else",
+        "esac",
+        "exit",
+        "fi",
+        "for",
+        "function",
+        "if",
+        "return",
+        "select",
+        "then",
+        "until",
+        "while",
+        "{",
+        "}",
+    }
 )
 
 
@@ -279,11 +431,11 @@ def _collect_uses(value: object) -> tuple[str, ...]:
     return tuple(found)
 
 
-def _job_run_text(job: Mapping[str, object], field: str) -> str:
+def _job_commands(job: Mapping[str, object], field: str) -> tuple[tuple[str, ...], ...]:
     steps = job.get("steps")
     if not isinstance(steps, list) or not steps:
         _fail("CI_TIER_INCOMPLETE", f"{field} steps are missing")
-    scripts: list[str] = []
+    commands: list[tuple[str, ...]] = []
     for step in steps:
         if not isinstance(step, Mapping):
             _fail("RECORD_INVALID", f"{field} step must be a mapping")
@@ -291,8 +443,51 @@ def _job_run_text(job: Mapping[str, object], field: str) -> str:
         if script is not None:
             if not isinstance(script, str):
                 _fail("RECORD_INVALID", f"{field} run value must be a string")
-            scripts.append(script)
-    return "\n".join(scripts)
+            if "if" in step:
+                _fail(
+                    "CI_TIER_INCOMPLETE",
+                    f"{field} required run steps must be unconditional",
+                )
+            if "shell" in step:
+                _fail(
+                    "CI_TIER_INCOMPLETE",
+                    f"{field} required run steps must use the default shell",
+                )
+            normalized = script.replace("\\\r\n", "").replace("\\\n", "")
+            lexer = shlex.shlex(
+                normalized,
+                posix=True,
+                punctuation_chars=";&|\n<>",
+            )
+            lexer.commenters = "#"
+            lexer.whitespace = " \t\r"
+            lexer.whitespace_split = True
+            try:
+                tokens = tuple(lexer)
+            except ValueError as exc:
+                _fail("RECORD_INVALID", f"{field} contains invalid shell syntax: {exc}")
+            current: list[str] = []
+            for token in tokens:
+                if token in _SHELL_REJECTED_OPERATORS:
+                    _fail(
+                        "CI_TIER_INCOMPLETE",
+                        f"{field} uses unsupported shell operator {token!r}",
+                    )
+                if token in _SHELL_COMMAND_SEPARATORS:
+                    if current:
+                        commands.append(tuple(current))
+                        current = []
+                    continue
+                current.append(token)
+            if current:
+                commands.append(tuple(current))
+    if any(
+        token in _SHELL_REJECTED_CONTROL_WORDS
+        for command in commands
+        for token in command
+    ):
+        _fail("CI_TIER_INCOMPLETE", f"{field} uses unsupported shell control flow")
+    return tuple(commands)
 
 
 def _job_needs(job: Mapping[str, object], field: str) -> frozenset[str]:
@@ -304,8 +499,15 @@ def _job_needs(job: Mapping[str, object], field: str) -> frozenset[str]:
     return frozenset(_string_list(needs, f"{field}.needs"))
 
 
-def _require_markers(text: str, markers: Sequence[str], field: str) -> None:
-    missing = sorted(marker for marker in markers if marker not in text)
+def _require_commands(
+    job: Mapping[str, object],
+    expected: Sequence[Sequence[str]],
+    field: str,
+) -> None:
+    actual = frozenset(_job_commands(job, field))
+    missing = sorted(
+        shlex.join(command) for command in expected if tuple(command) not in actual
+    )
     if missing:
         _fail("CI_TIER_INCOMPLETE", f"{field} execution missing: {missing}")
 
@@ -360,23 +562,9 @@ def validate_workflow(path: Path = DEFAULT_WORKFLOW_PATH) -> dict[str, object]:
         or hermetic.get("timeout-minutes") != "30"
     ):
         _fail("CI_TIER_INCOMPLETE", "hermetic tier host or timeout is invalid")
-    _require_markers(
-        _job_run_text(hermetic, "jobs.hermetic-compatibility"),
-        (
-            "tests/test_plugin_codex_protocol.py",
-            "tests/test_plugin_codex_corpus.py",
-            "tests/test_plugin_codex_resolver.py",
-            "tests/test_plugin_codex_support.py",
-            "tests/test_plugin_codex_manifest.py",
-            "tests/test_plugin_codex_router.py",
-            "tests/test_plugin_codex_coordinator.py",
-            "tests/test_plugin_codex_harden_plan.py",
-            "tests/test_plugin_codex_acceptance.py",
-            "tests/test_plugin_codex_qualification.py",
-            "plugin-codex-acceptance.py check",
-            "plugin-codex-qualification.py check",
-            "plugin-workflow-sha-pin-check.py",
-        ),
+    _require_commands(
+        hermetic,
+        _HERMETIC_COMMANDS,
         "hermetic tier",
     )
 
@@ -385,13 +573,9 @@ def validate_workflow(path: Path = DEFAULT_WORKFLOW_PATH) -> dict[str, object]:
         _fail("CI_TIER_INCOMPLETE", "pinned host or timeout is invalid")
     if _job_needs(pinned, "jobs.pinned-host") != {"hermetic-compatibility"}:
         _fail("CI_TIER_INCOMPLETE", "pinned host dependency is invalid")
-    _require_markers(
-        _job_run_text(pinned, "jobs.pinned-host"),
-        (
-            "@openai/codex@${CODEX_CLI_VERSION}",
-            "run_router_smoke.py",
-            "verify-router-host",
-        ),
+    _require_commands(
+        pinned,
+        _PINNED_HOST_COMMANDS,
         "pinned host tier",
     )
     nightly = _mapping(jobs["nightly-release"], "jobs.nightly-release")
@@ -408,21 +592,9 @@ def validate_workflow(path: Path = DEFAULT_WORKFLOW_PATH) -> dict[str, object]:
         for marker in ("schedule", "workflow_dispatch", "refs/tags/")
     ):
         _fail("CI_TIER_INCOMPLETE", "nightly/release condition is incomplete")
-    _require_markers(
-        _job_run_text(nightly, "jobs.nightly-release"),
-        (
-            "@openai/codex@${CODEX_CLI_VERSION}",
-            "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}",
-            "tests/test_plugin_codex_router.py",
-            "tests/test_plugin_codex_coordinator.py",
-            "tests/test_plugin_codex_harden_plan.py",
-            "tests/test_plugin_codex_acceptance.py",
-            "tests/test_plugin_codex_qualification.py",
-            "run_conformance.py",
-            "run_candidate_lifecycle.py",
-            "verify-lifecycle-host",
-            "verify-candidate-lifecycle",
-        ),
+    _require_commands(
+        nightly,
+        _NIGHTLY_COMMANDS,
         "nightly/release tier",
     )
 

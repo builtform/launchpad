@@ -15,3 +15,7 @@ coverage
 # under `knowledge_anchor_sha256`. Prettier reformatting these would silently
 # break the pins. Edits to these files require recomputing the matching pin.
 plugins/launchpad/scaffolders/*-pattern.md
+
+# Raw-byte attestation: the support producer owns deterministic serialization.
+# Formatting this file invalidates its evidence digest.
+plugins/launchpad/codex/support-evidence.json

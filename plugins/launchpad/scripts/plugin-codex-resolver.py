@@ -971,6 +971,24 @@ class SecureResolver:
         if kind not in self.protocol.component_kinds:
             _fail("PROTOCOL_VALUE_INVALID", "unknown component kind")
         catalog = self.catalog(project_root)
+        return self._resolve_from_catalog(
+            catalog,
+            kind,
+            identifier,
+            reference_class=reference_class,
+            internal=internal,
+        )
+
+    def _resolve_from_catalog(
+        self,
+        catalog: Catalog,
+        kind: str,
+        identifier: str,
+        *,
+        reference_class: str = "exact",
+        internal: bool = True,
+    ) -> Any:
+        """Resolve against one already-built immutable catalog snapshot."""
         if reference_class == "explicit_path":
             parts = _validate_relative_path(
                 identifier, max_depth=self._path_depth_limit("built_in")
@@ -1056,11 +1074,16 @@ class SecureResolver:
             _fail("LIMIT_EXCEEDED", "batch inspection exceeds its definition limit")
         if len(set(identifiers)) != len(identifiers):
             _fail("SOURCE_DUPLICATE", "batch inspection contains a duplicate ID")
+        if not identifiers:
+            return ()
+        if kind not in self.protocol.component_kinds:
+            _fail("PROTOCOL_VALUE_INVALID", "unknown component kind")
+        catalog = self.catalog(project_root)
         return tuple(
-            self.resolve(
+            self._resolve_from_catalog(
+                catalog,
                 kind,
                 identifier,
-                project_root=project_root,
                 internal=internal,
             )
             for identifier in identifiers

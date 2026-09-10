@@ -135,11 +135,13 @@ If an isolated contributor test leaves a partial cache, rerun the exact local se
 
 The candidate uses three non-self-referential SHA-256 domains:
 
-| Digest                   | Covers                                                                    | Storage                   |
-| ------------------------ | ------------------------------------------------------------------------- | ------------------------- |
-| `runtime_payload_digest` | Sealed manifest, router, runtime helpers, and relocated canonical closure | Release evidence          |
-| `evidence_digest`        | The deterministic `codex/support-evidence.json` bytes                     | Qualification output      |
-| `artifact_digest`        | The exact completed package, including fixed generated slots              | Detached attestation only |
+| Digest                   | Covers                                                                      | Storage                   |
+| ------------------------ | --------------------------------------------------------------------------- | ------------------------- |
+| `runtime_payload_digest` | Sealed manifest, router, runtime helpers, and relocated canonical closure   | Release evidence          |
+| `evidence_digest`        | The exact raw `codex/support-evidence.json` bytes emitted deterministically | Qualification output      |
+| `artifact_digest`        | The exact completed package, including fixed generated slots                | Detached attestation only |
+
+The support producer uses one deterministic JSON serialization and hashes the exact bytes written to `codex/support-evidence.json`. A whitespace or key-order rewrite invalidates qualification even when it parses to the same object. Completed-package validation derives the expected README and How It Works bytes from the canonical source documents, release evidence, and protocol-owned renderer instead of trusting copies inside the package being checked.
 
 An installed path is a locator, not a trust decision. The host must authenticate the detached expected digests, verify the entry surface and first helper or interpreter, and only then allow the resolver to anchor the real installed root. Installed packages are snapshots. Changed canonical bytes cause stale-session refusal, and expired or revoked evidence blocks effects while leaving host-native remediation available.
 

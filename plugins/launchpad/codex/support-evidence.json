@@ -2,12 +2,16 @@
   "compatibility_predicates": [
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-bootstrap-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -26,12 +30,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-brainstorm-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -54,12 +62,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-build-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "browser",
@@ -86,12 +98,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-commit-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -115,12 +131,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "inspect_only",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-copy-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -139,12 +159,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "inspect_only",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-copy-review-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "canonical_resource_read",
         "detached_digest_attestation",
@@ -165,12 +189,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-create-agent-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -193,12 +221,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-create-skill-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -221,12 +253,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-creating-agents-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "canonical_resource_read",
         "explicit_invocation_provenance",
@@ -245,12 +281,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-defer-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "canonical_resource_read",
         "explicit_invocation_provenance",
@@ -266,12 +306,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-define-architecture-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -288,12 +332,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-define-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -315,12 +363,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-define-design-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -339,12 +391,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-define-product-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -361,12 +417,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-design-onboard-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -383,12 +443,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-design-polish-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -405,12 +469,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-design-review-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -427,12 +495,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-feature-video-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "browser",
@@ -454,12 +526,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-harden-plan-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -483,12 +559,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "inspect_only",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-hydrate-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "canonical_resource_read",
         "detached_digest_attestation",
@@ -506,12 +586,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-implement-plan-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "canonical_resource_read",
         "explicit_invocation_provenance",
@@ -531,12 +615,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-inf-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -555,12 +643,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-kickoff-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -584,12 +676,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-learn-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "canonical_resource_read",
         "explicit_invocation_provenance",
@@ -611,12 +707,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-memory-report-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "canonical_resource_read",
         "explicit_invocation_provenance",
@@ -632,12 +732,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-pick-stack-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "canonical_resource_read",
         "explicit_invocation_provenance",
@@ -655,12 +759,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-plan-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "browser",
@@ -687,12 +795,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-pnf-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -715,12 +827,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-port-skill-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -741,12 +857,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-preflight-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "canonical_resource_read",
         "explicit_invocation_provenance",
@@ -766,12 +886,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "inspect_only",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-pull-launchpad-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "canonical_resource_read",
         "detached_digest_attestation",
@@ -789,12 +913,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-regenerate-backlog-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "canonical_resource_read",
         "explicit_invocation_provenance",
@@ -810,12 +938,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-resolve-pr-comments-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -838,12 +970,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-resolve-todo-parallel-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -866,12 +1002,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-review-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "canonical_resource_read",
         "explicit_invocation_provenance",
@@ -893,12 +1033,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-scaffold-stack-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "canonical_resource_read",
         "explicit_invocation_provenance",
@@ -916,12 +1060,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-shape-section-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -940,12 +1088,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-ship-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -969,12 +1121,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-test-browser-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "browser",
         "canonical_resource_read",
@@ -997,12 +1153,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-triage-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -1019,12 +1179,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-update-identity-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -1043,12 +1207,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-update-skill-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -1069,12 +1237,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "none",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-update-spec-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "authenticated_user_interaction",
         "canonical_resource_read",
@@ -1091,12 +1263,16 @@
     },
     {
       "base_support_state": "blocked",
-      "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+      "blocked_reason_codes": [
+        "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+      ],
       "fallback": "inspect_only",
       "host": "*",
       "operating_system": "*",
       "predicate_id": "lp-verification-before-completion-default",
-      "qualification_ids": ["qualification-section10-blocked-support"],
+      "qualification_ids": [
+        "qualification-section10-blocked-support"
+      ],
       "required_capabilities": [
         "canonical_resource_read",
         "detached_digest_attestation",
@@ -1126,7 +1302,7 @@
         "section9-router-host-blocked",
         "section9-whole-corpus-acceptance"
       ],
-      "runtime_payload_digest": "5d0f307aedc92335b332847cc9f354f64f6cb8d448565346652f972310a878e5",
+      "runtime_payload_digest": "01064af2911825a2e59d14cb62a35285657e817fa3194b1ffb81144486c9a05c",
       "tool_versions": {
         "claude-code": "2.1.258",
         "codex-cli": "0.153.4"
@@ -1134,7 +1310,11 @@
     }
   ],
   "runtime": {
-    "generated_slots": ["README.md", "codex/support-evidence.json", "docs/guides/HOW_IT_WORKS.md"],
+    "generated_slots": [
+      "README.md",
+      "codex/support-evidence.json",
+      "docs/guides/HOW_IT_WORKS.md"
+    ],
     "nodes": [
       {
         "aggregate_digest": "c507a029cfbf989f1cdbb743446a44eb2b1a00c182da9bf80e35015fa4cffbf5",
@@ -1143,7 +1323,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -1169,7 +1353,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -1209,13 +1397,19 @@
             "structured_arguments"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
-          "assets": ["templates/claude-settings-autonomous.json"],
+          "assets": [
+            "templates/claude-settings-autonomous.json"
+          ],
           "commands": [],
-          "external_tools": ["python"],
+          "external_tools": [
+            "python"
+          ],
           "references": [],
           "scripts": [
             "scripts/lp_bootstrap/__main__.py",
@@ -1255,16 +1449,28 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
-          "agents": ["lp-code-analyzer", "lp-pattern-finder"],
+          "agents": [
+            "lp-code-analyzer",
+            "lp-pattern-finder"
+          ],
           "assets": [],
           "commands": [],
-          "external_tools": ["python3"],
+          "external_tools": [
+            "python3"
+          ],
           "references": [],
-          "scripts": ["scripts/cwd_state.py"],
-          "skills": ["lp-brainstorming", "lp-document-review"]
+          "scripts": [
+            "scripts/cwd_state.py"
+          ],
+          "skills": [
+            "lp-brainstorming",
+            "lp-document-review"
+          ]
         },
         "id": "lp-brainstorm",
         "kind": "command",
@@ -1287,7 +1493,9 @@
             "repository_write"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -1333,7 +1541,11 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "effectful",
-          "write_scopes": ["external-state", "project-files", "repository-state"]
+          "write_scopes": [
+            "external-state",
+            "project-files",
+            "repository-state"
+          ]
         },
         "direct": {
           "agents": [],
@@ -1348,7 +1560,9 @@
             "lp-ship",
             "lp-test-browser"
           ],
-          "external_tools": ["python3"],
+          "external_tools": [
+            "python3"
+          ],
           "references": [],
           "scripts": [
             "scripts/lp_preflight.py",
@@ -1372,7 +1586,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -1398,7 +1616,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -1424,7 +1646,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -1469,15 +1695,30 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "effectful",
-          "write_scopes": ["external-state", "project-files", "repository-state"]
+          "write_scopes": [
+            "external-state",
+            "project-files",
+            "repository-state"
+          ]
         },
         "direct": {
           "agents": [],
           "assets": [],
-          "commands": ["lp-review", "lp-triage"],
-          "external_tools": ["gh", "git", "lefthook", "python3"],
+          "commands": [
+            "lp-review",
+            "lp-triage"
+          ],
+          "external_tools": [
+            "gh",
+            "git",
+            "lefthook",
+            "python3"
+          ],
           "references": [],
-          "scripts": ["scripts/plugin-build-runner.py", "scripts/plugin-prereq-check.sh"],
+          "scripts": [
+            "scripts/plugin-build-runner.py",
+            "scripts/plugin-prereq-check.sh"
+          ],
           "skills": []
         },
         "id": "lp-commit",
@@ -1501,14 +1742,20 @@
             "repository_write"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
-          "assets": ["assets/resolution-template.md"],
+          "assets": [
+            "assets/resolution-template.md"
+          ],
           "commands": [],
           "external_tools": [],
-          "references": ["references/yaml-schema.md"],
+          "references": [
+            "references/yaml-schema.md"
+          ],
           "scripts": [],
           "skills": []
         },
@@ -1614,16 +1861,24 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
           "assets": [],
           "commands": [],
-          "external_tools": ["bash"],
+          "external_tools": [
+            "bash"
+          ],
           "references": [],
-          "scripts": ["scripts/plugin-prereq-check.sh"],
-          "skills": ["lp-creating-agents"]
+          "scripts": [
+            "scripts/plugin-prereq-check.sh"
+          ],
+          "skills": [
+            "lp-creating-agents"
+          ]
         },
         "id": "lp-create-agent",
         "kind": "command",
@@ -1656,16 +1911,24 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
           "assets": [],
           "commands": [],
-          "external_tools": ["bash"],
+          "external_tools": [
+            "bash"
+          ],
           "references": [],
-          "scripts": ["scripts/plugin-prereq-check.sh"],
-          "skills": ["lp-creating-skills"]
+          "scripts": [
+            "scripts/plugin-prereq-check.sh"
+          ],
+          "skills": [
+            "lp-creating-skills"
+          ]
         },
         "id": "lp-create-skill",
         "kind": "command",
@@ -1694,7 +1957,9 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -1734,7 +1999,9 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -1765,7 +2032,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -1791,7 +2062,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -1828,7 +2103,9 @@
             "structured_arguments"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -1869,7 +2146,9 @@
             "structured_arguments"
           ],
           "tool_profile": "effectful",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -1880,9 +2159,14 @@
             "lp-define-design",
             "lp-define-product"
           ],
-          "external_tools": ["python3"],
+          "external_tools": [
+            "python3"
+          ],
           "references": [],
-          "scripts": ["scripts/lp_define_runner.py", "scripts/plugin-stack-detector.py"],
+          "scripts": [
+            "scripts/lp_define_runner.py",
+            "scripts/plugin-stack-detector.py"
+          ],
           "skills": []
         },
         "id": "lp-define",
@@ -1910,7 +2194,9 @@
             "structured_arguments"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -1948,7 +2234,9 @@
             "structured_arguments"
           ],
           "tool_profile": "effectful",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -1984,7 +2272,9 @@
             "structured_arguments"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -2008,7 +2298,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -2034,7 +2328,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -2060,7 +2358,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -2096,7 +2398,9 @@
             "shell_execution"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -2120,7 +2424,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -2158,7 +2466,9 @@
             "structured_arguments"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -2167,7 +2477,9 @@
           "external_tools": [],
           "references": [],
           "scripts": [],
-          "skills": ["lp-frontend-design"]
+          "skills": [
+            "lp-frontend-design"
+          ]
         },
         "id": "lp-design-onboard",
         "kind": "command",
@@ -2194,7 +2506,9 @@
             "structured_arguments"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -2203,7 +2517,9 @@
           "external_tools": [],
           "references": [],
           "scripts": [],
-          "skills": ["lp-frontend-design"]
+          "skills": [
+            "lp-frontend-design"
+          ]
         },
         "id": "lp-design-polish",
         "kind": "command",
@@ -2218,7 +2534,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -2256,7 +2576,9 @@
             "structured_arguments"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -2265,7 +2587,9 @@
           "external_tools": [],
           "references": [],
           "scripts": [],
-          "skills": ["lp-frontend-design"]
+          "skills": [
+            "lp-frontend-design"
+          ]
         },
         "id": "lp-design-review",
         "kind": "command",
@@ -2280,7 +2604,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -2306,7 +2634,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -2332,7 +2664,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -2366,7 +2702,9 @@
             "repository_write"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -2390,7 +2728,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -2433,16 +2775,30 @@
             "structured_arguments"
           ],
           "tool_profile": "effectful",
-          "write_scopes": ["external-state", "project-files", "repository-state"]
+          "write_scopes": [
+            "external-state",
+            "project-files",
+            "repository-state"
+          ]
         },
         "direct": {
           "agents": [],
           "assets": [],
           "commands": [],
-          "external_tools": ["agent-browser", "ffmpeg", "gh", "git", "imgup", "rclone"],
+          "external_tools": [
+            "agent-browser",
+            "ffmpeg",
+            "gh",
+            "git",
+            "imgup",
+            "rclone"
+          ],
           "references": [],
           "scripts": [],
-          "skills": ["lp-imgup", "lp-rclone"]
+          "skills": [
+            "lp-imgup",
+            "lp-rclone"
+          ]
         },
         "id": "lp-feature-video",
         "kind": "command",
@@ -2469,7 +2825,10 @@
             "shell_execution"
           ],
           "tool_profile": "effectful",
-          "write_scopes": ["external-state", "project-files"]
+          "write_scopes": [
+            "external-state",
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -2493,7 +2852,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -2527,7 +2890,9 @@
             "repository_write"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -2559,7 +2924,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -2604,7 +2973,9 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "effectful",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [
@@ -2627,10 +2998,18 @@
           ],
           "assets": [],
           "commands": [],
-          "external_tools": ["bash", "context7"],
+          "external_tools": [
+            "bash",
+            "context7"
+          ],
           "references": [],
-          "scripts": ["scripts/plugin-agent-scope-filter.py", "scripts/plugin-prereq-check.sh"],
-          "skills": ["lp-document-review"]
+          "scripts": [
+            "scripts/plugin-agent-scope-filter.py",
+            "scripts/plugin-prereq-check.sh"
+          ],
+          "skills": [
+            "lp-document-review"
+          ]
         },
         "id": "lp-harden-plan",
         "kind": "command",
@@ -2655,7 +3034,9 @@
             "shell_execution"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -2721,7 +3102,9 @@
             "serialized_payload_mediation"
           ],
           "tool_profile": "effectful",
-          "write_scopes": ["external-state"]
+          "write_scopes": [
+            "external-state"
+          ]
         },
         "direct": {
           "agents": [],
@@ -2760,10 +3143,15 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
-          "agents": ["lp-docs-analyzer", "lp-pattern-finder"],
+          "agents": [
+            "lp-docs-analyzer",
+            "lp-pattern-finder"
+          ],
           "assets": [],
           "commands": [],
           "external_tools": [],
@@ -2798,19 +3186,27 @@
             "structured_arguments"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
           "assets": [],
           "commands": [],
-          "external_tools": ["bash", "python3"],
+          "external_tools": [
+            "bash",
+            "python3"
+          ],
           "references": [],
           "scripts": [
             "scripts/plugin-prereq-check.sh",
             "scripts/plugin_stack_adapters/autonomous_guard.py"
           ],
-          "skills": ["lp-react-best-practices", "lp-stripe-best-practices"]
+          "skills": [
+            "lp-react-best-practices",
+            "lp-stripe-best-practices"
+          ]
         },
         "id": "lp-inf",
         "kind": "command",
@@ -2844,12 +3240,16 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
           "assets": [],
-          "commands": ["lp-brainstorm"],
+          "commands": [
+            "lp-brainstorm"
+          ],
           "external_tools": [],
           "references": [],
           "scripts": [],
@@ -2868,7 +3268,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -2894,7 +3298,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -2937,16 +3345,24 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
           "assets": [],
           "commands": [],
-          "external_tools": ["bash"],
+          "external_tools": [
+            "bash"
+          ],
           "references": [],
-          "scripts": ["scripts/plugin-prereq-check.sh"],
-          "skills": ["lp-compound-docs"]
+          "scripts": [
+            "scripts/plugin-prereq-check.sh"
+          ],
+          "skills": [
+            "lp-compound-docs"
+          ]
         },
         "id": "lp-learn",
         "kind": "command",
@@ -2961,7 +3377,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -2998,7 +3418,9 @@
             "structured_arguments"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -3022,7 +3444,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -3048,7 +3474,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -3087,15 +3517,21 @@
             "structured_arguments"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
           "assets": [],
           "commands": [],
-          "external_tools": ["python3"],
+          "external_tools": [
+            "python3"
+          ],
           "references": [],
-          "scripts": ["scripts/lp_pick_stack/engine.py"],
+          "scripts": [
+            "scripts/lp_pick_stack/engine.py"
+          ],
           "skills": []
         },
         "id": "lp-pick-stack",
@@ -3133,10 +3569,17 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "effectful",
-          "write_scopes": ["external-state", "project-files", "repository-state"]
+          "write_scopes": [
+            "external-state",
+            "project-files",
+            "repository-state"
+          ]
         },
         "direct": {
-          "agents": ["lp-design-iterator", "lp-figma-design-sync"],
+          "agents": [
+            "lp-design-iterator",
+            "lp-figma-design-sync"
+          ],
           "assets": [],
           "commands": [
             "lp-copy",
@@ -3147,14 +3590,21 @@
             "lp-feature-video",
             "lp-harden-plan"
           ],
-          "external_tools": ["agent-browser", "python3"],
+          "external_tools": [
+            "agent-browser",
+            "python3"
+          ],
           "references": [],
           "scripts": [
             "scripts/plugin-config-loader.py",
             "scripts/plugin_stack_adapters/autonomous_guard.py",
             "scripts/plugin_stack_adapters/section_registry.py"
           ],
-          "skills": ["lp-frontend-design", "lp-responsive-design", "lp-web-design-guidelines"]
+          "skills": [
+            "lp-frontend-design",
+            "lp-responsive-design",
+            "lp-web-design-guidelines"
+          ]
         },
         "id": "lp-plan",
         "kind": "command",
@@ -3187,7 +3637,9 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "effectful",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [
@@ -3200,14 +3652,20 @@
           ],
           "assets": [],
           "commands": [],
-          "external_tools": ["bash", "python3"],
+          "external_tools": [
+            "bash",
+            "python3"
+          ],
           "references": [],
           "scripts": [
             "scripts/plugin-config-loader.py",
             "scripts/plugin-prereq-check.sh",
             "scripts/plugin_stack_adapters/section_registry.py"
           ],
-          "skills": ["lp-react-best-practices", "lp-stripe-best-practices"]
+          "skills": [
+            "lp-react-best-practices",
+            "lp-stripe-best-practices"
+          ]
         },
         "id": "lp-pnf",
         "kind": "command",
@@ -3238,16 +3696,22 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
           "assets": [],
           "commands": [],
           "external_tools": [],
-          "references": ["skills/lp-creating-skills/references/PORTING-GUIDE.md"],
+          "references": [
+            "skills/lp-creating-skills/references/PORTING-GUIDE.md"
+          ],
           "scripts": [],
-          "skills": ["lp-creating-skills"]
+          "skills": [
+            "lp-creating-skills"
+          ]
         },
         "id": "lp-port-skill",
         "kind": "command",
@@ -3272,7 +3736,9 @@
             "shell_execution"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -3304,7 +3770,9 @@
             "repository_write"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -3343,15 +3811,23 @@
             "structured_arguments"
           ],
           "tool_profile": "effectful",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
           "assets": [],
           "commands": [],
-          "external_tools": ["bash", "python3"],
+          "external_tools": [
+            "bash",
+            "python3"
+          ],
           "references": [],
-          "scripts": ["scripts/lp_preflight.py", "scripts/plugin-prereq-check.sh"],
+          "scripts": [
+            "scripts/lp_preflight.py",
+            "scripts/plugin-prereq-check.sh"
+          ],
           "skills": []
         },
         "id": "lp-preflight",
@@ -3367,7 +3843,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -3435,7 +3915,9 @@
             "serialized_payload_mediation"
           ],
           "tool_profile": "effectful",
-          "write_scopes": ["external-state"]
+          "write_scopes": [
+            "external-state"
+          ]
         },
         "direct": {
           "agents": [],
@@ -3459,7 +3941,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -3506,7 +3992,9 @@
             "structured_arguments"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -3548,15 +4036,27 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "effectful",
-          "write_scopes": ["external-state", "project-files", "repository-state"]
+          "write_scopes": [
+            "external-state",
+            "project-files",
+            "repository-state"
+          ]
         },
         "direct": {
-          "agents": ["lp-pr-comment-resolver"],
+          "agents": [
+            "lp-pr-comment-resolver"
+          ],
           "assets": [],
           "commands": [],
-          "external_tools": ["gh", "git", "python3"],
+          "external_tools": [
+            "gh",
+            "git",
+            "python3"
+          ],
           "references": [],
-          "scripts": ["scripts/plugin-build-runner.py"],
+          "scripts": [
+            "scripts/plugin-build-runner.py"
+          ],
           "skills": []
         },
         "id": "lp-resolve-pr-comments",
@@ -3590,13 +4090,20 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
-          "agents": ["lp-harness-todo-resolver"],
+          "agents": [
+            "lp-harness-todo-resolver"
+          ],
           "assets": [],
           "commands": [],
-          "external_tools": ["bash", "python3"],
+          "external_tools": [
+            "bash",
+            "python3"
+          ],
           "references": [],
           "scripts": [
             "scripts/plugin-prereq-check.sh",
@@ -3617,7 +4124,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -3660,7 +4171,9 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "effectful",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [
@@ -3681,7 +4194,12 @@
           ],
           "assets": [],
           "commands": [],
-          "external_tools": ["bash", "gh", "git", "python3"],
+          "external_tools": [
+            "bash",
+            "gh",
+            "git",
+            "python3"
+          ],
           "references": [],
           "scripts": [
             "scripts/plugin-agent-scope-filter.py",
@@ -3716,15 +4234,21 @@
             "structured_arguments"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
           "assets": [],
           "commands": [],
-          "external_tools": ["python3"],
+          "external_tools": [
+            "python3"
+          ],
           "references": [],
-          "scripts": ["scripts/plugin-scaffold-stack.py"],
+          "scripts": [
+            "scripts/plugin-scaffold-stack.py"
+          ],
           "skills": []
         },
         "id": "lp-scaffold-stack",
@@ -3740,7 +4264,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -3766,7 +4294,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -3792,7 +4324,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -3818,7 +4354,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -3858,13 +4398,18 @@
             "structured_arguments"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
           "assets": [],
           "commands": [],
-          "external_tools": ["bash", "python3"],
+          "external_tools": [
+            "bash",
+            "python3"
+          ],
           "references": [],
           "scripts": [
             "scripts/plugin-prereq-check.sh",
@@ -3904,13 +4449,25 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "effectful",
-          "write_scopes": ["external-state", "project-files", "repository-state"]
+          "write_scopes": [
+            "external-state",
+            "project-files",
+            "repository-state"
+          ]
         },
         "direct": {
           "agents": [],
           "assets": [],
-          "commands": ["lp-resolve-todo-parallel", "lp-review"],
-          "external_tools": ["gh", "git", "lefthook", "python3"],
+          "commands": [
+            "lp-resolve-todo-parallel",
+            "lp-review"
+          ],
+          "external_tools": [
+            "gh",
+            "git",
+            "lefthook",
+            "python3"
+          ],
           "references": [],
           "scripts": [
             "scripts/lp_preflight.py",
@@ -3933,7 +4490,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -3959,7 +4520,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -3999,9 +4564,13 @@
           "agents": [],
           "assets": [],
           "commands": [],
-          "external_tools": ["bash"],
+          "external_tools": [
+            "bash"
+          ],
           "references": [],
-          "scripts": ["scripts/plugin-prereq-check.sh"],
+          "scripts": [
+            "scripts/plugin-prereq-check.sh"
+          ],
           "skills": []
         },
         "id": "lp-step-zero",
@@ -4017,7 +4586,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -4055,7 +4628,9 @@
             "repository_write"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -4097,15 +4672,26 @@
             "structured_arguments"
           ],
           "tool_profile": "effectful",
-          "write_scopes": ["external-state", "project-files", "repository-state"]
+          "write_scopes": [
+            "external-state",
+            "project-files",
+            "repository-state"
+          ]
         },
         "direct": {
           "agents": [],
           "assets": [],
           "commands": [],
-          "external_tools": ["agent-browser", "gh", "git", "playwright"],
+          "external_tools": [
+            "agent-browser",
+            "gh",
+            "git",
+            "playwright"
+          ],
           "references": [],
-          "scripts": ["scripts/plugin-config-loader.py"],
+          "scripts": [
+            "scripts/plugin-config-loader.py"
+          ],
           "skills": []
         },
         "id": "lp-test-browser",
@@ -4121,7 +4707,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -4159,7 +4749,9 @@
             "structured_arguments"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -4197,15 +4789,22 @@
             "structured_arguments"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
           "assets": [],
           "commands": [],
-          "external_tools": ["git", "python3"],
+          "external_tools": [
+            "git",
+            "python3"
+          ],
           "references": [],
-          "scripts": ["scripts/lp_update_identity/engine.py"],
+          "scripts": [
+            "scripts/lp_update_identity/engine.py"
+          ],
           "skills": []
         },
         "id": "lp-update-identity",
@@ -4237,16 +4836,24 @@
             "subagent_cancel_final_join"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
-          "agents": ["lp-skill-evaluator"],
+          "agents": [
+            "lp-skill-evaluator"
+          ],
           "assets": [],
           "commands": [],
           "external_tools": [],
-          "references": ["skills/lp-creating-skills/references/QUALITY-GATES.md"],
+          "references": [
+            "skills/lp-creating-skills/references/QUALITY-GATES.md"
+          ],
           "scripts": [],
-          "skills": ["lp-creating-skills"]
+          "skills": [
+            "lp-creating-skills"
+          ]
         },
         "id": "lp-update-skill",
         "kind": "command",
@@ -4273,7 +4880,9 @@
             "structured_arguments"
           ],
           "tool_profile": "workspace_write",
-          "write_scopes": ["project-files"]
+          "write_scopes": [
+            "project-files"
+          ]
         },
         "direct": {
           "agents": [],
@@ -4313,9 +4922,13 @@
           "agents": [],
           "assets": [],
           "commands": [],
-          "external_tools": ["python3"],
+          "external_tools": [
+            "python3"
+          ],
           "references": [],
-          "scripts": ["scripts/plugin-build-runner.py"],
+          "scripts": [
+            "scripts/plugin-build-runner.py"
+          ],
           "skills": []
         },
         "id": "lp-verification-before-completion",
@@ -4331,7 +4944,11 @@
           "fallback": "inspect_only",
           "interaction": "none",
           "mutation": "none",
-          "required": ["canonical_resource_read", "installed_root_binding", "repository_read"],
+          "required": [
+            "canonical_resource_read",
+            "installed_root_binding",
+            "repository_read"
+          ],
           "tool_profile": "read_only",
           "write_scopes": []
         },
@@ -4385,7 +5002,9 @@
     ],
     "protocol_digest": "fdfd8713fc741dc53ce88bd43f90ecd49825d06d11bc1e0bb7a33a8fc1250771",
     "protocol_version": "1.0.0",
-    "qualification_ids": ["qualification-section10-blocked-support"],
+    "qualification_ids": [
+      "qualification-section10-blocked-support"
+    ],
     "release_stage": "dogfood",
     "root_ids": [
       "lp-bootstrap",
@@ -5115,9 +5734,9 @@
         "size": 40504
       },
       {
-        "digest": "38ceeeb7c3912daf55fede4c3187eff14d6494bd1344fcd7ab394a65ebf07c09",
+        "digest": "4f493185ef926ce348f5640e354b68d368e8934a8571ca9441a408f38c0c8145",
         "path": "scripts/plugin-codex-manifest.py",
-        "size": 16319
+        "size": 19625
       },
       {
         "digest": "aae38468693c33c7219d4c1c4a51e6bfd3e2f3e90b7f4947e23cee89e02069f1",
@@ -5125,9 +5744,9 @@
         "size": 75765
       },
       {
-        "digest": "61ea19a1c38c330d558c4d05237c897a2632671e09d44654225ce9485a08cf65",
+        "digest": "4349251a989e94c58ace104db75123343fcb1b102763b14277c3b0ff16b31ecc",
         "path": "scripts/plugin-codex-resolver.py",
-        "size": 75939
+        "size": 76634
       },
       {
         "digest": "a39459bee770aee8c8351819966bf2ad3a74aa86c39627f96b49dea766ca5517",
@@ -5135,9 +5754,9 @@
         "size": 27970
       },
       {
-        "digest": "e1d71ce6c6aedada0838e3e157204ede16d9c261c53fff6afe8a770f60517a0a",
+        "digest": "a132c7410238f6f9a1346bf09d84fdcd2534e2af6dd62db45be2015f2fd506b6",
         "path": "scripts/plugin-codex-support.py",
-        "size": 39521
+        "size": 43629
       },
       {
         "digest": "750f14f16c11bfa9269468a2e46a1a2a6ae94977d6b30ca4b129fba4b65dc272",
@@ -5265,270 +5884,358 @@
         "size": 220
       }
     ],
-    "runtime_payload_digest": "5d0f307aedc92335b332847cc9f354f64f6cb8d448565346652f972310a878e5",
+    "runtime_payload_digest": "01064af2911825a2e59d14cb62a35285657e817fa3194b1ffb81144486c9a05c",
     "stage": "release",
     "support": [
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-bootstrap"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-brainstorm"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-build"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-commit"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "inspect_only",
         "resource_id": "lp-copy"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "inspect_only",
         "resource_id": "lp-copy-review"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-create-agent"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-create-skill"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-creating-agents"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-defer"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-define"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-define-architecture"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-define-design"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-define-product"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-design-onboard"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-design-polish"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-design-review"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-feature-video"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-harden-plan"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "inspect_only",
         "resource_id": "lp-hydrate"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-implement-plan"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-inf"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-kickoff"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-learn"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-memory-report"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-pick-stack"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-plan"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-pnf"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-port-skill"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-preflight"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "inspect_only",
         "resource_id": "lp-pull-launchpad"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-regenerate-backlog"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-resolve-pr-comments"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-resolve-todo-parallel"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-review"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-scaffold-stack"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-shape-section"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-ship"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-test-browser"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-triage"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-update-identity"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-update-skill"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "none",
         "resource_id": "lp-update-spec"
       },
       {
         "base_support_state": "blocked",
-        "blocked_reason_codes": ["WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"],
+        "blocked_reason_codes": [
+          "WORKFLOW_DEPENDENCY_CLOSURE_UNPROVEN"
+        ],
         "fallback": "inspect_only",
         "resource_id": "lp-verification-before-completion"
       }

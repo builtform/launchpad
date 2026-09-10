@@ -58,7 +58,7 @@ def _host(*, all_capabilities: bool = True):
         capabilities=(
             tuple(sorted(contract.capability_ids)) if all_capabilities else ()
         ),
-        tool_versions={},
+        tool_versions={"codex": "fixture"},
     )
 
 
@@ -98,22 +98,32 @@ def _route(session, tokens: tuple[str, ...], **updates: object):
     return session.route(event, _Verifier(event, invocation))
 
 
-def _available_hydrate(candidate: Any, staged_plugin: Path):
+def _available_hydrate(candidate: Any):
     value = support.bundle_as_dict(candidate)
     predicates = cast(list[dict[str, object]], value["compatibility_predicates"])
-    runtime = cast(dict[str, object], value["runtime"])
-    support_records = cast(list[dict[str, object]], runtime["support"])
     for item in predicates:
         if item["resource_id"] == "lp-hydrate":
+            item["host"] = "fixture-host"
+            item["operating_system"] = "darwin"
+            item["tool_versions"] = {"codex": "fixture"}
             item["base_support_state"] = "supported"
             item["blocked_reason_codes"] = []
-    for item in support_records:
-        if item["resource_id"] == "lp-hydrate":
-            item["base_support_state"] = "supported"
-            item["blocked_reason_codes"] = []
-    return support._normalize_bundle(
-        value,
-        protocol_path=staged_plugin / "codex" / "adapter-protocol.json",
+            item["qualification_ids"] = ["qual-router-fixture"]
+    return support.promote_release(
+        candidate,
+        {
+            "compatibility_predicates": predicates,
+            "qualifications": [
+                {
+                    "qualification_id": "qual-router-fixture",
+                    "runtime_payload_digest": candidate.runtime.runtime_payload_digest,
+                    "host": "fixture-host",
+                    "operating_system": "darwin",
+                    "tool_versions": {"codex": "fixture"},
+                    "receipt_ids": ["receipt-router-fixture"],
+                }
+            ],
+        },
     )
 
 
@@ -353,7 +363,7 @@ def test_real_host_capability_shape_keeps_hydrate_blocked(
 def test_fixture_supported_hydrate_preserves_exact_argument_tail_and_writes_nothing(
     candidate: Any, staged_plugin: Path, tail: tuple[str, ...]
 ) -> None:
-    qualified = _available_hydrate(candidate, staged_plugin)
+    qualified = _available_hydrate(candidate)
     session = router.RouterSession.for_test(staged_plugin, qualified, _host())
     before = {
         path.relative_to(staged_plugin): path.read_bytes()
@@ -378,7 +388,7 @@ def test_fixture_supported_hydrate_preserves_exact_argument_tail_and_writes_noth
 def test_dialect_preamble_is_version_bound_and_separate_from_canonical_body(
     candidate: Any, staged_plugin: Path
 ) -> None:
-    qualified = _available_hydrate(candidate, staged_plugin)
+    qualified = _available_hydrate(candidate)
     session = router.RouterSession.for_test(staged_plugin, qualified, _host())
     response = _route(session, ("hydrate",))
     preamble = cast(str, response.payload["dialect_preamble"])

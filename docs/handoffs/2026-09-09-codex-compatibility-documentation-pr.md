@@ -10,9 +10,11 @@ Do not publish, list, tag, or install this candidate into a maintainer's normal 
 
 The first real-document render exposed a temporary implementation-phase lock that still prohibited the repository root. Removing that lock changed the sealed runtime, as required, so the Section 10 entry identity below was invalidated. The corrected renderer was made Prettier-stable, the 166-file runtime was resealed, pinned host receipts were rerun, and release evidence was regenerated before documentation validation resumed.
 
-- Final runtime payload digest: `5d0f307aedc92335b332847cc9f354f64f6cb8d448565346652f972310a878e5`
-- Final evidence digest: `5eae9eeaadd3800d846b8aa96f00307d22b75963cc8a7ac8871eb40ec1c9d26c`
-- Final detached artifact digest: `fa200f358e9d20cd8661c44dc1a89aae7218f52b5f4136ee4964bfe44173990f`
+The raw-byte evidence and independent generated-document validation corrections changed the sealed runtime again. Fresh isolated router and lifecycle receipts were produced with Codex CLI 0.153.4 and Claude Code 2.1.258, the qualification generator consumed those receipts, and the completed-package lifecycle passed with the detached digest below. The host result remains fail-closed.
+
+- Final runtime payload digest: `01064af2911825a2e59d14cb62a35285657e817fa3194b1ffb81144486c9a05c`
+- Final raw-byte evidence digest: `a368b37f424fe2f90466e9cb493ba7a9265e72f6dc0ccc998ecd84e207081117`
+- Final detached artifact digest: `0d671e70b3fdb722c186f5bf82e60c7d12bf9eea71c19e97bd83930b81f35818`
 - Runtime closure: 166 files
 - Completed package closure: 169 files
 - Generated package slots: `README.md`, `codex/support-evidence.json`, `docs/guides/HOW_IT_WORKS.md`
@@ -132,7 +134,13 @@ python plugins/launchpad/scripts/plugin-codex-support.py render-docs \
   --write \
   --evidence plugins/launchpad/codex/support-evidence.json \
   --docs-root .
+python plugins/launchpad/scripts/plugin-codex-support.py render-docs \
+  --check \
+  --evidence plugins/launchpad/codex/support-evidence.json \
+  --docs-root .
 ```
+
+The evidence digest is SHA-256 over the exact raw bytes emitted by the deterministic producer. Formatting-only changes to `support-evidence.json` fail qualification. The file is excluded from Prettier so the formatting hook cannot rewrite the attested bytes. Completed-package checks and artifact-digest calculation must receive `plugins/launchpad` and the repository documentation root as authorities independent from the package being checked. The generated README and How It Works digests must be derived from those sources and the protocol renderer.
 
 The documentation PR must preserve Claude instructions, state that all 44 Codex roots are blocked, and run the bounded contradiction audit. After documentation validation, it may add only the protocol-declared generated slots, prove the runtime digest is unchanged, compute the completed-package `artifact_digest`, and run the exact final candidate smoke. Marketplace listing, visibility, tagging, and publication remain prohibited until every later activation gate passes.
 
@@ -148,5 +156,13 @@ The documentation PR must preserve Claude instructions, state that all 44 Codex 
 - Isolated exact candidate lifecycle: all implemented gates passed; bare `$lp` authenticated routing remained blocked as required.
 - Public documentation and marketplace authorities were unchanged in the implementation commit.
 - The pre-existing imported `.codex/` hook configuration was later reconciled as tracked, portable LaunchPad repository tooling in a separately scoped pre-review commit. It remains outside the sealed plugin package and does not affect the frozen runtime digest.
+
+### Post-review correction validation
+
+- Complete Python suite: 2,392 passed, 5 skipped.
+- Workflow-equivalent Codex compatibility subset: 354 passed.
+- Pyright: 0 errors, 30 existing warnings.
+- Ruff check, Ruff format check, repository structure, workflow SHA pins, exact workflow acceptance, release qualification, and generated-document drift checks: passed.
+- Fresh isolated router, lifecycle, and completed-package receipts: passed with Codex CLI 0.153.4 and Claude Code 2.1.258; bare `$lp` support remains blocked as required.
 
 This handoff is the Section 10 mandatory stopping point. Do not begin public-document rendering, final artifact assembly, or activation work in the implementation PR.

@@ -122,9 +122,47 @@ def test_workflow_rejects_unpinned_action_and_gate_bypass(tmp_path: Path) -> Non
 
 
 @pytest.mark.parametrize(
+    "replacement",
+    (
+        '        run: "# python plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py"\n',
+        '        run: echo "python plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py"\n',
+        '        run: \': "python plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py"\'\n',
+        "        run: true || python plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py\n",
+        "        run: python plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py --no-op\n",
+        (
+            "        if: false\n"
+            "        run: python "
+            "plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py\n"
+        ),
+        (
+            "        shell: bash -n {0}\n"
+            "        run: python "
+            "plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py\n"
+        ),
+    ),
+)
+def test_workflow_execution_commands_cannot_be_comments_or_no_ops(
+    replacement: str,
+    tmp_path: Path,
+) -> None:
+    source = WORKFLOW_PATH.read_text(encoding="utf-8")
+    required = (
+        "        run: python "
+        "plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py\n"
+    )
+    assert source.count(required) == 1
+    candidate = tmp_path / "workflow.yml"
+    candidate.write_text(source.replace(required, replacement), encoding="utf-8")
+    with pytest.raises(acceptance.AcceptanceError) as raised:
+        acceptance.validate_workflow(candidate)
+    assert raised.value.code == "CI_TIER_INCOMPLETE"
+
+
+@pytest.mark.parametrize(
     ("removed", "expected_code"),
     [
         ("          tests/test_plugin_codex_support.py\n", "CI_TIER_INCOMPLETE"),
+        ("          --check\n", "CI_TIER_INCOMPLETE"),
         ("    needs: hermetic-compatibility\n", "CI_TIER_INCOMPLETE"),
         (
             "          python plugins/launchpad/scripts/tests/fixtures/codex_compatibility/run_conformance.py \\\n",

@@ -153,15 +153,88 @@ def test_package_consumes_sealed_set_plus_generated_slots_only(
         staged_plugin,
         package,
         include_generated=True,
+        documentation_root=staged_plugin,
     )
     assert set(release.runtime.generated_slots).issubset(paths)
-    assert manifest.check_package(release, package, include_generated=True) == paths
-    first = manifest.artifact_digest(release, package)
+    assert (
+        manifest.check_package(
+            release,
+            package,
+            include_generated=True,
+            source_root=staged_plugin,
+            documentation_root=staged_plugin,
+        )
+        == paths
+    )
+    first = manifest.artifact_digest(
+        release,
+        package,
+        source_root=staged_plugin,
+        documentation_root=staged_plugin,
+    )
     detached = tmp_path / "attestation.json"
     detached.write_text(json.dumps({"artifact_digest": first}), encoding="utf-8")
-    assert manifest.artifact_digest(release, package) == first
+    assert (
+        manifest.artifact_digest(
+            release,
+            package,
+            source_root=staged_plugin,
+            documentation_root=staged_plugin,
+        )
+        == first
+    )
     assert detached.resolve().is_relative_to(tmp_path)
     assert "artifact_digest" not in evidence_path.read_text(encoding="utf-8")
+
+
+def test_completed_package_check_uses_independent_generated_sources(
+    staged_plugin: Path, tmp_path: Path
+) -> None:
+    candidate = _candidate(staged_plugin)
+    release = _release(candidate)
+    shutil.copy2(DOC_FIXTURE / "README.md", staged_plugin / "README.md")
+    guide = staged_plugin / "docs" / "guides" / "HOW_IT_WORKS.md"
+    guide.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(DOC_FIXTURE / "docs" / "guides" / "HOW_IT_WORKS.md", guide)
+    support.render_documents(release, staged_plugin, write=True)
+    support.write_bundle(
+        release,
+        staged_plugin / "codex" / "support-evidence.json",
+        trusted_root=staged_plugin,
+    )
+    package = tmp_path / "package"
+    package.mkdir()
+    manifest.project_package(
+        release,
+        staged_plugin,
+        package,
+        include_generated=True,
+        documentation_root=staged_plugin,
+    )
+
+    readme = package / "README.md"
+    readme.write_bytes(
+        readme.read_bytes().replace(b"Supported entries: 0", b"Supported entries: 1")
+    )
+    with pytest.raises(manifest.ManifestError) as changed:
+        manifest.check_package(
+            release,
+            package,
+            include_generated=True,
+            source_root=staged_plugin,
+            documentation_root=staged_plugin,
+        )
+    assert changed.value.code == "INTEGRITY_MISMATCH"
+
+    with pytest.raises(manifest.ManifestError) as self_trusted:
+        manifest.check_package(
+            release,
+            package,
+            include_generated=True,
+            source_root=package,
+            documentation_root=package,
+        )
+    assert self_trusted.value.code == "PATH_INVALID"
 
 
 def test_runtime_package_contains_router_import_closure(

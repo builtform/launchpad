@@ -18,7 +18,33 @@
 
 set -euo pipefail
 
-REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+SCRIPT_REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
+
+# An explicit root is required by the Codex hydration path and takes precedence
+# over any ambient Claude variable. Argument-free Claude invocations preserve
+# their existing CLAUDE_PROJECT_DIR behavior.
+if [ "$#" -eq 2 ] && [ "$1" = "--project-root" ] && [ -n "$2" ]; then
+  if ! REPO_ROOT="$(cd "$2" 2>/dev/null && pwd -P)"; then
+    echo "Structure drift detection refused an invalid project root." >&2
+    exit 2
+  fi
+  if [ "$REPO_ROOT" != "$SCRIPT_REPO_ROOT" ]; then
+    echo "Structure drift detection refused a project root that does not own this script." >&2
+    exit 2
+  fi
+elif [ "$#" -eq 0 ]; then
+  if [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
+    if ! REPO_ROOT="$(cd "$CLAUDE_PROJECT_DIR" 2>/dev/null && pwd -P)"; then
+      echo "Structure drift detection refused an invalid CLAUDE_PROJECT_DIR." >&2
+      exit 2
+    fi
+  else
+    REPO_ROOT="$SCRIPT_REPO_ROOT"
+  fi
+else
+  echo "Usage: detect-structure-drift.sh [--project-root PATH]" >&2
+  exit 2
+fi
 STRUCTURE_DOC="$REPO_ROOT/docs/architecture/REPOSITORY_STRUCTURE.md"
 DRIFT_REPORT="$REPO_ROOT/.harness/structure-drift.md"
 

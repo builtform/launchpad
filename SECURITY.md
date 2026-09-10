@@ -32,7 +32,7 @@ Before the host verifies the entry surface, detached digest attestation, first h
 
 These are protections that ship in the box. You do not need to configure anything to get them.
 
-1. **Pull requests, never direct merges.** `/lp-ship` and `/lp-commit` refuse to run `gh pr merge` or `git merge main`. Project-level `PreToolUse` configuration in `.claude/settings.json` and `.codex/hooks.json` invokes the canonical `.claude/hooks/block-merges.sh` policy before execution. GitHub branch protection on `main` backs the same rule server-side. The hook also blocks `git push --force`, push to `main`/`master`, and `gh pr review --approve`.
+1. **Pull requests, never direct merges.** `/lp-ship` and `/lp-commit` refuse to run `gh pr merge` or `git merge main`. Project-level `PreToolUse` configuration in `.claude/settings.json` and `.codex/hooks.json` configures the canonical `.claude/hooks/block-merges.sh` policy for matching Bash calls. Codex dispatches the project hook only after its exact definition has been reviewed and trusted, so repository validation proves the configuration and local handler behavior but not host dispatch. GitHub branch protection on `main` backs the same rule server-side. The hook also blocks `git push --force`, push to `main`/`master`, and `gh pr review --approve`.
 
 2. **Realpath-confined writes.** Commands that create or move project files (`/lp-define`, `/lp-shape-section`, `/lp-build`) resolve every write path through `realpath` and refuse anything that escapes the project root. A symlink trick or `..` traversal cannot reach outside the repo.
 

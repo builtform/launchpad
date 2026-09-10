@@ -11,7 +11,9 @@ LaunchPad ships versioned releases via the GitHub release flow. Every release fo
 Codex compatibility follows a two-phase local preparation sequence before any catalog or tag action:
 
 1. Freeze and qualify the sealed runtime payload. The support evidence must bind the exact runtime digest and pinned isolated-host receipts.
-2. Render the protocol-owned README and How It Works regions from that evidence, validate active documentation, append only the fixed generated slots to a disposable package, compute the completed-package artifact digest in a detached attestation, and smoke that exact package.
+2. Render the protocol-owned README and How It Works regions from that evidence, run the exact `render-docs --check` gate, validate active documentation, append only the fixed generated slots to a disposable package, compute the completed-package artifact digest in a detached attestation, and smoke that exact package.
+
+The evidence digest is SHA-256 over the exact raw `codex/support-evidence.json` bytes written by the deterministic producer. Formatting-only rewrites invalidate qualification. Completed-package validation must use the canonical plugin source and repository documentation root as independent authorities for the evidence, README, and How It Works slots. It must never derive expected generated-file digests from the package being checked.
 
 Any runtime closure change after qualification invalidates the candidate. Return to the implementation gate, regenerate the acceptance report and host receipts, issue new evidence, and restart dependent documentation validation. Never hand edit `codex/support-evidence.json`.
 

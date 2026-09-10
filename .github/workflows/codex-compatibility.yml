@@ -5,9 +5,14 @@ on:
     branches: [main]
     paths:
       - ".claude-plugin/marketplace.json"
+      - ".claude/hooks/**"
+      - ".codex/**"
       - ".github/workflows/**"
       - ".launchpad/agents.yml"
+      - ".prettierignore"
       - "CHANGELOG.md"
+      - "README.md"
+      - "docs/guides/HOW_IT_WORKS.md"
       - "docs/releases/**"
       - "plugins/launchpad/.claude-plugin/plugin.json"
       - "plugins/launchpad/.codex-plugin/plugin.json"
@@ -23,14 +28,22 @@ on:
       - "plugins/launchpad/scripts/plugin_stack_adapters/**"
       - "plugins/launchpad/skills/**"
       - "plugins/launchpad/templates/**"
+      - "scripts/agent_hydration/**"
+      - "scripts/maintenance/check-repo-structure.sh"
+      - "scripts/maintenance/detect-structure-drift.sh"
   push:
     branches: [main]
     tags: ["v*.*.*"]
     paths:
       - ".claude-plugin/marketplace.json"
+      - ".claude/hooks/**"
+      - ".codex/**"
       - ".github/workflows/**"
       - ".launchpad/agents.yml"
+      - ".prettierignore"
       - "CHANGELOG.md"
+      - "README.md"
+      - "docs/guides/HOW_IT_WORKS.md"
       - "docs/releases/**"
       - "plugins/launchpad/.claude-plugin/plugin.json"
       - "plugins/launchpad/.codex-plugin/plugin.json"
@@ -46,6 +59,9 @@ on:
       - "plugins/launchpad/scripts/plugin_stack_adapters/**"
       - "plugins/launchpad/skills/**"
       - "plugins/launchpad/templates/**"
+      - "scripts/agent_hydration/**"
+      - "scripts/maintenance/check-repo-structure.sh"
+      - "scripts/maintenance/detect-structure-drift.sh"
   schedule:
     - cron: "23 5 * * *"
   workflow_dispatch:
@@ -86,6 +102,7 @@ jobs:
         working-directory: plugins/launchpad/scripts
         run: >-
           python -m pytest -q
+          tests/test_codex_project_hooks.py
           tests/test_plugin_codex_protocol.py
           tests/test_plugin_codex_corpus.py
           tests/test_plugin_codex_resolver.py
@@ -110,6 +127,13 @@ jobs:
           python plugins/launchpad/scripts/plugin-codex-qualification.py check
           --plugin-root plugins/launchpad
           --evidence plugins/launchpad/codex/support-evidence.json
+
+      - name: Verify generated Codex documentation
+        run: >-
+          python plugins/launchpad/scripts/plugin-codex-support.py render-docs
+          --check
+          --evidence plugins/launchpad/codex/support-evidence.json
+          --docs-root .
 
       - name: Verify workflow action SHA pins
         run: python plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py
