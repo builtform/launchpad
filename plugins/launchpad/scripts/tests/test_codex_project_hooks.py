@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -18,6 +19,8 @@ STRUCTURE_CHECK = (
 HYDRATE = REPOSITORY_ROOT / "scripts" / "agent_hydration" / "hydrate.sh"
 DRIFT = REPOSITORY_ROOT / "scripts" / "maintenance" / "detect-structure-drift.sh"
 BLOCK_MERGES = REPOSITORY_ROOT / ".claude" / "hooks" / "block-merges.sh"
+CONTRIBUTING = REPOSITORY_ROOT / "CONTRIBUTING.md"
+SECURITY = REPOSITORY_ROOT / "SECURITY.md"
 
 SESSION_COMMAND = (
     'bash "$(git rev-parse --show-toplevel)/scripts/agent_hydration/hydrate.sh" '
@@ -33,6 +36,54 @@ def _copy(source: Path, root: Path, relative: str) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, target)
     return target
+
+
+def _markdown_section(path: Path, heading: str, *, level: int = 3) -> str:
+    text = path.read_text(encoding="utf-8")
+    marker = "#" * level
+    match = re.search(
+        rf"^{marker} {re.escape(heading)}\s*$\n"
+        rf"(?P<body>.*?)(?=^#{{1,{level}}} |\Z)",
+        text,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    assert match is not None, f"missing documentation section: {heading}"
+    return match.group("body")
+
+
+def _numbered_item(section: str, number: int) -> str:
+    match = re.search(
+        rf"^{number}\.\s+(?P<body>.*?)(?=^\d+\.\s+|\Z)",
+        section,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    assert match is not None, f"missing numbered documentation item: {number}"
+    return match.group("body")
+
+
+def _normalized(text: str) -> str:
+    return " ".join(text.split()).lower()
+
+
+def _assert_codex_dispatch_is_trust_qualified(text: str) -> None:
+    dispatch_action = re.compile(
+        r"\b(?:activ(?:e|ates?|ated)|dispatch(?:es|ed)?|enabl(?:e|es|ed)|"
+        r"fires?|invok(?:e|es|ed)|loads?|runs?|executes?)\b"
+    )
+    trust_qualification = re.compile(
+        r"\bconditional\b|\bonly (?:after|if|when)\b|"
+        r"\b(?:requires?|subject to)\b[^.]*\btrust|"
+        r"\breviewed and trusted\b|"
+        r"\b(?:does not|cannot|never)\b[^.]*\b(?:dispatch|invoke|load|run|execute)"
+    )
+    claims = [
+        sentence
+        for sentence in re.split(r"(?<=[.!?])\s+", text)
+        if "codex" in sentence and dispatch_action.search(sentence)
+    ]
+
+    assert claims
+    assert all(trust_qualification.search(claim) for claim in claims)
 
 
 def _fixture_repo(root: Path) -> Path:
@@ -110,6 +161,39 @@ def test_codex_hook_config_has_the_required_events_matchers_and_commands() -> No
             }
         ],
     }
+
+
+def test_public_docs_qualify_codex_hook_dispatch_as_trust_dependent() -> None:
+    contributing = _normalized(
+        _markdown_section(CONTRIBUTING, "Multi-layer merge prevention")
+    )
+    security = _normalized(
+        _numbered_item(
+            _markdown_section(SECURITY, "What the harness controls", level=2),
+            1,
+        )
+    )
+
+    assert "assumes all three are active" not in contributing
+    assert re.search(r"configuration and handlers? are locally validated", contributing)
+    assert re.search(r"project `\.codex/` layer is trusted", contributing)
+    assert re.search(r"exact hook definition is reviewed and trusted", contributing)
+    assert re.search(r"branch protection independently enforces", contributing)
+
+    for document in (contributing, security):
+        assert re.search(r"\bconfiguration\b", document)
+        assert re.search(
+            r"\blocal(?:ly)?\b[^.]*\bhandlers?\b|\bhandlers?\b[^.]*\blocal", document
+        )
+        assert re.search(
+            r"exact (?:hook )?definition[^.]*reviewed and trusted", document
+        )
+        assert re.search(
+            r"repository validation[^.]*\b(?:does not|cannot|but not)\b[^.]*host dispatch",
+            document,
+        )
+        assert re.search(r"branch protection[^.]*server-side", document)
+        _assert_codex_dispatch_is_trust_qualified(document)
 
 
 def test_structure_validation_rejects_a_missing_required_codex_config(

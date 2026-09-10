@@ -14,7 +14,6 @@ import importlib.util
 import json
 import os
 import re
-import shlex
 import shutil
 import stat
 import sys
@@ -191,129 +190,220 @@ _NIGHTLY_TESTS: Final = (
     "tests/test_plugin_codex_acceptance.py",
     "tests/test_plugin_codex_qualification.py",
 )
-_HERMETIC_COMMANDS: Final = (
-    ("python", "-m", "pytest", "-q", *_HERMETIC_TESTS),
-    (
-        "python",
-        "plugins/launchpad/scripts/plugin-codex-acceptance.py",
-        "check",
-        "--workflow",
-        ".github/workflows/codex-compatibility.yml",
-        "--output",
-        "${RUNNER_TEMP}/codex-acceptance.json",
+_CHECKOUT_STEP: Final[Mapping[str, object]] = {
+    "id": "checkout-source",
+    "name": "Checkout source",
+    "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+    "with": {"persist-credentials": "false"},
+}
+_SETUP_PYTHON_STEP: Final[Mapping[str, object]] = {
+    "id": "setup-python",
+    "name": "Set up Python",
+    "uses": "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+    "with": {
+        "python-version": "${{ env.PYTHON_VERSION }}",
+        "cache": "pip",
+        "cache-dependency-path": "plugins/launchpad/scripts/requirements.txt",
+    },
+}
+_SETUP_PYTHON_NO_CACHE_STEP: Final[Mapping[str, object]] = {
+    "id": "setup-python",
+    "name": "Set up Python",
+    "uses": "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+    "with": {"python-version": "${{ env.PYTHON_VERSION }}"},
+}
+_SETUP_NODE_STEP: Final[Mapping[str, object]] = {
+    "id": "setup-node",
+    "name": "Set up Node",
+    "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+    "with": {"node-version": "22"},
+}
+_INSTALL_CODEX_STEP: Final[Mapping[str, object]] = {
+    "id": "install-codex-cli",
+    "name": "Install pinned Codex CLI",
+    "run": 'npm install --global "@openai/codex@${CODEX_CLI_VERSION}"',
+}
+_INSTALL_PYTHON_STEP: Final[Mapping[str, object]] = {
+    "id": "install-python-dependencies",
+    "name": "Install hash-pinned Python dependencies",
+    "run": (
+        "python -m pip install --require-hashes -r "
+        "plugins/launchpad/scripts/requirements.txt"
     ),
+}
+_ROUTER_HOST_RECEIPT_RUN: Final = "\n".join(
     (
-        "python",
-        "plugins/launchpad/scripts/plugin-codex-qualification.py",
-        "check",
-        "--plugin-root",
-        "plugins/launchpad",
-        "--evidence",
-        "plugins/launchpad/codex/support-evidence.json",
-    ),
-    (
-        "python",
-        "plugins/launchpad/scripts/plugin-codex-support.py",
-        "render-docs",
-        "--check",
-        "--evidence",
-        "plugins/launchpad/codex/support-evidence.json",
-        "--docs-root",
-        ".",
-    ),
-    ("python", "plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py"),
+        "set -euo pipefail",
+        'probe_home="$(mktemp -d "${RUNNER_TEMP}/lp-codex-host.XXXXXX")"',
+        (
+            "python plugins/launchpad/scripts/tests/fixtures/"
+            "codex_compatibility/run_router_smoke.py \\"
+        ),
+        '  --codex-home "${probe_home}" \\',
+        '  | tee "${RUNNER_TEMP}/codex-router-host.json"',
+        (
+            "python plugins/launchpad/scripts/plugin-codex-acceptance.py "
+            "verify-router-host \\"
+        ),
+        '  --receipt "${RUNNER_TEMP}/codex-router-host.json" \\',
+        '  --codex-version "${CODEX_CLI_VERSION}"',
+    )
 )
-_PINNED_HOST_COMMANDS: Final = (
-    ("npm", "install", "--global", "@openai/codex@${CODEX_CLI_VERSION}"),
+_LIFECYCLE_HOST_RECEIPT_RUN: Final = "\n".join(
     (
-        "python",
-        "plugins/launchpad/scripts/tests/fixtures/codex_compatibility/run_router_smoke.py",
-        "--codex-home",
-        "${probe_home}",
-    ),
-    (
-        "python",
-        "plugins/launchpad/scripts/plugin-codex-acceptance.py",
-        "verify-router-host",
-        "--receipt",
-        "${RUNNER_TEMP}/codex-router-host.json",
-        "--codex-version",
-        "${CODEX_CLI_VERSION}",
-    ),
+        "set -euo pipefail",
+        'probe_home="$(mktemp -d "${RUNNER_TEMP}/lp-codex-lifecycle.XXXXXX")"',
+        (
+            "python plugins/launchpad/scripts/tests/fixtures/"
+            "codex_compatibility/run_conformance.py \\"
+        ),
+        '  --codex-home "${probe_home}" \\',
+        '  | tee "${RUNNER_TEMP}/codex-lifecycle-host.json"',
+        (
+            "python plugins/launchpad/scripts/plugin-codex-acceptance.py "
+            "verify-lifecycle-host \\"
+        ),
+        '  --receipt "${RUNNER_TEMP}/codex-lifecycle-host.json" \\',
+        '  --codex-version "${CODEX_CLI_VERSION}" \\',
+        '  --claude-version "${CLAUDE_CODE_VERSION}"',
+    )
 )
-_NIGHTLY_COMMANDS: Final = (
-    ("npm", "install", "--global", "@openai/codex@${CODEX_CLI_VERSION}"),
+_CANDIDATE_LIFECYCLE_RECEIPT_RUN: Final = "\n".join(
     (
-        "npm",
-        "install",
-        "--global",
-        "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}",
-    ),
-    ("python", "-m", "pytest", "-q", *_NIGHTLY_TESTS),
-    (
-        "python",
-        "plugins/launchpad/scripts/tests/fixtures/codex_compatibility/run_conformance.py",
-        "--codex-home",
-        "${probe_home}",
-    ),
-    (
-        "python",
-        "plugins/launchpad/scripts/plugin-codex-acceptance.py",
-        "verify-lifecycle-host",
-        "--receipt",
-        "${RUNNER_TEMP}/codex-lifecycle-host.json",
-        "--codex-version",
-        "${CODEX_CLI_VERSION}",
-        "--claude-version",
-        "${CLAUDE_CODE_VERSION}",
-    ),
-    (
-        "python",
-        "plugins/launchpad/scripts/tests/fixtures/codex_compatibility/run_candidate_lifecycle.py",
-        "--codex-home",
-        "${candidate_home}",
-    ),
-    (
-        "python",
-        "plugins/launchpad/scripts/plugin-codex-qualification.py",
-        "verify-candidate-lifecycle",
-        "--plugin-root",
-        "plugins/launchpad",
-        "--receipt",
-        "${RUNNER_TEMP}/codex-candidate-lifecycle.json",
-        "--codex-version",
-        "${CODEX_CLI_VERSION}",
-        "--claude-version",
-        "${CLAUDE_CODE_VERSION}",
-    ),
+        "set -euo pipefail",
+        'candidate_home="$(mktemp -d "${RUNNER_TEMP}/lp-codex-candidate.XXXXXX")"',
+        (
+            "python plugins/launchpad/scripts/tests/fixtures/"
+            "codex_compatibility/run_candidate_lifecycle.py \\"
+        ),
+        '  --codex-home "${candidate_home}" \\',
+        '  | tee "${RUNNER_TEMP}/codex-candidate-lifecycle.json"',
+        (
+            "python plugins/launchpad/scripts/plugin-codex-qualification.py "
+            "verify-candidate-lifecycle \\"
+        ),
+        "  --plugin-root plugins/launchpad \\",
+        '  --receipt "${RUNNER_TEMP}/codex-candidate-lifecycle.json" \\',
+        '  --codex-version "${CODEX_CLI_VERSION}" \\',
+        '  --claude-version "${CLAUDE_CODE_VERSION}"',
+    )
 )
-_SHELL_COMMAND_SEPARATORS: Final = frozenset({"\n", "|"})
-_SHELL_REJECTED_OPERATORS: Final = frozenset(
-    {";", ";;", ";&", ";;&", "&", "&&", "||", "<", "<<", "<<<", ">", ">>"}
-)
-_SHELL_REJECTED_CONTROL_WORDS: Final = frozenset(
-    {
-        "case",
-        "coproc",
-        "do",
-        "done",
-        "elif",
-        "else",
-        "esac",
-        "exit",
-        "fi",
-        "for",
-        "function",
-        "if",
-        "return",
-        "select",
-        "then",
-        "until",
-        "while",
-        "{",
-        "}",
-    }
-)
+_JOB_STEP_CONTRACTS: Final[Mapping[str, tuple[Mapping[str, object], ...]]] = {
+    "hermetic-compatibility": (
+        _CHECKOUT_STEP,
+        _SETUP_PYTHON_STEP,
+        _INSTALL_PYTHON_STEP,
+        {
+            "id": "run-compatibility-suite",
+            "name": "Run Codex compatibility acceptance suite",
+            "working-directory": "plugins/launchpad/scripts",
+            "run": "python -m pytest -q " + " ".join(_HERMETIC_TESTS),
+        },
+        {
+            "id": "generate-acceptance-report",
+            "name": "Generate Section 9 acceptance report",
+            "run": (
+                "python plugins/launchpad/scripts/plugin-codex-acceptance.py check "
+                "--workflow .github/workflows/codex-compatibility.yml "
+                '--output "${RUNNER_TEMP}/codex-acceptance.json"'
+            ),
+        },
+        {
+            "id": "verify-release-evidence",
+            "name": "Verify qualified release evidence",
+            "run": (
+                "python plugins/launchpad/scripts/plugin-codex-qualification.py "
+                "check --plugin-root plugins/launchpad --evidence "
+                "plugins/launchpad/codex/support-evidence.json"
+            ),
+        },
+        {
+            "id": "verify-generated-documentation",
+            "name": "Verify generated Codex documentation",
+            "run": (
+                "python plugins/launchpad/scripts/plugin-codex-support.py "
+                "render-docs --check --evidence "
+                "plugins/launchpad/codex/support-evidence.json --docs-root ."
+            ),
+        },
+        {
+            "id": "verify-action-sha-pins",
+            "name": "Verify workflow action SHA pins",
+            "run": "python plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py",
+        },
+    ),
+    "pinned-host": (
+        _CHECKOUT_STEP,
+        _SETUP_PYTHON_NO_CACHE_STEP,
+        _SETUP_NODE_STEP,
+        _INSTALL_CODEX_STEP,
+        {
+            "id": "verify-router-host-receipt",
+            "name": "Run isolated bare lp host smoke",
+            "run": _ROUTER_HOST_RECEIPT_RUN,
+        },
+    ),
+    "nightly-release": (
+        _CHECKOUT_STEP,
+        _SETUP_PYTHON_STEP,
+        _SETUP_NODE_STEP,
+        _INSTALL_CODEX_STEP,
+        {
+            "id": "install-claude-code",
+            "name": "Install pinned Claude Code CLI",
+            "run": (
+                'npm install --global "@anthropic-ai/claude-code@'
+                '${CLAUDE_CODE_VERSION}"'
+            ),
+        },
+        _INSTALL_PYTHON_STEP,
+        {
+            "id": "run-workflow-family-suite",
+            "name": "Re-run workflow-family cancellation and boundary tests",
+            "working-directory": "plugins/launchpad/scripts",
+            "run": "python -m pytest -q " + " ".join(_NIGHTLY_TESTS),
+        },
+        {
+            "id": "verify-lifecycle-host-receipt",
+            "name": "Run isolated lifecycle and Claude coexistence probe",
+            "run": _LIFECYCLE_HOST_RECEIPT_RUN,
+        },
+        {
+            "id": "verify-candidate-lifecycle-receipt",
+            "name": "Run exact candidate lifecycle and coexistence probe",
+            "run": _CANDIDATE_LIFECYCLE_RECEIPT_RUN,
+        },
+    ),
+}
+_JOB_METADATA_CONTRACTS: Final[Mapping[str, Mapping[str, object]]] = {
+    "hermetic-compatibility": {
+        "name": "Hermetic compatibility and whole corpus",
+        "runs-on": "ubuntu-24.04",
+        "timeout-minutes": "30",
+    },
+    "pinned-host": {
+        "name": "Pinned Codex host smoke",
+        "needs": "hermetic-compatibility",
+        "runs-on": "macos-15",
+        "timeout-minutes": "25",
+    },
+    "nightly-release": {
+        "name": "Nightly and release workflow families",
+        "if": (
+            "github.event_name == 'schedule' || "
+            "github.event_name == 'workflow_dispatch' || "
+            "startsWith(github.ref, 'refs/tags/')"
+        ),
+        "needs": ["hermetic-compatibility", "pinned-host"],
+        "runs-on": "macos-15",
+        "timeout-minutes": "45",
+    },
+}
+_WORKFLOW_ENV_CONTRACT: Final[Mapping[str, object]] = {
+    "CLAUDE_CODE_VERSION": "2.1.258",
+    "CODEX_CLI_VERSION": "0.153.4",
+    "PYTHON_VERSION": "3.13",
+}
 
 
 class _DuplicateKey(ValueError):
@@ -431,193 +521,94 @@ def _collect_uses(value: object) -> tuple[str, ...]:
     return tuple(found)
 
 
-def _job_commands(job: Mapping[str, object], field: str) -> tuple[tuple[str, ...], ...]:
+def _validate_job_contract(job: Mapping[str, object], job_id: str) -> None:
+    """Require one closed job shape and its complete ordered step contracts."""
+
+    metadata = _JOB_METADATA_CONTRACTS[job_id]
+    expected_fields = {*metadata, "steps"}
+    if set(job) != expected_fields:
+        _fail("CI_TIER_INCOMPLETE", f"{job_id} job fields differ")
+    if any(job.get(key) != expected for key, expected in metadata.items()):
+        _fail("CI_TIER_INCOMPLETE", f"{job_id} job metadata differs")
+
     steps = job.get("steps")
-    if not isinstance(steps, list) or not steps:
-        _fail("CI_TIER_INCOMPLETE", f"{field} steps are missing")
-    commands: list[tuple[str, ...]] = []
-    for step in steps:
-        if not isinstance(step, Mapping):
-            _fail("RECORD_INVALID", f"{field} step must be a mapping")
-        script = step.get("run")
-        if script is not None:
-            if not isinstance(script, str):
-                _fail("RECORD_INVALID", f"{field} run value must be a string")
-            if "if" in step:
-                _fail(
-                    "CI_TIER_INCOMPLETE",
-                    f"{field} required run steps must be unconditional",
-                )
-            if "shell" in step:
-                _fail(
-                    "CI_TIER_INCOMPLETE",
-                    f"{field} required run steps must use the default shell",
-                )
-            normalized = script.replace("\\\r\n", "").replace("\\\n", "")
-            lexer = shlex.shlex(
-                normalized,
-                posix=True,
-                punctuation_chars=";&|\n<>",
-            )
-            lexer.commenters = "#"
-            lexer.whitespace = " \t\r"
-            lexer.whitespace_split = True
-            try:
-                tokens = tuple(lexer)
-            except ValueError as exc:
-                _fail("RECORD_INVALID", f"{field} contains invalid shell syntax: {exc}")
-            current: list[str] = []
-            for token in tokens:
-                if token in _SHELL_REJECTED_OPERATORS:
-                    _fail(
-                        "CI_TIER_INCOMPLETE",
-                        f"{field} uses unsupported shell operator {token!r}",
-                    )
-                if token in _SHELL_COMMAND_SEPARATORS:
-                    if current:
-                        commands.append(tuple(current))
-                        current = []
-                    continue
-                current.append(token)
-            if current:
-                commands.append(tuple(current))
-    if any(
-        token in _SHELL_REJECTED_CONTROL_WORDS
-        for command in commands
-        for token in command
+    if not isinstance(steps, list) or any(
+        not isinstance(step, Mapping) for step in steps
     ):
-        _fail("CI_TIER_INCOMPLETE", f"{field} uses unsupported shell control flow")
-    return tuple(commands)
-
-
-def _job_needs(job: Mapping[str, object], field: str) -> frozenset[str]:
-    needs = job.get("needs")
-    if isinstance(needs, str):
-        return frozenset({needs})
-    if not isinstance(needs, list):
-        _fail("CI_TIER_INCOMPLETE", f"{field} dependencies are missing")
-    return frozenset(_string_list(needs, f"{field}.needs"))
-
-
-def _require_commands(
-    job: Mapping[str, object],
-    expected: Sequence[Sequence[str]],
-    field: str,
-) -> None:
-    actual = frozenset(_job_commands(job, field))
-    missing = sorted(
-        shlex.join(command) for command in expected if tuple(command) not in actual
-    )
-    if missing:
-        _fail("CI_TIER_INCOMPLETE", f"{field} execution missing: {missing}")
+        _fail("RECORD_INVALID", f"{job_id} steps must be a list of mappings")
+    expected_steps = _JOB_STEP_CONTRACTS[job_id]
+    expected_ids = tuple(step["id"] for step in expected_steps)
+    actual_ids = tuple(step.get("id") for step in steps)
+    if actual_ids != expected_ids:
+        _fail(
+            "CI_TIER_INCOMPLETE",
+            f"{job_id} ordered step IDs differ: {actual_ids}",
+        )
+    for step, expected in zip(steps, expected_steps, strict=True):
+        if step != expected:
+            _fail(
+                "CI_TIER_INCOMPLETE",
+                f"{job_id} step contract differs: {expected['id']}",
+            )
 
 
 def validate_workflow(path: Path = DEFAULT_WORKFLOW_PATH) -> dict[str, object]:
     """Validate trigger completeness, pinned actions, and the three CI tiers."""
 
     value = _load_workflow(path)
-    events = _mapping(value.get("on"), "on")
-    if not _REQUIRED_EVENTS.issubset(events):
-        missing = sorted(_REQUIRED_EVENTS - set(events))
-        _fail("CI_TRIGGER_INCOMPLETE", f"workflow events missing: {missing}")
-    for event_name in ("pull_request", "push"):
-        event = _mapping(events[event_name], f"on.{event_name}")
-        paths = frozenset(_string_list(event.get("paths"), f"on.{event_name}.paths"))
-        if not _REQUIRED_PROTECTED_PATHS.issubset(paths):
-            missing = sorted(_REQUIRED_PROTECTED_PATHS - paths)
-            _fail(
-                "CI_TRIGGER_INCOMPLETE",
-                f"{event_name} protected paths missing: {missing}",
-            )
-    schedule = events["schedule"]
-    if (
-        not isinstance(schedule, list)
-        or not schedule
-        or any(
-            not isinstance(item, Mapping)
-            or not isinstance(item.get("cron"), str)
-            or not item["cron"]
-            for item in schedule
-        )
-    ):
-        _fail("CI_TRIGGER_INCOMPLETE", "nightly schedule is missing")
-    pull_request = _mapping(events["pull_request"], "on.pull_request")
-    if "main" not in _string_list(
-        pull_request.get("branches"), "on.pull_request.branches"
-    ):
-        _fail("CI_TRIGGER_INCOMPLETE", "main pull request trigger is missing")
-    push = _mapping(events["push"], "on.push")
-    if "main" not in _string_list(push.get("branches"), "on.push.branches"):
-        _fail("CI_TRIGGER_INCOMPLETE", "main push trigger is missing")
-    if "v*.*.*" not in _string_list(push.get("tags"), "on.push.tags"):
-        _fail("CI_TRIGGER_INCOMPLETE", "release tag trigger is missing")
-
-    jobs = _mapping(value.get("jobs"), "jobs")
-    if not _REQUIRED_JOBS.issubset(jobs):
-        missing = sorted(_REQUIRED_JOBS - set(jobs))
-        _fail("CI_TIER_INCOMPLETE", f"compatibility jobs missing: {missing}")
-    hermetic = _mapping(jobs["hermetic-compatibility"], "jobs.hermetic-compatibility")
-    if (
-        hermetic.get("runs-on") != "ubuntu-24.04"
-        or hermetic.get("timeout-minutes") != "30"
-    ):
-        _fail("CI_TIER_INCOMPLETE", "hermetic tier host or timeout is invalid")
-    _require_commands(
-        hermetic,
-        _HERMETIC_COMMANDS,
-        "hermetic tier",
-    )
-
-    pinned = _mapping(jobs["pinned-host"], "jobs.pinned-host")
-    if pinned.get("runs-on") != "macos-15" or pinned.get("timeout-minutes") != "25":
-        _fail("CI_TIER_INCOMPLETE", "pinned host or timeout is invalid")
-    if _job_needs(pinned, "jobs.pinned-host") != {"hermetic-compatibility"}:
-        _fail("CI_TIER_INCOMPLETE", "pinned host dependency is invalid")
-    _require_commands(
-        pinned,
-        _PINNED_HOST_COMMANDS,
-        "pinned host tier",
-    )
-    nightly = _mapping(jobs["nightly-release"], "jobs.nightly-release")
-    if nightly.get("runs-on") != "macos-15" or nightly.get("timeout-minutes") != "45":
-        _fail("CI_TIER_INCOMPLETE", "nightly/release host or timeout is invalid")
-    if _job_needs(nightly, "jobs.nightly-release") != {
-        "hermetic-compatibility",
-        "pinned-host",
-    }:
-        _fail("CI_TIER_INCOMPLETE", "nightly/release dependencies are invalid")
-    condition = nightly.get("if")
-    if not isinstance(condition, str) or not all(
-        marker in condition
-        for marker in ("schedule", "workflow_dispatch", "refs/tags/")
-    ):
-        _fail("CI_TIER_INCOMPLETE", "nightly/release condition is incomplete")
-    _require_commands(
-        nightly,
-        _NIGHTLY_COMMANDS,
-        "nightly/release tier",
-    )
-
-    concurrency = _mapping(value.get("concurrency"), "concurrency")
-    if concurrency.get("cancel-in-progress") != "true":
-        _fail("CI_TIER_INCOMPLETE", "workflow cancellation must be enabled")
-
-    environment = _mapping(value.get("env"), "env")
-    version_patterns = {
-        "CODEX_CLI_VERSION": re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$"),
-        "CLAUDE_CODE_VERSION": re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$"),
-        "PYTHON_VERSION": re.compile(r"^[0-9]+\.[0-9]+$"),
-    }
-    for key, pattern in version_patterns.items():
-        item = environment.get(key)
-        if not isinstance(item, str) or not pattern.fullmatch(item):
-            _fail("CI_TIER_INCOMPLETE", f"workflow pin {key} is missing")
-    if value.get("permissions") != {}:
-        _fail("CI_TIER_INCOMPLETE", "workflow top-level permissions must be empty")
+    if set(value) != {"name", "on", "permissions", "env", "concurrency", "jobs"}:
+        _fail("CI_TIER_INCOMPLETE", "workflow top-level fields differ")
+    if value.get("name") != "Codex compatibility":
+        _fail("CI_TIER_INCOMPLETE", "workflow name differs")
     uses = _collect_uses(value)
     unpinned = sorted(item for item in uses if not _PINNED_ACTION_RE.fullmatch(item))
     if unpinned:
         _fail("CI_ACTION_UNPINNED", f"workflow actions are not SHA-pinned: {unpinned}")
+    events = _mapping(value.get("on"), "on")
+    if set(events) != _REQUIRED_EVENTS:
+        _fail("CI_TRIGGER_INCOMPLETE", "workflow event fields differ")
+    pull_request = _mapping(events["pull_request"], "on.pull_request")
+    push = _mapping(events["push"], "on.push")
+    if set(pull_request) != {"branches", "paths"} or set(push) != {
+        "branches",
+        "paths",
+        "tags",
+    }:
+        _fail("CI_TRIGGER_INCOMPLETE", "push or pull request fields differ")
+    if _string_list(pull_request.get("branches"), "on.pull_request.branches") != (
+        "main",
+    ) or _string_list(push.get("branches"), "on.push.branches") != ("main",):
+        _fail("CI_TRIGGER_INCOMPLETE", "main branch triggers differ")
+    if _string_list(push.get("tags"), "on.push.tags") != ("v*.*.*",):
+        _fail("CI_TRIGGER_INCOMPLETE", "release tag trigger differs")
+    for event_name, event in (("pull_request", pull_request), ("push", push)):
+        paths = frozenset(_string_list(event.get("paths"), f"on.{event_name}.paths"))
+        if paths != _REQUIRED_PROTECTED_PATHS:
+            _fail("CI_TRIGGER_INCOMPLETE", f"{event_name} protected paths differ")
+    if events["schedule"] != [{"cron": "23 5 * * *"}]:
+        _fail("CI_TRIGGER_INCOMPLETE", "nightly schedule differs")
+    if events["workflow_dispatch"] != "":
+        _fail("CI_TRIGGER_INCOMPLETE", "workflow dispatch contract differs")
+
+    jobs = _mapping(value.get("jobs"), "jobs")
+    if set(jobs) != _REQUIRED_JOBS:
+        _fail("CI_TIER_INCOMPLETE", "compatibility job fields differ")
+    for job_id in _JOB_STEP_CONTRACTS:
+        job = _mapping(jobs[job_id], f"jobs.{job_id}")
+        _validate_job_contract(job, job_id)
+
+    concurrency = _mapping(value.get("concurrency"), "concurrency")
+    if concurrency != {
+        "group": "codex-compatibility-${{ github.workflow }}-${{ github.ref }}",
+        "cancel-in-progress": "true",
+    }:
+        _fail("CI_TIER_INCOMPLETE", "workflow concurrency contract differs")
+
+    environment = _mapping(value.get("env"), "env")
+    if environment != _WORKFLOW_ENV_CONTRACT:
+        _fail("CI_TIER_INCOMPLETE", "workflow environment contract differs")
+    if value.get("permissions") != {}:
+        _fail("CI_TIER_INCOMPLETE", "workflow top-level permissions must be empty")
     serialized = _canonical_json(value)
     forbidden = (b"continue-on-error", b"$" + b"launchpad:")
     if any(item in serialized for item in forbidden):

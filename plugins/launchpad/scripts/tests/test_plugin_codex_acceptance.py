@@ -72,6 +72,83 @@ def test_compatibility_workflow_covers_all_tiers_paths_and_pinned_actions() -> N
     }
     assert result["sha_pinned_actions"] == 8
 
+    workflow = acceptance._load_workflow(WORKFLOW_PATH)
+    jobs = workflow["jobs"]
+    assert {
+        job_id: tuple(step["id"] for step in jobs[job_id]["steps"])
+        for job_id in acceptance._JOB_STEP_CONTRACTS
+    } == {
+        job_id: tuple(step["id"] for step in expected)
+        for job_id, expected in acceptance._JOB_STEP_CONTRACTS.items()
+    }
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    (
+        (
+            "permissions: {}\n",
+            "permissions: {}\n\ndefaults:\n  run:\n    shell: bash -n {0}\n",
+        ),
+        (
+            '  PYTHON_VERSION: "3.13"\n',
+            '  PYTHON_VERSION: "3.13"\n  BASH_ENV: ./skip-gates.sh\n',
+        ),
+        (
+            '  CODEX_CLI_VERSION: "0.153.4"\n',
+            '  CODEX_CLI_VERSION: "0.153.5"\n',
+        ),
+        (
+            "name: Codex compatibility\n",
+            "name: Codex compatibility bypass\n",
+        ),
+        (
+            "  cancel-in-progress: true\n",
+            "  cancel-in-progress: false\n",
+        ),
+        (
+            "  pull_request:\n    branches: [main]\n",
+            "  pull_request:\n    branches: [main]\n    types: [closed]\n",
+        ),
+        (
+            "  pull_request:\n    branches: [main]\n",
+            "  pull_request:\n    branches: [main]\n    paths-ignore: ['**']\n",
+        ),
+        (
+            '    - cron: "23 5 * * *"\n',
+            '    - cron: "23 5 * * 1"\n',
+        ),
+    ),
+)
+def test_workflow_rejects_outer_execution_and_trigger_modifiers(
+    old: str,
+    new: str,
+    tmp_path: Path,
+) -> None:
+    source = WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert source.count(old) == 1
+    candidate = tmp_path / "workflow.yml"
+    candidate.write_text(source.replace(old, new, 1), encoding="utf-8")
+    with pytest.raises(acceptance.AcceptanceError) as raised:
+        acceptance.validate_workflow(candidate)
+    assert raised.value.code in {"CI_TIER_INCOMPLETE", "CI_TRIGGER_INCOMPLETE"}
+
+
+def test_workflow_rejects_an_extra_job(tmp_path: Path) -> None:
+    source = WORKFLOW_PATH.read_text(encoding="utf-8")
+    candidate = tmp_path / "workflow.yml"
+    candidate.write_text(
+        source
+        + "\n  rewrite-before-gates:\n"
+        + "    runs-on: ubuntu-24.04\n"
+        + "    steps:\n"
+        + "      - run: true\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(acceptance.AcceptanceError) as raised:
+        acceptance.validate_workflow(candidate)
+    assert raised.value.code == "CI_TIER_INCOMPLETE"
+
 
 @pytest.mark.parametrize("event_name", ("pull_request", "push"))
 @pytest.mark.parametrize("protected_path", sorted(acceptance._REQUIRED_PROTECTED_PATHS))
@@ -128,9 +205,45 @@ def test_workflow_rejects_unpinned_action_and_gate_bypass(tmp_path: Path) -> Non
         '        run: echo "python plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py"\n',
         '        run: \': "python plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py"\'\n',
         "        run: true || python plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py\n",
+        (
+            "        run: |-\n"
+            "          exec true\n"
+            "          python plugins/launchpad/scripts/"
+            "plugin-workflow-sha-pin-check.py\n"
+        ),
+        (
+            "        run: python plugins/launchpad/scripts/"
+            "plugin-workflow-sha-pin-check.py | true\n"
+        ),
+        (
+            "        run: |-\n"
+            "          set +e\n"
+            "          python plugins/launchpad/scripts/"
+            "plugin-workflow-sha-pin-check.py\n"
+            "          true\n"
+        ),
+        (
+            "        run: BYPASS=1 python plugins/launchpad/scripts/"
+            "plugin-workflow-sha-pin-check.py\n"
+        ),
+        (
+            "        run: python plugins/launchpad/scripts/"
+            "plugin-workflow-sha-pin-check.py > /dev/null\n"
+        ),
         "        run: python plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py --no-op\n",
         (
             "        if: false\n"
+            "        run: python "
+            "plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py\n"
+        ),
+        (
+            "        continue-on-error: true\n"
+            "        run: python "
+            "plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py\n"
+        ),
+        (
+            "        env:\n"
+            "          BASH_ENV: ./skip-gates.sh\n"
             "        run: python "
             "plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py\n"
         ),
@@ -153,6 +266,233 @@ def test_workflow_execution_commands_cannot_be_comments_or_no_ops(
     assert source.count(required) == 1
     candidate = tmp_path / "workflow.yml"
     candidate.write_text(source.replace(required, replacement), encoding="utf-8")
+    with pytest.raises(acceptance.AcceptanceError) as raised:
+        acceptance.validate_workflow(candidate)
+    assert raised.value.code == "CI_TIER_INCOMPLETE"
+
+
+@pytest.mark.parametrize(
+    "modifier",
+    (
+        "    defaults:\n      run:\n        shell: bash -n {0}\n",
+        "    env:\n      BASH_ENV: ./skip-gates.sh\n",
+        "    container: alpine:latest\n",
+        "    continue-on-error: true\n",
+    ),
+)
+def test_workflow_rejects_job_execution_modifiers(
+    modifier: str,
+    tmp_path: Path,
+) -> None:
+    source = WORKFLOW_PATH.read_text(encoding="utf-8")
+    marker = "    timeout-minutes: 30\n    steps:\n"
+    assert source.count(marker) == 1
+    candidate = tmp_path / "workflow.yml"
+    candidate.write_text(
+        source.replace(marker, f"    timeout-minutes: 30\n{modifier}    steps:\n"),
+        encoding="utf-8",
+    )
+    with pytest.raises(acceptance.AcceptanceError) as raised:
+        acceptance.validate_workflow(candidate)
+    assert raised.value.code == "CI_TIER_INCOMPLETE"
+
+
+@pytest.mark.parametrize(
+    "modifier",
+    (
+        "        if: always()\n",
+        "        continue-on-error: true\n",
+        "        shell: bash -n {0}\n",
+        "        env:\n          BASH_ENV: ./skip-gates.sh\n",
+    ),
+)
+def test_workflow_rejects_action_step_execution_modifiers(
+    modifier: str,
+    tmp_path: Path,
+) -> None:
+    source = WORKFLOW_PATH.read_text(encoding="utf-8")
+    marker = "      - id: checkout-source\n        name: Checkout source\n"
+    assert source.count(marker) == 3
+    candidate = tmp_path / "workflow.yml"
+    candidate.write_text(
+        source.replace(
+            marker,
+            "      - id: checkout-source\n" + modifier + "        name: Checkout source\n",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(acceptance.AcceptanceError) as raised:
+        acceptance.validate_workflow(candidate)
+    assert raised.value.code == "CI_TIER_INCOMPLETE"
+
+
+@pytest.mark.parametrize("mutation", ("extra", "duplicate", "reordered"))
+def test_workflow_rejects_extra_duplicate_or_reordered_steps(
+    mutation: str,
+    tmp_path: Path,
+) -> None:
+    source = WORKFLOW_PATH.read_text(encoding="utf-8")
+    if mutation == "extra":
+        marker = "    steps:\n      - id: checkout-source\n"
+        source = source.replace(
+            marker,
+            "    steps:\n"
+            "      - id: rewrite-gates\n"
+            "        name: Rewrite gates before checkout\n"
+            "        run: exec true\n"
+            "      - id: checkout-source\n",
+            1,
+        )
+    elif mutation == "duplicate":
+        source = source.replace(
+            "      - id: setup-python\n",
+            "      - id: checkout-source\n",
+            1,
+        )
+    else:
+        source = source.replace(
+            "      - id: checkout-source\n",
+            "      - id: swap-step-id\n",
+            1,
+        )
+        source = source.replace(
+            "      - id: setup-python\n",
+            "      - id: checkout-source\n",
+            1,
+        )
+        source = source.replace(
+            "      - id: swap-step-id\n",
+            "      - id: setup-python\n",
+            1,
+        )
+    candidate = tmp_path / "workflow.yml"
+    candidate.write_text(source, encoding="utf-8")
+    with pytest.raises(acceptance.AcceptanceError) as raised:
+        acceptance.validate_workflow(candidate)
+    assert raised.value.code == "CI_TIER_INCOMPLETE"
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    (
+        (
+            "        working-directory: plugins/launchpad/scripts\n",
+            "        working-directory: .\n",
+        ),
+        (
+            "        working-directory: plugins/launchpad/scripts\n",
+            "",
+        ),
+    ),
+)
+def test_workflow_rejects_changed_or_missing_working_directory(
+    old: str,
+    new: str,
+    tmp_path: Path,
+) -> None:
+    source = WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert source.count(old) == 2
+    candidate = tmp_path / "workflow.yml"
+    candidate.write_text(source.replace(old, new, 1), encoding="utf-8")
+    with pytest.raises(acceptance.AcceptanceError) as raised:
+        acceptance.validate_workflow(candidate)
+    assert raised.value.code == "CI_TIER_INCOMPLETE"
+
+
+@pytest.mark.parametrize(
+    "replacement",
+    (
+        (
+            "        run: |-\n"
+            "          exec true\n"
+            "          python plugins/launchpad/scripts/plugin-codex-support.py "
+            "render-docs --check --evidence "
+            "plugins/launchpad/codex/support-evidence.json --docs-root .\n"
+        ),
+        (
+            "        run: >-\n"
+            "          BYPASS=1 python "
+            "plugins/launchpad/scripts/plugin-codex-support.py render-docs\n"
+            "          --check\n"
+            "          --evidence plugins/launchpad/codex/support-evidence.json\n"
+            "          --docs-root .\n"
+        ),
+        (
+            "        run: >-\n"
+            "          python plugins/launchpad/scripts/"
+            "plugin-codex-support.py render-docs\n"
+            "          --check\n"
+            "          --evidence plugins/launchpad/codex/support-evidence.json\n"
+            "          --docs-root . | true\n"
+        ),
+        (
+            "        run: >-\n"
+            "          python plugins/launchpad/scripts/"
+            "plugin-codex-support.py render-docs\n"
+            "          --check\n"
+            "          --evidence plugins/launchpad/codex/support-evidence.json\n"
+            "          --docs-root . > /dev/null\n"
+        ),
+        (
+            "        run: |-\n"
+            "          set +e\n"
+            "          python plugins/launchpad/scripts/plugin-codex-support.py "
+            "render-docs --check --evidence "
+            "plugins/launchpad/codex/support-evidence.json --docs-root .\n"
+            "          true\n"
+        ),
+    ),
+)
+def test_render_docs_gate_is_exactly_one_unmodified_command(
+    replacement: str,
+    tmp_path: Path,
+) -> None:
+    source = WORKFLOW_PATH.read_text(encoding="utf-8")
+    required = (
+        "        run: >-\n"
+        "          python plugins/launchpad/scripts/"
+        "plugin-codex-support.py render-docs\n"
+        "          --check\n"
+        "          --evidence plugins/launchpad/codex/support-evidence.json\n"
+        "          --docs-root .\n"
+    )
+    assert source.count(required) == 1
+    candidate = tmp_path / "workflow.yml"
+    candidate.write_text(source.replace(required, replacement), encoding="utf-8")
+    with pytest.raises(acceptance.AcceptanceError) as raised:
+        acceptance.validate_workflow(candidate)
+    assert raised.value.code == "CI_TIER_INCOMPLETE"
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    (
+        ("          set -euo pipefail\n", "          set +e\n"),
+        (
+            '            | tee "${RUNNER_TEMP}/codex-router-host.json"\n',
+            '            | tee "${RUNNER_TEMP}/codex-router-host.json" | true\n',
+        ),
+        (
+            '            --codex-version "${CODEX_CLI_VERSION}"\n',
+            '            --codex-version "${CODEX_CLI_VERSION}"\n'
+            "          true\n",
+        ),
+        (
+            "          set -euo pipefail\n",
+            "          set -euo pipefail\n          # skip the receipt probe\n",
+        ),
+    ),
+)
+def test_host_receipt_run_body_is_exact(
+    old: str,
+    new: str,
+    tmp_path: Path,
+) -> None:
+    source = WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert old in source
+    candidate = tmp_path / "workflow.yml"
+    candidate.write_text(source.replace(old, new, 1), encoding="utf-8")
     with pytest.raises(acceptance.AcceptanceError) as raised:
         acceptance.validate_workflow(candidate)
     assert raised.value.code == "CI_TIER_INCOMPLETE"

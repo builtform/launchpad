@@ -83,22 +83,26 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - name: Checkout source
+      - id: checkout-source
+        name: Checkout source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Set up Python
+      - id: setup-python
+        name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
           cache-dependency-path: plugins/launchpad/scripts/requirements.txt
 
-      - name: Install hash-pinned Python dependencies
+      - id: install-python-dependencies
+        name: Install hash-pinned Python dependencies
         run: python -m pip install --require-hashes -r plugins/launchpad/scripts/requirements.txt
 
-      - name: Run Codex compatibility acceptance suite
+      - id: run-compatibility-suite
+        name: Run Codex compatibility acceptance suite
         working-directory: plugins/launchpad/scripts
         run: >-
           python -m pytest -q
@@ -114,28 +118,30 @@ jobs:
           tests/test_plugin_codex_acceptance.py
           tests/test_plugin_codex_qualification.py
 
-      - name: Generate and verify Section 9 acceptance report
-        run: |
-          set -euo pipefail
-          python plugins/launchpad/scripts/plugin-codex-acceptance.py check \
-            --workflow .github/workflows/codex-compatibility.yml \
-            --output "${RUNNER_TEMP}/codex-acceptance.json"
-          python -m json.tool "${RUNNER_TEMP}/codex-acceptance.json"
+      - id: generate-acceptance-report
+        name: Generate Section 9 acceptance report
+        run: >-
+          python plugins/launchpad/scripts/plugin-codex-acceptance.py check
+          --workflow .github/workflows/codex-compatibility.yml
+          --output "${RUNNER_TEMP}/codex-acceptance.json"
 
-      - name: Verify qualified release evidence
+      - id: verify-release-evidence
+        name: Verify qualified release evidence
         run: >-
           python plugins/launchpad/scripts/plugin-codex-qualification.py check
           --plugin-root plugins/launchpad
           --evidence plugins/launchpad/codex/support-evidence.json
 
-      - name: Verify generated Codex documentation
+      - id: verify-generated-documentation
+        name: Verify generated Codex documentation
         run: >-
           python plugins/launchpad/scripts/plugin-codex-support.py render-docs
           --check
           --evidence plugins/launchpad/codex/support-evidence.json
           --docs-root .
 
-      - name: Verify workflow action SHA pins
+      - id: verify-action-sha-pins
+        name: Verify workflow action SHA pins
         run: python plugins/launchpad/scripts/plugin-workflow-sha-pin-check.py
 
   pinned-host:
@@ -144,26 +150,31 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 25
     steps:
-      - name: Checkout source
+      - id: checkout-source
+        name: Checkout source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Set up Python
+      - id: setup-python
+        name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Set up Node
+      - id: setup-node
+        name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22"
 
-      - name: Install pinned Codex CLI
+      - id: install-codex-cli
+        name: Install pinned Codex CLI
         run: npm install --global "@openai/codex@${CODEX_CLI_VERSION}"
 
-      - name: Run isolated bare lp host smoke
-        run: |
+      - id: verify-router-host-receipt
+        name: Run isolated bare lp host smoke
+        run: |-
           set -euo pipefail
           probe_home="$(mktemp -d "${RUNNER_TEMP}/lp-codex-host.XXXXXX")"
           python plugins/launchpad/scripts/tests/fixtures/codex_compatibility/run_router_smoke.py \
@@ -183,31 +194,40 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 45
     steps:
-      - name: Checkout source
+      - id: checkout-source
+        name: Checkout source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Set up Python
+      - id: setup-python
+        name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
           cache-dependency-path: plugins/launchpad/scripts/requirements.txt
 
-      - name: Set up Node
+      - id: setup-node
+        name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22"
 
-      - name: Install pinned host CLIs and Python dependencies
-        run: |
-          set -euo pipefail
-          npm install --global "@openai/codex@${CODEX_CLI_VERSION}"
-          npm install --global "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
-          python -m pip install --require-hashes -r plugins/launchpad/scripts/requirements.txt
+      - id: install-codex-cli
+        name: Install pinned Codex CLI
+        run: npm install --global "@openai/codex@${CODEX_CLI_VERSION}"
 
-      - name: Re-run workflow-family cancellation and boundary tests
+      - id: install-claude-code
+        name: Install pinned Claude Code CLI
+        run: npm install --global "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+
+      - id: install-python-dependencies
+        name: Install hash-pinned Python dependencies
+        run: python -m pip install --require-hashes -r plugins/launchpad/scripts/requirements.txt
+
+      - id: run-workflow-family-suite
+        name: Re-run workflow-family cancellation and boundary tests
         working-directory: plugins/launchpad/scripts
         run: >-
           python -m pytest -q
@@ -217,8 +237,9 @@ jobs:
           tests/test_plugin_codex_acceptance.py
           tests/test_plugin_codex_qualification.py
 
-      - name: Run isolated lifecycle and Claude coexistence probe
-        run: |
+      - id: verify-lifecycle-host-receipt
+        name: Run isolated lifecycle and Claude coexistence probe
+        run: |-
           set -euo pipefail
           probe_home="$(mktemp -d "${RUNNER_TEMP}/lp-codex-lifecycle.XXXXXX")"
           python plugins/launchpad/scripts/tests/fixtures/codex_compatibility/run_conformance.py \
@@ -229,8 +250,9 @@ jobs:
             --codex-version "${CODEX_CLI_VERSION}" \
             --claude-version "${CLAUDE_CODE_VERSION}"
 
-      - name: Run exact candidate lifecycle and coexistence probe
-        run: |
+      - id: verify-candidate-lifecycle-receipt
+        name: Run exact candidate lifecycle and coexistence probe
+        run: |-
           set -euo pipefail
           candidate_home="$(mktemp -d "${RUNNER_TEMP}/lp-codex-candidate.XXXXXX")"
           python plugins/launchpad/scripts/tests/fixtures/codex_compatibility/run_candidate_lifecycle.py \

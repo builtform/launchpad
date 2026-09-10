@@ -140,13 +140,13 @@ Multi-agent review findings are scored 0.00 to 1.00 with a 0.60 threshold. Findi
 
 ### Multi-layer merge prevention
 
-Three layers prevent unsafe merges, and the project assumes all three are active:
+Three layers reduce unsafe merges, with Codex host dispatch subject to its own trust gates:
 
 1. Commands refuse to run `gh pr merge` and `git merge main`
-2. Project-level Claude and Codex `PreToolUse` configuration invokes the canonical policy in `.claude/hooks/block-merges.sh`
-3. GitHub branch protection backs the rule server-side
+2. Project-level Claude and Codex `PreToolUse` configuration points to the canonical policy in `.claude/hooks/block-merges.sh`. The configuration and handlers are locally validated. Codex host dispatch occurs only after the project `.codex/` layer is trusted and the exact hook definition is reviewed and trusted. Repository validation does not attest that host dispatch occurred.
+3. GitHub branch protection independently enforces the rule server-side, regardless of local hook dispatch
 
-PRs that weaken any of these layers — including bypassing the hook — will be rejected. The `--no-verify` flag is never acceptable; if a hook is broken, fix the hook.
+PRs that weaken any of these protections, including the configuration, handler, trust boundary, or branch rule, will be rejected. The `--no-verify` flag is never acceptable; fix the underlying hook failure.
 
 ### Plugin-first, template-second
 
