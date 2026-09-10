@@ -1,0 +1,31 @@
+{
+  "description": "Portable Codex project hooks for LaunchPad repository policy and session hydration.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "^(startup|clear)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/scripts/agent_hydration/hydrate.sh\"",
+            "timeout": 30,
+            "statusMessage": "Loading LaunchPad project context"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/block-merges.sh\"",
+            "timeout": 30,
+            "statusMessage": "Checking LaunchPad repository policy"
+          }
+        ]
+      }
+    ]
+  }
+}

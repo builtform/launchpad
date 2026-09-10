@@ -35,6 +35,7 @@
 ```
 /
 ├── .claude-plugin/          # Marketplace manifest (marketplace.json) — points at plugins/launchpad/
+├── .codex/                  # Codex project hooks for repository policy and hydration
 ├── plugins/launchpad/       # One canonical LaunchPad kernel plus host adapters
 │   ├── .claude-plugin/      # Claude manifest
 │   ├── .codex-plugin/       # Codex manifest projected from shared metadata

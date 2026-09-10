@@ -1,6 +1,6 @@
 # Repository Structure & File Placement
 
-**Last Updated**: 2026-05-02
+**Last Updated**: 2026-09-09
 **Status**: Active
 **Version**: 2.0
 
@@ -62,6 +62,7 @@ Note: v2.1 (BL-247) decommissioned the `*.template.*` root files. The v2.x kerne
 | `.github/`                                              | GitHub Actions, issue/PR templates                                           |
 | `.vscode/`                                              | Shared editor settings                                                       |
 | `.claude/`                                              | Project-local Claude config (hooks/, settings.json, Prompts/, profiles/)     |
+| `.codex/`                                               | Project-local Codex lifecycle hooks for repository policy and hydration      |
 | `.launchpad/`                                           | Harness metadata — agent lists, secret patterns (upstream-synced)            |
 | `.harness/`                                             | Runtime artifacts — todos, observations, design artifacts                    |
 | `node_modules/`, `.turbo/`, `.next/`, `dist/`, `build/` | Build/cache artifacts (gitignored)                                           |
@@ -196,6 +197,9 @@ docs/                                        # See Decision Tree (Section 6.1) f
 ├── profiles/                                # Cognitive profiles
 ├── settings.json                            # Project-level hooks (committed)
 └── settings.local.json                      # Local settings (gitignored)
+
+.codex/
+└── hooks.json                               # Portable project-local Codex lifecycle hooks
 
 .harness/                                    # Runtime workspace — everything ephemeral except harness.local.md
 ├── harness.local.md                         # ONLY tracked file — project review/design context for agents
@@ -428,7 +432,7 @@ Walk through in order. Stop at the first match.
 
 Create `packages/<name>/` with `package.json` (`@repo/<name>`), `tsconfig.json`, `src/index.ts`. Never under `apps/`.
 
-### 6.13 Claude Code agent, command, or skill
+### 6.13 Agent, command, skill, or host configuration
 
 - Agent → `plugins/launchpad/agents/<namespace>/<name>.md`
 - Command → `plugins/launchpad/commands/<name>.md`
@@ -438,6 +442,7 @@ Create `packages/<name>/` with `package.json` (`@repo/<name>`), `tsconfig.json`,
 - Skill evals → `plugins/launchpad/skills/<skill-name>/evals/`
 - Prompt template → `.claude/Prompts/` (project-local, not plugin content)
 - Profile → `.claude/profiles/` (project-local, not plugin content)
+- Codex project lifecycle hooks → `.codex/hooks.json` (project-local, not plugin content). Resolve tracked scripts from the Git root. Do not use user-specific absolute paths or Claude-only environment variables.
 
 Codex does not own a parallel command or agent tree. Its sealed package projects the reachable canonical closure under `codex/canonical/` and exposes only `.codex-plugin/plugin.json` plus `codex/skills/lp/SKILL.md` as active discovery surfaces. New canonical definitions must not create per-command Codex wrappers.
 

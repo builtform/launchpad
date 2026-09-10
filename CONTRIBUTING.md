@@ -143,7 +143,7 @@ Multi-agent review findings are scored 0.00 to 1.00 with a 0.60 threshold. Findi
 Three layers prevent unsafe merges, and the project assumes all three are active:
 
 1. Commands refuse to run `gh pr merge` and `git merge main`
-2. A `PreToolUse` hook intercepts those commands at the tool level (file: `.claude/hooks/block-merges.sh`)
+2. Project-level Claude and Codex `PreToolUse` configuration invokes the canonical policy in `.claude/hooks/block-merges.sh`
 3. GitHub branch protection backs the rule server-side
 
 PRs that weaken any of these layers — including bypassing the hook — will be rejected. The `--no-verify` flag is never acceptable; if a hook is broken, fix the hook.

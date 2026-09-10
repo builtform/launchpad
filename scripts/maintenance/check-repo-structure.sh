@@ -133,6 +133,7 @@ ALLOWED_DIRS=(
   ".github"
   ".vscode"
   ".claude"
+  ".codex"
   ".harness"
   ".launchpad"
   "node_modules"
@@ -415,6 +416,114 @@ if [ -f "$AGENTS_YML" ]; then
   fi
 else
   echo "   ⚠️  No .launchpad/agents.yml found (skipping)"
+fi
+
+echo ""
+
+# ============================================================================
+# Check 7: Codex Project Hook Contract
+# ============================================================================
+echo "📋 Validating Codex project hooks..."
+
+CODEX_HOOKS="$REPO_ROOT/.codex/hooks.json"
+CODEX_HOOK_ERRORS=""
+
+if [ -f "$CODEX_HOOKS" ]; then
+  if ! python3 - "$CODEX_HOOKS" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+    raise SystemExit(f"invalid .codex/hooks.json: {exc}") from exc
+
+hooks = payload.get("hooks")
+if not isinstance(hooks, dict):
+    raise SystemExit(".codex/hooks.json must contain a hooks object")
+
+if set(hooks) != {"PreToolUse", "SessionStart"}:
+    raise SystemExit(
+        ".codex/hooks.json must expose only PreToolUse and SessionStart"
+    )
+
+session = hooks.get("SessionStart")
+pre_tool = hooks.get("PreToolUse")
+if not isinstance(session, list) or len(session) != 1:
+    raise SystemExit("SessionStart must contain exactly one matcher group")
+if not isinstance(pre_tool, list) or len(pre_tool) != 1:
+    raise SystemExit("PreToolUse must contain exactly one matcher group")
+
+expected = (
+    (
+        session[0],
+        "^(startup|clear)$",
+        'bash "$(git rev-parse --show-toplevel)/scripts/agent_hydration/hydrate.sh"',
+    ),
+    (
+        pre_tool[0],
+        "^Bash$",
+        'bash "$(git rev-parse --show-toplevel)/.claude/hooks/block-merges.sh"',
+    ),
+)
+
+for group, matcher, command in expected:
+    if not isinstance(group, dict) or group.get("matcher") != matcher:
+        raise SystemExit(f"Codex hook matcher must be {matcher!r}")
+    handlers = group.get("hooks")
+    if not isinstance(handlers, list) or len(handlers) != 1:
+        raise SystemExit(f"Codex hook {matcher!r} must have exactly one handler")
+    handler = handlers[0]
+    if not isinstance(handler, dict) or handler.get("type") != "command":
+        raise SystemExit(f"Codex hook {matcher!r} must use a command handler")
+    if handler.get("command") != command:
+        raise SystemExit(f"Codex hook {matcher!r} command is not portable")
+
+serialized = json.dumps(payload, sort_keys=True)
+for forbidden in ("/Users/", "CLAUDE_PROJECT_DIR", "CLAUDE_TOOL_"):
+    if forbidden in serialized:
+        raise SystemExit(f"Codex hook config contains forbidden token: {forbidden}")
+PY
+  then
+    CODEX_HOOK_ERRORS="invalid or non-portable .codex/hooks.json"
+  fi
+
+  if [ -e "$REPO_ROOT/.codex/hooks/block-merges.sh" ]; then
+    CODEX_HOOK_ERRORS="${CODEX_HOOK_ERRORS:+$CODEX_HOOK_ERRORS; }duplicate merge hook exists under .codex/hooks/"
+  fi
+
+  if [ ! -x "$REPO_ROOT/.claude/hooks/block-merges.sh" ]; then
+    CODEX_HOOK_ERRORS="${CODEX_HOOK_ERRORS:+$CODEX_HOOK_ERRORS; }canonical merge hook is missing or not executable"
+  fi
+
+  if [ ! -f "$REPO_ROOT/scripts/agent_hydration/hydrate.sh" ]; then
+    CODEX_HOOK_ERRORS="${CODEX_HOOK_ERRORS:+$CODEX_HOOK_ERRORS; }hydration script is missing"
+  fi
+
+  set +e
+  printf '%s' '{"tool_input":{"command":"git merge main"}}' | \
+    bash "$REPO_ROOT/.claude/hooks/block-merges.sh" >/dev/null 2>&1
+  BLOCK_STATUS=$?
+  printf '%s' '{"tool_input":{"command":"git merge origin/main"}}' | \
+    bash "$REPO_ROOT/.claude/hooks/block-merges.sh" >/dev/null 2>&1
+  ALLOW_STATUS=$?
+  set -e
+
+  if [ "$BLOCK_STATUS" -ne 2 ] || [ "$ALLOW_STATUS" -ne 0 ]; then
+    CODEX_HOOK_ERRORS="${CODEX_HOOK_ERRORS:+$CODEX_HOOK_ERRORS; }canonical merge hook contract failed"
+  fi
+
+  if [ -n "$CODEX_HOOK_ERRORS" ]; then
+    echo "   ❌ $CODEX_HOOK_ERRORS"
+    ERRORS=$((ERRORS + 1))
+  else
+    echo "   ✅ Codex project hooks are portable and policy-aligned"
+  fi
+else
+  echo "   ⚠️  No .codex/hooks.json found (skipping)"
 fi
 
 echo ""

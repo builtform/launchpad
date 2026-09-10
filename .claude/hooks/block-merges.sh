@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # PreToolUse hook: blocks merge, force-push, and approve commands.
-# Claude Code passes tool input as JSON on stdin.
+# Claude Code and Codex pass compatible tool input as JSON on stdin.
 # Exit 0 = allow, Exit 2 = block.
 
 INPUT=$(cat) || true

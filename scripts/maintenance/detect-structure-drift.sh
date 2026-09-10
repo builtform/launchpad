@@ -12,6 +12,7 @@
 #   - docs/*/           (new doc categories)
 #   - scripts/*/        (new script categories)
 #   - .claude/*/        (new Claude config directories)
+#   - .codex/*/         (new Codex config directories)
 #
 # Does NOT do phantom detection (directories in doc but not on disk).
 
@@ -76,6 +77,7 @@ scan_for_undocumented "packages" "packages/"
 scan_for_undocumented "docs" "docs/"
 scan_for_undocumented "scripts" "scripts/"
 scan_for_undocumented ".claude" ".claude/"
+scan_for_undocumented ".codex" ".codex/"
 
 # Scan second-level: apps/*/src/*
 for app_dir in "$REPO_ROOT"/apps/*/; do
@@ -98,5 +100,5 @@ cat > "$DRIFT_REPORT" << EOF
 ${#UNDOCUMENTED[@]} undocumented $([ ${#UNDOCUMENTED[@]} -eq 1 ] && echo "directory" || echo "directories"):
 $(printf -- '- \`%s\`\n' "${UNDOCUMENTED[@]}")
 
-Tell Claude to update \`docs/architecture/REPOSITORY_STRUCTURE.md\`.
+Tell your coding agent to update \`docs/architecture/REPOSITORY_STRUCTURE.md\`.
 EOF

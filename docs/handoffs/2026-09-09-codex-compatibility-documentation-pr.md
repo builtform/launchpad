@@ -147,6 +147,6 @@ The documentation PR must preserve Claude instructions, state that all 44 Codex 
 - Claude plugin validation: passed with the existing single warning noted above.
 - Isolated exact candidate lifecycle: all implemented gates passed; bare `$lp` authenticated routing remained blocked as required.
 - Public documentation and marketplace authorities were unchanged in the implementation commit.
-- User-owned `.codex/` content was not read, changed, staged, or committed.
+- The pre-existing imported `.codex/` hook configuration was later reconciled as tracked, portable LaunchPad repository tooling in a separately scoped pre-review commit. It remains outside the sealed plugin package and does not affect the frozen runtime digest.
 
 This handoff is the Section 10 mandatory stopping point. Do not begin public-document rendering, final artifact assembly, or activation work in the implementation PR.

@@ -34,6 +34,7 @@
 
 ```
 /
+├── .codex/               # Codex project hooks for repository policy and hydration
 ├── apps/web/              # Next.js 15 frontend (App Router, Tailwind v4)
 ├── apps/api/              # Hono API server (CORS, /health endpoint)
 ├── packages/db/           # Prisma schema, client singleton, migrations
