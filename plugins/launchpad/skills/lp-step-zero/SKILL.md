@@ -2,6 +2,26 @@
 name: lp-step-zero
 description: Shared Step 0 prerequisite-and-capability-check pattern for LaunchPad harness and L2 commands. Called by slash-commands BEFORE their main logic runs. Provides two modes — Full (harness-level, detect/classify/present/scaffold) and Lite (L2, create-if-missing for required state files). Enforces the "Lite ⊆ Full" contract mechanically via a single shared helper.
 user-invocable: false
+x-launchpad:
+  schema-version: 1
+  component-kind: skill
+  direct:
+    scripts:
+      - scripts/plugin-prereq-check.sh
+    external-tools:
+      - bash
+  capabilities:
+    required:
+      - canonical_resource_read
+      - external_cli
+      - installed_root_binding
+      - repository_read
+      - shell_execution
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 # lp-step-zero

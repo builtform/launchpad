@@ -21,6 +21,7 @@ Run:
 from __future__ import annotations
 
 import re
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -28,6 +29,25 @@ import yaml
 
 FM_RE = re.compile(r"^---\s*\n(.*?)\n---", re.DOTALL)
 NAME_RE = re.compile(r"^name:\s*(\S+)", re.MULTILINE)
+
+
+def run_canonical_corpus_integrity(root: Path) -> tuple[int, int, int]:
+    """Run the one additive metadata/body integrity authority."""
+    module_path = root / "plugins" / "launchpad" / "scripts" / "plugin-codex-corpus.py"
+    spec = importlib.util.spec_from_file_location(
+        "plugin_codex_corpus_for_frontmatter_integrity", module_path
+    )
+    if spec is None or spec.loader is None:
+        raise AssertionError("unable to load plugin-codex-corpus.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    audit = module.audit_corpus(root / "plugins" / "launchpad")
+    return (
+        sum(entry.kind == "command" for entry in audit.entries),
+        sum(entry.kind == "agent" for entry in audit.entries),
+        sum(entry.kind == "skill" for entry in audit.entries),
+    )
 
 
 def get_name(path: Path) -> str | None:
@@ -63,6 +83,8 @@ def main() -> int:
     # Commands: filename stem == frontmatter name
     cmd_count = 0
     for f in sorted(root.glob("plugins/launchpad/commands/lp-*.md")):
+        if not f.read_bytes().startswith(b"---\n"):
+            continue
         cmd_count += 1
         name = get_name(f)
         if name is None:
@@ -114,6 +136,20 @@ def main() -> int:
         print("FAIL: frontmatter integrity")
         for e in errors:
             print(f"  - {e}")
+        return 1
+
+    try:
+        corpus_counts = run_canonical_corpus_integrity(root)
+    except Exception as exc:
+        code = getattr(exc, "code", "INTEGRITY_MISMATCH")
+        print(f"FAIL: canonical corpus integrity [{code}]: {exc}")
+        return 1
+
+    if corpus_counts != (cmd_count, agent_count, skill_count):
+        print(
+            "FAIL: canonical corpus count mismatch "
+            f"(frontmatter={cmd_count, agent_count, skill_count}, corpus={corpus_counts})"
+        )
         return 1
 
     print(f"PASS: frontmatter integrity ({cmd_count} commands, {agent_count} agents, {skill_count} skills)")

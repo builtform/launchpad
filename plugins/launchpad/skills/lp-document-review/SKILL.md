@@ -2,6 +2,23 @@
 name: lp-document-review
 description: "Process skill for reviewing and refining brainstorm or plan documents. 6-step assessment with 4 quality criteria and 2-pass recommendation. Loaded by /lp-brainstorm and /lp-harden-plan."
 user-invocable: false
+x-launchpad:
+  schema-version: 1
+  component-kind: skill
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - operation_authorization
+      - repository_read
+      - repository_write
+    mutation: project_files
+    interaction: none
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # Document Review Skill

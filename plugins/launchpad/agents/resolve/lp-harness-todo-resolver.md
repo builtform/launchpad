@@ -4,6 +4,25 @@ description: Reads a single review todo from .harness/todos/, finds the relevant
 stack_scope: core_pipeline
 tools: Read, Edit, Write, Grep, Glob, Bash
 model: inherit
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - external_cli
+      - installed_root_binding
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - shell_execution
+    mutation: project_files
+    interaction: none
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 You are a specialist at resolving individual review findings. You receive a single todo file from `.harness/todos/`, understand the issue described, find the relevant code, and implement a targeted fix.

@@ -1,5 +1,7 @@
 # Code Review Layers
 
+> **Terminology:** The Codex PR reviewer in this guide is the advisory GitHub/CI integration. It is separate from the local LaunchPad Codex plugin runtime, whose unpublished `$lp` candidate currently blocks workflow execution. Installing or configuring one does not enable the other.
+
 LaunchPad v2.1.1 ships a three-layer code-review architecture. Each layer closes a different review-failure mode that the others can't reach. This guide explains what each layer does, when it fires, and how to override it when necessary.
 
 ## Audience

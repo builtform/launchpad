@@ -4,6 +4,19 @@ description: Reviews plans from a design/UX perspective — user experience impl
 stack_scope: core_pipeline
 tools: Read
 model: inherit
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 You catch UX issues before they become code.

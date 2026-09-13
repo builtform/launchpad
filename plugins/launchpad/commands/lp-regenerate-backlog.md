@@ -1,6 +1,26 @@
 ---
 name: lp-regenerate-backlog
 description: "Regenerates docs/tasks/BACKLOG.md from deferred observations and section registry. Called by /lp-build, /lp-commit, and /lp-triage."
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  capabilities:
+    required:
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - installed_root_binding
+      - interaction_mode_attestation
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - structured_arguments
+    mutation: project_files
+    interaction: optional
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # /lp-regenerate-backlog

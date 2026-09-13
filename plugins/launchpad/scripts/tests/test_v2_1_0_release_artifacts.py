@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -286,3 +287,146 @@ def test_release_notes_security_section_denylist_clean() -> None:
                         f"regex {line!r} leaked into Security section line "
                         f"{sec_line!r}"
                     )
+
+
+# ---------------------------------------------------------------------------
+# Codex documentation contradiction gate
+# ---------------------------------------------------------------------------
+
+
+_DOC_TEXT_EXTENSIONS = frozenset(
+    {".json", ".j2", ".md", ".sh", ".toml", ".txt", ".yaml", ".yml"}
+)
+_CODEX_CONTRADICTION_PATTERNS = tuple(
+    (label, re.compile(pattern, re.IGNORECASE))
+    for label, pattern in (
+        ("claude-only", r"Claude Code only"),
+        ("hard-claude-dependency", r"hard dependency is Claude"),
+        ("non-claude-audience", r"Developers not on Claude"),
+        ("single-generalist", r"single generalist"),
+        ("future-overlay", r"future Codex overlay"),
+        ("overlay-generator", r"overlay generator"),
+        ("codex-toml", r"Codex TOML"),
+        ("generated-codex-skill", r"generated Codex skill"),
+        ("hyphenated-lp", r"\$lp-review"),
+        ("stale-install-verb", r"codex plugin install"),
+        ("legacy-provider-env", r"\bLP_AI_TOOL\b"),
+        ("claude-every-session", r"CLAUDE\.md every session"),
+        ("claude-slash-generic", r"Claude slash commands"),
+    )
+)
+_ACTIVE_CODEX_DOCS = frozenset(
+    {
+        "AGENTS.md",
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "CONTRIBUTING.md",
+        "README.md",
+        "ROADMAP.md",
+        "SECURITY.md",
+        "docs/architecture/CI_CD.md",
+        "docs/architecture/REPOSITORY_STRUCTURE.md",
+        "docs/guides/CODE_REVIEW_LAYERS.md",
+        "docs/guides/HOW_IT_WORKS.md",
+        "docs/guides/METHODOLOGY.md",
+        "docs/maintainers/RELEASE_PROCESS.md",
+    }
+)
+_ACTIVE_ALLOWED_MATCHES = frozenset(
+    {
+        ("README.md", "single-generalist"),
+        ("docs/guides/HOW_IT_WORKS.md", "hyphenated-lp"),
+    }
+)
+_HISTORICAL_PREFIXES = (
+    "docs/archive/",
+    "docs/handoffs/",
+    "docs/plans/",
+    "docs/releases/",
+    "docs/reports/",
+    "docs/tasks/",
+)
+_CANONICAL_PROMPT_PREFIXES = (
+    ".claude/",
+    "plugins/launchpad/agents/",
+    "plugins/launchpad/commands/",
+    "plugins/launchpad/skills/",
+)
+
+
+def _tracked_documentation_paths() -> tuple[str, ...]:
+    completed = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+    )
+    return tuple(
+        sorted(
+            item.decode("utf-8")
+            for item in completed.stdout.split(b"\0")
+            if item and Path(item.decode("utf-8")).suffix in _DOC_TEXT_EXTENSIONS
+        )
+    )
+
+
+def _contradiction_classification(path: str, label: str) -> str:
+    if (path, label) in _ACTIVE_ALLOWED_MATCHES:
+        return "required_disclosure"
+    if path in _ACTIVE_CODEX_DOCS or path.startswith(
+        "plugins/launchpad/scripts/plugin_default_generators/"
+    ):
+        return "active_contradiction"
+    if path.startswith(_HISTORICAL_PREFIXES):
+        return "historical_text"
+    if path.startswith(_CANONICAL_PROMPT_PREFIXES):
+        return "canonical_prompt_dialect"
+    return "classified_non_owner_text"
+
+
+def test_codex_documentation_contradiction_scan_is_bounded_and_classified() -> None:
+    protocol = json.loads(
+        (REPO_ROOT / "plugins/launchpad/codex/adapter-protocol.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    per_file_limit = protocol["limits"]["documentation_file_bytes"]
+    aggregate_limit = protocol["limits"]["documentation_aggregate_bytes"]
+    tracked = _tracked_documentation_paths()
+    aggregate = 0
+    active: list[str] = []
+
+    for relative in tracked:
+        path = REPO_ROOT / relative
+        size = path.stat().st_size
+        assert size <= per_file_limit, f"tracked documentation exceeds limit: {relative}"
+        aggregate += size
+        assert aggregate <= aggregate_limit, "tracked documentation aggregate exceeds limit"
+        content = path.read_text(encoding="utf-8")
+        for label, pattern in _CODEX_CONTRADICTION_PATTERNS:
+            for match in pattern.finditer(content):
+                classification = _contradiction_classification(relative, label)
+                if classification == "active_contradiction":
+                    line = content.count("\n", 0, match.start()) + 1
+                    active.append(f"{relative}:{line}:{label}")
+
+    assert tracked, "tracked documentation scan was vacuous"
+    assert not active, f"unclassified active Codex documentation contradictions: {active}"
+
+    evidence = json.loads(
+        (REPO_ROOT / "plugins/launchpad/codex/support-evidence.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    claude_manifest = json.loads(
+        (REPO_ROOT / "plugins/launchpad/.claude-plugin/plugin.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    codex_manifest = json.loads(
+        (REPO_ROOT / "plugins/launchpad/.codex-plugin/plugin.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert claude_manifest["version"] == codex_manifest["version"] == "2.1.11"
+    assert len(evidence["runtime"]["root_ids"]) == 44

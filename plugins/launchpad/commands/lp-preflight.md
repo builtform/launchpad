@@ -1,6 +1,37 @@
 ---
 name: lp-preflight
 description: Run the external-infrastructure preflight gate (BL-364). Verifies provider account, deploy project, GitHub Secrets, DNS, and spec hygiene before ship.
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    scripts:
+      - scripts/lp_preflight.py
+      - scripts/plugin-prereq-check.sh
+    external-tools:
+      - bash
+      - python3
+  capabilities:
+    required:
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - installed_root_binding
+      - interaction_mode_attestation
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - shell_execution
+      - structured_arguments
+    mutation: project_files
+    interaction: optional
+    external-data-egress: true
+    write-scopes:
+      - project-files
+    tool-profile: effectful
+    fallback: none
 ---
 
 # /lp-preflight

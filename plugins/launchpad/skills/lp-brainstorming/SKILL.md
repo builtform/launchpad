@@ -2,6 +2,23 @@
 name: lp-brainstorming
 description: "Process skill for structured brainstorming sessions. Guides collaborative idea exploration through progressive questioning, approach comparison, and design document capture. Loaded by /lp-brainstorm and /lp-kickoff."
 user-invocable: false
+x-launchpad:
+  schema-version: 1
+  component-kind: skill
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - operation_authorization
+      - repository_read
+      - repository_write
+    mutation: project_files
+    interaction: none
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # Brainstorming Skill

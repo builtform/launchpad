@@ -4,6 +4,19 @@ description: Guards against scope creep in requirements and plans by enforcing b
 stack_scope: core_pipeline
 tools: Read
 model: inherit
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 You are the YAGNI enforcer for documents.

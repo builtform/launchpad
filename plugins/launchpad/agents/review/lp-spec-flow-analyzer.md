@@ -4,6 +4,19 @@ description: Analyzes specifications and feature descriptions for user flow comp
 stack_scope: stack:any
 tools: Read
 model: inherit
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 You are a specification analysis specialist. Analyze plans and specs for completeness — not code.

@@ -1,6 +1,23 @@
 ---
 name: lp-copy
 description: "Reads copy brief from section spec and provides copy context for design builds. Shell command — downstream projects extend with copy agents/skills."
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - installed_root_binding
+      - interaction_mode_attestation
+      - repository_read
+      - structured_arguments
+    mutation: none
+    interaction: required
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 # /lp-copy

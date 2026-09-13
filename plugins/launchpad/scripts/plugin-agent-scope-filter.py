@@ -31,6 +31,7 @@ simplicity P1-S2 dropped).
 from __future__ import annotations
 
 import functools
+import importlib.util
 import logging
 import re
 import sys
@@ -53,6 +54,19 @@ except ImportError:  # pragma: no cover -- libyaml unavailable on host
 STACK_SCOPE_REGEX = re.compile(
     r"^(core_pipeline|stack:any|stack:[a-z_]{1,32}|design_quality|skill_quality)$"
 )
+
+_PROTOCOL_PATH = Path(__file__).resolve().with_name("plugin-codex-protocol.py")
+_PROTOCOL_SPEC = importlib.util.spec_from_file_location(
+    "launchpad_codex_protocol_for_scope_filter", _PROTOCOL_PATH
+)
+if _PROTOCOL_SPEC is None or _PROTOCOL_SPEC.loader is None:
+    raise RuntimeError("unable to load plugin-codex-protocol.py")
+_PROTOCOL = importlib.util.module_from_spec(_PROTOCOL_SPEC)
+sys.modules[_PROTOCOL_SPEC.name] = _PROTOCOL
+_PROTOCOL_SPEC.loader.exec_module(_PROTOCOL)
+_PROTOCOL_CONTRACT = _PROTOCOL.load_protocol()
+if STACK_SCOPE_REGEX.pattern != _PROTOCOL_CONTRACT.stack_scope_pattern.pattern:
+    raise RuntimeError("legacy stack scope grammar differs from adapter protocol")
 
 MAX_AGENT_FRONTMATTER_BYTES = 64_000
 
@@ -280,6 +294,62 @@ def filter_agents_by_stacks(
     return survivors_sorted
 
 
+def filter_agent_records_by_stacks(
+    agent_names: Iterable[str],
+    stacks: Iterable[str],
+    records: Mapping[str, object],
+) -> tuple[list[str], list[str]]:
+    """Pure record-based filter for validated Codex agent scope records.
+
+    This mirrors the legacy filesystem-backed API without changing that API's
+    historical dropped-name accessor or Claude command banner behavior.
+    """
+    names = list(agent_names)
+    stack_list = list(stacks)
+    if not names:
+        return [], []
+    active_enum = _active_stack_enum()
+    bogus = [stack for stack in stack_list if stack not in active_enum]
+    if bogus:
+        raise ValueError(
+            f"unknown stack id(s) {bogus!r}; expected one of {sorted(active_enum)}"
+        )
+    survivors: list[str] = []
+    dropped: list[str] = []
+    stacks_set = set(stack_list)
+    for name in names:
+        record = records.get(name)
+        if record is None:
+            _LOGGER.warning(
+                "stack-filter: dropping unknown agent name %r (not in plugin index)",
+                name,
+            )
+            dropped.append(name)
+            continue
+        resource_id = getattr(record, "resource_id", None)
+        scope = getattr(record, "stack_scope", None)
+        if (
+            resource_id != name
+            or not isinstance(scope, str)
+            or not STACK_SCOPE_REGEX.fullmatch(scope)
+        ):
+            raise ValueError(f"invalid normalized scope record for agent {name!r}")
+        if scope in {"core_pipeline", "stack:any"}:
+            survivors.append(name)
+        elif scope.startswith("stack:") and scope != "stack:any":
+            stack_id = scope.split(":", 1)[1]
+            if stack_id in stacks_set:
+                survivors.append(name)
+        # design_quality + skill_quality never survive; callers pre-filter.
+    survivors_sorted = sorted(survivors)
+    if not survivors_sorted:
+        raise EmptyFilterResultError(
+            f"filter dropped every agent in input {names!r} for stacks "
+            f"{stack_list!r}; v2.1 trigger path = all names missing from index"
+        )
+    return survivors_sorted, dropped
+
+
 def last_dropped_names() -> list[str]:
     """Return names dropped in the most recent successful filter call.
 
@@ -296,6 +366,7 @@ __all__ = [
     "EmptyFilterResultError",
     "FrontmatterTooLargeError",
     "filter_agents_by_stacks",
+    "filter_agent_records_by_stacks",
     "last_dropped_names",
     "_load_agent_index",
 ]

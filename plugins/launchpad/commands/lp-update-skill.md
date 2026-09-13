@@ -1,6 +1,38 @@
 ---
 name: lp-update-skill
 description: "Iterate on an existing Claude Code skill after real-world usage reveals gaps or new requirements"
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    skills:
+      - lp-creating-skills
+    agents:
+      - lp-skill-evaluator
+    references:
+      - skills/lp-creating-skills/references/QUALITY-GATES.md
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - generic_subagents
+      - installed_root_binding
+      - interaction_mode_attestation
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - structured_arguments
+      - subagent_cancel_final_join
+    mutation: project_files
+    interaction: required
+    external-data-egress: true
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # Update Skill

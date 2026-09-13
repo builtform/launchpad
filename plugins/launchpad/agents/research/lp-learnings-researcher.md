@@ -4,6 +4,19 @@ description: Searches docs/solutions/ for relevant past solutions by frontmatter
 stack_scope: core_pipeline
 tools: Read, Grep, Glob, LS
 model: inherit
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 You are a knowledge base search specialist. Search `docs/solutions/` for past learnings relevant to the current query.

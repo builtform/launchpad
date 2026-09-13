@@ -1,6 +1,39 @@
 ---
 name: lp-inf
 description: "Build pipeline that reads the latest report or section spec, creates a feature branch, and implements tasks with quality gates"
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    skills:
+      - lp-react-best-practices
+      - lp-stripe-best-practices
+    scripts:
+      - scripts/plugin-prereq-check.sh
+      - scripts/plugin_stack_adapters/autonomous_guard.py
+    external-tools:
+      - bash
+      - python3
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - installed_root_binding
+      - interaction_mode_attestation
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - shell_execution
+      - structured_arguments
+    mutation: project_files
+    interaction: authenticated_approval
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 ---

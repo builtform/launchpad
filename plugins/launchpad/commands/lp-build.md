@@ -1,6 +1,50 @@
 ---
 name: lp-build
 description: Meta-orchestrator for autonomous execution pipeline. Chains /lp-inf → /lp-review → /lp-resolve-todo-parallel → /lp-test-browser → /lp-ship → compound-learning.sh.
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    commands:
+      - lp-inf
+      - lp-learn
+      - lp-regenerate-backlog
+      - lp-resolve-pr-comments
+      - lp-resolve-todo-parallel
+      - lp-review
+      - lp-ship
+      - lp-test-browser
+    scripts:
+      - scripts/lp_preflight.py
+      - scripts/plugin-audit-log.py
+      - scripts/plugin-build-runner.py
+      - scripts/plugin-config-loader.py
+      - scripts/plugin_stack_adapters/autonomous_guard.py
+    external-tools:
+      - python3
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - installed_root_binding
+      - interaction_mode_attestation
+      - nested_command
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - shell_execution
+      - structured_arguments
+    mutation: project_files
+    interaction: authenticated_approval
+    external-data-egress: true
+    write-scopes:
+      - project-files
+    tool-profile: effectful
+    fallback: none
 ---
 
 # /lp-build

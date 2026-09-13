@@ -4,6 +4,19 @@ description: Evaluates generated skills against quality criteria using 3 evaluat
 stack_scope: skill_quality
 tools: Read, Grep, Glob, LS
 model: inherit
+x-launchpad:
+  schema-version: 1
+  component-kind: agent
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 You are a specialist at evaluating Claude Code skill files against objective quality criteria. Your job is to run 3 evaluation passes and produce a structured pass/fail report with specific fix instructions for every failure.

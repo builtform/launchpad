@@ -7,6 +7,28 @@ description: >
   claims, premature commits, and trust-breaking assertions without proof.
   Triggers on: claiming work is complete, about to commit, creating PRs, marking
   tasks done, expressing satisfaction about code changes.
+x-launchpad:
+  schema-version: 1
+  component-kind: skill
+  direct:
+    scripts:
+      - scripts/plugin-build-runner.py
+    external-tools:
+      - python3
+  capabilities:
+    required:
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - installed_root_binding
+      - repository_read
+      - shell_execution
+      - structured_arguments
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 <!-- Adapted from obra/superpowers — skills/verification-before-completion/SKILL.md

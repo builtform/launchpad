@@ -2,6 +2,24 @@
 name: lp-imgup
 description: "Lightweight image hosting for quick sharing. Upload screenshots and small files to public hosting services (pixhost, catbox, imagebin, beeimg) without cloud provider setup. Returns public URLs for embedding in markdown. Process skill loaded by /lp-feature-video as alternative to rclone."
 user-invocable: false
+x-launchpad:
+  schema-version: 1
+  component-kind: skill
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - serialized_payload_mediation
+    mutation: external_state
+    interaction: none
+    external-data-egress: true
+    write-scopes:
+      - external-state
+    tool-profile: effectful
+    fallback: none
 ---
 
 # imgup — Quick Image Hosting

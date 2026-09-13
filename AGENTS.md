@@ -34,6 +34,7 @@
 
 ```
 /
+├── .codex/               # Codex project hooks for repository policy and hydration
 ├── apps/web/              # Next.js 15 frontend (App Router, Tailwind v4)
 ├── apps/api/              # Hono API server (CORS, /health endpoint)
 ├── packages/db/           # Prisma schema, client singleton, migrations
@@ -104,36 +105,36 @@ Note the cwd difference: `pytest` and `pyright` run **from `plugins/launchpad/sc
 
 ---
 
-## Invoking LaunchPad Workflows (Cross-Tool Bridge)
+## Invoking LaunchPad Workflows
 
 This project is LaunchPad-scaffolded. Most structured workflows live in `plugins/launchpad/commands/` as markdown files.
 
-**Claude Code users** invoke these directly as slash commands (`/lp-kickoff`, `/lp-define`, `/lp-plan`, `/lp-build`, etc.) via the installed plugin.
+**Claude Code users** invoke released workflows directly as slash commands (`/lp-kickoff`, `/lp-define`, `/lp-plan`, `/lp-build`, etc.) through the installed plugin.
 
-**Codex, Gemini, and other CLIs** do not auto-discover the plugin's slash commands — there's no cross-tool plugin format. To run a LaunchPad workflow in a non-Claude CLI, instruct your AI: _"Read `plugins/launchpad/commands/lp-<name>.md` and follow the workflow."_
+**Codex uses one reserved router grammar:** `$lp <command>`. Never prefix it with the plugin name and never rewrite it as `$lp-<command>`. The current v2.1.11 dogfood evidence blocks all 44 public roots because Codex CLI 0.153.4 did not authenticate bare `$lp` selection or bind a lossless authenticated argument tail. Until later evidence promotes a workflow, Codex may inspect its canonical file but must not execute it.
+
+**Gemini and other CLIs** use the inspection-only bridge. They may read canonical workflow files to understand LaunchPad behavior. They must not execute a mutating, autonomous, or agent-dispatch workflow unless release evidence qualifies that exact host and workflow digest. Unknown hosts default to `inspect_only`.
 
 ### Workflow pointer table
 
-| Task                                    | Instruction for a non-Claude CLI                              |
-| --------------------------------------- | ------------------------------------------------------------- |
-| Brainstorm a new feature                | Read `plugins/launchpad/commands/lp-kickoff.md` and follow it |
-| Define the product and architecture     | Read `plugins/launchpad/commands/lp-define.md` and follow it  |
-| Plan a feature (design + plan + harden) | Read `plugins/launchpad/commands/lp-plan.md` and follow it    |
-| Run the autonomous build pipeline       | Read `plugins/launchpad/commands/lp-build.md` and follow it   |
-| Multi-agent code review                 | Read `plugins/launchpad/commands/lp-review.md` and follow it  |
-| Interactive commit with quality gates   | Read `plugins/launchpad/commands/lp-commit.md` and follow it  |
-| Capture a learning                      | Read `plugins/launchpad/commands/lp-learn.md` and follow it   |
-| Triage review findings                  | Read `plugins/launchpad/commands/lp-triage.md` and follow it  |
+| Task                                  | Claude Code   | Codex reserved form | Unsupported-host fallback                           |
+| ------------------------------------- | ------------- | ------------------- | --------------------------------------------------- |
+| Brainstorm a new feature              | `/lp-kickoff` | `$lp kickoff`       | Inspect `plugins/launchpad/commands/lp-kickoff.md`  |
+| Define product and architecture       | `/lp-define`  | `$lp define`        | Inspect `plugins/launchpad/commands/lp-define.md`   |
+| Plan and harden a feature             | `/lp-plan`    | `$lp plan`          | Inspect `plugins/launchpad/commands/lp-plan.md`     |
+| Run the autonomous build pipeline     | `/lp-build`   | `$lp build`         | Inspection only; execute on a supported native host |
+| Multi-agent code review               | `/lp-review`  | `$lp review`        | Inspection only; execute on a supported native host |
+| Interactive commit with quality gates | `/lp-commit`  | `$lp commit`        | Inspection only; execute on a supported native host |
+| Capture a learning                    | `/lp-learn`   | `$lp learn`         | Inspect `plugins/launchpad/commands/lp-learn.md`    |
+| Triage review findings                | `/lp-triage`  | `$lp triage`        | Inspect `plugins/launchpad/commands/lp-triage.md`   |
 
 See `plugins/launchpad/commands/` for the full inventory (42 workflows).
 
-### Known degradation: parallel sub-agent dispatch
+### Host-specific orchestration
 
-Several LaunchPad commands (notably `/lp-review`, `/lp-build`, `/lp-plan`, `/lp-harden-plan`) dispatch specialized sub-agents in parallel — 7+ specialized code reviewers, document reviewers, research wave pairs. This relies on Claude Code's `Task` tool.
+Several LaunchPad workflows dispatch specialized sub-agents in parallel. Claude Code uses its native task primitive. The Codex adapter is designed to use native subagents with bounded workers, wave barriers, and cancel-and-join behavior while loading the same canonical prompts.
 
-In Codex and Gemini, those parallel specialist passes collapse into a single generalist review inside the main context. **Output still lands, but the per-specialist perspectives (security, performance, TypeScript, architecture, testing, etc.) are folded together.** Treat reviews run in non-Claude-Code CLIs as a strong first pass, not as the final quality bar that the plugin delivers in Claude Code.
-
-A v1.1 roadmap item is a **Codex overlay generator** (`.codex-plugin/` generated from plugin source) that restores parallel specialist dispatch in Codex via Codex's native subagent format. A Gemini overlay is deferred to a future release — Gemini users continue on the bridge pattern indefinitely until demand justifies the work.
+Do not assume Codex collapses these workflows into one generalist. The candidate contains a single router and a conditional coordinator, not generated per-command wrappers. Because the real-host routing prerequisite is blocked, no Codex multi-agent workflow is currently advertised as executable.
 
 ### Configuring your tool to read this file
 
@@ -149,7 +150,7 @@ project_doc_fallback_filenames = ["AGENTS.md", "CLAUDE.md"]
 { "context": { "fileName": ["AGENTS.md"] } }
 ```
 
-LaunchPad's v1.1 roadmap focuses on Codex support. Gemini support is deferred — available today via this manual config, but the cross-tool overlay generator planned for v1.1 will target Codex only.
+Gemini support remains inspection-only and demand-driven. No Gemini execution adapter is part of the current candidate.
 
 **Other tools** (Cursor, Windsurf, Aider, Jules, etc.) — `AGENTS.md` is the Linux Foundation's Agentic AI Foundation standard and is auto-discovered by most modern coding CLIs.
 

@@ -9,6 +9,30 @@ description: >
   Triggers on: writing React components, reviewing Next.js code, refactoring UI,
   optimizing performance, designing component APIs.
 user-invocable: false
+x-launchpad:
+  schema-version: 1
+  component-kind: skill
+  direct:
+    references:
+      - references/advanced-patterns.md
+      - references/async-patterns.md
+      - references/bundle-optimization.md
+      - references/client-fetching.md
+      - references/composition-patterns.md
+      - references/js-performance.md
+      - references/rendering-performance.md
+      - references/rerender-optimization.md
+      - references/server-performance.md
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - repository_read
+    mutation: none
+    interaction: none
+    external-data-egress: false
+    tool-profile: read_only
+    fallback: inspect_only
 ---
 
 <!-- ported-from: vercel-labs/agent-skills (react-best-practices + composition-patterns)

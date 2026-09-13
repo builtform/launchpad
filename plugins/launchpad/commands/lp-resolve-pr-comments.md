@@ -1,6 +1,44 @@
 ---
 name: lp-resolve-pr-comments
 description: Batch-resolves unresolved PR review comments by spawning parallel pr-comment-resolver agents. Commits, pushes, and optionally marks threads resolved.
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    agents:
+      - lp-pr-comment-resolver
+    scripts:
+      - scripts/plugin-build-runner.py
+    external-tools:
+      - gh
+      - git
+      - python3
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - generic_subagents
+      - installed_root_binding
+      - interaction_mode_attestation
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - shell_execution
+      - structured_arguments
+      - subagent_cancel_final_join
+    mutation: project_and_external
+    interaction: authenticated_approval
+    external-data-egress: true
+    write-scopes:
+      - external-state
+      - project-files
+      - repository-state
+    tool-profile: effectful
+    fallback: none
 ---
 
 # /lp-resolve-pr-comments

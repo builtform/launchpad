@@ -1,6 +1,41 @@
 ---
 name: lp-define
 description: Detect the project's stack and scaffold the 4 canonical architecture docs + section registry + .launchpad/config.yml, adapted to what was detected. Honors an interactive overwrite menu and applies secret-scan + manifest-strip guardrails. The biggest lift in the harness pipeline.
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    commands:
+      - lp-bootstrap
+      - lp-define-architecture
+      - lp-define-design
+      - lp-define-product
+    scripts:
+      - scripts/lp_define_runner.py
+      - scripts/plugin-stack-detector.py
+    external-tools:
+      - python3
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - installed_root_binding
+      - interaction_mode_attestation
+      - nested_command
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - shell_execution
+      - structured_arguments
+    mutation: project_files
+    interaction: required
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # /lp-define

@@ -1,6 +1,33 @@
 ---
 name: lp-pick-stack
 description: Match a user project idea against the v2.0 category-pattern catalog; emit a signed scaffold-decision.json for /lp-scaffold-stack. Greenfield only.
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    scripts:
+      - scripts/lp_pick_stack/engine.py
+    external-tools:
+      - python3
+  capabilities:
+    required:
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - installed_root_binding
+      - interaction_mode_attestation
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - shell_execution
+      - structured_arguments
+    mutation: project_files
+    interaction: optional
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # /lp-pick-stack

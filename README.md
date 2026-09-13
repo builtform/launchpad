@@ -51,7 +51,7 @@ If any of those three is not on your evaluation list, LaunchPad is probably not 
 
 ## LaunchPad: an agentic coding harness
 
-LaunchPad is an **agentic coding harness**. It installs a governance kernel into your repository, then runs Claude Code against that kernel. The kernel is what persists between sessions. The agents are productive _because_ the kernel is in place. Without it, recipe-pack plugins regenerate the same boilerplate every session and silently drift away from project conventions.
+LaunchPad is an **agentic coding harness**. It installs a governance kernel into your repository, then lets a qualified host adapter run the canonical workflows against that kernel. The kernel is what persists between sessions. The agents are productive _because_ the kernel is in place. Without it, recipe-pack plugins regenerate the same boilerplate every session and silently drift away from project conventions.
 
 Works on **brownfield** projects (add the plugin to an existing repo, run `/lp-define`, get the kernel retrofitted) and **greenfield** (run the `/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define` pipeline for a fresh project with the kernel materialized from scratch).
 
@@ -61,11 +61,48 @@ For the full pipeline narrative, see [HOW_IT_WORKS.md](docs/guides/HOW_IT_WORKS.
 
 ---
 
-**Contents:** [Install](#install) · [What you get](#what-you-get) · [Proof](#proof-you-can-verify-this-yourself) · [First 15 Minutes](#first-15-minutes) · [What's Inside](#whats-inside) · [Security](#security) · [Who this is for](#who-this-is-for-and-who-it-isnt) · [Methodology](#methodology) · [Companions](#companions) · [Links](#links)
+**Contents:** [Host status](#host-status) · [Install](#install) · [What you get](#what-you-get) · [Proof](#proof-you-can-verify-this-yourself) · [First 15 Minutes](#first-15-minutes) · [What's Inside](#whats-inside) · [Security](#security) · [Who this is for](#who-this-is-for-and-who-it-isnt) · [Methodology](#methodology) · [Companions](#companions) · [Links](#links)
+
+---
+
+## Host status
+
+LaunchPad has one canonical workflow kernel and host-specific adapters. Claude Code is the released execution surface. The Codex package is an unpublished local dogfood candidate whose packaging and isolated lifecycle are verified, but whose command routing is not accepted for workflow execution.
+
+| Surface                                | Status                                          | Invocation                                                                                |
+| -------------------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Claude Code plugin                     | Released                                        | `/lp-review` and the other `/lp-*` commands                                               |
+| Codex CLI and local desktop tasks      | Local dogfood only; all 44 public roots blocked | Reserved syntax: `$lp review`                                                             |
+| Codex IDE, cloud, and ChatGPT surfaces | Not qualified                                   | No supported LaunchPad invocation                                                         |
+| Gemini and other coding tools          | Inspection-only bridge                          | Read the canonical workflow file; do not execute blocked mutating or autonomous workflows |
+
+The Codex blocker is precise: Codex CLI 0.153.4 did not prove authenticated bare `$lp` selection or a lossless authenticated argument tail. LaunchPad therefore fails closed. Do not install the Codex candidate into normal user state, and do not treat `$lp` as executable until a later qualification record advertises support.
+
+```text
+One canonical LaunchPad kernel
+├── Claude Code: /lp-review
+└── Codex:      $lp review   (reserved, currently blocked)
+```
+
+<!-- BEGIN LAUNCHPAD GENERATED:codex-beta-summary -->
+
+Codex compatibility is generated from sealed release evidence.
+
+- Release stage: `dogfood`
+- Protocol: `1.0.0`
+- Supported entries: 0
+- Blocked entries: 44
+- Qualification records: 1
+
+<!-- END LAUNCHPAD GENERATED:codex-beta-summary -->
+
+The complete generated matrix and recovery guidance live in [How It Works](docs/guides/HOW_IT_WORKS.md#codex-support-matrix).
 
 ---
 
 ## Install
+
+### Claude Code installation
 
 ### Path 1: Add to any repo (Best for Brownfield)
 
@@ -212,15 +249,15 @@ Full workflow guide: [HOW_IT_WORKS.md](docs/guides/HOW_IT_WORKS.md).
 
 ## What's Inside
 
-LaunchPad ships as a Claude Code plugin with:
+LaunchPad ships one canonical kernel with a released Claude adapter and an unpublished Codex adapter candidate:
 
-| Component       | Count     | What it covers                                                                          |
-| --------------- | --------- | --------------------------------------------------------------------------------------- |
-| Slash commands  | 42        | The brainstorm, define, plan, build, review, resolve, ship, and learn lifecycle         |
-| Sub-agents      | 36        | 6 namespaces: research, review, resolve, design, skills, document-review                |
-| Skills          | 16        | Reusable instruction sets for design, planning, review, compound docs                   |
-| Runtime scripts | several   | Stack detector, polyglot adapter, Jinja2 doc generator, install scripts                 |
-| Test suite      | 12 suites | Adapters, config loader, stack detector, pipeline integration, install-paths regression |
+| Component               | Count or shape                      | What it covers                                                                   |
+| ----------------------- | ----------------------------------- | -------------------------------------------------------------------------------- |
+| Canonical commands      | 42                                  | The brainstorm, define, plan, build, review, resolve, ship, and learn lifecycle  |
+| Canonical agents        | 36                                  | 6 namespaces: research, review, resolve, design, skills, document-review         |
+| Canonical skills        | 16                                  | Reusable instruction sets for design, planning, review, and compound docs        |
+| Claude adapter          | 1 manifest                          | Native `/lp-*` discovery and Claude-specific tool integration                    |
+| Codex adapter candidate | 1 manifest and 1 `$lp` router skill | Sealed package projection, resolver, support evidence, and fail-closed preflight |
 
 <details>
 <summary>Plugin structure</summary>
@@ -231,11 +268,14 @@ LaunchPad/
 │   └── marketplace.json        # name=launchpad
 ├── plugins/launchpad/          # the plugin itself
 │   ├── .claude-plugin/
-│   │   └── plugin.json         # name=launchpad, version=2.1.3
-│   ├── commands/               # /lp-* slash commands
-│   ├── agents/                 # 36 sub-agents across 6 namespaces
-│   ├── skills/                 # reusable instruction sets
-│   └── scripts/                # runtime scripts + stack adapters
+│   │   └── plugin.json         # Claude manifest
+│   ├── .codex-plugin/
+│   │   └── plugin.json         # Codex manifest projected from shared metadata
+│   ├── codex/                  # protocol, evidence, and the single lp router skill
+│   ├── commands/               # canonical workflows; Claude discovers these directly
+│   ├── agents/                 # canonical agent prompts
+│   ├── skills/                 # canonical reusable skills
+│   └── scripts/                # shared runtime plus host adapters
 ├── .launchpad/                 # project-local harness config
 └── docs/                       # architecture, reports, releases
 ```
@@ -266,7 +306,7 @@ Detailed threat model and safeguard list: [HOW_IT_WORKS.md → Security](docs/gu
 
 **LaunchPad is built for** solo developers and small-team tech leads (1 to 5 engineers) who:
 
-- Are already using Claude Code as their primary AI coding tool (the dependency is hard; LaunchPad is a Claude Code plugin).
+- Use the released Claude Code plugin today, or evaluate the unpublished Codex package strictly through its isolated dogfood procedure.
 - Work in a production-grade repository where shipped bugs have a real cost.
 - Have felt the pain of agent-context-loss between sessions and can name a specific instance.
 - Have had at least one near-miss with an AI commit: leaked secret, broken migration, file-structure drift, hallucinated API.
@@ -278,7 +318,7 @@ Detailed threat model and safeguard list: [HOW_IT_WORKS.md → Security](docs/gu
 - **Engineering managers shopping for team-wide tooling.** Wrong sale, wrong evaluation criteria. LaunchPad ships a kernel and slash commands for the hands-on operator. If you want SSO, dashboards, and admin policies, evaluate compliance-first tools instead.
 - **Pure greenfield "vibe coders" who don't care about quality.** The kernel will feel like friction. The value of a kernel only shows up once the codebase is large enough to drift, and if you don't care, you don't need it yet.
 - **Enterprise security teams looking for SOC2 or vendor risk reviews.** LaunchPad is MIT-licensed and open-source; the entire surface is auditable in the GitHub repo. If your evaluation criterion is SOC2, this is not the tool.
-- **Developers not on Claude Code.** LaunchPad is a Claude Code plugin. Cursor, Copilot, Aider users: this is a future conversation, not a today one.
+- **Developers who need an unqualified native surface.** Claude Code is the released execution host. Codex execution and other coding tools remain blocked or inspection-only until their exact host capabilities are qualified.
 
 Surfacing the anti-fit up front is intentional. If any of the above describes you, do not install. There are tools better suited to those problems, and the 30 minutes of install friction will pay off poorly.
 

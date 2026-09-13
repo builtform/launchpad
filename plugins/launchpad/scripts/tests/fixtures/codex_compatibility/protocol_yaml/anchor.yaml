@@ -1,0 +1,3 @@
+x-launchpad: &metadata
+  schema-version: 1
+  component-kind: command

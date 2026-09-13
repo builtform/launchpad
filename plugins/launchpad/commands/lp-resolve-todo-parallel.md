@@ -1,6 +1,42 @@
 ---
 name: lp-resolve-todo-parallel
 description: Resolves review findings in .harness/todos/ by spawning parallel harness-todo-resolver agents (max 5 concurrent).
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    agents:
+      - lp-harness-todo-resolver
+    scripts:
+      - scripts/plugin-prereq-check.sh
+      - scripts/plugin_stack_adapters/autonomous_guard.py
+    external-tools:
+      - bash
+      - python3
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - generic_subagents
+      - installed_root_binding
+      - interaction_mode_attestation
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - shell_execution
+      - structured_arguments
+      - subagent_cancel_final_join
+    mutation: project_files
+    interaction: authenticated_approval
+    external-data-egress: true
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 ---

@@ -1,6 +1,35 @@
 ---
 name: lp-update-identity
 description: Update sealed identity values (project rename, license change, copyright holder, email, repo URL fill-in) without re-scaffolding. Re-renders the 7 kernel files via KernelRenderer.refresh().
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    scripts:
+      - scripts/lp_update_identity/engine.py
+    external-tools:
+      - git
+      - python3
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - installed_root_binding
+      - interaction_mode_attestation
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - shell_execution
+      - structured_arguments
+    mutation: project_files
+    interaction: required
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # /lp-update-identity

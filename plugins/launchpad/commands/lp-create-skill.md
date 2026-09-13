@@ -1,6 +1,36 @@
 ---
 name: lp-create-skill
 description: "Create a new Claude Code skill using the 7-phase Meta-Skill Forge methodology"
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    skills:
+      - lp-creating-skills
+    scripts:
+      - scripts/plugin-prereq-check.sh
+    external-tools:
+      - bash
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - installed_root_binding
+      - interaction_mode_attestation
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - shell_execution
+      - structured_arguments
+    mutation: project_files
+    interaction: required
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 ---

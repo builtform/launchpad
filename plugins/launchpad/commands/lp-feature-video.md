@@ -1,6 +1,45 @@
 ---
 name: lp-feature-video
 description: "Record a video walkthrough of a feature — captures screenshots via agent-browser, stitches into MP4+GIF via ffmpeg, uploads via rclone or imgup, and updates PR description."
+x-launchpad:
+  schema-version: 1
+  component-kind: command
+  direct:
+    skills:
+      - lp-imgup
+      - lp-rclone
+    external-tools:
+      - agent-browser
+      - ffmpeg
+      - gh
+      - git
+      - imgup
+      - rclone
+  capabilities:
+    required:
+      - authenticated_user_interaction
+      - browser
+      - canonical_resource_read
+      - explicit_invocation_provenance
+      - external_cli
+      - host_presentation
+      - installed_root_binding
+      - interaction_mode_attestation
+      - network_egress
+      - operation_authorization
+      - repository_read
+      - repository_write
+      - serialized_payload_mediation
+      - structured_arguments
+    mutation: project_and_external
+    interaction: authenticated_approval
+    external-data-egress: true
+    write-scopes:
+      - external-state
+      - project-files
+      - repository-state
+    tool-profile: effectful
+    fallback: none
 ---
 
 # /lp-feature-video

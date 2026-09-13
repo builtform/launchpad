@@ -12,12 +12,39 @@
 #   - docs/*/           (new doc categories)
 #   - scripts/*/        (new script categories)
 #   - .claude/*/        (new Claude config directories)
+#   - .codex/*/         (new Codex config directories)
 #
 # Does NOT do phantom detection (directories in doc but not on disk).
 
 set -euo pipefail
 
-REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+SCRIPT_REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
+
+# An explicit root is required by the Codex hydration path and takes precedence
+# over any ambient Claude variable. Argument-free Claude invocations preserve
+# their existing CLAUDE_PROJECT_DIR behavior.
+if [ "$#" -eq 2 ] && [ "$1" = "--project-root" ] && [ -n "$2" ]; then
+  if ! REPO_ROOT="$(cd "$2" 2>/dev/null && pwd -P)"; then
+    echo "Structure drift detection refused an invalid project root." >&2
+    exit 2
+  fi
+  if [ "$REPO_ROOT" != "$SCRIPT_REPO_ROOT" ]; then
+    echo "Structure drift detection refused a project root that does not own this script." >&2
+    exit 2
+  fi
+elif [ "$#" -eq 0 ]; then
+  if [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
+    if ! REPO_ROOT="$(cd "$CLAUDE_PROJECT_DIR" 2>/dev/null && pwd -P)"; then
+      echo "Structure drift detection refused an invalid CLAUDE_PROJECT_DIR." >&2
+      exit 2
+    fi
+  else
+    REPO_ROOT="$SCRIPT_REPO_ROOT"
+  fi
+else
+  echo "Usage: detect-structure-drift.sh [--project-root PATH]" >&2
+  exit 2
+fi
 STRUCTURE_DOC="$REPO_ROOT/docs/architecture/REPOSITORY_STRUCTURE.md"
 DRIFT_REPORT="$REPO_ROOT/.harness/structure-drift.md"
 
@@ -76,6 +103,7 @@ scan_for_undocumented "packages" "packages/"
 scan_for_undocumented "docs" "docs/"
 scan_for_undocumented "scripts" "scripts/"
 scan_for_undocumented ".claude" ".claude/"
+scan_for_undocumented ".codex" ".codex/"
 
 # Scan second-level: apps/*/src/*
 for app_dir in "$REPO_ROOT"/apps/*/; do
@@ -98,5 +126,5 @@ cat > "$DRIFT_REPORT" << EOF
 ${#UNDOCUMENTED[@]} undocumented $([ ${#UNDOCUMENTED[@]} -eq 1 ] && echo "directory" || echo "directories"):
 $(printf -- '- \`%s\`\n' "${UNDOCUMENTED[@]}")
 
-Tell Claude to update \`docs/architecture/REPOSITORY_STRUCTURE.md\`.
+Tell your coding agent to update \`docs/architecture/REPOSITORY_STRUCTURE.md\`.
 EOF

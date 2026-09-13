@@ -2,6 +2,28 @@
 name: lp-compound-docs
 description: "Process skill for structured problem documentation. Defines 14-category taxonomy, YAML schema, and resolution templates for docs/solutions/. Loaded by /lp-learn."
 user-invocable: false
+x-launchpad:
+  schema-version: 1
+  component-kind: skill
+  direct:
+    references:
+      - references/yaml-schema.md
+    assets:
+      - assets/resolution-template.md
+  capabilities:
+    required:
+      - canonical_resource_read
+      - installed_root_binding
+      - operation_authorization
+      - repository_read
+      - repository_write
+    mutation: project_files
+    interaction: none
+    external-data-egress: false
+    write-scopes:
+      - project-files
+    tool-profile: workspace_write
+    fallback: none
 ---
 
 # Compound Docs Skill

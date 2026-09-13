@@ -4,9 +4,9 @@ AI coding tools are powerful. Without structure, they're a trap.
 
 You prompt an agent to build a feature. It generates code that looks right — until you discover it hallucinated an API, ignored your existing patterns, or duplicated a utility that already exists. You fix it, start a new session, and the agent has forgotten everything. No specs. No guardrails. No memory. Just vibes.
 
-The best practices exist. Spec-driven development. Compound loops with fresh context. Structure enforcement. Automated quality gates. Context engineering via CLAUDE.md. They're scattered across blog posts, repos, and conference talks. You know you should set them up. You haven't had time.
+The best practices exist. Spec-driven development. Compound loops with fresh context. Structure enforcement. Automated quality gates. Context engineering through host instructions and shared repository artifacts. They're scattered across blog posts, repos, and conference talks. You know you should set them up. You haven't had time.
 
-LaunchPad is an AI coding harness where all of it is already wired in and working. Install the plugin into any repository, run `/lp-kickoff`, and start building with an AI workflow that has specs, guardrails, autonomous execution loops, pre-commit hooks, CI pipelines, and automated code review — from the first commit.
+LaunchPad is an AI coding harness where all of it is already wired in and working. A logical workflow such as `lp-kickoff` belongs to one canonical kernel. A qualified host adapter supplies the invocation syntax and tool integration. Claude Code currently exposes `/lp-kickoff`; Codex reserves `$lp kickoff`, but the dogfood candidate fails closed because its bare-router provenance and argument binding are not yet qualified.
 
 For the day-to-day workflow guide, see [How It Works](HOW_IT_WORKS.md).
 
@@ -15,11 +15,40 @@ For the day-to-day workflow guide, see [How It Works](HOW_IT_WORKS.md).
 **Contents:**
 
 - [The six-layer model](#the-six-layer-model)
+- [One kernel, host-specific adapters](#one-kernel-host-specific-adapters)
 - [The four meta-orchestrators](#the-four-meta-orchestrators)
 - [Design principles](#design-principles)
 - [The agent fleet](#the-agent-fleet)
 - [Skill creation infrastructure](#skill-creation-infrastructure)
 - [Inspirations and credits](#inspirations-and-credits)
+
+---
+
+## One kernel, host-specific adapters
+
+LaunchPad keeps workflow meaning in one place:
+
+```text
+Canonical kernel
+├── commands/lp-*.md
+├── agents/**/*.md
+└── skills/lp-*/SKILL.md
+        │
+        ├── Claude adapter -> /lp-<name>
+        └── Codex adapter  -> $lp <name>
+```
+
+The canonical files own the workflow body, direct dependencies, capability metadata, and roster references. Host adapters own discovery, invocation provenance, argument binding, tool profiles, scheduling, and enforcement. The Codex adapter does not generate one wrapper per command. Its single `$lp` router resolves the same canonical definitions through a bounded direct-edge graph and adds a versioned host preamble without rewriting the canonical body.
+
+Discovery is not permission to execute. A new released built-in definition enters the catalog without a second Codex wrapper, but it remains blocked until its metadata, qualification evidence, and live preflight all pass. Agents stay internal. Direct `$lp skill` is limited to a released built-in skill whose canonical metadata authorizes user invocation; project skills remain workflow dependencies rather than public entries.
+
+The support producer creates one bounded `O(V + E)` graph handoff. The package projector consumes its sealed runtime set, relocates canonical content under `codex/canonical/`, and appends only the declared evidence and documentation slots. Three digest domains keep the handoff non-circular: runtime payload, release evidence, and the detached completed-package artifact. Missing enforcement blocks execution. Presentation-only differences may continue when disclosed.
+
+Claude Code and Codex can implement the same canonical agent prompts with different native primitives. Parallelism, worker limits, wave barriers, cancellation, read-only enforcement, receipt reservation, and mutation ownership are adapter responsibilities. No adapter may claim parity merely because it can read the prompt files.
+
+Session context follows the same split. `CLAUDE.md` supplies Claude-specific instructions, `AGENTS.md` supplies cross-tool instructions, and `.launchpad/`, `.harness/`, and `docs/` carry shared project state. Learning is promoted through the shared repository artifacts instead of copied into contradictory host policies.
+
+The current Codex evidence advertises no executable workflow. Canonical-file reading is inspection-only unless an exact host and workflow digest has qualified an enforced `read_only_manual` fallback. Mutating, autonomous, or agent-dispatch workflows redirect to a supported native host.
 
 ---
 
@@ -73,12 +102,12 @@ For the command-level detail of each layer, see [How It Works → The four meta-
 
 Four meta-orchestrators chain the layers into end-to-end workflows. Each owns a phase of the lifecycle and checks status before proceeding — so you can invoke any one independently when resuming work.
 
-| Meta-orchestrator | Layers | What it chains                                                                                         |
-| ----------------- | ------ | ------------------------------------------------------------------------------------------------------ |
-| `/lp-kickoff`     | 2      | `/lp-brainstorm` (research agents + design document capture)                                           |
-| `/lp-define`      | 2      | `/lp-define-product` → `/lp-define-design` → `/lp-define-architecture` → `/lp-shape-section`           |
-| `/lp-plan`        | 3      | design → `/lp-pnf` → `/lp-harden-plan` → human approval                                                |
-| `/lp-build`       | 4–6    | `/lp-inf` → `/lp-review` → `/lp-resolve-todo-parallel` → `/lp-test-browser` → `/lp-ship` → `/lp-learn` |
+| Logical workflow | Claude invocation | Codex invocation        | Layers | What it chains                                                      |
+| ---------------- | ----------------- | ----------------------- | ------ | ------------------------------------------------------------------- |
+| `lp-kickoff`     | `/lp-kickoff`     | `$lp kickoff` (blocked) | 2      | `/lp-brainstorm` plus research and design capture                   |
+| `lp-define`      | `/lp-define`      | `$lp define` (blocked)  | 2      | Product, design, architecture, and section definition               |
+| `lp-plan`        | `/lp-plan`        | `$lp plan` (blocked)    | 3      | Design, planning, hardening, and human approval                     |
+| `lp-build`       | `/lp-build`       | `$lp build` (blocked)   | 4 to 6 | Implementation, review, resolution, testing, shipping, and learning |
 
 Each orchestrator works against a **status contract** — every section progresses through a strict chain:
 
@@ -104,7 +133,7 @@ Each loop iteration (`loop.sh` inside `/lp-inf`) runs in a **fresh AI context**.
 
 ### 3. Confidence scoring, not false-positive avalanches
 
-`/lp-review` dispatches 7+ review agents in parallel. Raw output would bury real issues under generic advice. Instead, every finding is scored (0.00–1.00) with boosters for multi-agent agreement and security concerns, and suppressed below a 0.60 threshold — with audit trail. A P1 floor ensures critical findings are never auto-suppressed.
+The released Claude `/lp-review` workflow dispatches 7+ review agents in parallel. Raw output would bury real issues under generic advice. Instead, every finding is scored (0.00–1.00) with boosters for multi-agent agreement and security concerns, and suppressed below a 0.60 threshold, with an audit trail. A P1 floor ensures critical findings are never auto-suppressed. The Codex `$lp review` route remains blocked until its complete capability chain is qualified.
 
 ### 4. Multi-layer merge prevention
 

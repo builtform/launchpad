@@ -166,6 +166,17 @@ Trace every conditional branch in the skill ("if X," "when Y," "for Z cases"). E
 
 Assemble the outputs from all three passes into a single report.
 
+### LaunchPad Metadata Extension Gate
+
+Run this gate for every new or updated skill in addition to the three evaluation passes:
+
+- [PASS/FAIL] `x-launchpad.schema-version` is `1` and `component-kind` is `skill`.
+- [PASS/FAIL] `direct` contains only dependencies owned by this skill. Reference and asset paths are relative to the skill directory, and transitive dependencies are not copied into frontmatter.
+- [PASS/FAIL] Every declared direct path resolves, and every runtime reference or asset loaded by the skill has one owning declaration.
+- [PASS/FAIL] `capabilities.required` uses IDs from `codex/adapter-protocol.json` without a local alias table.
+- [PASS/FAIL] Mutation, interaction, egress, write scopes, tool profile, and fallback match the skill's actual behavior.
+- [PASS/FAIL] The completed frontmatter passes the canonical corpus integrity checker with no remaining template placeholders.
+
 ```
 ## Skill Evaluation Report: [skill-name]
 
