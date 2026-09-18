@@ -210,6 +210,12 @@ Runs AFTER all agents return findings, BEFORE writing to `.harness/todos/`.
 
 ### Step 5a: Collect raw findings from all agents
 
+- Preserve each agent's reported severity in the raw review evidence
+- Normalize any agent-reported P0 to pipeline P1 before confidence scoring, deduplication output, todo frontmatter, or summary serialization
+- Add `Reported severity: P0` to the finding evidence body so the source classification remains visible without extending todo frontmatter
+- Keep the existing P1 confidence floor after normalization; downstream artifacts continue to use only P1/P2/P3
+- Treat claims-auditor environment coverage limitations as audit ledger entries, not findings, and do not send them through confidence scoring
+
 ### Step 5b: Deduplicate
 
 - Same file:line + same concern → merge into single finding

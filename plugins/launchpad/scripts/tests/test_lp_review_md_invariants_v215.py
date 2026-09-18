@@ -216,3 +216,17 @@ def test_claims_auditor_receives_pr_intent_in_contextual_mode() -> None:
     assert "pass `intent_context` from Step 1.5 verbatim" in step3_body
     assert "PR title, body, labels, and linked issue context" in step3_body
     assert "`--no-context` mode: pass no PR intent by design" in step3_body
+
+
+def test_agent_p0_is_normalized_before_pipeline_serialization() -> None:
+    """The P1/P2/P3 pipeline must retain but never serialize P0 priority."""
+    text = _md()
+    step5a_idx = text.find("### Step 5a: Collect raw findings from all agents")
+    step5b_idx = text.find("### Step 5b: Deduplicate")
+    assert step5a_idx >= 0 and step5b_idx > step5a_idx
+    step5a_body = text[step5a_idx:step5b_idx]
+
+    assert "Normalize any agent-reported P0 to pipeline P1" in step5a_body
+    assert "Reported severity: P0" in step5a_body
+    assert "downstream artifacts continue to use only P1/P2/P3" in step5a_body
+    assert "coverage limitations as audit ledger entries, not findings" in step5a_body
