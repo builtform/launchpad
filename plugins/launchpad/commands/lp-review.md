@@ -28,7 +28,11 @@ Multi-agent parallel code review with confidence-based false-positive suppressio
 2. Load paths via `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-config-loader.py` so `paths.architecture_dir` etc. override defaults where relevant.
 3. Read `.launchpad/agents.yml` → extract `review_agents`, `review_db_agents`, `review_design_agents`, `review_copy_agents`, `review_document_agents`, `review_document_artifacts` (optional; default `[]`)
 4. For every extracted roster, validate each agent name against `[a-z0-9-]+` and resolve it to a file by scanning `${CLAUDE_PLUGIN_ROOT}/agents/**` for `{name}.md` first, then `.claude/agents/**` for `{name}.md`. First match wins. For a name resolved from the second location, parse and validate its `stack_scope` against `STACK_SCOPE_REGEX`; skip invalid local frontmatter with warning and store valid name-to-scope pairs in `prevalidated_project_agent_scopes`. Skip with warning if no file resolves. Store only successful entries in `resolved_review_agents`, `resolved_review_db_agents`, `resolved_review_design_agents`, `resolved_review_copy_agents`, and `resolved_review_document_agents`; every later dispatch step MUST consume these resolved lists, never the raw configured rosters.
-5. IF raw `review_agents` is non-empty AND `resolved_review_agents` is empty: emit a P1 configuration finding naming every unresolved entry and HALT review. Do not report a clean review with zero resolved general reviewers. An explicitly empty raw `review_agents` list remains allowed.
+5. IF raw `review_agents` is non-empty AND `resolved_review_agents` is empty: persist a failed-review artifact before halting:
+   - Create `.harness/todos/` if missing and write deterministic `.harness/todos/configuration-no-resolved-review-agents.md` with `priority: P1`, `agent_source: lp-review`, `confidence: 1.00`, `file: .launchpad/agents.yml`, and every unresolved configured name
+   - DEFAULT mode: overwrite `.harness/review-summary.md` with `## Review Failure` and the P1 configuration finding; `--no-context` mode: append the same failure section without clearing prior findings
+   - Return a non-success command result, then HALT review. Do not report a clean review with zero resolved general reviewers
+   - An explicitly empty raw `review_agents` list remains allowed
 6. Read `.harness/harness.local.md` → extract review context
 7. The lite prereq helper above already refuses with a `/lp-define` pointer when `agents.yml` is missing, so reaching this point means the file exists. No in-command fallback is needed; the legacy "fall back to `lp-pattern-finder` only" path was prose drift that contradicted the helper's verify-or-refuse contract.
 
@@ -129,9 +133,11 @@ filtered. `/lp-review` has no Step 3.5.
 
 **All-stack-mismatch refusal:** catch
 `plugin_agent_scope_filter.NoMatchingAgentsError` before the broad fallback,
-emit a P1 configuration finding naming the configured roster and persisted
-stacks, and HALT review. Do NOT dispatch the full roster because that would
-re-enable stack-incompatible agents.
+persist `.harness/todos/configuration-no-stack-matching-review-agents.md` and a
+`## Review Failure` summary section using the same mode-aware lifecycle and P1
+frontmatter contract as Step 0, return a non-success command result, and HALT
+review. Name the configured roster and persisted stacks. Do NOT dispatch the
+full roster because that would re-enable stack-incompatible agents.
 
 **Pass-through fallback** (cycle-4 spec-flow P2-B): if the filter raises any
 other exception, catch broadly, log INFO with the exception type, and emit

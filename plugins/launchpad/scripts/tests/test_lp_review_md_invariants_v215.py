@@ -302,7 +302,9 @@ def test_nonempty_roster_that_resolves_to_zero_halts_review() -> None:
 
     assert "raw `review_agents` is non-empty" in step0_body
     assert "`resolved_review_agents` is empty" in step0_body
-    assert "emit a P1 configuration finding" in step0_body
+    assert "configuration-no-resolved-review-agents.md" in step0_body
+    assert "## Review Failure" in step0_body
+    assert "Return a non-success command result" in step0_body
     assert "HALT review" in step0_body
     assert "explicitly empty raw `review_agents` list remains allowed" in step0_body
 
@@ -344,8 +346,11 @@ def test_all_stack_mismatch_halts_without_full_roster_fallback() -> None:
     assert 0 <= mismatch_idx < fallback_idx
     assert "NoMatchingAgentsError" in step3_body
     assert "raise_on_no_match=True" in step3_body
-    assert "emit a P1 configuration finding" in step3_body
-    assert "Do NOT dispatch the full roster" in step3_body
+    assert "configuration-no-stack-matching-review-agents.md" in step3_body
+    assert "same mode-aware lifecycle and P1" in step3_body
+    assert "return a non-success command result" in step3_body
+    assert "Do NOT dispatch the" in step3_body
+    assert "full roster" in step3_body
 
 
 def test_coverage_limitations_are_always_persisted_in_summary() -> None:
