@@ -68,3 +68,17 @@ def test_go_sandbox_example_scrubs_environment_and_uses_scratch_paths() -> None:
     assert "GOMODCACHE=/work/modcache" in text
     assert "GOPROXY=off" in text
     assert "--unshare-all" in text
+
+
+def test_document_reviewer_sandboxes_binary_extraction() -> None:
+    text = _text("lp-document-truth.md")
+    frontmatter = _frontmatter("lp-document-truth.md")
+    external_tools = frontmatter["x-launchpad"]["direct"]["external-tools"]
+
+    assert "DO NOT run repository-controlled renderers" in text
+    assert "require `bwrap` with a new network namespace" in text
+    assert "require `sandbox-exec` with default deny" in text
+    assert "Scrub extractor environments with `env -i`" in text
+    assert "coverage limitation with no finding priority" in text
+    assert "Don't process a binary artifact with an unsandboxed parser" in text
+    assert {"bwrap", "sandbox-exec"}.issubset(external_tools)
