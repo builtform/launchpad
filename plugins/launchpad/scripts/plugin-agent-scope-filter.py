@@ -5,8 +5,9 @@ Loads + caches `plugins/launchpad/agents/**/*.md` frontmatter, exposes
 `/lp-review` Step 3 and `/lp-harden-plan` Step 3 dispatch.
 
 Design (cycle-3 strip-back; cycle-4 LOCKED v5):
-  * Plugin-tree only (no project-local `.claude/agents/**` walk; deferred
-    to v2.2 BL alongside project-local CODEOWNERS governance).
+  * Plugin-tree index only. Callers may pass project-local names they already
+    resolved and validated through `prevalidated_passthrough_names`; the filter
+    never walks or trusts `.claude/agents/**` on its own.
   * Module-level `STACK_SCOPE_REGEX` (cycle-3 perf P1-2).
   * `lru_cache(maxsize=None)` on `_load_agent_index`. Returns
     `MappingProxyType` (immutable view; cycle-2 security).
@@ -239,7 +240,10 @@ def _selector_members(stack_id: str) -> frozenset[str]:
 
 
 def filter_agents_by_stacks(
-    agent_names: Iterable[str], stacks: Iterable[str]
+    agent_names: Iterable[str],
+    stacks: Iterable[str],
+    *,
+    prevalidated_passthrough_names: Iterable[str] = (),
 ) -> list[str]:
     """Filter agent names by stack_scope classification.
 
@@ -253,6 +257,11 @@ def filter_agents_by_stacks(
     Missing-name handling: WARN + drop (cycle-3 spec-flow P1-2). Caller
     reads `last_dropped_names()` for partial-drop banner.
 
+    `prevalidated_passthrough_names` contains project-local agents the caller
+    already resolved under its trusted project root. These names survive
+    without stack filtering because project-local frontmatter is outside the
+    plugin-owned scope index. Unknown names not in this set still warn + drop.
+
     Empty input list returns []. Empty stacks is allowed (returns only
     core_pipeline + stack:any agents).
 
@@ -262,6 +271,7 @@ def filter_agents_by_stacks(
     """
     names = list(agent_names)
     stack_list = list(stacks)
+    passthrough_names = set(prevalidated_passthrough_names)
     if not names:
         return []
     active_enum = _active_stack_enum()
@@ -279,6 +289,9 @@ def filter_agents_by_stacks(
     for name in names:
         meta = index.get(name)
         if meta is None:
+            if name in passthrough_names:
+                survivors.append(name)
+                continue
             _LOGGER.warning(
                 "stack-filter: dropping unknown agent name %r (not in plugin index)",
                 name,

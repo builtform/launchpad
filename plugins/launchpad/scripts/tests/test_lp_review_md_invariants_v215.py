@@ -248,6 +248,21 @@ def test_agent_p0_is_normalized_before_pipeline_serialization() -> None:
     assert "coverage limitations as audit ledger entries, not findings" in step5a_body
 
 
+def test_prevalidated_project_agents_survive_stack_filter() -> None:
+    """Project-local agents resolved in Step 0 must reach Step 3 dispatch."""
+    text = _md()
+    step0_idx = text.find("## Step 0: Read Configuration")
+    step1_idx = text.find("## Step 1: Determine Diff Scope")
+    step3_idx = text.find("## Step 3: Dispatch Review Agents")
+    step4_idx = text.find("## Step 4: Conditional DB Agent Dispatch")
+    assert step0_idx >= 0 and step1_idx > step0_idx
+    assert step3_idx >= 0 and step4_idx > step3_idx
+
+    assert "prevalidated_project_agent_names" in text[step0_idx:step1_idx]
+    assert "prevalidated_passthrough_names=" in text[step3_idx:step4_idx]
+    assert "prevalidated_project_agent_names" in text[step3_idx:step4_idx]
+
+
 def test_coverage_limitations_are_always_persisted_in_summary() -> None:
     """Headless callers must see checks skipped for environment reasons."""
     text = _md()

@@ -27,7 +27,7 @@ Multi-agent parallel code review with confidence-based false-positive suppressio
 1. Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-review --require=.launchpad/agents.yml` — verify-or-refuse: the lite helper checks the required file exists and exits 1 with a pointer to `/lp-define` if not. `/lp-define` is the authoritative seeder; this command never writes `agents.yml`.
 2. Load paths via `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-config-loader.py` so `paths.architecture_dir` etc. override defaults where relevant.
 3. Read `.launchpad/agents.yml` → extract `review_agents`, `review_db_agents`, `review_design_agents`, `review_copy_agents`, `review_document_agents`, `review_document_artifacts` (optional; default `[]`)
-4. Validate each agent name: must match `[a-z0-9-]+`. Resolve to a file by scanning `${CLAUDE_PLUGIN_ROOT}/agents/**` for `{name}.md` (built-ins shipped with the plugin; their on-disk filenames already include the `lp-` prefix, e.g. `lp-pattern-finder.md`, and `agents.yml` stores names with the prefix to match) first, then `.claude/agents/**` for `{name}.md` (project-local extensions). Skip with warning if file not found — this handles unimplemented optional agents gracefully.
+4. Validate each agent name: must match `[a-z0-9-]+`. Resolve to a file by scanning `${CLAUDE_PLUGIN_ROOT}/agents/**` for `{name}.md` (built-ins shipped with the plugin; their on-disk filenames already include the `lp-` prefix, e.g. `lp-pattern-finder.md`, and `agents.yml` stores names with the prefix to match) first, then `.claude/agents/**` for `{name}.md` (project-local extensions). Add names resolved from the second location to `prevalidated_project_agent_names`. Skip with warning if file not found; this handles unimplemented optional agents gracefully.
 5. Read `.harness/harness.local.md` → extract review context
 6. The lite prereq helper above already refuses with a `/lp-define` pointer when `agents.yml` is missing, so reaching this point means the file exists. No in-command fallback is needed; the legacy "fall back to `lp-pattern-finder` only" path was prose drift that contradicted the helper's verify-or-refuse contract.
 
@@ -113,7 +113,9 @@ branch:
 
 **Pre-filter (v2.1 Phase 6 §3.3 + DA3)**: before dispatch, narrow
 `review_agents` through `plugin_agent_scope_filter.filter_agents_by_stacks(
-review_agents, stacks)` where `stacks = plugin_config_loader.read_stacks(cwd)`.
+review_agents, stacks, prevalidated_passthrough_names=
+prevalidated_project_agent_names)` where
+`stacks = plugin_config_loader.read_stacks(cwd)`.
 The filter drops agents whose `stack_scope` does not match any of the
 project's persisted stacks. Step 4 (DB-only conditional), Step 4.5
 (design and copy conditionals), and Step 4.6 (document conditional) are NOT

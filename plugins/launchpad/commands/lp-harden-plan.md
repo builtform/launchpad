@@ -86,9 +86,16 @@ Read agent names from `.launchpad/agents.yml`:
 
 Read `harden_plan_agents` from `agents.yml`.
 
+**Agent resolution:** Validate each combined roster name, then scan
+`${CLAUDE_PLUGIN_ROOT}/agents/**` for `{name}.md` first and
+`.claude/agents/**` second. First match wins. Add names resolved from the
+second location to `prevalidated_project_agent_names`. If no file resolves,
+skip with a note before filtering.
+
 **Pre-filter (v2.1 Phase 6 §3.3 + DA3)**: narrow `harden_plan_agents +
 harden_plan_conditional_agents` through
-`plugin_agent_scope_filter.filter_agents_by_stacks(<combined>, stacks)`
+`plugin_agent_scope_filter.filter_agents_by_stacks(<resolved-combined>, stacks,
+prevalidated_passthrough_names=prevalidated_project_agent_names)`
 where `stacks = plugin_config_loader.read_stacks(cwd)`. Step 3.5
 (doc-reviewers) is NOT filtered — they are `core_pipeline` always-load.
 
@@ -117,7 +124,7 @@ Dispatch survivors in parallel with plan + project context + learnings + Context
 Read `harden_plan_conditional_agents` from `agents.yml`. (Already merged
 into the filter input above.) Dispatch all listed agents in parallel.
 
-**Agent resolution:** Scan `${CLAUDE_PLUGIN_ROOT}/agents/**` for `{name}.md` (built-ins shipped with the plugin; their on-disk filenames already include the `lp-` prefix and `agents.yml` stores names with the prefix to match) first, then `.claude/agents/**` for `{name}.md` (project-local extensions). First match wins. If agent file not found, skip silently with a note.
+**Resolved agent dispatch:** Use the paths resolved before filtering. Do not scan or resolve a second time after the survivor list is produced.
 
 ## Step 3.5: Dispatch Document-Review Agents
 
