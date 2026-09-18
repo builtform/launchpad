@@ -42,8 +42,8 @@ Multi-agent parallel code review with confidence-based false-positive suppressio
 git diff --name-only origin/main...HEAD
 ```
 
-- Record `review_scope_mode = normal`, `review_diff_base = origin/main`, `review_head_identity = git rev-parse HEAD`, `review_base_sha = git merge-base origin/main HEAD`, and `review_commit_range = origin/main..HEAD`
-- Record `review_commit_log` from `git log --format=fuller origin/main..HEAD`; this exact range and output are authoritative inputs for claims auditing
+- Record `review_scope_mode = normal`, `review_diff_base = origin/main`, `review_head_identity = git rev-parse HEAD`, and `review_base_sha = git merge-base origin/main HEAD`
+- Set `review_commit_range = <review_base_sha>..HEAD` and record `review_commit_log` from `git log --format=fuller "$review_base_sha"..HEAD`; this exact merge-base-derived range matches the three-dot diff and is authoritative for claims auditing
 
 - Check for Prisma changes (files matching `packages/db/**`, `prisma/**`, `*.prisma`) → set `db_changes = true/false`
 

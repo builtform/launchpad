@@ -192,8 +192,10 @@ def test_every_diff_mode_records_authoritative_claims_context() -> None:
     step1_body = text[step1_idx:step15_idx]
 
     assert "review_scope_mode = normal" in step1_body
-    assert "review_commit_range = origin/main..HEAD" in step1_body
-    assert "git log --format=fuller origin/main..HEAD" in step1_body
+    assert "review_base_sha = git merge-base origin/main HEAD" in step1_body
+    assert "review_commit_range = <review_base_sha>..HEAD" in step1_body
+    assert 'git log --format=fuller "$review_base_sha"..HEAD' in step1_body
+    assert "merge-base-derived range matches the three-dot diff" in step1_body
     assert "review_scope_mode = pre-first-commit" in step1_body
     assert "review_head_identity = working-tree" in step1_body
     assert "review_commit_range = none" in step1_body
