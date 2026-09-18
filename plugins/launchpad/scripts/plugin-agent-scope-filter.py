@@ -19,7 +19,8 @@ Design (cycle-3 strip-back; cycle-4 LOCKED v5):
     matching both `go` and the generated `go_cli` stack id.
   * `EmptyFilterResultError` fires only when ALL input names are missing from
     the index. A known roster containing only stack-mismatched agents returns
-    an empty list so callers do not activate their full-roster fallback.
+    `NoMatchingAgentsError` only when the caller opts into
+    `raise_on_no_match`; legacy callers receive an empty list.
   * Missing-name UX: WARN + drop (cycle-3 spec-flow P1-2). Caller reads
     `last_dropped_names()` for partial-drop banner emission.
 
@@ -107,6 +108,14 @@ class EmptyFilterResultError(RuntimeError):
     index, such as an agents.yml typo for every name. Known agents excluded
     by stack scope return an empty list without raising. Callers catch this
     exception and emit the FALLBACK banner per §3.3.
+    """
+
+
+class NoMatchingAgentsError(RuntimeError):
+    """Raised when every resolved agent is excluded by stack scope.
+
+    Callers must surface a configuration finding and halt rather than use the
+    exception fallback that dispatches the full roster.
     """
 
 
@@ -244,6 +253,7 @@ def filter_agents_by_stacks(
     stacks: Iterable[str],
     *,
     prevalidated_passthrough_names: Iterable[str] = (),
+    raise_on_no_match: bool = False,
 ) -> list[str]:
     """Filter agent names by stack_scope classification.
 
@@ -262,12 +272,16 @@ def filter_agents_by_stacks(
     without stack filtering because project-local frontmatter is outside the
     plugin-owned scope index. Unknown names not in this set still warn + drop.
 
+    `raise_on_no_match=True` makes a fully stack-mismatched resolved roster a
+    visible error. `/lp-review` enables this; legacy callers retain `[]`.
+
     Empty input list returns []. Empty stacks is allowed (returns only
     core_pipeline + stack:any agents).
 
     Raises:
       ValueError: stack id not in STACK_ID_ACTIVE_ENUM.
       EmptyFilterResultError: every input name is missing from the agent index.
+      NoMatchingAgentsError: all resolved agents are excluded by stack scope.
     """
     names = list(agent_names)
     stack_list = list(stacks)
@@ -317,6 +331,11 @@ def filter_agents_by_stacks(
             f"filter dropped every agent in input {names!r}; all names are "
             "missing from the plugin index"
         )
+    if not survivors_sorted and raise_on_no_match:
+        raise NoMatchingAgentsError(
+            f"no configured agent matches persisted stacks {stack_list!r}; "
+            f"resolved input was {names!r}"
+        )
     return survivors_sorted
 
 
@@ -335,6 +354,7 @@ __all__ = [
     "STACK_FAMILY_MEMBERS",
     "MAX_AGENT_FRONTMATTER_BYTES",
     "EmptyFilterResultError",
+    "NoMatchingAgentsError",
     "FrontmatterTooLargeError",
     "filter_agents_by_stacks",
     "last_dropped_names",

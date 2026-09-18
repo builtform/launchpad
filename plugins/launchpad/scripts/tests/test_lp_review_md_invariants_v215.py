@@ -287,6 +287,23 @@ def test_all_conditional_dispatches_use_resolved_rosters() -> None:
     assert "every later dispatch step MUST consume these resolved lists" in step0_body
 
 
+def test_all_stack_mismatch_halts_without_full_roster_fallback() -> None:
+    """A fully incompatible roster must fail visibly and stay filtered."""
+    text = _md()
+    step3_idx = text.find("## Step 3: Dispatch Review Agents")
+    step4_idx = text.find("## Step 4: Conditional DB Agent Dispatch")
+    assert step3_idx >= 0 and step4_idx > step3_idx
+    step3_body = text[step3_idx:step4_idx]
+
+    mismatch_idx = step3_body.find("**All-stack-mismatch refusal:**")
+    fallback_idx = step3_body.find("**Pass-through fallback**")
+    assert 0 <= mismatch_idx < fallback_idx
+    assert "NoMatchingAgentsError" in step3_body
+    assert "raise_on_no_match=True" in step3_body
+    assert "emit a P1 configuration finding" in step3_body
+    assert "Do NOT dispatch the full roster" in step3_body
+
+
 def test_coverage_limitations_are_always_persisted_in_summary() -> None:
     """Headless callers must see checks skipped for environment reasons."""
     text = _md()

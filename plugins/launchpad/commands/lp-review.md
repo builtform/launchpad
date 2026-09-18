@@ -114,15 +114,21 @@ branch:
 **Pre-filter (v2.1 Phase 6 §3.3 + DA3)**: before dispatch, narrow
 `resolved_review_agents` through `plugin_agent_scope_filter.filter_agents_by_stacks(
 resolved_review_agents, stacks, prevalidated_passthrough_names=
-prevalidated_project_agent_names)` where
+prevalidated_project_agent_names, raise_on_no_match=True)` where
 `stacks = plugin_config_loader.read_stacks(cwd)`.
 The filter drops agents whose `stack_scope` does not match any of the
 project's persisted stacks. Step 4 (DB-only conditional), Step 4.5
 (design and copy conditionals), and Step 4.6 (document conditional) are NOT
 filtered. `/lp-review` has no Step 3.5.
 
-**Pass-through fallback** (cycle-4 spec-flow P2-B): if the filter raises
-ANY exception, catch broadly, log INFO with the exception type, and emit
+**All-stack-mismatch refusal:** catch
+`plugin_agent_scope_filter.NoMatchingAgentsError` before the broad fallback,
+emit a P1 configuration finding naming the configured roster and persisted
+stacks, and HALT review. Do NOT dispatch the full roster because that would
+re-enable stack-incompatible agents.
+
+**Pass-through fallback** (cycle-4 spec-flow P2-B): if the filter raises any
+other exception, catch broadly, log INFO with the exception type, and emit
 the FALLBACK banner to user-visible output:
 
 > ⚠ stack-filter unavailable (\<exception type\>); dispatching full
@@ -143,8 +149,8 @@ output, not buried logs.
 project's persisted stacks match that selector. Known language-family
 selectors may cover more than one persisted stack id; for example, `stack:go`
 matches both `go` and `go_cli`. A roster containing only known agents that do
-not match the project returns no survivors without activating the exception
-fallback.
+not match the project halts with the all-stack-mismatch configuration finding
+without activating the exception fallback.
 
 For each survivor agent from `resolved_review_agents`:
 
