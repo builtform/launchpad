@@ -27,7 +27,7 @@ Multi-agent parallel code review with confidence-based false-positive suppressio
 1. Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-review --require=.launchpad/agents.yml` — verify-or-refuse: the lite helper checks the required file exists and exits 1 with a pointer to `/lp-define` if not. `/lp-define` is the authoritative seeder; this command never writes `agents.yml`.
 2. Load paths via `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-config-loader.py` so `paths.architecture_dir` etc. override defaults where relevant.
 3. Read `.launchpad/agents.yml` → extract `review_agents`, `review_db_agents`, `review_design_agents`, `review_copy_agents`, `review_document_agents`, `review_document_artifacts` (optional; default `[]`)
-4. Validate each agent name: must match `[a-z0-9-]+`. Resolve to a file by scanning `${CLAUDE_PLUGIN_ROOT}/agents/**` for `{name}.md` (built-ins shipped with the plugin; their on-disk filenames already include the `lp-` prefix, e.g. `lp-pattern-finder.md`, and `agents.yml` stores names with the prefix to match) first, then `.claude/agents/**` for `{name}.md` (project-local extensions). Add names resolved from the second location to `prevalidated_project_agent_names`. Skip with warning if file not found; this handles unimplemented optional agents gracefully.
+4. For every extracted roster, validate each agent name against `[a-z0-9-]+` and resolve it to a file by scanning `${CLAUDE_PLUGIN_ROOT}/agents/**` for `{name}.md` first, then `.claude/agents/**` for `{name}.md`. First match wins. Add names resolved from the second location to `prevalidated_project_agent_names`. Skip with warning if no file resolves. Store only successful entries in `resolved_review_agents`, `resolved_review_db_agents`, `resolved_review_design_agents`, `resolved_review_copy_agents`, and `resolved_review_document_agents`; every later dispatch step MUST consume these resolved lists, never the raw configured rosters.
 5. Read `.harness/harness.local.md` → extract review context
 6. The lite prereq helper above already refuses with a `/lp-define` pointer when `agents.yml` is missing, so reaching this point means the file exists. No in-command fallback is needed; the legacy "fall back to `lp-pattern-finder` only" path was prose drift that contradicted the helper's verify-or-refuse contract.
 
@@ -112,8 +112,8 @@ branch:
 ## Step 3: Dispatch Review Agents (parallel, all model: inherit)
 
 **Pre-filter (v2.1 Phase 6 §3.3 + DA3)**: before dispatch, narrow
-`review_agents` through `plugin_agent_scope_filter.filter_agents_by_stacks(
-review_agents, stacks, prevalidated_passthrough_names=
+`resolved_review_agents` through `plugin_agent_scope_filter.filter_agents_by_stacks(
+resolved_review_agents, stacks, prevalidated_passthrough_names=
 prevalidated_project_agent_names)` where
 `stacks = plugin_config_loader.read_stacks(cwd)`.
 The filter drops agents whose `stack_scope` does not match any of the
@@ -146,7 +146,7 @@ matches both `go` and `go_cli`. A roster containing only known agents that do
 not match the project returns no survivors without activating the exception
 fallback.
 
-For each survivor agent in `review_agents`:
+For each survivor agent from `resolved_review_agents`:
 
 - Spawn agent with: diff content + changed file list + files they directly import (1-hop)
 - Review context source:
@@ -167,12 +167,12 @@ For each survivor agent in `review_agents`:
 
 IF changed files match `prisma/schema.prisma` OR `prisma/migrations/*`:
 
-**Step 4a:** Dispatch `lp-schema-drift-detector` (SEQUENTIAL — runs first)
+**Step 4a:** IF `lp-schema-drift-detector` is present in `resolved_review_db_agents`, dispatch it SEQUENTIALLY; otherwise use an empty `drift_report`
 
 - Pass: diff + Prisma files + review context
 - Wait for output → `drift_report`
 
-**Step 4b:** Dispatch IN PARALLEL with drift report as context:
+**Step 4b:** Dispatch the following agents IN PARALLEL only when each is present in `resolved_review_db_agents`, with drift report as context:
 
 - `lp-data-migration-auditor` — receives: diff + Prisma files + review context + `drift_report`
 - `lp-data-integrity-auditor` — receives: diff + Prisma files + review context + `drift_report`
@@ -184,27 +184,27 @@ The drift report lets downstream agents focus only on legitimate changes, ignori
 **Artifact-based dispatch** (decoupled from section registry):
 
 - Check if `.harness/design-artifacts/` contains any `*-approved.png` files
-- IF approved design artifacts exist AND `review_design_agents` is not empty:
-  - Dispatch all agents from `review_design_agents` in parallel
-  - IF Figma artifacts also exist (`.harness/design-artifacts/*-figma.*`): additionally dispatch `lp-design-implementation-reviewer` (marked `# conditional` in agents.yml)
+- IF approved design artifacts exist AND `resolved_review_design_agents` is not empty:
+  - Dispatch all agents from `resolved_review_design_agents` in parallel except `lp-design-implementation-reviewer`
+  - IF Figma artifacts also exist (`.harness/design-artifacts/*-figma.*`) AND `lp-design-implementation-reviewer` is present in `resolved_review_design_agents`: dispatch it
 - IF no design artifacts exist: skip design agents entirely
 - IF no design artifacts but diff contains UI-relevant files (`.tsx`, `.css`, `.html` in `apps/web/` or `packages/ui/`): emit P2 warning finding
 
 **Copy review dispatch:**
 
-- Read `review_copy_agents` from `.launchpad/agents.yml`
-- IF list is non-empty: dispatch all `review_copy_agents` in parallel
+- Use `resolved_review_copy_agents` from Step 0
+- IF list is non-empty: dispatch all `resolved_review_copy_agents` in parallel
 - IF list is empty: skip silently (expected in LaunchPad — downstream projects populate)
 
 ## Step 4.6: Conditional Document Truth Agents
 
-- Read `review_document_agents` from `.launchpad/agents.yml`
+- Use `resolved_review_document_agents` from Step 0
 - Read `review_document_artifacts` as a list of repository-relative glob patterns; missing key means `[]`
 - Validate each pattern before expansion: reject absolute paths, `..` segments, NUL bytes, and any match that resolves outside the repository or through a symlink
 - Expand all patterns, keep regular files only, deduplicate by resolved path, and sort by repository-relative path to produce `document_artifact_inventory`
-- IF `review_document_agents` is non-empty AND `review_document_artifacts` is empty: emit a P1 configuration finding and skip document dispatch
-- IF `review_document_agents` is non-empty AND no regular files match: emit a P1 configuration finding naming the configured patterns and skip document dispatch
-- IF both the roster and inventory are non-empty: dispatch all `review_document_agents` in parallel
+- IF `resolved_review_document_agents` is non-empty AND `review_document_artifacts` is empty: emit a P1 configuration finding and skip document dispatch
+- IF `resolved_review_document_agents` is non-empty AND no regular files match: emit a P1 configuration finding naming the configured patterns and skip document dispatch
+- IF both the resolved roster and inventory are non-empty: dispatch all `resolved_review_document_agents` in parallel
 - Pass each agent the diff, changed-file list, exact `document_artifact_inventory`, inventory count, configured patterns, and review context
 - Do NOT apply the stack pre-filter; output type is a project-specific capability that stack detection cannot infer
 - IF the list is empty: skip silently (expected in LaunchPad; downstream projects opt in when they produce recipient-facing documents)

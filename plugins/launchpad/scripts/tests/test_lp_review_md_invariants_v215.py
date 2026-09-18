@@ -196,7 +196,7 @@ def test_document_agent_roster_is_loaded_and_dispatched_without_stack_filter() -
     assert "review_document_artifacts" in text[step0_idx:step1_idx]
     assert step46_idx >= 0 and step5_idx > step46_idx
     step46_body = text[step46_idx:step5_idx]
-    assert "dispatch all `review_document_agents` in parallel" in step46_body
+    assert "dispatch all `resolved_review_document_agents` in parallel" in step46_body
     assert "document_artifact_inventory" in step46_body
     assert "repository-relative glob patterns" in step46_body
     assert "emit a P1 configuration finding" in step46_body
@@ -261,6 +261,30 @@ def test_prevalidated_project_agents_survive_stack_filter() -> None:
     assert "prevalidated_project_agent_names" in text[step0_idx:step1_idx]
     assert "prevalidated_passthrough_names=" in text[step3_idx:step4_idx]
     assert "prevalidated_project_agent_names" in text[step3_idx:step4_idx]
+
+
+def test_all_conditional_dispatches_use_resolved_rosters() -> None:
+    """Missing optional agents must be skipped before any dispatch path."""
+    text = _md()
+    step0_idx = text.find("## Step 0: Read Configuration")
+    step1_idx = text.find("## Step 1: Determine Diff Scope")
+    step4_idx = text.find("## Step 4: Conditional DB Agent Dispatch")
+    step5_idx = text.find("## Step 5: Confidence Scoring & Synthesis")
+    assert step0_idx >= 0 and step1_idx > step0_idx
+    assert step4_idx >= 0 and step5_idx > step4_idx
+
+    step0_body = text[step0_idx:step1_idx]
+    conditional_body = text[step4_idx:step5_idx]
+    for roster in (
+        "resolved_review_db_agents",
+        "resolved_review_design_agents",
+        "resolved_review_copy_agents",
+        "resolved_review_document_agents",
+    ):
+        assert roster in step0_body
+        assert roster in conditional_body
+
+    assert "every later dispatch step MUST consume these resolved lists" in step0_body
 
 
 def test_coverage_limitations_are_always_persisted_in_summary() -> None:
