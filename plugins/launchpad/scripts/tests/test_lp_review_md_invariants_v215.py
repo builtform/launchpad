@@ -183,6 +183,23 @@ def test_codex_round5_p1_b_no_remote_branch_split() -> None:
     assert "[no-remote-base]" in step1a_body
 
 
+def test_every_diff_mode_records_authoritative_claims_context() -> None:
+    """Claims auditing must receive explicit history semantics in every mode."""
+    text = _md()
+    step1_idx = text.find("## Step 1: Determine Diff Scope")
+    step15_idx = text.find("## Step 1.5: Read PR Intent Context")
+    assert step1_idx >= 0 and step15_idx > step1_idx
+    step1_body = text[step1_idx:step15_idx]
+
+    assert "review_scope_mode = normal" in step1_body
+    assert "review_commit_range = origin/main..HEAD" in step1_body
+    assert "git log --format=fuller origin/main..HEAD" in step1_body
+    assert "review_scope_mode = pre-first-commit" in step1_body
+    assert "review_commit_range = none" in step1_body
+    assert "review_scope_mode = no-remote-base" in step1_body
+    assert "review_commit_range = working-tree-vs-HEAD" in step1_body
+
+
 def test_document_agent_roster_is_loaded_and_dispatched_without_stack_filter() -> None:
     """Recipient-output review is opt-in and independent of code stack."""
     text = _md()
@@ -213,6 +230,15 @@ def test_claims_auditor_receives_pr_intent_in_contextual_mode() -> None:
     step3_body = text[step3_idx:step4_idx]
 
     assert "For `lp-claims-auditor`" in step3_body
+    for field in (
+        "review_scope_mode",
+        "review_diff_base",
+        "review_head_sha",
+        "review_commit_range",
+        "review_commit_log",
+    ):
+        assert field in step3_body
+    assert "MUST NOT infer or replace this range" in step3_body
     assert "pass `intent_context` from Step 1.5 verbatim" in step3_body
     assert "PR title, body, labels, and linked issue context" in step3_body
     assert "`--no-context` mode: pass no PR intent by design" in step3_body

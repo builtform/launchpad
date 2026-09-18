@@ -38,6 +38,9 @@ Multi-agent parallel code review with confidence-based false-positive suppressio
 git diff --name-only origin/main...HEAD
 ```
 
+- Record `review_scope_mode = normal`, `review_diff_base = origin/main`, `review_head_sha = git rev-parse HEAD`, and `review_commit_range = origin/main..HEAD`
+- Record `review_commit_log` from `git log --format=fuller origin/main..HEAD`; this exact range and output are authoritative inputs for claims auditing
+
 - Check for Prisma changes (files matching `packages/db/**`, `prisma/**`, `*.prisma`) → set `db_changes = true/false`
 
 ### Step 1.A: Pre-first-commit fallback (v2.1.5 BL-337)
@@ -59,6 +62,7 @@ HAS_REMOTE=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo yes || e
 - Otherwise: scope = `git ls-files --others --exclude-standard` plus tracked staged files (full working-tree + staged review)
 - The agent dispatch treats each scoped file as a new-file diff (no diff base, full-content review)
 - Banner: `[pre-first-commit] reviewing <N> staged/working-tree files as new-file diff`
+- Set `review_scope_mode = pre-first-commit`, `review_diff_base = none`, `review_head_sha = none`, `review_commit_range = none`, and `review_commit_log = empty`
 
 **Case 2: `HAS_HEAD == yes` AND `HAS_REMOTE == no` (existing-history, no remote base):**
 
@@ -68,6 +72,7 @@ HAS_REMOTE=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo yes || e
   - `git ls-files --others --exclude-standard` (untracked files)
 - The agent dispatch treats each scoped file as a normal diff vs `HEAD` (NOT a new-file diff) where the file is a tracked modification; new-file diff for untracked files. Mixed mode.
 - Banner: `[no-remote-base] reviewing <N> files vs HEAD + staged + untracked (origin/main absent)`
+- Set `review_scope_mode = no-remote-base`, `review_diff_base = HEAD`, `review_head_sha = git rev-parse HEAD`, `review_commit_range = working-tree-vs-HEAD`, and `review_commit_log = empty` because this fallback reviews uncommitted state rather than a commit range
 
 **Both cases share the post-scoping handling:**
 
@@ -164,6 +169,7 @@ For each survivor agent from `resolved_review_agents`:
   - DEFAULT: additionally pass "Changed Files: {list}. Suggest changes only to these files. Return observation text for anything outside this list."
   - `--no-context` mode: DROP this constraint — the simplicity reviewer may flag findings outside changed files (no `feature_scope` narrowing)
 - For `lp-claims-auditor`:
+  - In every mode: pass `review_scope_mode`, `review_diff_base`, `review_head_sha`, `review_commit_range`, and `review_commit_log` exactly as resolved in Step 1; the agent MUST NOT infer or replace this range
   - DEFAULT: additionally pass `intent_context` from Step 1.5 verbatim, including the PR title, body, labels, and linked issue context when available
   - `--no-context` mode: pass no PR intent by design; instruct the agent to audit commit messages, changed documentation, doc comments, test names, and test comments only
 - Per-agent prompt:
