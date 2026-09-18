@@ -10,7 +10,7 @@ Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.
 
 ### For LaunchPad users
 
-- **Three evidence-driven review lenses.** `lp-claims-auditor` executes factual claims from commits, PRs, comments, tests, README files, and reports. `lp-foad-go-reviewer` proves Go correctness defects with disposable probes and records the cases it cleared. `lp-document-truth` checks recipient-facing output for count mismatches, unsupported provenance, contradictions, and misleading advisories or refusals.
+- **Three evidence-driven review lenses.** `lp-claims-auditor` executes factual claims from commit messages, PR bodies, source-code documentation comments, test names and test comments, README files, and reports. `lp-foad-go-reviewer` proves Go correctness defects with disposable probes and records the cases it cleared. `lp-document-truth` checks recipient-facing output for count mismatches, unsupported provenance, contradictions, and misleading advisories or refusals.
 - **Conditional document review roster.** `.launchpad/agents.yml` gains empty `review_document_agents` and `review_document_artifacts` lists. Projects that produce rendered pages, reports, PDFs, emails, dashboards, or generated documents can opt into `lp-document-truth` and provide deterministic repository-relative artifact globs without binding document production to a technology stack.
 
 ### Plugin-internal changes

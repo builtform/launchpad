@@ -29,3 +29,11 @@ def test_methodology_uses_canonical_agent_ids() -> None:
         "lp-document-truth",
     ):
         assert f"`{agent_id}`" in methodology
+
+
+def test_changelog_describes_exact_claim_sources() -> None:
+    changelog = (_REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+
+    assert "PR bodies, source-code documentation comments" in changelog
+    assert "test names and test comments" in changelog
+    assert "commits, PRs, comments, tests" not in changelog
