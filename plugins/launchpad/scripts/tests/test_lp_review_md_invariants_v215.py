@@ -300,3 +300,17 @@ def test_coverage_limitations_are_always_persisted_in_summary() -> None:
     assert "include the same subsection inside the appended blind findings section" in step6_body
     assert "Never create todo files for coverage limitations" in step6_body
     assert '"Clean review: no actionable findings"' in step6_body
+
+
+def test_claims_findings_are_exempt_from_intent_suppression() -> None:
+    """Disproving a PR assertion must not suppress the resulting finding."""
+    text = _md()
+    step5c_idx = text.find("### Step 5c: Confidence Scoring")
+    step5d_idx = text.find("### Step 5d: Filter")
+    assert step5c_idx >= 0 and step5d_idx > step5c_idx
+    step5c_body = text[step5c_idx:step5d_idx]
+
+    assert "Distinguish normative intent" in step5c_body
+    assert "from factual assertions" in step5c_body
+    assert "NEVER suppress an evidence-backed `lp-claims-auditor` finding" in step5c_body
+    assert "that contradiction is the finding's proof" in step5c_body

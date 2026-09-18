@@ -258,6 +258,8 @@ Score each finding 0.00-1.00 using this rubric:
 
 - IF finding contradicts stated PR intent (e.g., PR says "remove feature X", finding says "feature X is missing") → suppress with note
 - IF finding aligns with PR intent → no change
+- Distinguish normative intent (what the change is meant to do) from factual assertions (what the repository, execution, or output allegedly proves)
+- NEVER suppress an evidence-backed `lp-claims-auditor` finding because it contradicts a factual assertion in the PR body or linked issue; that contradiction is the finding's proof, not a suppression reason
 
 ### Step 5d: Filter
 
