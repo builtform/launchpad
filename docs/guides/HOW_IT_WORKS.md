@@ -1,6 +1,6 @@
 # How It Works
 
-LaunchPad is an agentic coding harness with two main layers under the hood: a **governance kernel** plus a **Claude Code plugin** that ride together inside any repository. The kernel is the persistent substrate (`REPOSITORY_STRUCTURE.md` whitelist, `lefthook.yml` pre-commit gates, `.launchpad/config.yml`, `.harness/` runtime, `docs/architecture/` core docs) that survives between sessions; the plugin is the 42 slash commands, 36 sub-agents, and 16 skills that operate against the kernel. The kernel lets each agent run inherit the previous run's findings instead of starting cold; the plugin gives Claude Code the verbs to brainstorm, define, plan, build, review, ship, and learn.
+LaunchPad is an agentic coding harness with two main layers under the hood: a **governance kernel** plus a **Claude Code plugin** that ride together inside any repository. The kernel is the persistent substrate (`REPOSITORY_STRUCTURE.md` whitelist, `lefthook.yml` pre-commit gates, `.launchpad/config.yml`, `.harness/` runtime, `docs/architecture/` core docs) that survives between sessions; the plugin is the 42 slash commands, 39 sub-agents, and 16 skills that operate against the kernel. The kernel lets each agent run inherit the previous run's findings instead of starting cold; the plugin gives Claude Code the verbs to brainstorm, define, plan, build, review, ship, and learn.
 
 Brownfield projects pick up the kernel by adding the plugin to an existing repo and running `/lp-define`, while greenfield projects materialize the kernel from scratch through the four-command v2.0 pipeline (`/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`). Both paths converge on the same operating model. For the framing of why this works, see [README.md](../../README.md). For the day-to-day pipeline below, read on.
 
@@ -284,7 +284,7 @@ Each command detects existing artifacts and runs in update mode when they exist.
 Beyond the architecture docs, `/lp-define` is the authoritative seeder for:
 
 - **`.launchpad/config.yml`**: harness config. Keys: `commands` (test/typecheck/lint/build), `paths` (architecture_dir, tasks_dir, sections_dir, plans_file_pattern), `pipeline` (plan.design_review, build.test_browser), `audit.committed`, `version`.
-- **`.launchpad/agents.yml`**: stack-aware agent roster. Keys: `review_agents`, `review_db_agents`, `review_design_agents`, `review_copy_agents`, `harden_plan_agents`, `harden_plan_conditional_agents`, `harden_document_agents`, `protected_branches`. Stack-conditional rows (`lp-kieran-foad-ts-reviewer` only when `ts_monorepo` is detected, etc.).
+- **`.launchpad/agents.yml`**: stack-aware agent roster. Keys: `review_agents`, `review_db_agents`, `review_design_agents`, `review_copy_agents`, `review_document_agents`, `review_document_artifacts`, `harden_plan_agents`, `harden_plan_conditional_agents`, `harden_document_agents`, `protected_branches`. Both document keys start empty because stack detection cannot infer whether a project produces recipient-facing documents or where they live. Projects that enable document agents list repository-relative artifact globs in `review_document_artifacts`. Stack-specific agents such as `lp-foad-go-reviewer` are narrowed at dispatch time.
 - **`docs/tasks/SECTION_REGISTRY.md`**: canonical section registry (replaces the old "Product Sections table" in PRD.md).
 - **`.launchpad/audit.log`**: appended to `.gitignore` automatically unless `audit.committed: true` is set in config.
 - **`docs/tasks/sections/`**: created if absent (realpath-confined).
@@ -761,6 +761,8 @@ review_agents: # Dispatched by /lp-review (always)
 review_db_agents: # Dispatched when Prisma/schema changes detected
 review_design_agents: # Dispatched when design artifacts exist
 review_copy_agents: # Dispatched by /lp-copy-review (downstream populates)
+review_document_agents: # Dispatched by /lp-review when non-empty (downstream populates)
+review_document_artifacts: # Repo-relative globs passed to document agents
 harden_plan_agents: # Dispatched by /lp-harden-plan (both intensities)
 harden_plan_conditional_agents: # Dispatched by /lp-harden-plan (--full only)
 harden_document_agents: # Dispatched by /lp-harden-plan Step 3.5

@@ -177,8 +177,8 @@ LaunchPad is MIT-licensed and open-source. Every claim above maps to a file you 
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 5-file governance kernel             | Open `docs/architecture/REPOSITORY_STRUCTURE.md`, `lefthook.yml`, `.launchpad/config.yml`, `.harness/`, `docs/architecture/`. Tests verify the file set materializes on `/lp-define`.                                       |
 | Compound learning loop               | Walk `docs/solutions/` and read any entry. 14-category taxonomy with YAML-validated frontmatter.                                                                                                                            |
-| 42 commands, 36 agents, 16 skills    | Browse `plugins/launchpad/commands/`, `plugins/launchpad/agents/`, `plugins/launchpad/skills/`.                                                                                                                             |
-| Multi-agent review dispatch          | Read `.launchpad/agents.yml` and the 13 review agents in `plugins/launchpad/agents/review/`. Dispatch logic is in the `/lp-review` command file.                                                                            |
+| 42 commands, 39 agents, 16 skills    | Browse `plugins/launchpad/commands/`, `plugins/launchpad/agents/`, `plugins/launchpad/skills/`.                                                                                                                             |
+| Multi-agent review dispatch          | Read `.launchpad/agents.yml` and the 16 review agents in `plugins/launchpad/agents/review/`. Dispatch logic is in the `/lp-review` command file.                                                                            |
 | 0.60 confidence threshold + P1 floor | Specified in the `/lp-review` command file and enforced in code. Suppression audit trail at `.harness/observations/`.                                                                                                       |
 | Stack-aware dispatch                 | `stack_scope:` frontmatter on every agent file. Test coverage: `test_define` + `test_pipeline_matrix` (1,457 passing as of v2.1.3).                                                                                         |
 | Content-hash audit log               | Open `.launchpad/audit.log` and read an entry. Schema: ISO timestamp, git user, commit SHA, command, content hash.                                                                                                          |
@@ -217,7 +217,7 @@ LaunchPad ships as a Claude Code plugin with:
 | Component       | Count     | What it covers                                                                          |
 | --------------- | --------- | --------------------------------------------------------------------------------------- |
 | Slash commands  | 42        | The brainstorm, define, plan, build, review, resolve, ship, and learn lifecycle         |
-| Sub-agents      | 36        | 6 namespaces: research, review, resolve, design, skills, document-review                |
+| Sub-agents      | 39        | 6 namespaces: research, review, resolve, design, skills, document-review                |
 | Skills          | 16        | Reusable instruction sets for design, planning, review, compound docs                   |
 | Runtime scripts | several   | Stack detector, polyglot adapter, Jinja2 doc generator, install scripts                 |
 | Test suite      | 12 suites | Adapters, config loader, stack detector, pipeline integration, install-paths regression |
@@ -233,7 +233,7 @@ LaunchPad/
 │   ├── .claude-plugin/
 │   │   └── plugin.json         # name=launchpad, version=2.1.3
 │   ├── commands/               # /lp-* slash commands
-│   ├── agents/                 # 36 sub-agents across 6 namespaces
+│   ├── agents/                 # 39 sub-agents across 6 namespaces
 │   ├── skills/                 # reusable instruction sets
 │   └── scripts/                # runtime scripts + stack adapters
 ├── .launchpad/                 # project-local harness config

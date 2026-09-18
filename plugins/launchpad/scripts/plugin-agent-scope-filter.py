@@ -5,18 +5,22 @@ Loads + caches `plugins/launchpad/agents/**/*.md` frontmatter, exposes
 `/lp-review` Step 3 and `/lp-harden-plan` Step 3 dispatch.
 
 Design (cycle-3 strip-back; cycle-4 LOCKED v5):
-  * Plugin-tree only (no project-local `.claude/agents/**` walk; deferred
-    to v2.2 BL alongside project-local CODEOWNERS governance).
+  * Plugin-tree index only. Callers may pass project-local name-to-scope pairs
+    they already resolved and validated through `prevalidated_project_scopes`;
+    the filter never walks or trusts `.claude/agents/**` on its own.
   * Module-level `STACK_SCOPE_REGEX` (cycle-3 perf P1-2).
   * `lru_cache(maxsize=None)` on `_load_agent_index`. Returns
     `MappingProxyType` (immutable view; cycle-2 security).
   * `_safe_candidate` symlink rejection mirrors `plugin-stack-detector.py:194-208`.
   * Bounded `stack:[a-z_]{1,32}` regex (cycle-3 security P1-NEW-A: ReDoS bound).
   * `MAX_AGENT_FRONTMATTER_BYTES = 64_000` defense-in-depth post-CODEOWNERS-bypass.
-  * `EmptyFilterResultError` v2.1 trigger path: only fires when ALL input
-    names are missing from the index (no stack:<id> agents in v2.1 per
-    cycle-3 axis-mismatch fix). Forward-compat for v2.2 language-specific
-    reviewers — do NOT remove as apparent dead code.
+  * `stack:<id>` selectors narrow the default review roster. Language-family
+    selectors may map to multiple persisted stack ids, such as `stack:go`
+    matching both `go` and the generated `go_cli` stack id.
+  * `EmptyFilterResultError` fires only when ALL input names are missing from
+    the index or when a legacy caller's entire roster is stack-mismatched. A
+    caller opting into `raise_on_no_match` receives `NoMatchingAgentsError`
+    for the latter case so it can refuse without activating fallback.
   * Missing-name UX: WARN + drop (cycle-3 spec-flow P1-2). Caller reads
     `last_dropped_names()` for partial-drop banner emission.
 
@@ -54,6 +58,24 @@ STACK_SCOPE_REGEX = re.compile(
     r"^(core_pipeline|stack:any|stack:[a-z_]{1,32}|design_quality|skill_quality)$"
 )
 
+STACK_FAMILY_MEMBERS: Mapping[str, frozenset[str]] = MappingProxyType(
+    {
+        "go": frozenset({"go", "go_cli"}),
+        "python": frozenset({"python", "python_django", "python_generic"}),
+        "ruby": frozenset({"ruby", "rails"}),
+        "typescript": frozenset(
+            {
+                "typescript",
+                "ts_monorepo",
+                "nextjs_standalone",
+                "nextjs_fastapi",
+                "nextjs_hono_cloudflare",
+                "nextjs_trpc_prisma",
+            }
+        ),
+    }
+)
+
 MAX_AGENT_FRONTMATTER_BYTES = 64_000
 
 _LOGGER = logging.getLogger("plugin_agent_scope_filter")
@@ -80,12 +102,20 @@ _last_dropped: list[str] = []
 
 
 class EmptyFilterResultError(RuntimeError):
-    """Raised when filter_agents_by_stacks() empties a non-empty input.
+    """Raised when legacy filtering empties a non-empty input.
 
-    v2.1 trigger path: ALL input agent names are missing from the agent
-    index (e.g., agents.yml typo for every name). Forward-compat for v2.2
-    when language-specific reviewers ship with stack:<id> classification.
-    Caller catches and emits the FALLBACK banner per §3.3.
+    The trigger is that ALL input agent names are missing from the agent
+    index, such as an agents.yml typo for every name. Known agents excluded
+    by stack scope also use this exception for backward-compatible caller
+    fallback. `/lp-review` opts into the more specific NoMatchingAgentsError.
+    """
+
+
+class NoMatchingAgentsError(RuntimeError):
+    """Raised when every resolved agent is excluded by stack scope.
+
+    Callers must surface a configuration finding and halt rather than use the
+    exception fallback that dispatches the full roster.
     """
 
 
@@ -208,42 +238,83 @@ def _active_stack_enum() -> frozenset[str]:
     return STACK_ID_ACTIVE_ENUM
 
 
+def _selector_members(stack_id: str) -> frozenset[str]:
+    """Return persisted stack ids represented by one stack selector."""
+    return STACK_FAMILY_MEMBERS.get(stack_id, frozenset({stack_id}))
+
+
+def _scope_matches(scope: str, stacks_set: set[str]) -> bool:
+    """Return whether one validated scope belongs in the active stack set."""
+    if scope in {"core_pipeline", "stack:any"}:
+        return True
+    if scope.startswith("stack:"):
+        stack_id = scope.split(":", 1)[1]
+        return not _selector_members(stack_id).isdisjoint(stacks_set)
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Public surface
 # ---------------------------------------------------------------------------
 
 
 def filter_agents_by_stacks(
-    agent_names: Iterable[str], stacks: Iterable[str]
+    agent_names: Iterable[str],
+    stacks: Iterable[str],
+    *,
+    prevalidated_project_scopes: Mapping[str, str] | None = None,
+    raise_on_no_match: bool = False,
 ) -> list[str]:
     """Filter agent names by stack_scope classification.
 
     Inclusion rules (DA2):
       * `core_pipeline`: always include
       * `stack:any`: always include
-      * `stack:<id>`: include iff `<id>` in `stacks`
+      * `stack:<id>`: include iff `<id>` or one of its known family members
+        is in `stacks`
       * `design_quality` + `skill_quality`: NEVER include (callers pre-filter)
 
     Missing-name handling: WARN + drop (cycle-3 spec-flow P1-2). Caller
     reads `last_dropped_names()` for partial-drop banner.
+
+    `prevalidated_project_scopes` maps project-local agents already resolved
+    under the caller's trusted project root to validated `stack_scope` values.
+    They use the same scope matcher as built-ins. Unknown names absent from
+    this mapping still warn + drop.
+
+    `raise_on_no_match=True` makes a fully stack-mismatched resolved roster a
+    specific visible error. `/lp-review` enables this; legacy callers retain
+    the prior EmptyFilterResultError fallback behavior.
 
     Empty input list returns []. Empty stacks is allowed (returns only
     core_pipeline + stack:any agents).
 
     Raises:
       ValueError: stack id not in STACK_ID_ACTIVE_ENUM.
-      EmptyFilterResultError: empty result + non-empty input. Forward-compat
-        v2.1 trigger path is ALL names missing.
+      EmptyFilterResultError: every input name is missing from the agent index.
+      NoMatchingAgentsError: all resolved agents are excluded by stack scope.
     """
     names = list(agent_names)
     stack_list = list(stacks)
+    project_scopes = dict(prevalidated_project_scopes or {})
+    invalid_project_scopes = {
+        name: scope
+        for name, scope in project_scopes.items()
+        if not isinstance(scope, str) or not STACK_SCOPE_REGEX.fullmatch(scope)
+    }
+    if invalid_project_scopes:
+        raise ValueError(
+            f"invalid prevalidated project agent scopes: {invalid_project_scopes!r}"
+        )
     if not names:
         return []
     active_enum = _active_stack_enum()
-    bogus = [s for s in stack_list if s not in active_enum]
+    accepted_stack_inputs = active_enum | frozenset(STACK_FAMILY_MEMBERS)
+    bogus = [s for s in stack_list if s not in accepted_stack_inputs]
     if bogus:
         raise ValueError(
-            f"unknown stack id(s) {bogus!r}; expected one of {sorted(active_enum)}"
+            f"unknown stack id(s) {bogus!r}; expected one of "
+            f"{sorted(accepted_stack_inputs)}"
         )
     index = _load_agent_index()
     survivors: list[str] = []
@@ -252,6 +323,11 @@ def filter_agents_by_stacks(
     for name in names:
         meta = index.get(name)
         if meta is None:
+            project_scope = project_scopes.get(name)
+            if project_scope is not None:
+                if _scope_matches(project_scope, stacks_set):
+                    survivors.append(name)
+                continue
             _LOGGER.warning(
                 "stack-filter: dropping unknown agent name %r (not in plugin index)",
                 name,
@@ -259,23 +335,27 @@ def filter_agents_by_stacks(
             dropped.append(name)
             continue
         scope = meta["stack_scope"]
-        if scope == "core_pipeline":
+        if _scope_matches(scope, stacks_set):
             survivors.append(name)
-        elif scope == "stack:any":
-            survivors.append(name)
-        elif scope.startswith("stack:") and scope != "stack:any":
-            stack_id = scope.split(":", 1)[1]
-            if stack_id in stacks_set:
-                survivors.append(name)
         # design_quality + skill_quality NEVER survive — callers pre-filter.
     with _lock:
         _last_dropped.clear()
         _last_dropped.extend(dropped)
     survivors_sorted = sorted(survivors)
+    if not survivors_sorted and len(dropped) == len(names):
+        raise EmptyFilterResultError(
+            f"filter dropped every agent in input {names!r}; all names are "
+            "missing from the plugin index"
+        )
+    if not survivors_sorted and raise_on_no_match:
+        raise NoMatchingAgentsError(
+            f"no configured agent matches persisted stacks {stack_list!r}; "
+            f"resolved input was {names!r}"
+        )
     if not survivors_sorted:
         raise EmptyFilterResultError(
-            f"filter dropped every agent in input {names!r} for stacks "
-            f"{stack_list!r}; v2.1 trigger path = all names missing from index"
+            f"filter excluded every resolved agent in input {names!r} for "
+            f"stacks {stack_list!r}; legacy caller fallback required"
         )
     return survivors_sorted
 
@@ -292,8 +372,10 @@ def last_dropped_names() -> list[str]:
 
 __all__ = [
     "STACK_SCOPE_REGEX",
+    "STACK_FAMILY_MEMBERS",
     "MAX_AGENT_FRONTMATTER_BYTES",
     "EmptyFilterResultError",
+    "NoMatchingAgentsError",
     "FrontmatterTooLargeError",
     "filter_agents_by_stacks",
     "last_dropped_names",

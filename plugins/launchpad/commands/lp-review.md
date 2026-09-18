@@ -26,16 +26,24 @@ Multi-agent parallel code review with confidence-based false-positive suppressio
 
 1. Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-review --require=.launchpad/agents.yml` — verify-or-refuse: the lite helper checks the required file exists and exits 1 with a pointer to `/lp-define` if not. `/lp-define` is the authoritative seeder; this command never writes `agents.yml`.
 2. Load paths via `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-config-loader.py` so `paths.architecture_dir` etc. override defaults where relevant.
-3. Read `.launchpad/agents.yml` → extract `review_agents`, `review_db_agents`, `review_design_agents`, `review_copy_agents`
-4. Validate each agent name: must match `[a-z0-9-]+`. Resolve to a file by scanning `${CLAUDE_PLUGIN_ROOT}/agents/**` for `{name}.md` (built-ins shipped with the plugin; their on-disk filenames already include the `lp-` prefix, e.g. `lp-pattern-finder.md`, and `agents.yml` stores names with the prefix to match) first, then `.claude/agents/**` for `{name}.md` (project-local extensions). Skip with warning if file not found — this handles unimplemented optional agents gracefully.
-5. Read `.harness/harness.local.md` → extract review context
-6. The lite prereq helper above already refuses with a `/lp-define` pointer when `agents.yml` is missing, so reaching this point means the file exists. No in-command fallback is needed; the legacy "fall back to `lp-pattern-finder` only" path was prose drift that contradicted the helper's verify-or-refuse contract.
+3. Read `.launchpad/agents.yml` → extract `review_agents`, `review_db_agents`, `review_design_agents`, `review_copy_agents`, `review_document_agents`, `review_document_artifacts` (optional; default `[]`)
+4. For every extracted roster, validate each agent name against `[a-z0-9-]+` and resolve it to a file by scanning `${CLAUDE_PLUGIN_ROOT}/agents/**` for `{name}.md` first, then `.claude/agents/**` for `{name}.md`. First match wins. For a name resolved from the second location, parse and validate its `stack_scope` against `STACK_SCOPE_REGEX`; skip invalid local frontmatter with warning and store valid name-to-scope pairs in `prevalidated_project_agent_scopes`. Skip with warning if no file resolves. Store only successful entries in `resolved_review_agents`, `resolved_review_db_agents`, `resolved_review_design_agents`, `resolved_review_copy_agents`, and `resolved_review_document_agents`; every later dispatch step MUST consume these resolved lists, never the raw configured rosters.
+5. IF raw `review_agents` is non-empty AND `resolved_review_agents` is empty: persist a failed-review artifact before halting:
+   - Create `.harness/todos/` if missing and write deterministic `.harness/todos/configuration-no-resolved-review-agents.md` with `priority: P1`, `agent_source: lp-review`, `confidence: 1.00`, `file: .launchpad/agents.yml`, and every unresolved configured name
+   - DEFAULT mode: overwrite `.harness/review-summary.md` with `## Review Failure` and the P1 configuration finding; `--no-context` mode: append the same failure section without clearing prior findings
+   - Return a non-success command result, then HALT review. Do not report a clean review with zero resolved general reviewers
+   - An explicitly empty raw `review_agents` list remains allowed
+6. Read `.harness/harness.local.md` → extract review context
+7. The lite prereq helper above already refuses with a `/lp-define` pointer when `agents.yml` is missing, so reaching this point means the file exists. No in-command fallback is needed; the legacy "fall back to `lp-pattern-finder` only" path was prose drift that contradicted the helper's verify-or-refuse contract.
 
 ## Step 1: Determine Diff Scope
 
 ```bash
 git diff --name-only origin/main...HEAD
 ```
+
+- Record `review_scope_mode = normal`, `review_diff_base = origin/main`, `review_head_identity = git rev-parse HEAD`, and `review_base_sha = git merge-base origin/main HEAD`
+- Set `review_commit_range = <review_base_sha>..HEAD` and record `review_commit_log` from `git log --format=fuller "$review_base_sha"..HEAD`; this exact merge-base-derived range matches the three-dot diff and is authoritative for claims auditing
 
 - Check for Prisma changes (files matching `packages/db/**`, `prisma/**`, `*.prisma`) → set `db_changes = true/false`
 
@@ -58,6 +66,7 @@ HAS_REMOTE=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo yes || e
 - Otherwise: scope = `git ls-files --others --exclude-standard` plus tracked staged files (full working-tree + staged review)
 - The agent dispatch treats each scoped file as a new-file diff (no diff base, full-content review)
 - Banner: `[pre-first-commit] reviewing <N> staged/working-tree files as new-file diff`
+- Set `review_scope_mode = pre-first-commit`, `review_diff_base = none`, `review_head_identity = working-tree`, `review_base_sha = none`, `review_commit_range = none`, and `review_commit_log = empty`
 
 **Case 2: `HAS_HEAD == yes` AND `HAS_REMOTE == no` (existing-history, no remote base):**
 
@@ -67,6 +76,7 @@ HAS_REMOTE=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo yes || e
   - `git ls-files --others --exclude-standard` (untracked files)
 - The agent dispatch treats each scoped file as a normal diff vs `HEAD` (NOT a new-file diff) where the file is a tracked modification; new-file diff for untracked files. Mixed mode.
 - Banner: `[no-remote-base] reviewing <N> files vs HEAD + staged + untracked (origin/main absent)`
+- Set `review_scope_mode = no-remote-base`, `review_diff_base = HEAD`, `review_head_identity = working-tree`, `review_base_sha = git rev-parse HEAD`, `review_commit_range = working-tree-vs-HEAD`, and `review_commit_log = empty` because this fallback reviews the current staged, unstaged, and untracked bytes rather than the committed HEAD snapshot
 
 **Both cases share the post-scoping handling:**
 
@@ -77,8 +87,11 @@ HAS_REMOTE=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo yes || e
 
 **IF `--no-context` flag is set: skip this entire step. Set `intent_context = empty` and proceed to Step 2.**
 
-- IF a PR exists for current branch: run `gh pr view --json title,body,labels`
-  - Extract PR title, body, linked issue number/description
+- IF a PR exists for current branch: run `gh pr view --json title,body,labels,closingIssuesReferences`
+  - Extract PR title, body, labels, and each closing issue's canonical URL; retain its number only for display
+  - For each closing issue URL, run `gh issue view <url> --json number,title,body,labels,state,url` and add the returned issue context to `intent_context`
+  - Never fetch a closing reference by bare issue number because the reference may belong to another repository
+  - IF an issue fetch fails: record that issue as unavailable in `intent_context` and continue
   - Store as `intent_context` for Step 5 confidence scoring
 - IF no PR exists: `intent_context = empty` (scoring proceeds without it)
 - NEVER fail on this step — purely supplementary context
@@ -109,14 +122,25 @@ branch:
 ## Step 3: Dispatch Review Agents (parallel, all model: inherit)
 
 **Pre-filter (v2.1 Phase 6 §3.3 + DA3)**: before dispatch, narrow
-`review_agents` through `plugin_agent_scope_filter.filter_agents_by_stacks(
-review_agents, stacks)` where `stacks = plugin_config_loader.read_stacks(cwd)`.
+`resolved_review_agents` through `plugin_agent_scope_filter.filter_agents_by_stacks(
+resolved_review_agents, stacks, prevalidated_project_scopes=
+prevalidated_project_agent_scopes, raise_on_no_match=True)` where
+`stacks = plugin_config_loader.read_stacks(cwd)`.
 The filter drops agents whose `stack_scope` does not match any of the
 project's persisted stacks. Step 4 (DB-only conditional), Step 4.5
-(design conditional) are NOT filtered. `/lp-review` has no Step 3.5.
+(design and copy conditionals), and Step 4.6 (document conditional) are NOT
+filtered. `/lp-review` has no Step 3.5.
 
-**Pass-through fallback** (cycle-4 spec-flow P2-B): if the filter raises
-ANY exception, catch broadly, log INFO with the exception type, and emit
+**All-stack-mismatch refusal:** catch
+`plugin_agent_scope_filter.NoMatchingAgentsError` before the broad fallback,
+persist `.harness/todos/configuration-no-stack-matching-review-agents.md` and a
+`## Review Failure` summary section using the same mode-aware lifecycle and P1
+frontmatter contract as Step 0, return a non-success command result, and HALT
+review. Name the configured roster and persisted stacks. Do NOT dispatch the
+full roster because that would re-enable stack-incompatible agents.
+
+**Pass-through fallback** (cycle-4 spec-flow P2-B): if the filter raises any
+other exception, catch broadly, log INFO with the exception type, and emit
 the FALLBACK banner to user-visible output:
 
 > ⚠ stack-filter unavailable (\<exception type\>); dispatching full
@@ -133,13 +157,14 @@ Then dispatch all input agents verbatim.
 Then dispatch the M survivors. Both banners go to user-visible command
 output, not buried logs.
 
-**v2.1 narrowing reality**: with all 13 review/ agents classified as
-`stack:any` per cycle-3 axis-mismatch fix, the filter primarily provides
-corpus discipline + the bogus-stack-id validation gate; narrowing on
-`stack:<id>` is dead-code in v2.1 (forward-compat for v2.2 framework-axis
-wire-through). See plan §1 transparency note.
+**Stack-specific narrowing**: `stack:<id>` agents are dispatched only when the
+project's persisted stacks match that selector. Known language-family
+selectors may cover more than one persisted stack id; for example, `stack:go`
+matches both `go` and `go_cli`. A roster containing only known agents that do
+not match the project halts with the all-stack-mismatch configuration finding
+without activating the exception fallback.
 
-For each survivor agent in `review_agents`:
+For each survivor agent from `resolved_review_agents`:
 
 - Spawn agent with: diff content + changed file list + files they directly import (1-hop)
 - Review context source:
@@ -149,6 +174,10 @@ For each survivor agent in `review_agents`:
 - For `lp-code-simplicity-reviewer`:
   - DEFAULT: additionally pass "Changed Files: {list}. Suggest changes only to these files. Return observation text for anything outside this list."
   - `--no-context` mode: DROP this constraint — the simplicity reviewer may flag findings outside changed files (no `feature_scope` narrowing)
+- For `lp-claims-auditor`:
+  - In every mode: pass `review_scope_mode`, `review_diff_base`, `review_head_identity`, `review_base_sha`, `review_commit_range`, and `review_commit_log` exactly as resolved in Step 1; the agent MUST NOT infer or replace this range
+  - DEFAULT: additionally pass `intent_context` from Step 1.5 verbatim, including the PR title, body, labels, and linked issue context when available
+  - `--no-context` mode: pass no PR intent by design; instruct the agent to audit commit messages, changed documentation, doc comments, test names, and test comments only
 - Per-agent prompt:
   - DEFAULT: "Review this code diff for issues in your domain. Return findings as structured list with file:line, severity (P1/P2/P3), and description."
   - `--no-context` mode: "Review this code diff for bugs at P0/P1. You have NO project context. The diff and file tree are all you have. Flag bugs you can identify from the code alone." (APPENDED to the agent's base specialty prompt — agent identity persists; context-stripping is partial per master plan D3 honest-naming)
@@ -157,12 +186,12 @@ For each survivor agent in `review_agents`:
 
 IF changed files match `prisma/schema.prisma` OR `prisma/migrations/*`:
 
-**Step 4a:** Dispatch `lp-schema-drift-detector` (SEQUENTIAL — runs first)
+**Step 4a:** IF `lp-schema-drift-detector` is present in `resolved_review_db_agents`, dispatch it SEQUENTIALLY; otherwise use an empty `drift_report`
 
 - Pass: diff + Prisma files + review context
 - Wait for output → `drift_report`
 
-**Step 4b:** Dispatch IN PARALLEL with drift report as context:
+**Step 4b:** Dispatch the following agents IN PARALLEL only when each is present in `resolved_review_db_agents`, with drift report as context:
 
 - `lp-data-migration-auditor` — receives: diff + Prisma files + review context + `drift_report`
 - `lp-data-integrity-auditor` — receives: diff + Prisma files + review context + `drift_report`
@@ -174,23 +203,42 @@ The drift report lets downstream agents focus only on legitimate changes, ignori
 **Artifact-based dispatch** (decoupled from section registry):
 
 - Check if `.harness/design-artifacts/` contains any `*-approved.png` files
-- IF approved design artifacts exist AND `review_design_agents` is not empty:
-  - Dispatch all agents from `review_design_agents` in parallel
-  - IF Figma artifacts also exist (`.harness/design-artifacts/*-figma.*`): additionally dispatch `lp-design-implementation-reviewer` (marked `# conditional` in agents.yml)
+- IF approved design artifacts exist AND `resolved_review_design_agents` is not empty:
+  - Dispatch all agents from `resolved_review_design_agents` in parallel except `lp-design-implementation-reviewer`
+  - IF Figma artifacts also exist (`.harness/design-artifacts/*-figma.*`) AND `lp-design-implementation-reviewer` is present in `resolved_review_design_agents`: dispatch it
 - IF no design artifacts exist: skip design agents entirely
 - IF no design artifacts but diff contains UI-relevant files (`.tsx`, `.css`, `.html` in `apps/web/` or `packages/ui/`): emit P2 warning finding
 
 **Copy review dispatch:**
 
-- Read `review_copy_agents` from `.launchpad/agents.yml`
-- IF list is non-empty: dispatch all `review_copy_agents` in parallel
+- Use `resolved_review_copy_agents` from Step 0
+- IF list is non-empty: dispatch all `resolved_review_copy_agents` in parallel
 - IF list is empty: skip silently (expected in LaunchPad — downstream projects populate)
+
+## Step 4.6: Conditional Document Truth Agents
+
+- Use `resolved_review_document_agents` from Step 0
+- Read `review_document_artifacts` as a list of repository-relative glob patterns; missing key means `[]`
+- Validate each pattern before expansion: reject absolute paths, `..` segments, NUL bytes, and any match that resolves outside the repository or through a symlink
+- Expand all patterns, keep regular files only, deduplicate by resolved path, and sort by repository-relative path to produce `document_artifact_inventory`
+- IF `resolved_review_document_agents` is non-empty AND `review_document_artifacts` is empty: emit a P1 configuration finding and skip document dispatch
+- IF `resolved_review_document_agents` is non-empty AND no regular files match: emit a P1 configuration finding naming the configured patterns and skip document dispatch
+- IF both the resolved roster and inventory are non-empty: dispatch all `resolved_review_document_agents` in parallel
+- Pass each agent the diff, changed-file list, exact `document_artifact_inventory`, inventory count, configured patterns, and review context
+- Do NOT apply the stack pre-filter; output type is a project-specific capability that stack detection cannot infer
+- IF the list is empty: skip silently (expected in LaunchPad; downstream projects opt in when they produce recipient-facing documents)
 
 ## Step 5: Confidence Scoring & Synthesis
 
 Runs AFTER all agents return findings, BEFORE writing to `.harness/todos/`.
 
 ### Step 5a: Collect raw findings from all agents
+
+- Preserve each agent's reported severity in the raw review evidence
+- Normalize any agent-reported P0 to pipeline P1 before confidence scoring, deduplication output, todo frontmatter, or summary serialization
+- Add `Reported severity: P0` to the finding evidence body so the source classification remains visible without extending todo frontmatter
+- Keep the existing P1 confidence floor after normalization; downstream artifacts continue to use only P1/P2/P3
+- Treat claims-auditor environment coverage limitations as audit ledger entries, not findings, and do not send them through confidence scoring
 
 ### Step 5b: Deduplicate
 
@@ -229,6 +277,8 @@ Score each finding 0.00-1.00 using this rubric:
 
 - IF finding contradicts stated PR intent (e.g., PR says "remove feature X", finding says "feature X is missing") → suppress with note
 - IF finding aligns with PR intent → no change
+- Distinguish normative intent (what the change is meant to do) from factual assertions (what the repository, execution, or output allegedly proves)
+- NEVER suppress an evidence-backed `lp-claims-auditor` finding because it contradicts a factual assertion in the PR body or linked issue; that contradiction is the finding's proof, not a suppression reason
 
 ### Step 5d: Filter
 
@@ -306,6 +356,10 @@ Single-file vs directory artifacts have different "append" semantics — intenti
 
    [List of suppressed findings with score and suppression reason]
 
+   ## Coverage Limitations ({K})
+
+   [List of checks that could not execute, with agent, claim or probe, required sandbox/tool/environment, and reason. These are audit entries, not findings.]
+
    ## Stats
 
    - Total raw findings: X
@@ -313,9 +367,13 @@ Single-file vs directory artifacts have different "append" semantics — intenti
    - Multi-agent agreement: W findings
    ```
 
-4. IF zero findings above threshold: write "Clean review — no actionable findings" to summary
+4. Persist coverage limitations from every evidence reviewer even when there are zero actionable findings:
+   - DEFAULT mode: always write `## Coverage Limitations ({K})` in the summary
+   - `--no-context` mode: include the same subsection inside the appended blind findings section
+   - Never create todo files for coverage limitations and never count them as suppressed findings
+5. IF zero findings above threshold: write "Clean review: no actionable findings" to summary, followed by the coverage-limitations section; when `K > 0`, also state that K checks were not executed
 
-5. Write observation text from `lp-code-simplicity-reviewer` to `.harness/observations/`:
+6. Write observation text from `lp-code-simplicity-reviewer` to `.harness/observations/`:
    - For each observation, create `.harness/observations/{id}-{description}.md`
    - YAML frontmatter: `status: observation`, `priority: p3`, `issue_id: "obs-{N}"`, `tags: [simplification]`, `observed_in: "path/to/file"`, `feature_scope: "{changed files list}"`
    - Body: Observation description + "Why Not Actioned: Outside the current feature scope."

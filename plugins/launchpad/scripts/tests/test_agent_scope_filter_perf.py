@@ -1,7 +1,7 @@
 """Phase 6 Slice B -- agent scope filter perf budget.
 
 In-process budget per §3.2: <50ms warm hit (lru_cache <1ms), <200ms cold
-load (36 plugin files * ~5ms). Subprocess budget deferred to v2.2 BL.
+load (39 plugin files * ~5ms). Subprocess budget deferred to v2.2 BL.
 
 `cache_clear()` is called via autouse fixture per §3.2 cache lifecycle to
 isolate cold-load measurements between tests.

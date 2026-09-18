@@ -1,8 +1,10 @@
 # Code review agents — dispatched by /lp-review
 review_agents:
   - lp-pattern-finder
+  - lp-claims-auditor
   - lp-security-auditor
   - lp-kieran-foad-ts-reviewer
+  - lp-foad-go-reviewer
   - lp-performance-auditor
   - lp-code-simplicity-reviewer
   - lp-architecture-strategist
@@ -26,6 +28,11 @@ review_design_agents:
 # Copy review agents — dispatched during design workflow by /lp-copy-review
 # Populated by downstream projects (e.g., BuiltForm adds copy-auditor)
 review_copy_agents: []
+
+# Document truth agents: dispatched by /lp-review when configured
+review_document_agents: []
+# Repository-relative globs that define the exact output population to review
+review_document_artifacts: []
 
 # Plan hardening agents — always dispatched by /lp-harden-plan (both intensities)
 harden_plan_agents:

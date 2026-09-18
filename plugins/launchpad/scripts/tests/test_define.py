@@ -386,7 +386,9 @@ def test_agents_yml_seeded_polyglot() -> list[str]:
         content = agents_path.read_text()
         required = [
             "review_agents:", "review_db_agents:", "review_design_agents:",
-            "review_copy_agents:", "harden_plan_agents:", "harden_plan_conditional_agents:",
+            "review_copy_agents:", "review_document_agents:",
+            "review_document_artifacts:", "harden_plan_agents:",
+            "harden_plan_conditional_agents:",
             "harden_document_agents:", "protected_branches:",
         ]
         for section in required:
@@ -397,6 +399,14 @@ def test_agents_yml_seeded_polyglot() -> list[str]:
             errors.append("polyglot agents.yml missing lp-kieran-foad-ts-reviewer (TS detected)")
         if "lp-kieran-foad-python-reviewer" not in content:
             errors.append("polyglot agents.yml missing lp-kieran-foad-python-reviewer (Python detected)")
+        if "lp-claims-auditor" not in content:
+            errors.append("polyglot agents.yml missing default lp-claims-auditor")
+        if "lp-foad-go-reviewer" not in content:
+            errors.append("polyglot agents.yml missing default lp-foad-go-reviewer")
+        if "review_document_agents: []" not in content:
+            errors.append("polyglot agents.yml must seed empty review_document_agents")
+        if "review_document_artifacts: []" not in content:
+            errors.append("polyglot agents.yml must seed empty review_document_artifacts")
         if "lp-frontend-races-reviewer" not in content:
             errors.append("polyglot agents.yml missing lp-frontend-races-reviewer (TS has frontend)")
         # Must NOT accidentally include non-existent agents

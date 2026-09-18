@@ -211,6 +211,9 @@ Agents are organized into 6 namespace subdirectories under `plugins/launchpad/ag
 | `lp-deployment-verification-agent` | Deployment checklists, rollback procedures (opt-in)             |
 | `lp-frontend-races-reviewer`       | JS race conditions, timing issues, DOM lifecycle (opt-in)       |
 | `lp-kieran-foad-python-reviewer`   | Python code quality (opt-in)                                    |
+| `lp-claims-auditor`                | Executable verification of repository claims                    |
+| `lp-foad-go-reviewer`              | Probe-driven Go correctness review                              |
+| `lp-document-truth`                | Truth and consistency of recipient-facing output (opt-in)       |
 
 ### document-review/ — Plan document reviewers
 
@@ -244,4 +247,4 @@ Agents are organized into 6 namespace subdirectories under `plugins/launchpad/ag
 
 ### v2.1 stack-aware dispatch
 
-Each agent file carries a `stack_scope:` frontmatter field used by `/lp-review` and `/lp-harden-plan` to filter agents per the detected stack(s). Values: `core_pipeline` (always loaded), `stack:any` (loaded for any non-empty stack list), `stack:<id>` (v2.2 forward-compat; not used at v2.1), `design_quality` (loaded when design artifacts exist), `skill_quality` (loaded for `/lp-create-skill` and `/lp-update-skill`). On a Python-only project, the TypeScript reviewer is filtered out at dispatch time.
+Each agent file carries a `stack_scope:` frontmatter field used by `/lp-review` and `/lp-harden-plan` to filter agents per the detected stack(s). Values: `core_pipeline` (always loaded), `stack:any` (loaded for every stack), `stack:<id>` (loaded only for a matching persisted stack or recognized stack family), `design_quality` (loaded when design artifacts exist), `skill_quality` (loaded for `/lp-create-skill` and `/lp-update-skill`). For example, `stack:go` matches both `go` and `go_cli`, while TypeScript projects drop the Go reviewer. Conditional output reviewers such as `lp-document-truth` are selected through `review_document_agents` and bypass stack filtering.

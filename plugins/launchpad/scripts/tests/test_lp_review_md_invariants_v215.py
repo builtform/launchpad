@@ -181,3 +181,204 @@ def test_codex_round5_p1_b_no_remote_branch_split() -> None:
     # right branch fired).
     assert "[pre-first-commit]" in step1a_body
     assert "[no-remote-base]" in step1a_body
+
+
+def test_every_diff_mode_records_authoritative_claims_context() -> None:
+    """Claims auditing must receive explicit history semantics in every mode."""
+    text = _md()
+    step1_idx = text.find("## Step 1: Determine Diff Scope")
+    step15_idx = text.find("## Step 1.5: Read PR Intent Context")
+    assert step1_idx >= 0 and step15_idx > step1_idx
+    step1_body = text[step1_idx:step15_idx]
+
+    assert "review_scope_mode = normal" in step1_body
+    assert "review_base_sha = git merge-base origin/main HEAD" in step1_body
+    assert "review_commit_range = <review_base_sha>..HEAD" in step1_body
+    assert 'git log --format=fuller "$review_base_sha"..HEAD' in step1_body
+    assert "merge-base-derived range matches the three-dot diff" in step1_body
+    assert "review_scope_mode = pre-first-commit" in step1_body
+    assert "review_head_identity = working-tree" in step1_body
+    assert "review_commit_range = none" in step1_body
+    assert "review_scope_mode = no-remote-base" in step1_body
+    assert "review_base_sha = git rev-parse HEAD" in step1_body
+    assert "review_commit_range = working-tree-vs-HEAD" in step1_body
+
+
+def test_document_agent_roster_is_loaded_and_dispatched_without_stack_filter() -> None:
+    """Recipient-output review is opt-in and independent of code stack."""
+    text = _md()
+    step0_idx = text.find("## Step 0: Read Configuration")
+    step1_idx = text.find("## Step 1: Determine Diff Scope")
+    step46_idx = text.find("## Step 4.6: Conditional Document Truth Agents")
+    step5_idx = text.find("## Step 5: Confidence Scoring & Synthesis")
+
+    assert step0_idx >= 0 and step1_idx > step0_idx
+    assert "review_document_agents" in text[step0_idx:step1_idx]
+    assert "review_document_artifacts" in text[step0_idx:step1_idx]
+    assert step46_idx >= 0 and step5_idx > step46_idx
+    step46_body = text[step46_idx:step5_idx]
+    assert "dispatch all `resolved_review_document_agents` in parallel" in step46_body
+    assert "document_artifact_inventory" in step46_body
+    assert "repository-relative glob patterns" in step46_body
+    assert "emit a P1 configuration finding" in step46_body
+    assert "Do NOT apply the stack pre-filter" in step46_body
+    assert "IF the list is empty: skip silently" in step46_body
+
+
+def test_claims_auditor_receives_pr_intent_in_contextual_mode() -> None:
+    """The default claims reviewer must receive the PR body it advertises."""
+    text = _md()
+    step3_idx = text.find("## Step 3: Dispatch Review Agents")
+    step4_idx = text.find("## Step 4: Conditional DB Agent Dispatch")
+    assert step3_idx >= 0 and step4_idx > step3_idx
+    step3_body = text[step3_idx:step4_idx]
+
+    assert "For `lp-claims-auditor`" in step3_body
+    for field in (
+        "review_scope_mode",
+        "review_diff_base",
+        "review_head_identity",
+        "review_base_sha",
+        "review_commit_range",
+        "review_commit_log",
+    ):
+        assert field in step3_body
+    assert "MUST NOT infer or replace this range" in step3_body
+    assert "pass `intent_context` from Step 1.5 verbatim" in step3_body
+    assert "PR title, body, labels, and linked issue context" in step3_body
+    assert "`--no-context` mode: pass no PR intent by design" in step3_body
+
+
+def test_pr_intent_fetches_closing_issue_context() -> None:
+    """Step 1.5 must fetch the issue context promised to the claims auditor."""
+    text = _md()
+    step15_idx = text.find("## Step 1.5: Read PR Intent Context")
+    step2_idx = text.find("## Step 2: Pre-dispatch Secret Scan")
+    assert step15_idx >= 0 and step2_idx > step15_idx
+    step15_body = text[step15_idx:step2_idx]
+
+    assert "title,body,labels,closingIssuesReferences" in step15_body
+    assert "each closing issue's canonical URL" in step15_body
+    assert "gh issue view <url> --json number,title,body,labels,state,url" in step15_body
+    assert "Never fetch a closing reference by bare issue number" in step15_body
+    assert "add the returned issue context to `intent_context`" in step15_body
+    assert "record that issue as unavailable" in step15_body
+
+
+def test_agent_p0_is_normalized_before_pipeline_serialization() -> None:
+    """The P1/P2/P3 pipeline must retain but never serialize P0 priority."""
+    text = _md()
+    step5a_idx = text.find("### Step 5a: Collect raw findings from all agents")
+    step5b_idx = text.find("### Step 5b: Deduplicate")
+    assert step5a_idx >= 0 and step5b_idx > step5a_idx
+    step5a_body = text[step5a_idx:step5b_idx]
+
+    assert "Normalize any agent-reported P0 to pipeline P1" in step5a_body
+    assert "Reported severity: P0" in step5a_body
+    assert "downstream artifacts continue to use only P1/P2/P3" in step5a_body
+    assert "coverage limitations as audit ledger entries, not findings" in step5a_body
+
+
+def test_prevalidated_project_agents_survive_stack_filter() -> None:
+    """Project-local agents resolved in Step 0 must reach Step 3 dispatch."""
+    text = _md()
+    step0_idx = text.find("## Step 0: Read Configuration")
+    step1_idx = text.find("## Step 1: Determine Diff Scope")
+    step3_idx = text.find("## Step 3: Dispatch Review Agents")
+    step4_idx = text.find("## Step 4: Conditional DB Agent Dispatch")
+    assert step0_idx >= 0 and step1_idx > step0_idx
+    assert step3_idx >= 0 and step4_idx > step3_idx
+
+    assert "prevalidated_project_agent_scopes" in text[step0_idx:step1_idx]
+    assert "prevalidated_project_scopes=" in text[step3_idx:step4_idx]
+    assert "prevalidated_project_agent_scopes" in text[step3_idx:step4_idx]
+
+
+def test_nonempty_roster_that_resolves_to_zero_halts_review() -> None:
+    """Missing configured reviewers cannot produce a nominally clean review."""
+    text = _md()
+    step0_idx = text.find("## Step 0: Read Configuration")
+    step1_idx = text.find("## Step 1: Determine Diff Scope")
+    assert step0_idx >= 0 and step1_idx > step0_idx
+    step0_body = text[step0_idx:step1_idx]
+
+    assert "raw `review_agents` is non-empty" in step0_body
+    assert "`resolved_review_agents` is empty" in step0_body
+    assert "configuration-no-resolved-review-agents.md" in step0_body
+    assert "## Review Failure" in step0_body
+    assert "Return a non-success command result" in step0_body
+    assert "HALT review" in step0_body
+    assert "explicitly empty raw `review_agents` list remains allowed" in step0_body
+
+
+def test_all_conditional_dispatches_use_resolved_rosters() -> None:
+    """Missing optional agents must be skipped before any dispatch path."""
+    text = _md()
+    step0_idx = text.find("## Step 0: Read Configuration")
+    step1_idx = text.find("## Step 1: Determine Diff Scope")
+    step4_idx = text.find("## Step 4: Conditional DB Agent Dispatch")
+    step5_idx = text.find("## Step 5: Confidence Scoring & Synthesis")
+    assert step0_idx >= 0 and step1_idx > step0_idx
+    assert step4_idx >= 0 and step5_idx > step4_idx
+
+    step0_body = text[step0_idx:step1_idx]
+    conditional_body = text[step4_idx:step5_idx]
+    for roster in (
+        "resolved_review_db_agents",
+        "resolved_review_design_agents",
+        "resolved_review_copy_agents",
+        "resolved_review_document_agents",
+    ):
+        assert roster in step0_body
+        assert roster in conditional_body
+
+    assert "every later dispatch step MUST consume these resolved lists" in step0_body
+
+
+def test_all_stack_mismatch_halts_without_full_roster_fallback() -> None:
+    """A fully incompatible roster must fail visibly and stay filtered."""
+    text = _md()
+    step3_idx = text.find("## Step 3: Dispatch Review Agents")
+    step4_idx = text.find("## Step 4: Conditional DB Agent Dispatch")
+    assert step3_idx >= 0 and step4_idx > step3_idx
+    step3_body = text[step3_idx:step4_idx]
+
+    mismatch_idx = step3_body.find("**All-stack-mismatch refusal:**")
+    fallback_idx = step3_body.find("**Pass-through fallback**")
+    assert 0 <= mismatch_idx < fallback_idx
+    assert "NoMatchingAgentsError" in step3_body
+    assert "raise_on_no_match=True" in step3_body
+    assert "configuration-no-stack-matching-review-agents.md" in step3_body
+    assert "same mode-aware lifecycle and P1" in step3_body
+    assert "return a non-success command result" in step3_body
+    assert "Do NOT dispatch the" in step3_body
+    assert "full roster" in step3_body
+
+
+def test_coverage_limitations_are_always_persisted_in_summary() -> None:
+    """Headless callers must see checks skipped for environment reasons."""
+    text = _md()
+    step6_idx = text.find("## Step 6: Write Outputs")
+    step7_idx = text.find("## Step 7: Report")
+    assert step6_idx >= 0 and step7_idx > step6_idx
+    step6_body = text[step6_idx:step7_idx]
+
+    assert "## Coverage Limitations ({K})" in step6_body
+    assert "Persist coverage limitations from every evidence reviewer" in step6_body
+    assert "include the same subsection inside the appended blind findings section" in step6_body
+    assert "Never create todo files for coverage limitations" in step6_body
+    assert '"Clean review: no actionable findings"' in step6_body
+
+
+def test_claims_findings_are_exempt_from_intent_suppression() -> None:
+    """Disproving a PR assertion must not suppress the resulting finding."""
+    text = _md()
+    step5c_idx = text.find("### Step 5c: Confidence Scoring")
+    step5d_idx = text.find("### Step 5d: Filter")
+    assert step5c_idx >= 0 and step5d_idx > step5c_idx
+    step5c_body = text[step5c_idx:step5d_idx]
+
+    assert "Distinguish normative intent" in step5c_body
+    assert "from factual assertions" in step5c_body
+    assert "NEVER suppress an evidence-backed `lp-claims-auditor` finding" in step5c_body
+    assert "that contradiction is the finding's proof" in step5c_body

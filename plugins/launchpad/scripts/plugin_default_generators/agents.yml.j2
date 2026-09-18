@@ -10,11 +10,13 @@
 # Code review agents — dispatched by /lp-review
 review_agents:
   - lp-pattern-finder
+  - lp-claims-auditor
   - lp-security-auditor
   - lp-code-simplicity-reviewer
   - lp-testing-reviewer
   - lp-performance-auditor
   - lp-architecture-strategist
+  - lp-foad-go-reviewer
 {%- if 'ts_monorepo' in stacks %}
   - lp-kieran-foad-ts-reviewer
 {%- endif %}
@@ -39,6 +41,13 @@ review_design_agents:
 # Copy review agents — dispatched by /lp-copy-review
 # Downstream projects extend this list (e.g., BuiltForm adds copy-auditor).
 review_copy_agents: []
+
+# Document truth agents: dispatched by /lp-review when this project produces
+# recipient-facing documents, reports, pages, PDFs, emails, or dashboards.
+# This list is empty by default because stack detection cannot infer that output.
+review_document_agents: []
+# Repository-relative globs that define the exact output population to review.
+review_document_artifacts: []
 
 # Plan-hardening agents — always dispatched by /lp-harden-plan (both --lightweight and --full)
 harden_plan_agents:
