@@ -218,7 +218,10 @@ Agents are organized into 6 namespace subdirectories under `plugins/launchpad/ag
 
 - **research/** (7 agents) — Read-only research and documentation
 - **skills/** (1 agent) — Skill quality assurance
-- **review/** (13 agents) — Code review with multiple specializations
+- **review/** (16 agents): Code review with multiple specializations
+  - `lp-claims-auditor`: executes and classifies repository claims (`Read, Grep, Glob, Bash`)
+  - `lp-foad-go-reviewer`: proves Go correctness defects with disposable probes (`Read, Grep, Glob, Bash`)
+  - `lp-document-truth`: checks recipient-facing output for false or contradictory statements (`Read, Grep, Glob, Bash`)
 - **document-review/** (7 agents) — Plan document review lenses
 - **resolve/** (2 agents) — Automated fixers for todos and PR comments
 - **design/** (6 agents) — Design workflow (Figma sync, iteration, auditing)
@@ -229,4 +232,4 @@ Agents are organized into 6 namespace subdirectories under `plugins/launchpad/ag
 
 ### v2.1 stack-aware dispatch
 
-Each agent file carries a `stack_scope:` frontmatter field used by `/lp-review` and `/lp-harden-plan` to filter agents per the detected stack(s). Values: `core_pipeline` (always loaded), `stack:any` (loaded for any non-empty stack list), `stack:<id>` (v2.2 forward-compat; not used at v2.1), `design_quality` (loaded when design artifacts exist), `skill_quality` (loaded for `/lp-create-skill` and `/lp-update-skill`). On a Python-only project, the TypeScript reviewer is filtered out at dispatch time.
+Each agent file carries a `stack_scope:` frontmatter field used by `/lp-review` and `/lp-harden-plan` to filter agents per the detected stack(s). Values: `core_pipeline` (always loaded), `stack:any` (loaded for every stack), `stack:<id>` (loaded only for a matching persisted stack or recognized stack family), `design_quality` (loaded when design artifacts exist), `skill_quality` (loaded for `/lp-create-skill` and `/lp-update-skill`). For example, `stack:go` matches both `go` and `go_cli`, while TypeScript projects drop the Go reviewer. Conditional output reviewers such as `lp-document-truth` are selected through `review_document_agents` and bypass stack filtering.
