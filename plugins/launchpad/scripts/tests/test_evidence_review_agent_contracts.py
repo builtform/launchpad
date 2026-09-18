@@ -81,4 +81,6 @@ def test_document_reviewer_sandboxes_binary_extraction() -> None:
     assert "Scrub extractor environments with `env -i`" in text
     assert "coverage limitation with no finding priority" in text
     assert "Don't process a binary artifact with an unsandboxed parser" in text
+    assert "python scripts/extract_rows.py" not in text
+    assert "grep -o '<tr data-follow-up-record='" in text
     assert {"bwrap", "sandbox-exec"}.issubset(external_tools)
