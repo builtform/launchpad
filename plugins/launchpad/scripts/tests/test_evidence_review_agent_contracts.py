@@ -43,8 +43,11 @@ def test_go_reviewer_probes_only_in_isolated_copies() -> None:
 
 def test_claims_reviewer_separates_coverage_limits_from_findings() -> None:
     text = _text("lp-claims-auditor.md")
-    metadata = _frontmatter("lp-claims-auditor.md")["x-launchpad"]["capabilities"]
+    frontmatter = _frontmatter("lp-claims-auditor.md")
+    metadata = frontmatter["x-launchpad"]["capabilities"]
 
+    assert "doc comments, test names and comments" in frontmatter["description"]
+    assert "PR discussion comments" not in frontmatter["description"]
     assert "coverage limitations rather than actionable findings" in text
     assert "coverage-limitations section" in text
     assert "does not enter the prioritized findings list" in text

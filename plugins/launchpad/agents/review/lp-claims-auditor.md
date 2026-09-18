@@ -1,6 +1,6 @@
 ---
 name: lp-claims-auditor
-description: Verifies factual repository claims in commit messages, PR bodies, comments, tests, README files, and reports. Call lp-claims-auditor when review evidence includes counts, execution results, universals, or statements about repository state that must be proven at the head where each claim was made.
+description: Verifies factual repository claims in commit messages, PR bodies, doc comments, test names and comments, README files, and reports. Call lp-claims-auditor when review evidence includes counts, execution results, universals, or statements about repository state that must be proven at the head where each claim was made.
 stack_scope: stack:any
 model: inherit
 tools: Read, Grep, Glob, Bash
