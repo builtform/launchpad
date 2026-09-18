@@ -2,7 +2,7 @@
 stack: fastapi
 pillar: Backend Python
 type: curate
-last_validated: 2026-08-01
+last_validated: 2026-09-18
 scaffolder_command: (curate; `uvx fastapi-new` exists but emits only a minimal single-file app, so LaunchPad scaffolds the layered layout per this doc)
 scaffolder_command_pinned_version: fastapi@0.141.x (Starlette 1.x requires fastapi>=0.133)
 ---

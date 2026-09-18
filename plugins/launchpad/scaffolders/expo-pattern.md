@@ -2,7 +2,7 @@
 stack: expo
 pillar: Frontend Mobile (RN)
 type: orchestrate
-last_validated: 2026-08-01
+last_validated: 2026-09-18
 scaffolder_command: npx create-expo-app@latest --yes --no-agents-md --template default@sdk-57
 scaffolder_command_pinned_version: create-expo-app@4.0.0 (Expo SDK 57)
 ---

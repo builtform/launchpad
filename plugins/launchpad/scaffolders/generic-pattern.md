@@ -2,7 +2,7 @@
 stack: generic
 pillar: Bring-your-own-framework
 type: curate
-last_validated: 2026-08-01
+last_validated: 2026-09-18
 scaffolder_command: (curate — no scaffolder; user fills the workspace by hand)
 scaffolder_command_pinned_version: n/a
 ---

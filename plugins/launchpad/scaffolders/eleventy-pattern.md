@@ -2,7 +2,7 @@
 stack: eleventy
 pillar: Frontend Content
 type: curate
-last_validated: 2026-08-01
+last_validated: 2026-09-18
 scaffolder_command: (curate — no npm create CLI; manual scaffold per this doc)
 scaffolder_command_pinned_version: "@11ty/eleventy@3"
 ---

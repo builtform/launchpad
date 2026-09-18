@@ -49,10 +49,10 @@ stacks:
     # collide with the harness-authored CLAUDE.md.
     headless_flags: ["--", "--yes", "--no-ai", "--no-install", "--no-git"]
     knowledge_anchor: "plugins/launchpad/scaffolders/astro-pattern.md"
-    knowledge_anchor_sha256: "1ebb784787fec279e3eb610e12cf80b8eb8ea33c2bddff68e5486f01c825f276"
+    knowledge_anchor_sha256: "bfc9609cb1f5ce9d79141c33795cf38f484a6e9e0e6a681fa84960eacd422955"
     options_schema:
       template: "string"
-    last_validated: "2026-08-01"
+    last_validated: "2026-09-18"
 
   next:
     pillar: "Frontend App"
@@ -77,7 +77,7 @@ stacks:
         "--app",
       ]
     knowledge_anchor: "plugins/launchpad/scaffolders/next-pattern.md"
-    knowledge_anchor_sha256: "4da14225d59ab3ca12c5f050c2406443fb80e4c7c44b651bf8c231e43c1504f1"
+    knowledge_anchor_sha256: "c10893bf711649b10904bce56debf5a364760bfe29eb2ad5faf79889753cde2c"
     # Per v2.0.1 BL-244 #2 (PR #41 cycle-12 #2 closure): `src_dir` requires
     # the `--src-dir` kebab-case spelling that `create-next-app` expects;
     # without the option_flags override, layer_materializer would emit
@@ -90,17 +90,17 @@ stacks:
       src_dir: "--src-dir"
     options_schema:
       src_dir: "boolean"
-    last_validated: "2026-08-01"
+    last_validated: "2026-09-18"
 
   eleventy:
     pillar: "Frontend Content"
     type: "curate"
     flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/eleventy-pattern.md"
-    knowledge_anchor_sha256: "05febc105fef46a3298ac54d4c61f47c6bda7dc7bdea919514defe33cf295c53"
+    knowledge_anchor_sha256: "e788783c4e5f20457b646414cd4c94d0ca96d355f09dacff1b19686429dcc77e"
     options_schema:
       template_engine: "string"
-    last_validated: "2026-08-01"
+    last_validated: "2026-09-18"
 
   hugo:
     pillar: "Frontend Content (Go)"
@@ -115,10 +115,10 @@ stacks:
     destination_argv: ["."]
     headless_flags: ["--force"]
     knowledge_anchor: "plugins/launchpad/scaffolders/hugo-pattern.md"
-    knowledge_anchor_sha256: "b5dff745ef94833e093336094828ef44cf6bcb9ed66e2fc538d8d78945283443"
+    knowledge_anchor_sha256: "ad7004c9180f17e2ce7a8143dcb73cef09f7dc24e18055a4d8b0208d382ba474"
     options_schema:
       theme: "string"
-    last_validated: "2026-08-01"
+    last_validated: "2026-09-18"
 
   hono:
     pillar: "Backend Edge-native TS"
@@ -134,20 +134,20 @@ stacks:
     # manager so the prompt cannot appear.
     headless_flags: ["--", "--pm", "npm"]
     knowledge_anchor: "plugins/launchpad/scaffolders/hono-pattern.md"
-    knowledge_anchor_sha256: "eb4ebb717ad4e824e3761f34e5a62d0ca22f5bc27503aa21e66835d4f2dd22bf"
+    knowledge_anchor_sha256: "6b3c72afe7a73239eb92b22f14cffc3d93c974cf3269d859ed2d545138ed4d40"
     options_schema:
       template: "string"
-    last_validated: "2026-08-01"
+    last_validated: "2026-09-18"
 
   fastapi:
     pillar: "Backend Python"
     type: "curate"
     flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/fastapi-pattern.md"
-    knowledge_anchor_sha256: "c212b036382c8229824afb74c5cbf106dacb3af9539dd78b9ad6fe3623e86baf"
+    knowledge_anchor_sha256: "af7507826ea4be60fdb18c37f7c821cebfe278a861029e1bd6b51d8476fd96a6"
     options_schema:
       database: "string"
-    last_validated: "2026-08-01"
+    last_validated: "2026-09-18"
 
   django:
     pillar: "Backend Python"
@@ -160,10 +160,10 @@ stacks:
     type: "curate"
     flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/django-pattern.md"
-    knowledge_anchor_sha256: "b2f3321049acccec459ce26ad9f891abce372ff87ab8923c45be7d3c2a8ae865"
+    knowledge_anchor_sha256: "34c4360214a97102fa81e53837f86743ba3127115ec5795bcd6136a8df09c7a7"
     options_schema:
       database: "string"
-    last_validated: "2026-08-01"
+    last_validated: "2026-09-18"
 
   rails:
     pillar: "Backend MVC (Ruby)"
@@ -188,11 +188,11 @@ stacks:
     # would let `--skip-bundle` come back.
     headless_flags: ["--skip-git"]
     knowledge_anchor: "plugins/launchpad/scaffolders/rails-pattern.md"
-    knowledge_anchor_sha256: "42fd813ba441c4d13796b34cbb023654d1140bfb2afe75c4191b219a7675fad2"
+    knowledge_anchor_sha256: "f479bc1f75cef838c5fd619b7c24db2e5d7993f6d2cc1519822c3871002b1129"
     options_schema:
       database: "string"
       javascript: "string"
-    last_validated: "2026-08-01"
+    last_validated: "2026-09-18"
 
   supabase:
     pillar: "Backend Managed"
@@ -210,12 +210,12 @@ stacks:
     type: "curate"
     flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/supabase-pattern.md"
-    knowledge_anchor_sha256: "023ff077907820205a6ff6a0c5e19765135333f43802b05c6a87cf8ee1220d7e"
+    knowledge_anchor_sha256: "8e02794a7da20c8610722f7b02d65c130406aacc0dac1bb9e0567fbe6dc2cd3b"
     # options_schema intentionally empty: the vscode_deno_settings /
     # intellij_deno_settings options modelled prompts that no longer exist
     # on `supabase init`.
     options_schema: {}
-    last_validated: "2026-08-01"
+    last_validated: "2026-09-18"
 
   expo:
     pillar: "Frontend Mobile (RN)"
@@ -229,10 +229,10 @@ stacks:
     # collide with harness-authored files.
     headless_flags: ["--yes", "--no-agents-md"]
     knowledge_anchor: "plugins/launchpad/scaffolders/expo-pattern.md"
-    knowledge_anchor_sha256: "b6c1586d7319a26a4b5d4b7f897f1d222eb06ab5b690525d0dbcb753bb384b7d"
+    knowledge_anchor_sha256: "f307538c3e5b9b7363f81afe11800656670e7307a2f4828524ec82bb6417ad20"
     options_schema:
       template: "string"
-    last_validated: "2026-08-01"
+    last_validated: "2026-09-18"
 
   # v2.1.4 BL-331: `generic` selectable as a primary stack — barebones
   # workspace shell, bring-your-own-framework path. No scaffolder command
@@ -247,9 +247,9 @@ stacks:
     type: "curate"
     flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/generic-pattern.md"
-    knowledge_anchor_sha256: "46f98cd0b784527ff3e4041ff354079d90ab289a5e8aa3efeb76b0d42c0b1be3"
+    knowledge_anchor_sha256: "e3d320adb4be409ec658ee4d579f5edc0aee1f92d857ed35d84dce1402fc4ef1"
     # No options at v2.1.4 — the user brings the framework, so per-stack
     # options would be meaningless (whatever the user picks gets its own
     # config, not LaunchPad's).
     options_schema: {}
-    last_validated: "2026-08-01"
+    last_validated: "2026-09-18"
