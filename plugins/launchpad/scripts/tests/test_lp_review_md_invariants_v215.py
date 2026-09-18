@@ -263,6 +263,21 @@ def test_prevalidated_project_agents_survive_stack_filter() -> None:
     assert "prevalidated_project_agent_names" in text[step3_idx:step4_idx]
 
 
+def test_nonempty_roster_that_resolves_to_zero_halts_review() -> None:
+    """Missing configured reviewers cannot produce a nominally clean review."""
+    text = _md()
+    step0_idx = text.find("## Step 0: Read Configuration")
+    step1_idx = text.find("## Step 1: Determine Diff Scope")
+    assert step0_idx >= 0 and step1_idx > step0_idx
+    step0_body = text[step0_idx:step1_idx]
+
+    assert "raw `review_agents` is non-empty" in step0_body
+    assert "`resolved_review_agents` is empty" in step0_body
+    assert "emit a P1 configuration finding" in step0_body
+    assert "HALT review" in step0_body
+    assert "explicitly empty raw `review_agents` list remains allowed" in step0_body
+
+
 def test_all_conditional_dispatches_use_resolved_rosters() -> None:
     """Missing optional agents must be skipped before any dispatch path."""
     text = _md()

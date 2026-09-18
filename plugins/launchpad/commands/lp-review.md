@@ -28,8 +28,9 @@ Multi-agent parallel code review with confidence-based false-positive suppressio
 2. Load paths via `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-config-loader.py` so `paths.architecture_dir` etc. override defaults where relevant.
 3. Read `.launchpad/agents.yml` → extract `review_agents`, `review_db_agents`, `review_design_agents`, `review_copy_agents`, `review_document_agents`, `review_document_artifacts` (optional; default `[]`)
 4. For every extracted roster, validate each agent name against `[a-z0-9-]+` and resolve it to a file by scanning `${CLAUDE_PLUGIN_ROOT}/agents/**` for `{name}.md` first, then `.claude/agents/**` for `{name}.md`. First match wins. Add names resolved from the second location to `prevalidated_project_agent_names`. Skip with warning if no file resolves. Store only successful entries in `resolved_review_agents`, `resolved_review_db_agents`, `resolved_review_design_agents`, `resolved_review_copy_agents`, and `resolved_review_document_agents`; every later dispatch step MUST consume these resolved lists, never the raw configured rosters.
-5. Read `.harness/harness.local.md` → extract review context
-6. The lite prereq helper above already refuses with a `/lp-define` pointer when `agents.yml` is missing, so reaching this point means the file exists. No in-command fallback is needed; the legacy "fall back to `lp-pattern-finder` only" path was prose drift that contradicted the helper's verify-or-refuse contract.
+5. IF raw `review_agents` is non-empty AND `resolved_review_agents` is empty: emit a P1 configuration finding naming every unresolved entry and HALT review. Do not report a clean review with zero resolved general reviewers. An explicitly empty raw `review_agents` list remains allowed.
+6. Read `.harness/harness.local.md` → extract review context
+7. The lite prereq helper above already refuses with a `/lp-define` pointer when `agents.yml` is missing, so reaching this point means the file exists. No in-command fallback is needed; the legacy "fall back to `lp-pattern-finder` only" path was prose drift that contradicted the helper's verify-or-refuse contract.
 
 ## Step 1: Determine Diff Scope
 
