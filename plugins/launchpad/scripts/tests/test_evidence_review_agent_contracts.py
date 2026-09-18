@@ -30,6 +30,12 @@ def test_go_reviewer_probes_only_in_isolated_copies() -> None:
     assert "Don't create a temporary test anywhere under the reviewed repository" in text
     assert "isolated scratch copy under a temporary directory" in text
     assert "Require byte-identical status output" in text
+    assert "DO NOT execute reviewed Go code through a bare" in text
+    assert "require `bwrap` with a new network namespace" in text
+    assert "require `sandbox-exec` with default deny" in text
+    assert "Scrub the process environment with `env -i`" in text
+    assert "report a coverage limitation with no finding priority" in text
+    assert "Prefix every focused `go test`, `go run`" in text
     assert metadata["mutation"] == "none"
     assert metadata["tool-profile"] == "read_only"
     assert "repository_write" not in metadata["required"]
