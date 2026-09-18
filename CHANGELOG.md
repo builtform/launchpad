@@ -6,7 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.1.11: BL-365 (parallelize preflight probe dispatch + short-TTL cache), BL-367 (programmatic GitHub-repo linkage verification for provider project probes), BL-368 (DNS `dig +short --` sentinel bug), and BL-366 (18-item preflight polish). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0, plus BL-374 (TypeScript 5.x -> 6.x upgrade audit, seeded by v2.1.9), BL-375 (Prisma 6.x -> 7.x upgrade audit, seeded by v2.1.10), BL-377 through BL-383 (CI gate correctness, freshness-contract enforcement, and scaffolder catalog follow-ups, seeded by v2.1.11), plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
+Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.1.12: BL-365 (parallelize preflight probe dispatch + short-TTL cache), BL-367 (programmatic GitHub-repo linkage verification for provider project probes), BL-368 (DNS `dig +short --` sentinel bug), and BL-366 (18-item preflight polish). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0, plus BL-374 (TypeScript 5.x -> 6.x upgrade audit, seeded by v2.1.9), BL-375 (Prisma 6.x -> 7.x upgrade audit, seeded by v2.1.10), BL-377 through BL-385 (CI gate correctness, freshness-contract enforcement, lint parity, and scaffolder catalog follow-ups), plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
+
+## [v2.1.12]
+
+Evidence-driven review agents and consistent Python lint verdicts. This release adds claims, Go correctness, and recipient-document truth review lenses, plus the configuration and dispatch contracts that make them deterministic. It also fixes the Ruff invocation mismatch that made the documented local command disagree with CI.
 
 ### For LaunchPad users
 
@@ -18,6 +22,12 @@ Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.
 - **Go-aware stack narrowing is active.** The default review roster includes the Go reviewer, while `stack:go` dispatches only for `go` and `go_cli` projects. A roster containing only known but stack-mismatched agents now returns no survivors instead of raising into the full-roster fallback.
 
 - **Ruff first-party classification pinned so the two documented invocations agree.** Ruff anchors first-party import detection at the project root, which is the config file's directory under discovery but the process working directory when `--config` is passed. CI lints from the repo root with `--config`; the documented Definition of Done lints from the package directory. Same ruff, same tree, opposite verdicts: contributors following the DoD saw 13 `I001` findings on a tree CI called clean, for at least two releases. `[tool.ruff.lint.isort] known-first-party` now enumerates the package's 17 top-level names, which isort consults before any path resolution, and the 10 affected import blocks across 9 files were re-sorted to the (correct) first-party ordering. A five-test guard (`tests/test_lint_invocation_parity.py`) asserts classification parity across three invocation cells including one outside the repo's ancestry, and is mutation-verified in four directions. Three schema-source files are suppressed from `pyproject.toml` rather than edited, keeping the diff out of the schema-CODEOWNERS pairing gate, which an import re-sort should not trip. Filed BL-384 and BL-385; amended BL-378, which asserted an escape hatch that no code implements.
+
+### Release validation
+
+- Scaffolder and stack guidance revalidated against official upstream registries and release sources on 2026-09-18. Django advances to 6.1.1 and Hugo to 0.166.0; all knowledge-anchor hashes are repinned.
+- Python suite: 2054 passed, 4 skipped on the release branch.
+- TypeScript tests, typecheck, lint, build, Pyright, Ruff, Semgrep, pre-commit, and pre-push gates pass.
 
 ## [v2.1.11]
 
