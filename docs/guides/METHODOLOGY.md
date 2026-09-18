@@ -163,7 +163,7 @@ The same gate fires at `/lp-build` Step 0.6 (before entering `/lp-inf`) AND `/lp
 
 ## The agent fleet
 
-LaunchPad ships ~36 agents across six namespaces. The fleet is read from `.launchpad/agents.yml` at command time, so downstream projects can tune the roster (add custom reviewers, drop agents they don't need) without forking the plugin.
+LaunchPad ships 39 agents across six namespaces. The fleet is read from `.launchpad/agents.yml` at command time, so downstream projects can tune the roster (add custom reviewers, drop agents they don't need) without forking the plugin.
 
 ### research/ (8 agents)
 
@@ -180,7 +180,7 @@ Read-only documentarians. Dispatched during definition, planning, and hardening 
 | `learnings-researcher` | Search `docs/solutions/` by frontmatter metadata                                      |
 | `skill-evaluator`      | 3-pass quality evaluation (first-principles, baseline detection, Anthropic checklist) |
 
-### review/ (13 agents)
+### review/ (16 agents)
 
 Dispatched by `/lp-review` in parallel with confidence scoring.
 
@@ -191,6 +191,9 @@ Dispatched by `/lp-review` in parallel with confidence scoring.
 | `data-migration-auditor` / `data-integrity-auditor`                                                                                                                     | Prisma changes (with drift report) |
 | `spec-flow-analyzer` / `frontend-races-reviewer`                                                                                                                        | Plan hardening                     |
 | `deployment-verification-agent`                                                                                                                                         | Opt-in                             |
+| `claims-auditor`                                                                                                                                                        | Default, all stacks                |
+| `foad-go-reviewer`                                                                                                                                                      | Default roster, Go stacks only     |
+| `document-truth`                                                                                                                                                        | Opt-in via document roster         |
 
 ### document-review/ (7 agents)
 
