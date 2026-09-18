@@ -111,7 +111,7 @@ Structure your review like this:
 
 - File: `internal/archive/header.go:84`
 - Probe: Copied `internal/archive` into an isolated temporary module and added a disposable package test that parses `count=4611686018427387905` with `width=4`.
-- Run: `env -i PATH=/usr/bin:/bin HOME=/work/home TMPDIR=/work/tmp GOCACHE=/work/cache GOMODCACHE=/work/modcache GOPROXY=off GOSUMDB=off /usr/bin/bwrap --unshare-all --share-user --die-with-parent --new-session --ro-bind /usr /usr --ro-bind /lib /lib --ro-bind /lib64 /lib64 --proc /proc --dev /dev --bind "$scratch" /work --chdir /work /usr/local/go/bin/go test ./internal/archive -run '^TestProbeCountOverflow$' -count=1`
+- Run: `env -i PATH=/usr/bin:/bin HOME=/work/home TMPDIR=/work/tmp GOCACHE=/work/cache GOMODCACHE=/work/modcache GOPROXY=off GOSUMDB=off /usr/bin/bwrap --unshare-all --die-with-parent --new-session --ro-bind /usr /usr --ro-bind /lib /lib --ro-bind /lib64 /lib64 --proc /proc --dev /dev --bind "$scratch" /work --chdir /work /usr/local/go/bin/go test ./internal/archive -run '^TestProbeCountOverflow$' -count=1`
 - Observed: The multiplication wrapped to `4`; the parser accepted the header and allocated a four-byte slice. Exit status 1 from the probe assertion.
 - Consequence: A real archive can bypass the configured decoded-size limit and produce the wrong parsed record count.
 - Correction: Reject negative counts and check `count > max/width` before multiplying. Keep the probe as a permanent boundary test.

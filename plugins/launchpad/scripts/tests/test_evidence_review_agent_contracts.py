@@ -68,6 +68,7 @@ def test_go_sandbox_example_scrubs_environment_and_uses_scratch_paths() -> None:
     assert "GOMODCACHE=/work/modcache" in text
     assert "GOPROXY=off" in text
     assert "--unshare-all" in text
+    assert "--share-user" not in text
 
 
 def test_document_reviewer_sandboxes_binary_extraction() -> None:
