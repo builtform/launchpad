@@ -23,6 +23,7 @@ import yaml
 _SCRIPTS = Path(__file__).resolve().parent.parent
 _AGENTS_ROOT = _SCRIPTS.parent / "agents"
 _FILTER_PATH = _SCRIPTS / "plugin-agent-scope-filter.py"
+_HARDEN_PLAN_PATH = _SCRIPTS.parent / "commands" / "lp-harden-plan.md"
 
 
 # ---------------------------------------------------------------------------
@@ -251,6 +252,18 @@ def test_filter_preserves_only_prevalidated_project_local_names(filter_mod, capl
 
     assert out == ["lp-security-auditor", "project-claims-reviewer"]
     assert filter_mod.last_dropped_names() == ["lp-not-real-agent"]
+
+
+def test_harden_plan_reads_both_rosters_before_resolution_and_filtering():
+    """Full-mode conditional names must enter the same resolved filter input."""
+    text = _HARDEN_PLAN_PATH.read_text(encoding="utf-8")
+    conditional_read = text.find("IF `--full`: read `harden_plan_conditional_agents`")
+    resolution = text.find("**Agent resolution:**")
+    filtering = text.find("**Pre-filter (v2.1 Phase 6 §3.3 + DA3)**")
+
+    assert 0 <= conditional_read < resolution < filtering
+    assert "Concatenate both lists into `combined_harden_agents`" in text
+    assert "surviving names that came from `harden_plan_conditional_agents`" in text
 
 
 def test_filter_module_invariants(filter_mod):

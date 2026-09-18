@@ -82,9 +82,9 @@ When `agents.yml` is missing, halt with the prereq error message and ask the use
 
 Read agent names from `.launchpad/agents.yml`:
 
-### Always dispatched (both `--full` and `--lightweight`):
-
-Read `harden_plan_agents` from `agents.yml`.
+1. Read `harden_plan_agents` from `agents.yml` for both `--full` and `--lightweight`.
+2. IF `--full`: read `harden_plan_conditional_agents`; otherwise set it to an empty list.
+3. Concatenate both lists into `combined_harden_agents` before resolution or filtering.
 
 **Agent resolution:** Validate each combined roster name, then scan
 `${CLAUDE_PLUGIN_ROOT}/agents/**` for `{name}.md` first and
@@ -92,8 +92,8 @@ Read `harden_plan_agents` from `agents.yml`.
 second location to `prevalidated_project_agent_names`. If no file resolves,
 skip with a note before filtering.
 
-**Pre-filter (v2.1 Phase 6 §3.3 + DA3)**: narrow `harden_plan_agents +
-harden_plan_conditional_agents` through
+**Pre-filter (v2.1 Phase 6 §3.3 + DA3)**: narrow the resolved
+`combined_harden_agents` through
 `plugin_agent_scope_filter.filter_agents_by_stacks(<resolved-combined>, stacks,
 prevalidated_passthrough_names=prevalidated_project_agent_names)`
 where `stacks = plugin_config_loader.read_stacks(cwd)`. Step 3.5
@@ -106,7 +106,7 @@ exception type, and emit the FALLBACK banner:
 > ⚠ stack-filter unavailable (\<exception type\>); dispatching full
 > roster of N agents
 
-Then dispatch all input agents verbatim.
+Then dispatch all resolved input agents verbatim.
 
 **Partial-drop banner** (cycle-4 spec-flow P2-B): if the filter
 completes with non-empty `last_dropped_names()`, emit:
@@ -117,12 +117,13 @@ completes with non-empty `last_dropped_names()`, emit:
 Then dispatch the M survivors. Both banners go to user-visible command
 output, not buried logs.
 
-Dispatch survivors in parallel with plan + project context + learnings + Context7 enrichment.
+### Always dispatched (both `--full` and `--lightweight`):
+
+Dispatch survivors whose names came from `harden_plan_agents` in parallel with plan + project context + learnings + Context7 enrichment.
 
 ### Conditional (`--full` only):
 
-Read `harden_plan_conditional_agents` from `agents.yml`. (Already merged
-into the filter input above.) Dispatch all listed agents in parallel.
+Dispatch surviving names that came from `harden_plan_conditional_agents` in parallel. This roster was read and merged before resolution and filtering.
 
 **Resolved agent dispatch:** Use the paths resolved before filtering. Do not scan or resolve a second time after the survivor list is produced.
 

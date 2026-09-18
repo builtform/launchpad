@@ -110,7 +110,7 @@ Structure your review like this:
 - Output says: "4 records require follow-up."
 - Location: `dist/customer/acme-report.html`, Follow-up section
 - Counting rule: Count each visible row under the Follow-up heading, excluding the header row.
-- Command: `grep -o '<tr data-follow-up-record=' dist/customer/acme-report.html | wc -l`
+- Command: `awk '/<section id="follow-up">/{inside=1} inside{print} /<\/section>/{if(inside) exit}' dist/customer/acme-report.html | grep -o '<tr data-follow-up-record=' | wc -l`
 - Observed: 3 rows: `A-14`, `A-18`, and `A-22`.
 - Why the recipient is misled: The heading promises four actionable records, but the page gives the recipient only three records to act on.
 - Width: 1 of 12 delivered reports
