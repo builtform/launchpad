@@ -218,6 +218,20 @@ def test_claims_auditor_receives_pr_intent_in_contextual_mode() -> None:
     assert "`--no-context` mode: pass no PR intent by design" in step3_body
 
 
+def test_pr_intent_fetches_closing_issue_context() -> None:
+    """Step 1.5 must fetch the issue context promised to the claims auditor."""
+    text = _md()
+    step15_idx = text.find("## Step 1.5: Read PR Intent Context")
+    step2_idx = text.find("## Step 2: Pre-dispatch Secret Scan")
+    assert step15_idx >= 0 and step2_idx > step15_idx
+    step15_body = text[step15_idx:step2_idx]
+
+    assert "title,body,labels,closingIssuesReferences" in step15_body
+    assert "gh issue view <number> --json number,title,body,labels,state" in step15_body
+    assert "add the returned issue context to `intent_context`" in step15_body
+    assert "record that issue as unavailable" in step15_body
+
+
 def test_agent_p0_is_normalized_before_pipeline_serialization() -> None:
     """The P1/P2/P3 pipeline must retain but never serialize P0 priority."""
     text = _md()
@@ -230,3 +244,18 @@ def test_agent_p0_is_normalized_before_pipeline_serialization() -> None:
     assert "Reported severity: P0" in step5a_body
     assert "downstream artifacts continue to use only P1/P2/P3" in step5a_body
     assert "coverage limitations as audit ledger entries, not findings" in step5a_body
+
+
+def test_coverage_limitations_are_always_persisted_in_summary() -> None:
+    """Headless callers must see checks skipped for environment reasons."""
+    text = _md()
+    step6_idx = text.find("## Step 6: Write Outputs")
+    step7_idx = text.find("## Step 7: Report")
+    assert step6_idx >= 0 and step7_idx > step6_idx
+    step6_body = text[step6_idx:step7_idx]
+
+    assert "## Coverage Limitations ({K})" in step6_body
+    assert "Persist coverage limitations from every evidence reviewer" in step6_body
+    assert "include the same subsection inside the appended blind findings section" in step6_body
+    assert "Never create todo files for coverage limitations" in step6_body
+    assert '"Clean review: no actionable findings"' in step6_body

@@ -217,7 +217,7 @@ LaunchPad ships as a Claude Code plugin with:
 | Component       | Count     | What it covers                                                                          |
 | --------------- | --------- | --------------------------------------------------------------------------------------- |
 | Slash commands  | 42        | The brainstorm, define, plan, build, review, resolve, ship, and learn lifecycle         |
-| Sub-agents      | 36        | 6 namespaces: research, review, resolve, design, skills, document-review                |
+| Sub-agents      | 39        | 6 namespaces: research, review, resolve, design, skills, document-review                |
 | Skills          | 16        | Reusable instruction sets for design, planning, review, compound docs                   |
 | Runtime scripts | several   | Stack detector, polyglot adapter, Jinja2 doc generator, install scripts                 |
 | Test suite      | 12 suites | Adapters, config loader, stack detector, pipeline integration, install-paths regression |
@@ -233,7 +233,7 @@ LaunchPad/
 │   ├── .claude-plugin/
 │   │   └── plugin.json         # name=launchpad, version=2.1.3
 │   ├── commands/               # /lp-* slash commands
-│   ├── agents/                 # 36 sub-agents across 6 namespaces
+│   ├── agents/                 # 39 sub-agents across 6 namespaces
 │   ├── skills/                 # reusable instruction sets
 │   └── scripts/                # runtime scripts + stack adapters
 ├── .launchpad/                 # project-local harness config

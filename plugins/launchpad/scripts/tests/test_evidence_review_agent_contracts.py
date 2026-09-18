@@ -43,8 +43,28 @@ def test_go_reviewer_probes_only_in_isolated_copies() -> None:
 
 def test_claims_reviewer_separates_coverage_limits_from_findings() -> None:
     text = _text("lp-claims-auditor.md")
+    metadata = _frontmatter("lp-claims-auditor.md")["x-launchpad"]["capabilities"]
 
     assert "coverage limitations rather than actionable findings" in text
     assert "coverage-limitations section" in text
     assert "does not enter the prioritized findings list" in text
     assert "unavailable local tool, credential, or external service" in text
+    assert "DO NOT execute reviewed tests" in text
+    assert "require `bwrap` with a new network namespace" in text
+    assert "require `sandbox-exec` with default deny" in text
+    assert "Scrub executable-check environments with `env -i`" in text
+    assert "record a coverage limitation with no finding priority" in text
+    assert metadata["mutation"] == "none"
+    assert metadata["tool-profile"] == "read_only"
+
+
+def test_go_sandbox_example_scrubs_environment_and_uses_scratch_paths() -> None:
+    text = _text("lp-foad-go-reviewer.md")
+
+    assert "Run: `env -i" in text
+    assert "HOME=/work/home" in text
+    assert "TMPDIR=/work/tmp" in text
+    assert "GOCACHE=/work/cache" in text
+    assert "GOMODCACHE=/work/modcache" in text
+    assert "GOPROXY=off" in text
+    assert "--unshare-all" in text

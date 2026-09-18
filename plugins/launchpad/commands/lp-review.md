@@ -77,8 +77,10 @@ HAS_REMOTE=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo yes || e
 
 **IF `--no-context` flag is set: skip this entire step. Set `intent_context = empty` and proceed to Step 2.**
 
-- IF a PR exists for current branch: run `gh pr view --json title,body,labels`
-  - Extract PR title, body, linked issue number/description
+- IF a PR exists for current branch: run `gh pr view --json title,body,labels,closingIssuesReferences`
+  - Extract PR title, body, labels, and closing issue numbers
+  - For each closing issue number, run `gh issue view <number> --json number,title,body,labels,state` and add the returned issue context to `intent_context`
+  - IF an issue fetch fails: record that issue as unavailable in `intent_context` and continue
   - Store as `intent_context` for Step 5 confidence scoring
 - IF no PR exists: `intent_context = empty` (scoring proceeds without it)
 - NEVER fail on this step — purely supplementary context
@@ -330,6 +332,10 @@ Single-file vs directory artifacts have different "append" semantics — intenti
 
    [List of suppressed findings with score and suppression reason]
 
+   ## Coverage Limitations ({K})
+
+   [List of checks that could not execute, with agent, claim or probe, required sandbox/tool/environment, and reason. These are audit entries, not findings.]
+
    ## Stats
 
    - Total raw findings: X
@@ -337,9 +343,13 @@ Single-file vs directory artifacts have different "append" semantics — intenti
    - Multi-agent agreement: W findings
    ```
 
-4. IF zero findings above threshold: write "Clean review — no actionable findings" to summary
+4. Persist coverage limitations from every evidence reviewer even when there are zero actionable findings:
+   - DEFAULT mode: always write `## Coverage Limitations ({K})` in the summary
+   - `--no-context` mode: include the same subsection inside the appended blind findings section
+   - Never create todo files for coverage limitations and never count them as suppressed findings
+5. IF zero findings above threshold: write "Clean review: no actionable findings" to summary, followed by the coverage-limitations section; when `K > 0`, also state that K checks were not executed
 
-5. Write observation text from `lp-code-simplicity-reviewer` to `.harness/observations/`:
+6. Write observation text from `lp-code-simplicity-reviewer` to `.harness/observations/`:
    - For each observation, create `.harness/observations/{id}-{description}.md`
    - YAML frontmatter: `status: observation`, `priority: p3`, `issue_id: "obs-{N}"`, `tags: [simplification]`, `observed_in: "path/to/file"`, `feature_scope: "{changed files list}"`
    - Body: Observation description + "Why Not Actioned: Outside the current feature scope."

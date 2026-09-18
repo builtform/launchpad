@@ -191,9 +191,9 @@ Dispatched by `/lp-review` in parallel with confidence scoring.
 | `data-migration-auditor` / `data-integrity-auditor`                                                                                                                     | Prisma changes (with drift report) |
 | `spec-flow-analyzer` / `frontend-races-reviewer`                                                                                                                        | Plan hardening                     |
 | `deployment-verification-agent`                                                                                                                                         | Opt-in                             |
-| `claims-auditor`                                                                                                                                                        | Default, all stacks                |
-| `foad-go-reviewer`                                                                                                                                                      | Default roster, Go stacks only     |
-| `document-truth`                                                                                                                                                        | Opt-in via document roster         |
+| `lp-claims-auditor`                                                                                                                                                     | Default, all stacks                |
+| `lp-foad-go-reviewer`                                                                                                                                                   | Default roster, Go stacks only     |
+| `lp-document-truth`                                                                                                                                                     | Opt-in via document roster         |
 
 ### document-review/ (7 agents)
 
