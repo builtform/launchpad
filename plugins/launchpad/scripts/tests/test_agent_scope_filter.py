@@ -218,9 +218,10 @@ def test_go_scope_matches_go_family_and_drops_for_typescript(filter_mod, tmp_pat
             config_loader.read_stacks(ts_project),
             raise_on_no_match=True,
         )
-    assert filter_mod.filter_agents_by_stacks(
-        ["lp-foad-go-reviewer"], config_loader.read_stacks(ts_project)
-    ) == []
+    with pytest.raises(filter_mod.EmptyFilterResultError):
+        filter_mod.filter_agents_by_stacks(
+            ["lp-foad-go-reviewer"], config_loader.read_stacks(ts_project)
+        )
     assert filter_mod.filter_agents_by_stacks(
         ["lp-claims-auditor", "lp-foad-go-reviewer"],
         config_loader.read_stacks(ts_project),

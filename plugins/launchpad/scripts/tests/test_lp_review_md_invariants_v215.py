@@ -195,8 +195,10 @@ def test_every_diff_mode_records_authoritative_claims_context() -> None:
     assert "review_commit_range = origin/main..HEAD" in step1_body
     assert "git log --format=fuller origin/main..HEAD" in step1_body
     assert "review_scope_mode = pre-first-commit" in step1_body
+    assert "review_head_identity = working-tree" in step1_body
     assert "review_commit_range = none" in step1_body
     assert "review_scope_mode = no-remote-base" in step1_body
+    assert "review_base_sha = git rev-parse HEAD" in step1_body
     assert "review_commit_range = working-tree-vs-HEAD" in step1_body
 
 
@@ -233,7 +235,8 @@ def test_claims_auditor_receives_pr_intent_in_contextual_mode() -> None:
     for field in (
         "review_scope_mode",
         "review_diff_base",
-        "review_head_sha",
+        "review_head_identity",
+        "review_base_sha",
         "review_commit_range",
         "review_commit_log",
     ):

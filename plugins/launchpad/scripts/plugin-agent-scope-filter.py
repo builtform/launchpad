@@ -18,9 +18,9 @@ Design (cycle-3 strip-back; cycle-4 LOCKED v5):
     selectors may map to multiple persisted stack ids, such as `stack:go`
     matching both `go` and the generated `go_cli` stack id.
   * `EmptyFilterResultError` fires only when ALL input names are missing from
-    the index. A known roster containing only stack-mismatched agents returns
-    `NoMatchingAgentsError` only when the caller opts into
-    `raise_on_no_match`; legacy callers receive an empty list.
+    the index or when a legacy caller's entire roster is stack-mismatched. A
+    caller opting into `raise_on_no_match` receives `NoMatchingAgentsError`
+    for the latter case so it can refuse without activating fallback.
   * Missing-name UX: WARN + drop (cycle-3 spec-flow P1-2). Caller reads
     `last_dropped_names()` for partial-drop banner emission.
 
@@ -102,12 +102,12 @@ _last_dropped: list[str] = []
 
 
 class EmptyFilterResultError(RuntimeError):
-    """Raised when filter_agents_by_stacks() empties a non-empty input.
+    """Raised when legacy filtering empties a non-empty input.
 
     The trigger is that ALL input agent names are missing from the agent
     index, such as an agents.yml typo for every name. Known agents excluded
-    by stack scope return an empty list without raising. Callers catch this
-    exception and emit the FALLBACK banner per §3.3.
+    by stack scope also use this exception for backward-compatible caller
+    fallback. `/lp-review` opts into the more specific NoMatchingAgentsError.
     """
 
 
@@ -283,7 +283,8 @@ def filter_agents_by_stacks(
     this mapping still warn + drop.
 
     `raise_on_no_match=True` makes a fully stack-mismatched resolved roster a
-    visible error. `/lp-review` enables this; legacy callers retain `[]`.
+    specific visible error. `/lp-review` enables this; legacy callers retain
+    the prior EmptyFilterResultError fallback behavior.
 
     Empty input list returns []. Empty stacks is allowed (returns only
     core_pipeline + stack:any agents).
@@ -350,6 +351,11 @@ def filter_agents_by_stacks(
         raise NoMatchingAgentsError(
             f"no configured agent matches persisted stacks {stack_list!r}; "
             f"resolved input was {names!r}"
+        )
+    if not survivors_sorted:
+        raise EmptyFilterResultError(
+            f"filter excluded every resolved agent in input {names!r} for "
+            f"stacks {stack_list!r}; legacy caller fallback required"
         )
     return survivors_sorted
 
