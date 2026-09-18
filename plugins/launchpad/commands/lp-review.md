@@ -26,7 +26,7 @@ Multi-agent parallel code review with confidence-based false-positive suppressio
 
 1. Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-review --require=.launchpad/agents.yml` — verify-or-refuse: the lite helper checks the required file exists and exits 1 with a pointer to `/lp-define` if not. `/lp-define` is the authoritative seeder; this command never writes `agents.yml`.
 2. Load paths via `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-config-loader.py` so `paths.architecture_dir` etc. override defaults where relevant.
-3. Read `.launchpad/agents.yml` → extract `review_agents`, `review_db_agents`, `review_design_agents`, `review_copy_agents`
+3. Read `.launchpad/agents.yml` → extract `review_agents`, `review_db_agents`, `review_design_agents`, `review_copy_agents`, `review_document_agents`
 4. Validate each agent name: must match `[a-z0-9-]+`. Resolve to a file by scanning `${CLAUDE_PLUGIN_ROOT}/agents/**` for `{name}.md` (built-ins shipped with the plugin; their on-disk filenames already include the `lp-` prefix, e.g. `lp-pattern-finder.md`, and `agents.yml` stores names with the prefix to match) first, then `.claude/agents/**` for `{name}.md` (project-local extensions). Skip with warning if file not found — this handles unimplemented optional agents gracefully.
 5. Read `.harness/harness.local.md` → extract review context
 6. The lite prereq helper above already refuses with a `/lp-define` pointer when `agents.yml` is missing, so reaching this point means the file exists. No in-command fallback is needed; the legacy "fall back to `lp-pattern-finder` only" path was prose drift that contradicted the helper's verify-or-refuse contract.
@@ -113,7 +113,8 @@ branch:
 review_agents, stacks)` where `stacks = plugin_config_loader.read_stacks(cwd)`.
 The filter drops agents whose `stack_scope` does not match any of the
 project's persisted stacks. Step 4 (DB-only conditional), Step 4.5
-(design conditional) are NOT filtered. `/lp-review` has no Step 3.5.
+(design and copy conditionals), and Step 4.6 (document conditional) are NOT
+filtered. `/lp-review` has no Step 3.5.
 
 **Pass-through fallback** (cycle-4 spec-flow P2-B): if the filter raises
 ANY exception, catch broadly, log INFO with the exception type, and emit
@@ -133,11 +134,12 @@ Then dispatch all input agents verbatim.
 Then dispatch the M survivors. Both banners go to user-visible command
 output, not buried logs.
 
-**v2.1 narrowing reality**: with all 13 review/ agents classified as
-`stack:any` per cycle-3 axis-mismatch fix, the filter primarily provides
-corpus discipline + the bogus-stack-id validation gate; narrowing on
-`stack:<id>` is dead-code in v2.1 (forward-compat for v2.2 framework-axis
-wire-through). See plan §1 transparency note.
+**Stack-specific narrowing**: `stack:<id>` agents are dispatched only when the
+project's persisted stacks match that selector. Known language-family
+selectors may cover more than one persisted stack id; for example, `stack:go`
+matches both `go` and `go_cli`. A roster containing only known agents that do
+not match the project returns no survivors without activating the exception
+fallback.
 
 For each survivor agent in `review_agents`:
 
@@ -185,6 +187,14 @@ The drift report lets downstream agents focus only on legitimate changes, ignori
 - Read `review_copy_agents` from `.launchpad/agents.yml`
 - IF list is non-empty: dispatch all `review_copy_agents` in parallel
 - IF list is empty: skip silently (expected in LaunchPad — downstream projects populate)
+
+## Step 4.6: Conditional Document Truth Agents
+
+- Read `review_document_agents` from `.launchpad/agents.yml`
+- IF the list is non-empty: dispatch all `review_document_agents` in parallel
+- Pass each agent the diff, changed-file list, produced output artifacts in scope, and review context
+- Do NOT apply the stack pre-filter; output type is a project-specific capability that stack detection cannot infer
+- IF the list is empty: skip silently (expected in LaunchPad; downstream projects opt in when they produce recipient-facing documents)
 
 ## Step 5: Confidence Scoring & Synthesis
 

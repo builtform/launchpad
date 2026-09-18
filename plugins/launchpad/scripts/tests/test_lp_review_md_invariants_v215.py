@@ -181,3 +181,20 @@ def test_codex_round5_p1_b_no_remote_branch_split() -> None:
     # right branch fired).
     assert "[pre-first-commit]" in step1a_body
     assert "[no-remote-base]" in step1a_body
+
+
+def test_document_agent_roster_is_loaded_and_dispatched_without_stack_filter() -> None:
+    """Recipient-output review is opt-in and independent of code stack."""
+    text = _md()
+    step0_idx = text.find("## Step 0: Read Configuration")
+    step1_idx = text.find("## Step 1: Determine Diff Scope")
+    step46_idx = text.find("## Step 4.6: Conditional Document Truth Agents")
+    step5_idx = text.find("## Step 5: Confidence Scoring & Synthesis")
+
+    assert step0_idx >= 0 and step1_idx > step0_idx
+    assert "review_document_agents" in text[step0_idx:step1_idx]
+    assert step46_idx >= 0 and step5_idx > step46_idx
+    step46_body = text[step46_idx:step5_idx]
+    assert "dispatch all `review_document_agents` in parallel" in step46_body
+    assert "Do NOT apply the stack pre-filter" in step46_body
+    assert "IF the list is empty: skip silently" in step46_body

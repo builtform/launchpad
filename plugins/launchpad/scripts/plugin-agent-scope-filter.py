@@ -13,10 +13,12 @@ Design (cycle-3 strip-back; cycle-4 LOCKED v5):
   * `_safe_candidate` symlink rejection mirrors `plugin-stack-detector.py:194-208`.
   * Bounded `stack:[a-z_]{1,32}` regex (cycle-3 security P1-NEW-A: ReDoS bound).
   * `MAX_AGENT_FRONTMATTER_BYTES = 64_000` defense-in-depth post-CODEOWNERS-bypass.
-  * `EmptyFilterResultError` v2.1 trigger path: only fires when ALL input
-    names are missing from the index (no stack:<id> agents in v2.1 per
-    cycle-3 axis-mismatch fix). Forward-compat for v2.2 language-specific
-    reviewers — do NOT remove as apparent dead code.
+  * `stack:<id>` selectors narrow the default review roster. Language-family
+    selectors may map to multiple persisted stack ids, such as `stack:go`
+    matching both `go` and the generated `go_cli` stack id.
+  * `EmptyFilterResultError` fires only when ALL input names are missing from
+    the index. A known roster containing only stack-mismatched agents returns
+    an empty list so callers do not activate their full-roster fallback.
   * Missing-name UX: WARN + drop (cycle-3 spec-flow P1-2). Caller reads
     `last_dropped_names()` for partial-drop banner emission.
 
@@ -54,6 +56,24 @@ STACK_SCOPE_REGEX = re.compile(
     r"^(core_pipeline|stack:any|stack:[a-z_]{1,32}|design_quality|skill_quality)$"
 )
 
+STACK_FAMILY_MEMBERS: Mapping[str, frozenset[str]] = MappingProxyType(
+    {
+        "go": frozenset({"go", "go_cli"}),
+        "python": frozenset({"python", "python_django", "python_generic"}),
+        "ruby": frozenset({"ruby", "rails"}),
+        "typescript": frozenset(
+            {
+                "typescript",
+                "ts_monorepo",
+                "nextjs_standalone",
+                "nextjs_fastapi",
+                "nextjs_hono_cloudflare",
+                "nextjs_trpc_prisma",
+            }
+        ),
+    }
+)
+
 MAX_AGENT_FRONTMATTER_BYTES = 64_000
 
 _LOGGER = logging.getLogger("plugin_agent_scope_filter")
@@ -82,10 +102,10 @@ _last_dropped: list[str] = []
 class EmptyFilterResultError(RuntimeError):
     """Raised when filter_agents_by_stacks() empties a non-empty input.
 
-    v2.1 trigger path: ALL input agent names are missing from the agent
-    index (e.g., agents.yml typo for every name). Forward-compat for v2.2
-    when language-specific reviewers ship with stack:<id> classification.
-    Caller catches and emits the FALLBACK banner per §3.3.
+    The trigger is that ALL input agent names are missing from the agent
+    index, such as an agents.yml typo for every name. Known agents excluded
+    by stack scope return an empty list without raising. Callers catch this
+    exception and emit the FALLBACK banner per §3.3.
     """
 
 
@@ -208,6 +228,11 @@ def _active_stack_enum() -> frozenset[str]:
     return STACK_ID_ACTIVE_ENUM
 
 
+def _selector_members(stack_id: str) -> frozenset[str]:
+    """Return persisted stack ids represented by one stack selector."""
+    return STACK_FAMILY_MEMBERS.get(stack_id, frozenset({stack_id}))
+
+
 # ---------------------------------------------------------------------------
 # Public surface
 # ---------------------------------------------------------------------------
@@ -221,7 +246,8 @@ def filter_agents_by_stacks(
     Inclusion rules (DA2):
       * `core_pipeline`: always include
       * `stack:any`: always include
-      * `stack:<id>`: include iff `<id>` in `stacks`
+      * `stack:<id>`: include iff `<id>` or one of its known family members
+        is in `stacks`
       * `design_quality` + `skill_quality`: NEVER include (callers pre-filter)
 
     Missing-name handling: WARN + drop (cycle-3 spec-flow P1-2). Caller
@@ -232,18 +258,19 @@ def filter_agents_by_stacks(
 
     Raises:
       ValueError: stack id not in STACK_ID_ACTIVE_ENUM.
-      EmptyFilterResultError: empty result + non-empty input. Forward-compat
-        v2.1 trigger path is ALL names missing.
+      EmptyFilterResultError: every input name is missing from the agent index.
     """
     names = list(agent_names)
     stack_list = list(stacks)
     if not names:
         return []
     active_enum = _active_stack_enum()
-    bogus = [s for s in stack_list if s not in active_enum]
+    accepted_stack_inputs = active_enum | frozenset(STACK_FAMILY_MEMBERS)
+    bogus = [s for s in stack_list if s not in accepted_stack_inputs]
     if bogus:
         raise ValueError(
-            f"unknown stack id(s) {bogus!r}; expected one of {sorted(active_enum)}"
+            f"unknown stack id(s) {bogus!r}; expected one of "
+            f"{sorted(accepted_stack_inputs)}"
         )
     index = _load_agent_index()
     survivors: list[str] = []
@@ -265,17 +292,17 @@ def filter_agents_by_stacks(
             survivors.append(name)
         elif scope.startswith("stack:") and scope != "stack:any":
             stack_id = scope.split(":", 1)[1]
-            if stack_id in stacks_set:
+            if not _selector_members(stack_id).isdisjoint(stacks_set):
                 survivors.append(name)
         # design_quality + skill_quality NEVER survive — callers pre-filter.
     with _lock:
         _last_dropped.clear()
         _last_dropped.extend(dropped)
     survivors_sorted = sorted(survivors)
-    if not survivors_sorted:
+    if not survivors_sorted and len(dropped) == len(names):
         raise EmptyFilterResultError(
-            f"filter dropped every agent in input {names!r} for stacks "
-            f"{stack_list!r}; v2.1 trigger path = all names missing from index"
+            f"filter dropped every agent in input {names!r}; all names are "
+            "missing from the plugin index"
         )
     return survivors_sorted
 
@@ -292,6 +319,7 @@ def last_dropped_names() -> list[str]:
 
 __all__ = [
     "STACK_SCOPE_REGEX",
+    "STACK_FAMILY_MEMBERS",
     "MAX_AGENT_FRONTMATTER_BYTES",
     "EmptyFilterResultError",
     "FrontmatterTooLargeError",

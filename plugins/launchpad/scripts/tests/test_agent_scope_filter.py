@@ -90,9 +90,7 @@ def test_every_stack_scope_matches_regex():
 
 
 def test_per_value_count_floors_satisfied():
-    """v2.1 §3.1: 4 active scope values each have >= 1 agent.
-    Note: stack:<id> count is allowed = 0 in v2.1 per cycle-3 axis-mismatch fix.
-    """
+    """Every active scope family has at least one agent."""
     counts: dict[str, int] = {}
     for f in _all_agent_files():
         fm = _read_frontmatter(f)
@@ -102,22 +100,29 @@ def test_per_value_count_floors_satisfied():
             "core_pipeline", "stack:any", "design_quality", "skill_quality"
         ) else "stack:<id>"
         counts[bucket] = counts.get(bucket, 0) + 1
-    for required in ("core_pipeline", "stack:any", "design_quality", "skill_quality"):
+    for required in (
+        "core_pipeline",
+        "stack:any",
+        "stack:<id>",
+        "design_quality",
+        "skill_quality",
+    ):
         assert counts.get(required, 0) >= 1, (
             f"v2.1 corpus floor violated: {required} count = {counts.get(required, 0)}"
         )
 
 
 def test_total_agent_count_self_consistent():
-    """v2.1 §3.1: 16 + 13 + 6 + 1 = 36; total matches filesystem walk."""
+    """Scope counts match the 39-file plugin agent corpus."""
     files = _all_agent_files()
-    assert len(files) == 36, f"expected 36 agents on disk; found {len(files)}"
+    assert len(files) == 39, f"expected 39 agents on disk; found {len(files)}"
     by_scope: dict[str, int] = {}
     for f in files:
         scope = _read_frontmatter(f)["stack_scope"]
         by_scope[scope] = by_scope.get(scope, 0) + 1
     assert by_scope.get("core_pipeline") == 16, by_scope
-    assert by_scope.get("stack:any") == 13, by_scope
+    assert by_scope.get("stack:any") == 15, by_scope
+    assert by_scope.get("stack:go") == 1, by_scope
     assert by_scope.get("design_quality") == 6, by_scope
     assert by_scope.get("skill_quality") == 1, by_scope
     assert sum(by_scope.values()) == len(files)
@@ -176,8 +181,44 @@ def test_filter_excludes_design_quality_and_skill_quality(filter_mod):
     assert "lp-file-locator" in out
 
 
+def test_go_scope_matches_go_family_and_drops_for_typescript(filter_mod, tmp_path):
+    """stack:go matches Go configs and cleanly narrows out of TS configs."""
+    config_loader_path = _SCRIPTS / "plugin-config-loader.py"
+    spec = importlib.util.spec_from_file_location(
+        "plugin_config_loader_for_scope_test", config_loader_path
+    )
+    config_loader = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config_loader)  # type: ignore[union-attr]
+
+    go_project = tmp_path / "go-project"
+    (go_project / ".launchpad").mkdir(parents=True)
+    (go_project / ".launchpad" / "config.yml").write_text(
+        "stacks: [go]\n", encoding="utf-8"
+    )
+    go_cli_project = tmp_path / "go-cli-project"
+    (go_cli_project / ".launchpad").mkdir(parents=True)
+    (go_cli_project / ".launchpad" / "config.yml").write_text(
+        "stacks: [go_cli]\n", encoding="utf-8"
+    )
+    ts_project = tmp_path / "ts-project"
+    (ts_project / ".launchpad").mkdir(parents=True)
+    (ts_project / ".launchpad" / "config.yml").write_text(
+        "stacks: [typescript]\n", encoding="utf-8"
+    )
+
+    assert filter_mod.filter_agents_by_stacks(
+        ["lp-foad-go-reviewer"], config_loader.read_stacks(go_project)
+    ) == ["lp-foad-go-reviewer"]
+    assert filter_mod.filter_agents_by_stacks(
+        ["lp-foad-go-reviewer"], config_loader.read_stacks(go_cli_project)
+    ) == ["lp-foad-go-reviewer"]
+    assert filter_mod.filter_agents_by_stacks(
+        ["lp-foad-go-reviewer"], config_loader.read_stacks(ts_project)
+    ) == []
+
+
 def test_filter_validates_stacks_against_active_enum(filter_mod):
-    """v2.1 DoD: bogus stack ids are rejected with ValueError."""
+    """Bogus stack ids outside active ids and known families are rejected."""
     with pytest.raises(ValueError):
         filter_mod.filter_agents_by_stacks(
             ["lp-file-locator"], stacks=["bogus_stack_id"]
@@ -209,6 +250,7 @@ def test_filter_module_invariants(filter_mod):
     assert filter_mod.STACK_SCOPE_REGEX.fullmatch("stack:rails")
     assert not filter_mod.STACK_SCOPE_REGEX.fullmatch("stack:" + "a" * 33)
     assert not filter_mod.STACK_SCOPE_REGEX.fullmatch("stack:foo bar")
+    assert filter_mod.STACK_FAMILY_MEMBERS["go"] == frozenset({"go", "go_cli"})
 
     # Loader returns immutable MappingProxyType.
     idx = filter_mod._load_agent_index()
