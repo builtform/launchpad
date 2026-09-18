@@ -2,9 +2,9 @@
 stack: hugo
 pillar: Frontend Content (Go)
 type: orchestrate
-last_validated: 2026-08-01
+last_validated: 2026-09-18
 scaffolder_command: hugo new project <path> --force
-scaffolder_command_pinned_version: hugo@0.164+ (standard edition)
+scaffolder_command_pinned_version: hugo@0.166+ (standard edition)
 ---
 
 # Hugo — Knowledge Anchor
@@ -41,9 +41,9 @@ The canonical layout from `hugo new project`:
 Modules system (Hugo Modules) is the modern theme/component delivery; use
 `hugo mod init <module-path>` after `hugo new project` to enable.
 
-Version pins: hugo `0.164.x` standard (v0.158.0 is the documented floor). Track
+Version pins: hugo `0.166.x` standard (v0.158.0 is the documented floor). Track
 via `hugo version`; CI pins via `peaceiris/actions-hugo@v3` (or equivalent) with
-`hugo-version: 0.164.x`. Set `extended: true` only if the project still depends
+`hugo-version: 0.166.x`. Set `extended: true` only if the project still depends
 on embedded LibSass, which is deprecated; prefer installing `dart-sass`.
 
 ## Scaffolder behavior
@@ -104,7 +104,8 @@ binary installed (plus `dart-sass` on PATH if the chosen theme uses Sass).
 
 ## Version evolution
 
-- Hugo 0.164.0 (2026-07-06): current stable.
+- Hugo 0.166.0 (2026-09-08): current stable.
+- Hugo 0.164.0 (2026-07-06): prior validated stable.
 - Hugo 0.158.0 (2026-03-16): `languageCode` deprecated in favor of `locale`;
   `hugo new project` becomes the documented scaffolder name (`site` kept as an
   alias).

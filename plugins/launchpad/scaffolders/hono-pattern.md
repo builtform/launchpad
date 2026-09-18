@@ -2,7 +2,7 @@
 stack: hono
 pillar: Backend Edge-native TS
 type: orchestrate
-last_validated: 2026-08-01
+last_validated: 2026-09-18
 scaffolder_command: npm create hono@latest <target-dir> -- --template <template> --pm npm
 scaffolder_command_pinned_version: create-hono@0.19 (framework: hono@4)
 ---
