@@ -46,13 +46,15 @@ def test_claims_reviewer_separates_coverage_limits_from_findings() -> None:
     frontmatter = _frontmatter("lp-claims-auditor.md")
     metadata = frontmatter["x-launchpad"]["capabilities"]
 
-    assert "doc comments, test names and comments" in frontmatter["description"]
-    assert "PR discussion comments" not in frontmatter["description"]
+    assert "source-code documentation comments" in frontmatter["description"]
+    assert "test names and test comments" in frontmatter["description"]
+    assert "DO NOT claim coverage of PR review comments" in text
+    assert "Don't audit or advertise coverage of PR review comments" in text
     assert "coverage limitations rather than actionable findings" in text
     assert "coverage-limitations section" in text
     assert "does not enter the prioritized findings list" in text
     assert "unavailable local tool, credential, or external service" in text
-    assert "DO NOT execute reviewed tests" in text
+    assert "or execute reviewed code outside an enforced process sandbox" in text
     assert "require `bwrap` with a new network namespace" in text
     assert "require `sandbox-exec` with default deny" in text
     assert "Scrub executable-check environments with `env -i`" in text
