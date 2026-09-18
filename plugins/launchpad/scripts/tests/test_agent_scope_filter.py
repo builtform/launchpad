@@ -248,15 +248,23 @@ def test_filter_warns_and_drops_unknown_names(filter_mod, caplog):
     assert "lp-not-real-agent" in dropped
 
 
-def test_filter_preserves_only_prevalidated_project_local_names(filter_mod, caplog):
-    """Resolved project extensions pass through; arbitrary unknowns still drop."""
+def test_filter_scopes_prevalidated_project_local_agents(filter_mod, caplog):
+    """Resolved project extensions are scoped; arbitrary unknowns still drop."""
     import logging
 
     caplog.set_level(logging.WARNING)
     out = filter_mod.filter_agents_by_stacks(
-        ["project-claims-reviewer", "lp-not-real-agent", "lp-security-auditor"],
+        [
+            "project-claims-reviewer",
+            "project-go-reviewer",
+            "lp-not-real-agent",
+            "lp-security-auditor",
+        ],
         stacks=["ts_monorepo"],
-        prevalidated_passthrough_names=["project-claims-reviewer"],
+        prevalidated_project_scopes={
+            "project-claims-reviewer": "stack:any",
+            "project-go-reviewer": "stack:go",
+        },
     )
 
     assert out == ["lp-security-auditor", "project-claims-reviewer"]

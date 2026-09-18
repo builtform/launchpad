@@ -5,9 +5,9 @@ Loads + caches `plugins/launchpad/agents/**/*.md` frontmatter, exposes
 `/lp-review` Step 3 and `/lp-harden-plan` Step 3 dispatch.
 
 Design (cycle-3 strip-back; cycle-4 LOCKED v5):
-  * Plugin-tree index only. Callers may pass project-local names they already
-    resolved and validated through `prevalidated_passthrough_names`; the filter
-    never walks or trusts `.claude/agents/**` on its own.
+  * Plugin-tree index only. Callers may pass project-local name-to-scope pairs
+    they already resolved and validated through `prevalidated_project_scopes`;
+    the filter never walks or trusts `.claude/agents/**` on its own.
   * Module-level `STACK_SCOPE_REGEX` (cycle-3 perf P1-2).
   * `lru_cache(maxsize=None)` on `_load_agent_index`. Returns
     `MappingProxyType` (immutable view; cycle-2 security).
@@ -243,6 +243,16 @@ def _selector_members(stack_id: str) -> frozenset[str]:
     return STACK_FAMILY_MEMBERS.get(stack_id, frozenset({stack_id}))
 
 
+def _scope_matches(scope: str, stacks_set: set[str]) -> bool:
+    """Return whether one validated scope belongs in the active stack set."""
+    if scope in {"core_pipeline", "stack:any"}:
+        return True
+    if scope.startswith("stack:"):
+        stack_id = scope.split(":", 1)[1]
+        return not _selector_members(stack_id).isdisjoint(stacks_set)
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Public surface
 # ---------------------------------------------------------------------------
@@ -252,7 +262,7 @@ def filter_agents_by_stacks(
     agent_names: Iterable[str],
     stacks: Iterable[str],
     *,
-    prevalidated_passthrough_names: Iterable[str] = (),
+    prevalidated_project_scopes: Mapping[str, str] | None = None,
     raise_on_no_match: bool = False,
 ) -> list[str]:
     """Filter agent names by stack_scope classification.
@@ -267,10 +277,10 @@ def filter_agents_by_stacks(
     Missing-name handling: WARN + drop (cycle-3 spec-flow P1-2). Caller
     reads `last_dropped_names()` for partial-drop banner.
 
-    `prevalidated_passthrough_names` contains project-local agents the caller
-    already resolved under its trusted project root. These names survive
-    without stack filtering because project-local frontmatter is outside the
-    plugin-owned scope index. Unknown names not in this set still warn + drop.
+    `prevalidated_project_scopes` maps project-local agents already resolved
+    under the caller's trusted project root to validated `stack_scope` values.
+    They use the same scope matcher as built-ins. Unknown names absent from
+    this mapping still warn + drop.
 
     `raise_on_no_match=True` makes a fully stack-mismatched resolved roster a
     visible error. `/lp-review` enables this; legacy callers retain `[]`.
@@ -285,7 +295,16 @@ def filter_agents_by_stacks(
     """
     names = list(agent_names)
     stack_list = list(stacks)
-    passthrough_names = set(prevalidated_passthrough_names)
+    project_scopes = dict(prevalidated_project_scopes or {})
+    invalid_project_scopes = {
+        name: scope
+        for name, scope in project_scopes.items()
+        if not isinstance(scope, str) or not STACK_SCOPE_REGEX.fullmatch(scope)
+    }
+    if invalid_project_scopes:
+        raise ValueError(
+            f"invalid prevalidated project agent scopes: {invalid_project_scopes!r}"
+        )
     if not names:
         return []
     active_enum = _active_stack_enum()
@@ -303,8 +322,10 @@ def filter_agents_by_stacks(
     for name in names:
         meta = index.get(name)
         if meta is None:
-            if name in passthrough_names:
-                survivors.append(name)
+            project_scope = project_scopes.get(name)
+            if project_scope is not None:
+                if _scope_matches(project_scope, stacks_set):
+                    survivors.append(name)
                 continue
             _LOGGER.warning(
                 "stack-filter: dropping unknown agent name %r (not in plugin index)",
@@ -313,14 +334,8 @@ def filter_agents_by_stacks(
             dropped.append(name)
             continue
         scope = meta["stack_scope"]
-        if scope == "core_pipeline":
+        if _scope_matches(scope, stacks_set):
             survivors.append(name)
-        elif scope == "stack:any":
-            survivors.append(name)
-        elif scope.startswith("stack:") and scope != "stack:any":
-            stack_id = scope.split(":", 1)[1]
-            if not _selector_members(stack_id).isdisjoint(stacks_set):
-                survivors.append(name)
         # design_quality + skill_quality NEVER survive — callers pre-filter.
     with _lock:
         _last_dropped.clear()

@@ -284,9 +284,9 @@ def test_prevalidated_project_agents_survive_stack_filter() -> None:
     assert step0_idx >= 0 and step1_idx > step0_idx
     assert step3_idx >= 0 and step4_idx > step3_idx
 
-    assert "prevalidated_project_agent_names" in text[step0_idx:step1_idx]
-    assert "prevalidated_passthrough_names=" in text[step3_idx:step4_idx]
-    assert "prevalidated_project_agent_names" in text[step3_idx:step4_idx]
+    assert "prevalidated_project_agent_scopes" in text[step0_idx:step1_idx]
+    assert "prevalidated_project_scopes=" in text[step3_idx:step4_idx]
+    assert "prevalidated_project_agent_scopes" in text[step3_idx:step4_idx]
 
 
 def test_nonempty_roster_that_resolves_to_zero_halts_review() -> None:
