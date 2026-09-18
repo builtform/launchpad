@@ -26,7 +26,7 @@ Multi-agent parallel code review with confidence-based false-positive suppressio
 
 1. Run `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-prereq-check.sh --mode=lite --command=lp-review --require=.launchpad/agents.yml` — verify-or-refuse: the lite helper checks the required file exists and exits 1 with a pointer to `/lp-define` if not. `/lp-define` is the authoritative seeder; this command never writes `agents.yml`.
 2. Load paths via `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-config-loader.py` so `paths.architecture_dir` etc. override defaults where relevant.
-3. Read `.launchpad/agents.yml` → extract `review_agents`, `review_db_agents`, `review_design_agents`, `review_copy_agents`, `review_document_agents`
+3. Read `.launchpad/agents.yml` → extract `review_agents`, `review_db_agents`, `review_design_agents`, `review_copy_agents`, `review_document_agents`, `review_document_artifacts` (optional; default `[]`)
 4. Validate each agent name: must match `[a-z0-9-]+`. Resolve to a file by scanning `${CLAUDE_PLUGIN_ROOT}/agents/**` for `{name}.md` (built-ins shipped with the plugin; their on-disk filenames already include the `lp-` prefix, e.g. `lp-pattern-finder.md`, and `agents.yml` stores names with the prefix to match) first, then `.claude/agents/**` for `{name}.md` (project-local extensions). Skip with warning if file not found — this handles unimplemented optional agents gracefully.
 5. Read `.harness/harness.local.md` → extract review context
 6. The lite prereq helper above already refuses with a `/lp-define` pointer when `agents.yml` is missing, so reaching this point means the file exists. No in-command fallback is needed; the legacy "fall back to `lp-pattern-finder` only" path was prose drift that contradicted the helper's verify-or-refuse contract.
@@ -151,6 +151,9 @@ For each survivor agent in `review_agents`:
 - For `lp-code-simplicity-reviewer`:
   - DEFAULT: additionally pass "Changed Files: {list}. Suggest changes only to these files. Return observation text for anything outside this list."
   - `--no-context` mode: DROP this constraint — the simplicity reviewer may flag findings outside changed files (no `feature_scope` narrowing)
+- For `lp-claims-auditor`:
+  - DEFAULT: additionally pass `intent_context` from Step 1.5 verbatim, including the PR title, body, labels, and linked issue context when available
+  - `--no-context` mode: pass no PR intent by design; instruct the agent to audit commit messages, changed documentation, doc comments, test names, and test comments only
 - Per-agent prompt:
   - DEFAULT: "Review this code diff for issues in your domain. Return findings as structured list with file:line, severity (P1/P2/P3), and description."
   - `--no-context` mode: "Review this code diff for bugs at P0/P1. You have NO project context. The diff and file tree are all you have. Flag bugs you can identify from the code alone." (APPENDED to the agent's base specialty prompt — agent identity persists; context-stripping is partial per master plan D3 honest-naming)
@@ -191,8 +194,13 @@ The drift report lets downstream agents focus only on legitimate changes, ignori
 ## Step 4.6: Conditional Document Truth Agents
 
 - Read `review_document_agents` from `.launchpad/agents.yml`
-- IF the list is non-empty: dispatch all `review_document_agents` in parallel
-- Pass each agent the diff, changed-file list, produced output artifacts in scope, and review context
+- Read `review_document_artifacts` as a list of repository-relative glob patterns; missing key means `[]`
+- Validate each pattern before expansion: reject absolute paths, `..` segments, NUL bytes, and any match that resolves outside the repository or through a symlink
+- Expand all patterns, keep regular files only, deduplicate by resolved path, and sort by repository-relative path to produce `document_artifact_inventory`
+- IF `review_document_agents` is non-empty AND `review_document_artifacts` is empty: emit a P1 configuration finding and skip document dispatch
+- IF `review_document_agents` is non-empty AND no regular files match: emit a P1 configuration finding naming the configured patterns and skip document dispatch
+- IF both the roster and inventory are non-empty: dispatch all `review_document_agents` in parallel
+- Pass each agent the diff, changed-file list, exact `document_artifact_inventory`, inventory count, configured patterns, and review context
 - Do NOT apply the stack pre-filter; output type is a project-specific capability that stack detection cannot infer
 - IF the list is empty: skip silently (expected in LaunchPad; downstream projects opt in when they produce recipient-facing documents)
 

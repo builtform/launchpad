@@ -31,6 +31,8 @@ review_copy_agents: []
 
 # Document truth agents: dispatched by /lp-review when configured
 review_document_agents: []
+# Repository-relative globs that define the exact output population to review
+review_document_artifacts: []
 
 # Plan hardening agents — always dispatched by /lp-harden-plan (both intensities)
 harden_plan_agents:

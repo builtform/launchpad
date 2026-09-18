@@ -55,10 +55,11 @@ You are a specialist at reading produced output as its recipient will understand
 
 ## Document Review Strategy
 
-### Step 1: Inventory Produced Output
+### Step 1: Confirm the Produced-Output Inventory
 
-- Locate rendered pages, reports, PDFs, emails, dashboards, generated documents, and their indexes in the review scope
-- Record the complete artifact population and the counting rule used to define it
+- Require the caller's exact artifact inventory and configured repository-relative patterns
+- Refuse to guess or search outside that inventory when it is missing or empty
+- Record the complete supplied artifact population and the counting rule used to define it
 - Render or extract text when needed, while preserving page and section boundaries
 
 ### Step 2: Extract Checkable Statements
@@ -123,6 +124,7 @@ Structure your review like this:
 ## Important Guidelines
 
 - **Read the output first** because the recipient receives artifacts, not implementation intent
+- **Stay inside the supplied artifact inventory** so coverage is deterministic and reproducible
 - **State every counting rule** so another reviewer can reproduce each number
 - **Enumerate the entire named population** before judging quantified language
 - **Keep page boundaries intact** when checking contradictions and pronoun references

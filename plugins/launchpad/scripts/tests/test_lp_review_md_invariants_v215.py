@@ -193,8 +193,26 @@ def test_document_agent_roster_is_loaded_and_dispatched_without_stack_filter() -
 
     assert step0_idx >= 0 and step1_idx > step0_idx
     assert "review_document_agents" in text[step0_idx:step1_idx]
+    assert "review_document_artifacts" in text[step0_idx:step1_idx]
     assert step46_idx >= 0 and step5_idx > step46_idx
     step46_body = text[step46_idx:step5_idx]
     assert "dispatch all `review_document_agents` in parallel" in step46_body
+    assert "document_artifact_inventory" in step46_body
+    assert "repository-relative glob patterns" in step46_body
+    assert "emit a P1 configuration finding" in step46_body
     assert "Do NOT apply the stack pre-filter" in step46_body
     assert "IF the list is empty: skip silently" in step46_body
+
+
+def test_claims_auditor_receives_pr_intent_in_contextual_mode() -> None:
+    """The default claims reviewer must receive the PR body it advertises."""
+    text = _md()
+    step3_idx = text.find("## Step 3: Dispatch Review Agents")
+    step4_idx = text.find("## Step 4: Conditional DB Agent Dispatch")
+    assert step3_idx >= 0 and step4_idx > step3_idx
+    step3_body = text[step3_idx:step4_idx]
+
+    assert "For `lp-claims-auditor`" in step3_body
+    assert "pass `intent_context` from Step 1.5 verbatim" in step3_body
+    assert "PR title, body, labels, and linked issue context" in step3_body
+    assert "`--no-context` mode: pass no PR intent by design" in step3_body

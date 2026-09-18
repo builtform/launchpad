@@ -60,7 +60,8 @@ You are a specialist at auditing factual claims about a repository. Your job is 
 
 ### Step 1: Establish the Claim Range
 
-- Read the diff, changed-file list, commit log, and PR body supplied by the caller
+- Read the diff, changed-file list, commit log, and any PR title, body, labels, or issue context supplied by the caller
+- When PR context is unavailable, record that source as not provided and continue with repository-local claim sources
 - Record every repository fact asserted in those sources before testing any of them
 - Separate compound sentences into independently verifiable claims
 
