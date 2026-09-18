@@ -78,8 +78,9 @@ HAS_REMOTE=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo yes || e
 **IF `--no-context` flag is set: skip this entire step. Set `intent_context = empty` and proceed to Step 2.**
 
 - IF a PR exists for current branch: run `gh pr view --json title,body,labels,closingIssuesReferences`
-  - Extract PR title, body, labels, and closing issue numbers
-  - For each closing issue number, run `gh issue view <number> --json number,title,body,labels,state` and add the returned issue context to `intent_context`
+  - Extract PR title, body, labels, and each closing issue's canonical URL; retain its number only for display
+  - For each closing issue URL, run `gh issue view <url> --json number,title,body,labels,state,url` and add the returned issue context to `intent_context`
+  - Never fetch a closing reference by bare issue number because the reference may belong to another repository
   - IF an issue fetch fails: record that issue as unavailable in `intent_context` and continue
   - Store as `intent_context` for Step 5 confidence scoring
 - IF no PR exists: `intent_context = empty` (scoring proceeds without it)

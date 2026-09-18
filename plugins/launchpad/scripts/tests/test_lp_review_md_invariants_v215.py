@@ -227,7 +227,9 @@ def test_pr_intent_fetches_closing_issue_context() -> None:
     step15_body = text[step15_idx:step2_idx]
 
     assert "title,body,labels,closingIssuesReferences" in step15_body
-    assert "gh issue view <number> --json number,title,body,labels,state" in step15_body
+    assert "each closing issue's canonical URL" in step15_body
+    assert "gh issue view <url> --json number,title,body,labels,state,url" in step15_body
+    assert "Never fetch a closing reference by bare issue number" in step15_body
     assert "add the returned issue context to `intent_context`" in step15_body
     assert "record that issue as unavailable" in step15_body
 
