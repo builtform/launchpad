@@ -38,6 +38,8 @@ For `<command> [arguments...]`, resolve the command with the same helper. Both `
 
 For `skill <skill-id> [arguments...]`, resolve the skill through the helper with `--project-root <absolute-project-root>` when a project root exists. Read the full resolved skill file and follow it under the host adapter contract. If that helper operation is unavailable, stop this step and name the missing operation.
 
+Canonical files may use skill and agent short names without the `lp-` prefix; pass those names to the helper, which resolves them using built-in-before-project precedence.
+
 ## Follow nested commands
 
 The top-level command is depth 1. When a canonical command instructs you to run another `/lp-<name>` command, increment the depth, resolve that command through the helper, and follow its canonical file under the same contract. A mention or example does not increment the depth.

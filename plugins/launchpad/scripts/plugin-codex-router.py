@@ -384,8 +384,29 @@ def _requested_id(kind: str, name: str) -> str:
 def _resolve(kind: str, name: str, project_root: Path | None) -> dict[str, object]:
     item_id = _requested_id(kind, name)
     records, skipped, project_issues = _record_set(kind, project_root)
-    matches = [record for record in records if record["id"] == item_id]
-    if not matches:
+    built_in_ids = [item_id]
+    if kind in {"agent", "skill"} and not item_id.startswith("lp-"):
+        built_in_ids.append(f"lp-{item_id}")
+
+    selected = next(
+        (
+            record
+            for candidate_id in built_in_ids
+            for record in records
+            if record["origin"] == "built_in" and record["id"] == candidate_id
+        ),
+        None,
+    )
+    if selected is None:
+        selected = next(
+            (
+                record
+                for record in records
+                if record["origin"] == "project" and record["id"] == item_id
+            ),
+            None,
+        )
+    if selected is None:
         project_issue = project_issues.get(item_id)
         if project_issue is not None:
             project_issue.details["skipped"] = skipped
@@ -400,14 +421,14 @@ def _resolve(kind: str, name: str, project_root: Path | None) -> dict[str, objec
             suggestions=suggestions,
         )
 
-    selected = next(
-        (record for record in matches if record["origin"] == "built_in"), matches[0]
-    )
     result: dict[str, object] = dict(selected)
+    collision_ids = {item_id, selected["id"]}
     result["collisions"] = [
         {"origin": record["origin"], "path": record["path"]}
-        for record in matches
-        if record is not selected
+        for record in records
+        if record["origin"] == "project"
+        and record["id"] in collision_ids
+        and record is not selected
     ]
     result["skipped"] = skipped
     return result

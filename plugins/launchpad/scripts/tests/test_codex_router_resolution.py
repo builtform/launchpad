@@ -95,6 +95,13 @@ def _error(router: Path, *args: str) -> dict:
     return json.loads(result.stderr)["error"]
 
 
+def _record_identity(record: dict) -> dict:
+    return {
+        key: record[key]
+        for key in ("description", "id", "kind", "origin", "path")
+    }
+
+
 def test_installed_layout_with_space_and_block_scalars(tmp_path: Path) -> None:
     plugin = _plugin(tmp_path)
     router = plugin / "scripts" / _ROUTER.name
@@ -141,6 +148,111 @@ def test_project_resolution_precedence_and_collision_reports(tmp_path: Path) -> 
     assert {item["id"] for item in skill_inventory["collisions"]} == {
         "lp-shared-skill"
     }
+
+
+def test_short_and_full_names_resolve_to_same_built_in_records(
+    tmp_path: Path,
+) -> None:
+    plugin = _plugin(tmp_path)
+    router = plugin / "scripts" / _ROUTER.name
+
+    for kind, short_name in (
+        ("command", "alpha"),
+        ("skill", "shared-skill"),
+        ("agent", "shared-agent"),
+    ):
+        short = _ok(router, "resolve", kind, short_name, "--json")
+        full = _ok(router, "resolve", kind, f"lp-{short_name}", "--json")
+        assert _record_identity(short) == _record_identity(full)
+
+
+def test_exact_built_in_short_name_precedes_prefixed_built_in_and_project(
+    tmp_path: Path,
+) -> None:
+    plugin = _plugin(tmp_path)
+    project = _project(tmp_path)
+    router = plugin / "scripts" / _ROUTER.name
+    built_in = plugin / "agents" / "research" / "shared-agent.md"
+    project_agent = project / ".claude" / "agents" / "shared-agent.md"
+    built_in.write_text(_frontmatter("shared-agent", "Exact built-in"), encoding="utf-8")
+    project_agent.write_text(
+        _frontmatter("shared-agent", "Exact project"), encoding="utf-8"
+    )
+
+    resolved = _ok(
+        router,
+        "resolve",
+        "agent",
+        "shared-agent",
+        "--project-root",
+        str(project),
+        "--json",
+    )
+
+    assert resolved["path"] == str(built_in)
+    assert resolved["collisions"] == [
+        {"origin": "project", "path": str(project_agent)}
+    ]
+
+
+@pytest.mark.parametrize("kind", ("skill", "agent"))
+def test_project_short_name_collision_appears_and_clears_by_mutation(
+    tmp_path: Path, kind: str
+) -> None:
+    plugin = _plugin(tmp_path)
+    project = _project(tmp_path)
+    router = plugin / "scripts" / _ROUTER.name
+    short_name = f"shared-{kind}"
+    project_args = ("--project-root", str(project), "--json")
+    if kind == "skill":
+        target = project / ".claude" / "skills" / short_name / "SKILL.md"
+        target.parent.mkdir()
+    else:
+        target = project / ".claude" / "agents" / f"{short_name}.md"
+
+    before = _ok(router, "resolve", kind, short_name, *project_args)
+    assert before["origin"] == "built_in"
+    assert all(item["path"] != str(target) for item in before["collisions"])
+
+    target.write_text(_frontmatter(short_name, "Short collision"), encoding="utf-8")
+    during = _ok(router, "resolve", kind, short_name, *project_args)
+    assert during["origin"] == "built_in"
+    assert {item["path"] for item in during["collisions"]} >= {str(target)}
+
+    target.unlink()
+    after = _ok(router, "resolve", kind, short_name, *project_args)
+    assert _record_identity(after) == _record_identity(before)
+    assert all(item["path"] != str(target) for item in after["collisions"])
+
+
+def test_unknown_short_name_returns_suggestions_without_writes(tmp_path: Path) -> None:
+    plugin = _plugin(tmp_path)
+    project = _project(tmp_path)
+    router = plugin / "scripts" / _ROUTER.name
+    before = {
+        path: path.read_bytes()
+        for path in sorted(tmp_path.rglob("*"))
+        if path.is_file()
+    }
+
+    error = _error(
+        router,
+        "resolve",
+        "skill",
+        "shared-skll",
+        "--project-root",
+        str(project),
+        "--json",
+    )
+
+    after = {
+        path: path.read_bytes()
+        for path in sorted(tmp_path.rglob("*"))
+        if path.is_file()
+    }
+    assert error["code"] == "not_found"
+    assert error["suggestions"] == ["lp-shared-skill"]
+    assert after == before
 
 
 @pytest.mark.parametrize("name", ("../lp-alpha", "lp.alpha", "/lp-alpha"))
