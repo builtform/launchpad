@@ -6,12 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.1.12: BL-365 (parallelize preflight probe dispatch + short-TTL cache), BL-367 (programmatic GitHub-repo linkage verification for provider project probes), BL-368 (DNS `dig +short --` sentinel bug), and BL-366 (18-item preflight polish). v2.2 lands the 15 operational/security infrastructure surfaces deferred from v2.0, plus BL-374 (TypeScript 5.x -> 6.x upgrade audit, seeded by v2.1.9), BL-375 (Prisma 6.x -> 7.x upgrade audit, seeded by v2.1.10), BL-377 through BL-385 (CI gate correctness, freshness-contract enforcement, lint parity, and scaffolder catalog follow-ups), BL-386 through BL-395 (Codex follow-ups), plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
+Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.2.0: BL-365 (parallelize preflight probe dispatch + short-TTL cache), BL-367 (programmatic GitHub-repo linkage verification for provider project probes), BL-368 (DNS `dig +short --` sentinel bug), and BL-366 (18-item preflight polish). The v2.2 series lands the 15 operational/security infrastructure surfaces deferred from v2.0, plus BL-374 (TypeScript 5.x -> 6.x upgrade audit, seeded by v2.1.9), BL-375 (Prisma 6.x -> 7.x upgrade audit, seeded by v2.1.10), BL-377 through BL-385 (CI gate correctness, freshness-contract enforcement, lint parity, and scaffolder catalog follow-ups), BL-386 through BL-395 (Codex follow-ups), plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
 
-### Added
+## [v2.2.0]
 
-- **Verified release promotion (BL-396).** After tag checks pass, the release workflow fast-forwards `stable` to the verified tag commit for the BuiltForm marketplace. The branch never moves backward and requires no cross-repository credential.
+Codex support, verified release promotion, project-extension tolerance, and ten dependency updates. LaunchPad now runs its canonical workflows on Codex through one router, and verified tags move a forward-only `stable` branch for the marketplace.
+
+### For LaunchPad users
+
 - **Codex adapter.** Codex users can install LaunchPad from the BuiltForm marketplace and run the canonical workflows through `$launchpad:lp <command>`. Claude Code keeps its existing slash commands, and both hosts read the same command, agent, and skill files. Verified on a real Codex `0.154.0-alpha.6.2` installation from the command line: `help`, `hydrate`, and `review` end to end, `harden-plan` to its confirmation prompt, and `commit` to its first prerequisite check. Installation, the verified list, and the differences from Claude Code are in [How It Works: Codex](docs/guides/HOW_IT_WORKS.md#codex).
+- **Verified release promotion (BL-396).** After tag checks pass, the release workflow fast-forwards `stable` to the verified tag commit for the BuiltForm marketplace. The branch never moves backward and requires no cross-repository credential.
+
+### Plugin-internal changes
+
+- **Project extension tolerance.** Stray, malformed, non-UTF-8, duplicated, or symlinked project agent and skill entries are skipped and reported instead of blocking unrelated built-in items. Project extension roots that are unusable are isolated the same way.
+- **Ten dependency updates.** `google/osv-scanner-action` moves from 2.5.1 to 2.6.0, `ruff` from 0.16.6 to 0.16.8, `pyright` from 1.1.411 to 1.1.414, `@next/eslint-plugin-next` from 16.3.4 to 16.3.5, `react-dom` from 19.2.8 to 19.3.0 with `@types/react-dom` from 19.2.7 to 19.3.0, `semgrep` from 1.176.1 to 1.177.0, `tailwind-merge` from 3.6.0 to 3.7.0, `next` from 16.3.3 to 16.3.5, `postcss` from 8.5.26 to 8.5.28, and `anyio` from 4.13.0 to 4.14.2. The `anyio` update resolves GHSA-5p39-cfhj-2xmp and GHSA-82r6-8w77-94w6 in the plugin's script tooling.
 
 ## [v2.1.12]
 
