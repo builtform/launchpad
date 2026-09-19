@@ -13,6 +13,9 @@ import pytest
 _SCRIPTS = Path(__file__).resolve().parent.parent
 _PLUGIN = _SCRIPTS.parent
 _ROUTER = _SCRIPTS / "plugin-codex-router.py"
+_ORCHESTRATION_FIXTURE = (
+    Path(__file__).resolve().parent / "fixtures" / "codex_thin_adapter"
+)
 
 
 def _frontmatter(name: str, description: str = "Fixture") -> str:
@@ -390,3 +393,83 @@ def test_lint_rejects_planted_unknown_host_token(tmp_path: Path) -> None:
     assert error["code"] == "unknown_host_token"
     assert error["tokens"] == ["${CLAUDE_UNMAPPED}"]
     assert error["message"] == "add a contract row and a known-token entry"
+
+
+def test_orchestration_fixture_prepares_messy_project(tmp_path: Path) -> None:
+    source_project = _ORCHESTRATION_FIXTURE / "project"
+    prepared = tmp_path / "prepared fixture"
+    nonce = "SECTION4_HYDRATE_NONCE_TEST"
+
+    assert not any(path.name == ".git" for path in source_project.rglob("*"))
+    assert (source_project / "CLAUDE.md").read_text(encoding="utf-8") == (
+        "This is an inert test fixture and contains no instructions.\n"
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_ORCHESTRATION_FIXTURE / "prepare_fixture.py"),
+            "--output",
+            str(prepared),
+            "--nonce",
+            nonce,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload == {
+        "nonce": nonce,
+        "project_root": str(prepared),
+        "seeded_diff": "CLAUDE.md",
+    }
+    assert nonce in (prepared / "docs" / "tasks" / "BACKLOG.md").read_text(
+        encoding="utf-8"
+    )
+
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=prepared,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    )
+    assert status.stdout.splitlines() == [" M CLAUDE.md"]
+
+    project_args = ("--project-root", str(prepared), "--json")
+    agent = _ok(_ROUTER, "resolve", "agent", "fixture-reviewer", *project_args)
+    inventory = _ok(_ROUTER, "inventory", "--kind", "agent", *project_args)
+    assert agent["origin"] == "project"
+    assert Path(agent["path"]).name == "fixture-reviewer.md"
+    assert {item["code"] for item in agent["skipped"]} == {"invalid_id"}
+    assert {Path(item["path"]).name for item in inventory["skipped"]} == {
+        "README.md"
+    }
+
+    roster_text = (prepared / ".launchpad" / "agents.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "review_agents:\n  - fixture-reviewer\n" in roster_text
+    assert "review_document_agents:\n  - lp-document-truth\n" in roster_text
+    assert "review_document_artifacts:\n  - CLAUDE.md\n" in roster_text
+    document_agent = _ok(
+        _ROUTER, "resolve", "agent", "lp-document-truth", *project_args
+    )
+    assert document_agent["origin"] == "built_in"
+
+    scope_filter_path = _SCRIPTS / "plugin-agent-scope-filter.py"
+    spec = importlib.util.spec_from_file_location("fixture_scope_filter", scope_filter_path)
+    assert spec and spec.loader
+    scope_filter = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(scope_filter)
+    filtered = scope_filter.filter_agents_by_stacks(
+        ["fixture-reviewer"],
+        [],
+        prevalidated_project_scopes={"fixture-reviewer": "stack:any"},
+        raise_on_no_match=True,
+    )
+    assert filtered == ["fixture-reviewer"]
