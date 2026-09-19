@@ -10,6 +10,7 @@ Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.
 
 ### Added
 
+- **Verified release promotion (BL-396).** After tag checks pass, the release workflow fast-forwards `stable` to the verified tag commit for the BuiltForm marketplace. The branch never moves backward and requires no cross-repository credential.
 - **Codex adapter.** Codex users can install LaunchPad from the BuiltForm marketplace and run the canonical workflows through `$launchpad:lp <command>`. Claude Code keeps its existing slash commands, and both hosts read the same command, agent, and skill files. Verified on a real Codex `0.154.0-alpha.6.2` installation from the command line: `help`, `hydrate`, and `review` end to end, `harden-plan` to its confirmation prompt, and `commit` to its first prerequisite check. Installation, the verified list, and the differences from Claude Code are in [How It Works: Codex](docs/guides/HOW_IT_WORKS.md#codex).
 
 ## [v2.1.12]

@@ -30,7 +30,7 @@ codex plugin marketplace remove launchpad --json
 
 The install check passes when the plugin advertises `launchpad:lp` and all three installed-path checks exit zero. The help check passes when the transcript contains the helper's raw inventory JSON, the final message is a readable list, and `diff` exits zero.
 
-After tagging, move the BuiltForm marketplace pin. In the `builtform/marketplace` repository, set the `ref` of the `launchpad` entry in `.claude-plugin/marketplace.json` to the new tag and merge that change. Users on both hosts receive the release only after this step. Then confirm the user install route once on Codex:
+After the tag is pushed, the `verify-v2-ship` workflow checks the release and then fast-forwards the `stable` branch to the tag. The BuiltForm marketplace pins `stable`, so users on both hosts receive the release at that moment and nothing changes in the marketplace repository. Confirm that the workflow run is green and that `git ls-remote origin stable` shows the tag's commit. `stable` only moves forward: to withdraw a release, ship a fix as a new patch release. Then confirm the user install route once on Codex:
 
 ```bash
 codex plugin marketplace add builtform/marketplace
