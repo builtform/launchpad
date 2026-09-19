@@ -22,11 +22,13 @@ The supported grammar after `$launchpad:lp` is:
 - `<command> [arguments...]`
 - `skill <skill-id> [arguments...]`
 
-For `help`, run this command and show its raw JSON output unchanged before any explanation:
+For `help`, run this command and keep its complete raw JSON output in the tool output as evidence:
 
 ```text
 python3 <plugin-root>/scripts/plugin-codex-router.py inventory --kind command --json
 ```
+
+Do not repeat the raw JSON in the final message. Present a compact list built from the returned `items`, with each command name shown without the `lp-` prefix and followed by its one-line description. If a description is empty, show the command name only. After the list, show the total number of returned commands, how to invoke a command through `$launchpad:lp <command>`, and how to get help for one command through `$launchpad:lp help <command>`. Derive every name, description, and the count from the helper response. Do not hard-code them.
 
 For `help <command>`, run the resolver and show the returned description:
 
