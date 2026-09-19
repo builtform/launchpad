@@ -1,0 +1,6 @@
+{
+  "name": "launchpad",
+  "description": "Autonomous software-engineering harness. Brownfield-safe adaptation pipeline (detect → define → plan → build) across TypeScript, Python, Go, Django, and polyglot codebases.",
+  "version": "2.1.12",
+  "skills": "./codex/skills/"
+}
