@@ -656,4 +656,8 @@ def test_acceptance_fixture_prepares_distinct_probe_plugin(tmp_path: Path) -> No
     )
     assert nonce in probe_text
     assert str(probe_output) in probe_text
+    assert "A trailing newline is allowed." in probe_text
+    assert "with no trailing newline" not in probe_text
+    probe_output.write_text(f"{nonce}\n", encoding="utf-8")
+    assert probe_output.read_text(encoding="utf-8").strip() == nonce
     assert not (_PLUGIN / "commands" / "lp-zzz-probe.md").exists()

@@ -91,7 +91,7 @@ def main() -> int:
             "---\n\n"
             "# Acceptance probe\n\n"
             f"Accept only the argument `{args.probe_nonce}`. Write that exact argument "
-            f"to `{probe_output}` with no trailing newline. Write no other file.\n",
+            f"to `{probe_output}`. A trailing newline is allowed. Write no other file.\n",
             encoding="utf-8",
         )
 
