@@ -6,6 +6,30 @@
 
 LaunchPad ships versioned releases via the GitHub release flow. Every release follows this exact sequence to ensure each tag has hand-authored release notes published as a durable artifact in the repo.
 
+Codex adapter releases: bump `plugins/launchpad/.claude-plugin/plugin.json` and `plugins/launchpad/.codex-plugin/plugin.json` together, then complete the checks below before tagging. They require a logged-in Codex CLI, `jq`, and the release branch, tag, or commit in `<release-ref>`.
+
+```bash
+# PA-0: install the release candidate and verify the required installed files.
+codex plugin marketplace add https://github.com/builtform/launchpad.git --ref <release-ref> --json
+PLUGIN_PATH=$(codex plugin add launchpad@launchpad --json | jq -r '.installedPath')
+codex plugin list
+test -f "$PLUGIN_PATH/codex/skills/lp/SKILL.md"
+test -f "$PLUGIN_PATH/scripts/plugin-codex-router.py"
+test -d "$PLUGIN_PATH/commands"
+
+# PA-1: run live help and compare its helper inventory with the installed files.
+codex exec '$launchpad:lp help'
+diff <(find "$PLUGIN_PATH/commands" -maxdepth 1 -type f -name '*.md' -exec basename {} .md \; | sort) <(python3 "$PLUGIN_PATH/scripts/plugin-codex-router.py" inventory --kind command --json | jq -r '.items[].id' | sort)
+
+# Record the host-generated direct entries for this Codex version.
+codex plugin list --json | jq -r '.. | strings | select(startswith("launchpad:source-command-"))' | sort -u
+
+codex plugin remove launchpad@launchpad --json
+codex plugin marketplace remove launchpad --json
+```
+
+PA-0 passes when the plugin advertises `launchpad:lp` and all three installed-path checks exit zero. PA-1 passes when the transcript contains the helper's raw inventory JSON, the final message is readable, and `diff` exits zero.
+
 ## Why this process exists
 
 A tag without hand-authored notes leaves two bad options: accept GitHub's auto-generated diff as the project's first impression of the release (looks amateurish), or backfill notes via a follow-up PR after the release is already public. Pre-writing the notes file is the cheapest way to avoid both failure modes.
