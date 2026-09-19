@@ -36,6 +36,9 @@ on:
   # When verify-v2-ship hits transient propagation lag (≤120s eventual
   # consistency) the maintainer runs `gh workflow run v2-release.yml --ref
   # <tag>` to retry. Three consecutive failures → §7.1 yank procedure.
+  # This manual lane verifies only and never moves stable.
+  # To recover a release, rerun the failed jobs of the original tag-push run
+  # with `gh run rerun <run-id> --failed` so promote-stable runs.
   workflow_dispatch:
     inputs:
       tag:

@@ -32,6 +32,8 @@ The install check passes when the plugin advertises `launchpad:lp` and all three
 
 After the tag is pushed, the `verify-v2-ship` workflow checks the release and then fast-forwards the `stable` branch to the tag. The BuiltForm marketplace pins `stable`, so users on both hosts receive the release at that moment and nothing changes in the marketplace repository. Confirm that the workflow run is green and that `git ls-remote origin stable` shows the tag's commit. `stable` only moves forward: to withdraw a release, ship a fix as a new patch release. Then confirm the user install route once on Codex:
 
+If verification fails for a transient reason, rerun the failed jobs of the original tag-push run with `gh run rerun <run-id> --failed`. A rerun keeps the push event, so promotion still happens. The manual `workflow_dispatch` lane verifies a tag but never moves `stable`.
+
 ```bash
 codex plugin marketplace add builtform/marketplace
 codex plugin add launchpad@builtform
