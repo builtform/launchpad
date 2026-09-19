@@ -6,6 +6,8 @@
 
 LaunchPad ships versioned releases via the GitHub release flow. Every release follows this exact sequence to ensure each tag has hand-authored release notes published as a durable artifact in the repo.
 
+Codex adapter releases: bump `plugins/launchpad/.claude-plugin/plugin.json` and `plugins/launchpad/.codex-plugin/plugin.json` together, then run PA-0 and PA-1 by hand before tagging.
+
 ## Why this process exists
 
 A tag without hand-authored notes leaves two bad options: accept GitHub's auto-generated diff as the project's first impression of the release (looks amateurish), or backfill notes via a follow-up PR after the release is already public. Pre-writing the notes file is the cheapest way to avoid both failure modes.

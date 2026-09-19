@@ -2,5 +2,12 @@
   "name": "launchpad",
   "description": "Autonomous software-engineering harness. Brownfield-safe adaptation pipeline (detect → define → plan → build) across TypeScript, Python, Go, Django, and polyglot codebases.",
   "version": "2.1.12",
+  "author": {
+    "name": "Foad Shafighi",
+    "url": "https://github.com/foadshafighi"
+  },
+  "homepage": "https://github.com/builtform/launchpad",
+  "repository": "https://github.com/builtform/launchpad",
+  "license": "MIT",
   "skills": "./codex/skills/"
 }
