@@ -56,8 +56,36 @@ def _fail(code: str, message: str, **details: object) -> NoReturn:
     raise RouterError(code, message, **details)
 
 
+def _strip_inline_comment(value: str) -> str:
+    in_single = False
+    in_double = False
+    escaped = False
+    index = 0
+    while index < len(value):
+        char = value[index]
+        if in_double:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_double = False
+        elif in_single:
+            if char == "'" and index + 1 < len(value) and value[index + 1] == "'":
+                index += 1
+            elif char == "'":
+                in_single = False
+        elif char == '"':
+            in_double = True
+        elif char == "'":
+            in_single = True
+        elif char == "#" and (index == 0 or value[index - 1].isspace()):
+            return value[:index].rstrip()
+        index += 1
+    return value.strip()
+
+
 def _parse_scalar(value: str) -> str:
-    value = value.strip()
     if len(value) >= 2 and value.startswith('"') and value.endswith('"'):
         try:
             parsed = json.loads(value)
@@ -118,7 +146,7 @@ def _parse_frontmatter(text: str, path: Path) -> dict[str, str]:
             continue
         key, raw_value = line.split(":", 1)
         key = key.strip()
-        value = raw_value.strip()
+        value = _strip_inline_comment(raw_value.strip())
         if value in {">", ">-", ">+", "|", "|-", "|+"}:
             block_lines: list[str] = []
             index += 1

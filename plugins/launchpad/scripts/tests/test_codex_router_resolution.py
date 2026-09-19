@@ -116,6 +116,39 @@ def test_installed_layout_with_space_and_block_scalars(tmp_path: Path) -> None:
     assert "installed layout with space" in skill["path"]
 
 
+def test_frontmatter_names_allow_comments_outside_quoted_values(
+    tmp_path: Path,
+) -> None:
+    plugin = _plugin(tmp_path)
+    router = plugin / "scripts" / _ROUTER.name
+    unquoted = plugin / "commands" / "lp-unquoted-comment.md"
+    quoted = plugin / "commands" / "lp-quoted-comment.md"
+    unquoted.write_text(
+        "---\n"
+        "name: lp-unquoted-comment # project note\n"
+        "description: Unquoted description # helper note\n"
+        "---\n\n# Unquoted\n",
+        encoding="utf-8",
+    )
+    quoted.write_text(
+        "---\n"
+        'name: "lp-quoted-comment" # project note\n'
+        'description: "Hash # stays" # helper note\n'
+        "---\n\n# Quoted\n",
+        encoding="utf-8",
+    )
+
+    unquoted_record = _ok(
+        router, "resolve", "command", "unquoted-comment", "--json"
+    )
+    quoted_record = _ok(router, "resolve", "command", "quoted-comment", "--json")
+
+    assert unquoted_record["id"] == "lp-unquoted-comment"
+    assert unquoted_record["description"] == "Unquoted description"
+    assert quoted_record["id"] == "lp-quoted-comment"
+    assert quoted_record["description"] == "Hash # stays"
+
+
 def test_project_resolution_precedence_and_collision_reports(tmp_path: Path) -> None:
     plugin = _plugin(tmp_path)
     project = _project(tmp_path)
