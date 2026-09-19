@@ -62,7 +62,7 @@ For the full pipeline narrative, see [HOW_IT_WORKS.md](docs/guides/HOW_IT_WORKS.
 
 ---
 
-**Contents:** [Install](#install) · [Codex CLI](#codex-cli) · [What you get](#what-you-get) · [Proof](#proof-you-can-verify-this-yourself) · [First 15 Minutes](#first-15-minutes) · [What's Inside](#whats-inside) · [Security](#security) · [Who this is for](#who-this-is-for-and-who-it-isnt) · [Methodology](#methodology) · [Companions](#companions) · [Links](#links)
+**Contents:** [Install](#install) · [Codex](#codex) · [What you get](#what-you-get) · [Proof](#proof-you-can-verify-this-yourself) · [First 15 Minutes](#first-15-minutes) · [What's Inside](#whats-inside) · [Security](#security) · [Who this is for](#who-this-is-for-and-who-it-isnt) · [Methodology](#methodology) · [Companions](#companions) · [Links](#links)
 
 ---
 
@@ -110,20 +110,18 @@ Restart Claude Code.
 
 The pipeline scaffolds a fresh monorepo with `package.json`, `lefthook.yml`, the architecture docs, and project config rendered natively by the plugin's kernel renderer. No `git clone` step is required; the plugin is the canonical source for all scaffold content.
 
-### Codex CLI
+### Codex
 
-Codex users install the same LaunchPad plugin and run every workflow through one router. Claude Code keeps its existing slash-command interface, while both hosts read the same command, agent, and skill files.
+LaunchPad also runs on Codex, installed from the same BuiltForm marketplace. It is the same plugin: Codex reads the same command, agent, and skill files that Claude Code reads, through a single router. Nothing changes for Claude Code users.
 
 ```bash
-codex plugin marketplace add 'https://github.com/builtform/launchpad.git' --json
-codex plugin add 'launchpad@launchpad' --json
+codex plugin marketplace add builtform/marketplace
+codex plugin add launchpad@builtform
 ```
 
-`$launchpad:lp <command>` is the supported Codex form. The mapping is consistent: `/lp-review` on Claude Code becomes `$launchpad:lp review` on Codex, and `$launchpad:lp help` lists the current command inventory. `$lp <command>` and plain-language requests loaded the router during verification, but they are conveniences rather than guaranteed interfaces.
+Start a new Codex session. Every `/lp-<name>` command in this README is `$launchpad:lp <name>` on Codex, so `/lp-kickoff` becomes `$launchpad:lp kickoff`. Run `$launchpad:lp help` to list every command.
 
-LaunchPad was verified on Codex CLI `0.154.0-alpha.6.2`. `help`, `hydrate`, and `review` are verified end to end on Codex. `harden-plan` ran through its specialists to its confirmation prompt. `commit` reached its Step 0 prerequisite check in a bare fixture. All other commands run through the same router and are unverified on Codex; a step may stop with a message.
-
-Codex tool restrictions for specialists are advisory. Run review and PR-comment workflows with Codex approval mode enabled and writes limited to the workspace. See [How It Works: Codex CLI](docs/guides/HOW_IT_WORKS.md#codex-cli) for update and removal commands plus the complete differences list.
+Codex support is new. As of September 2026, three commands are verified end to end on a real Codex installation. The rest run through the same router and are not yet verified there. The verified list, the update and removal commands, and the places where Codex behaves differently from Claude Code are in [How It Works: Codex](docs/guides/HOW_IT_WORKS.md#codex).
 
 ---
 
@@ -279,13 +277,15 @@ LaunchPad's autonomous loops pass `--dangerously-skip-permissions` to Claude Cod
 
 Detailed threat model and safeguard list: [HOW_IT_WORKS.md → Security](docs/guides/HOW_IT_WORKS.md#security-considerations).
 
+On Codex two of these layers are weaker: sub-agent tool restrictions are advisory, and the Claude Code hooks a project carries do not run. The differences and the recommended sandbox settings are in [How It Works: Codex](docs/guides/HOW_IT_WORKS.md#codex).
+
 ---
 
 ## Who this is for (and who it isn't)
 
 **LaunchPad is built for** solo developers and small-team tech leads (1 to 5 engineers) who:
 
-- Use Claude Code or Codex CLI as a primary AI coding tool.
+- Are already using Claude Code or Codex as their primary AI coding tool (the dependency is hard; LaunchPad is a plugin for those two hosts).
 - Work in a production-grade repository where shipped bugs have a real cost.
 - Have felt the pain of agent-context-loss between sessions and can name a specific instance.
 - Have had at least one near-miss with an AI commit: leaked secret, broken migration, file-structure drift, hallucinated API.
@@ -297,7 +297,7 @@ Detailed threat model and safeguard list: [HOW_IT_WORKS.md → Security](docs/gu
 - **Engineering managers shopping for team-wide tooling.** Wrong sale, wrong evaluation criteria. LaunchPad ships a kernel and slash commands for the hands-on operator. If you want SSO, dashboards, and admin policies, evaluate compliance-first tools instead.
 - **Pure greenfield "vibe coders" who don't care about quality.** The kernel will feel like friction. The value of a kernel only shows up once the codebase is large enough to drift, and if you don't care, you don't need it yet.
 - **Enterprise security teams looking for SOC2 or vendor risk reviews.** LaunchPad is MIT-licensed and open-source; the entire surface is auditable in the GitHub repo. If your evaluation criterion is SOC2, this is not the tool.
-- **Developers on hosts without a native LaunchPad adapter who expect the complete workflow surface.** Claude Code and Codex CLI are supported. Gemini, Cursor, Copilot, and Aider can read the canonical files through the manual bridge, but that path is not verified as a native plugin experience.
+- **Developers not on Claude Code or Codex.** LaunchPad is a plugin for those two hosts. Cursor, Copilot, Aider users: this is a future conversation, not a today one.
 
 Surfacing the anti-fit up front is intentional. If any of the above describes you, do not install. There are tools better suited to those problems, and the 30 minutes of install friction will pay off poorly.
 
@@ -332,14 +332,14 @@ LaunchPad does not bundle either tool, does not auto-install them, and does not 
 
 ## Next step
 
-Install LaunchPad and start the kickoff workflow in the repo you are actively shipping from. On Claude Code, run `/lp-kickoff`. On Codex, run `$launchpad:lp kickoff`.
+Install LaunchPad and run `/lp-kickoff` in the repo you are actively shipping from:
 
 ```
 /plugin marketplace add github:builtform/marketplace
 /plugin install launchpad@builtform
 ```
 
-Restart Claude Code, then run `/lp-kickoff`.
+Restart Claude Code, then run `/lp-kickoff`. On Codex, install with the two commands under [Codex](#codex), then run `$launchpad:lp kickoff`.
 
 What happens next:
 

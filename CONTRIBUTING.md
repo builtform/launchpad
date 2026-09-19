@@ -45,7 +45,21 @@ All test suites must stay green before a PR is mergeable. CI runs them automatic
 
 ### Testing the Codex adapter
 
-Changes to the Codex manifest, router, or helper must keep the canonical `commands/`, `agents/`, and `skills/` trees unchanged. Run the Python adapter tests, then verify a branch-ref install through the `codex plugin` commands documented in [How It Works: Codex CLI](docs/guides/HOW_IT_WORKS.md#codex-cli). Use `$launchpad:lp help` as the supported smoke check. Add and remove test installations through `codex plugin` commands only; do not edit the Codex home or plugin cache by hand.
+Changes to the Codex manifest, router, or helper must keep the canonical `commands/`, `agents/`, and `skills/` trees unchanged. Run the Python adapter tests, then install your branch straight from this repository. This is the maintainer test route. Users install through the BuiltForm marketplace, as described in [How It Works: Codex](docs/guides/HOW_IT_WORKS.md#codex). Remove any marketplace install of LaunchPad first, so only one plugin named `launchpad` is present.
+
+```bash
+codex plugin marketplace add https://github.com/builtform/launchpad.git --ref <your-branch>
+codex plugin add launchpad@launchpad
+```
+
+Use `$launchpad:lp help` as the smoke check, then remove the test install:
+
+```bash
+codex plugin remove launchpad@launchpad
+codex plugin marketplace remove launchpad
+```
+
+Add and remove test installations through `codex plugin` commands only. Do not edit the Codex home or plugin cache by hand.
 
 ## Project structure
 

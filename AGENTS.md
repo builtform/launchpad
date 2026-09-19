@@ -119,12 +119,12 @@ This project is LaunchPad-scaffolded. Most structured workflows live in `plugins
 | Host                  | Workflow access                                         | Specialist dispatch                                                                                  |
 | --------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | Claude Code           | `/lp-<command>` through the installed plugin            | Uses Claude Code's task capability                                                                   |
-| Codex CLI             | `$launchpad:lp <command>` through the installed plugin  | Concurrent when Codex allows, sequential otherwise; the run states the mode and names failures       |
+| Codex                 | `$launchpad:lp <command>` through the installed plugin  | Concurrent when Codex allows, sequential otherwise; the run states the mode and names failures       |
 | Gemini and other CLIs | Read `plugins/launchpad/commands/lp-<name>.md` directly | Depends on the host; follow every canonical specialist instruction and disclose any unavailable step |
 
-`help`, `hydrate`, and `review` are verified end to end on Codex CLI `0.154.0-alpha.6.2`. `harden-plan` ran through its specialists to its confirmation prompt. `commit` reached its Step 0 prerequisite check in a bare fixture. All other commands run through the same router and are unverified on Codex; a step may stop with a message.
+The commands verified on Codex, with the date they were last checked, are listed in [How It Works: Codex](docs/guides/HOW_IT_WORKS.md#codex). Every other command runs through the same router and is not yet verified there; a step may stop with a message that names what is missing.
 
-Agent tool restrictions are advisory on Codex. Run review and PR-comment workflows under Codex approval mode with writes limited to the workspace. Settings and hooks under `.claude/` are inert on Codex, and projects scaffolded from Codex do not receive Codex hooks yet.
+Agent tool restrictions are advisory on Codex. Run review and PR-comment workflows in the `workspace-write` sandbox with approvals on. Settings and hooks under `.claude/` are inert on Codex, and projects scaffolded from Codex do not receive Codex hooks yet.
 
 Codex may show host-generated `launchpad:source-command-*` entries for a few small commands. They are unsupported and nested `/lp-` commands inside them may not resolve. Use `$launchpad:lp <command>` instead.
 

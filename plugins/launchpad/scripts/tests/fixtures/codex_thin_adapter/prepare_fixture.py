@@ -102,11 +102,11 @@ def main() -> int:
         marketplace = {
             "name": marketplace_name,
             "owner": {"name": "LaunchPad acceptance fixture"},
-            "metadata": {"description": "Disposable PA-4 marketplace"},
+            "metadata": {"description": "Disposable probe marketplace"},
             "plugins": [
                 {
                     "name": args.plugin_name,
-                    "description": "Disposable LaunchPad PA-4 probe",
+                    "description": "Disposable LaunchPad probe",
                     "source": f"./plugins/{args.plugin_name}",
                 }
             ],

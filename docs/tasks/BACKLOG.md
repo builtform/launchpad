@@ -4323,7 +4323,7 @@ Only the supported `$launchpad:lp <command>` path is advertised when the host pr
 
 **Proposed Fix** (revalidate before implementing)
 
-Re-check the current Codex manifest schema. If it provides an official command-migration switch, disable migration in the existing Codex manifest and rerun PA-0 through PA-4. Do not relocate or duplicate the canonical command tree.
+Re-check the current Codex manifest schema. If it provides an official command-migration switch, disable migration in the existing Codex manifest and rerun the release install and help checks plus the real-host workflow checks. Do not relocate or duplicate the canonical command tree.
 
 **Notes**
 
@@ -4439,7 +4439,7 @@ Re-check the current manifest and catalog schemas. Add catalog metadata only whe
 
 **Notes**
 
-The Git marketplace at `https://github.com/builtform/launchpad.git` remains the supported Codex installation source until this item ships.
+The BuiltForm marketplace (`builtform/marketplace`) is the supported Codex installation source, the same one Claude Code uses. Listing in OpenAI's public plugin directory is the scope of this item.
 
 ---
 
@@ -4570,3 +4570,29 @@ CI installs LaunchPad into an isolated Codex home and verifies router discovery 
 **Proposed Fix** (revalidate before implementing)
 
 Add a lane only after Codex provides a supported headless authentication and binary-distribution path suitable for CI. Keep the manual release checks until then.
+
+---
+
+#### BL-396 - v2.2: Move the BuiltForm marketplace pin automatically on release
+
+- **Priority**: P1
+- **Status**: TODO
+- **Area**: CI / Release
+
+**Encountered**
+
+- **Date**: 2026-09-19
+- **Location**: `.github/workflows/`, `builtform/marketplace`
+- **Scenario**: The `launchpad` entry in `builtform/marketplace` pins a release tag. The pin was last moved at v2.1.3 and later releases never reached marketplace users on either host, because moving it is a manual step in another repository.
+
+**Desired Behavior**
+
+When a `v*` tag is pushed in this repository, a workflow opens a pull request on `builtform/marketplace` that sets the `launchpad` entry's `ref` to the new tag. A maintainer merges it. The workflow authenticates with a credential limited to that one repository, and its actions are pinned by commit SHA like every other workflow here.
+
+**Out of Scope by Decision**
+
+A scheduled drift check.
+
+**Notes**
+
+Until this ships, the manual pin step in `docs/maintainers/RELEASE_PROCESS.md` applies.

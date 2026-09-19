@@ -15,22 +15,11 @@ For the day-to-day workflow guide, see [How It Works](HOW_IT_WORKS.md).
 **Contents:**
 
 - [The six-layer model](#the-six-layer-model)
-- [One kernel, thin host adapters](#one-kernel-thin-host-adapters)
 - [The four meta-orchestrators](#the-four-meta-orchestrators)
 - [Design principles](#design-principles)
 - [The agent fleet](#the-agent-fleet)
 - [Skill creation infrastructure](#skill-creation-infrastructure)
 - [Inspirations and credits](#inspirations-and-credits)
-
----
-
-## One kernel, thin host adapters
-
-LaunchPad keeps workflow truth in one canonical kernel. Each command, agent, and skill has one file, and every supported host reads that file. Claude Code exposes the canonical commands directly. Codex uses one router skill that resolves the requested canonical file and applies a small host-interpretation contract before following it.
-
-One router is deliberately smaller than a set of per-command wrappers. A wrapper for every workflow would duplicate routing logic, drift when a canonical file changes, and require a second file whenever LaunchPad adds a command. A live router inventory makes a new canonical command available without adapter work.
-
-The safety bar is parity with Claude Code plus visible disclosure. Both hosts depend on their own approval, sandbox, and permission systems. When Codex cannot enforce a Claude-specific restriction, LaunchPad preserves the workflow, states the weaker behavior, and names any concrete missing capability that stops a step. It does not claim guarantees that the host cannot provide.
 
 ---
 
@@ -103,7 +92,7 @@ The orchestrator reads status from the section spec's YAML frontmatter, routes t
 
 ## Design principles
 
-Five principles guided the design. Together they form a system where AI agents can work autonomously at high tempo, but cannot silently produce low-quality or unsafe output.
+Seven principles guided the design. Together they form a system where AI agents can work autonomously at high tempo, but cannot silently produce low-quality or unsafe output.
 
 ### 1. Status contract over free-form state
 
@@ -169,6 +158,16 @@ External-infrastructure prerequisites (deploy provider account, project, GitHub 
 The design separates the engine from provider knowledge. The engine knows only four check categories (auto-detect-silent, API-verified-with-credentials, user-confirmed-with-probe, user-confirmed-trust-only) plus the dispatch rules between them. Each provider ships its own profile YAML under `plugins/launchpad/preflight-profiles/<name>.yaml` listing the checks for that provider's surface (account, token, project, secrets, DNS, analytics, etc.) with per-check default stale windows. A consuming project's `.launchpad/preflight.config.yaml` declares which profiles to apply plus per-item overrides; adding a new provider equals adding a profile YAML, with zero changes to the engine.
 
 The same gate fires at `/lp-build` Step 0.6 (before entering `/lp-inf`) AND `/lp-ship` Step 0.6 (before any quality-gate work) so the direct-invocation bypass path cannot avoid the prerequisite verification. Standalone usage: `/lp-preflight`. The user-facing surface is `.launchpad/preflight-checklist.md`, gitignored by default; ticking the `- [ ]` boxes for C1/C2 items records a `Last confirmed: <iso-timestamp>` line that the engine re-reads on subsequent runs and re-prompts when the configured stale window has elapsed.
+
+### 7. One source of truth, thin host adapters
+
+Every command, agent, and skill exists once, as the file Claude Code already reads. Codex reads those same files through a single router. There is no second copy, no per-command wrapper, no registry, and nothing to regenerate, so adding or editing a command never involves a Codex-side change.
+
+A wrapper per command was the obvious alternative, and it was rejected. Every wrapper is one more place to drift: the day a canonical file changes and its wrapper does not, the two hosts quietly run different workflows. A router that reads the command directory live cannot drift, because it holds no list of its own.
+
+The safety bar for a second host is parity plus disclosure, not proof. On Claude Code, LaunchPad leans on the host's permission system, sandbox, and hooks. On Codex it leans on the same class of host controls. Where Codex enforces less, the workflow still runs and says so at the end of the run. A step stops only when something concrete is missing, such as a tool or a login. Refusing to run until a host can prove every guarantee would produce an adapter that is perfectly safe and runs nothing.
+
+For the install commands, the verified list, and each difference, see [How It Works → Codex](HOW_IT_WORKS.md#codex).
 
 ---
 

@@ -6,10 +6,10 @@
 
 LaunchPad ships versioned releases via the GitHub release flow. Every release follows this exact sequence to ensure each tag has hand-authored release notes published as a durable artifact in the repo.
 
-Codex adapter releases: bump `plugins/launchpad/.claude-plugin/plugin.json` and `plugins/launchpad/.codex-plugin/plugin.json` together, then complete the checks below before tagging. They require a logged-in Codex CLI, `jq`, and the release branch, tag, or commit in `<release-ref>`.
+Codex adapter releases: bump `plugins/launchpad/.claude-plugin/plugin.json` and `plugins/launchpad/.codex-plugin/plugin.json` together, then complete the checks below before tagging. They require a logged-in Codex command line, `jq`, and the release branch, tag, or commit in `<release-ref>`. This direct install from the LaunchPad repository is the maintainer test route. Users install through the BuiltForm marketplace.
 
 ```bash
-# PA-0: install the release candidate and verify the required installed files.
+# Install check: install the release candidate and verify the required installed files.
 codex plugin marketplace add https://github.com/builtform/launchpad.git --ref <release-ref> --json
 PLUGIN_PATH=$(codex plugin add launchpad@launchpad --json | jq -r '.installedPath')
 codex plugin list
@@ -17,18 +17,30 @@ test -f "$PLUGIN_PATH/codex/skills/lp/SKILL.md"
 test -f "$PLUGIN_PATH/scripts/plugin-codex-router.py"
 test -d "$PLUGIN_PATH/commands"
 
-# PA-1: run live help and compare its helper inventory with the installed files.
+# Help check: run live help and compare its helper inventory with the installed files.
 codex exec '$launchpad:lp help'
 diff <(find "$PLUGIN_PATH/commands" -maxdepth 1 -type f -name '*.md' -exec basename {} .md \; | sort) <(python3 "$PLUGIN_PATH/scripts/plugin-codex-router.py" inventory --kind command --json | jq -r '.items[].id' | sort)
 
 # Record the host-generated direct entries for this Codex version.
-codex plugin list --json | jq -r '.. | strings | select(startswith("launchpad:source-command-"))' | sort -u
+codex debug prompt-input 'list' | grep -o 'launchpad:source-command-[a-z0-9-]*' | sort -u
 
 codex plugin remove launchpad@launchpad --json
 codex plugin marketplace remove launchpad --json
 ```
 
-PA-0 passes when the plugin advertises `launchpad:lp` and all three installed-path checks exit zero. PA-1 passes when the transcript contains the helper's raw inventory JSON, the final message is readable, and `diff` exits zero.
+The install check passes when the plugin advertises `launchpad:lp` and all three installed-path checks exit zero. The help check passes when the transcript contains the helper's raw inventory JSON, the final message is a readable list, and `diff` exits zero.
+
+After tagging, move the BuiltForm marketplace pin. In the `builtform/marketplace` repository, set the `ref` of the `launchpad` entry in `.claude-plugin/marketplace.json` to the new tag and merge that change. Users on both hosts receive the release only after this step. Then confirm the user install route once on Codex:
+
+```bash
+codex plugin marketplace add builtform/marketplace
+codex plugin add launchpad@builtform
+codex exec '$launchpad:lp help'
+codex plugin remove launchpad@builtform
+codex plugin marketplace remove builtform
+```
+
+Whenever these checks are rerun, update the "As of" and "Last checked" dates and the Codex version in `README.md` and `docs/guides/HOW_IT_WORKS.md`.
 
 ## Why this process exists
 
