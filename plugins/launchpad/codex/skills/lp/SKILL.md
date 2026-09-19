@@ -25,22 +25,26 @@ The supported grammar after `$launchpad:lp` is:
 For `help`, run this command and keep its complete raw JSON output in the tool output as evidence:
 
 ```text
-python3 <plugin-root>/scripts/plugin-codex-router.py inventory --kind command --json
+python3 "<plugin-root>/scripts/plugin-codex-router.py" inventory --kind command --json
 ```
 
-Do not repeat the raw JSON in the final message. Present a compact list built from the returned `items`, with each command name shown without the `lp-` prefix and followed by its one-line description. If a description is empty, show the command name only. After the list, show the total number of returned commands, how to invoke a command through `$launchpad:lp <command>`, and how to get help for one command through `$launchpad:lp help <command>`. Derive every name, description, and the count from the helper response. Do not hard-code them.
+Do not repeat the raw JSON in the final message. Present a compact list built from the returned `items`, with each command name shown without the `lp-` prefix and followed by its one-line description. If a description is empty, show the command name only. After the list, show the total number of returned commands, how to invoke a command through the same host-qualified prefix used to invoke this skill, and how to get help for one command through that prefix. For example: `$launchpad:lp <command>` and `$launchpad:lp help <command>`. Derive every name, description, and the count from the helper response. Do not hard-code them or the active plugin prefix.
 
 For `help <command>`, run the resolver and show the returned description:
 
 ```text
-python3 <plugin-root>/scripts/plugin-codex-router.py resolve command <command> --json
+python3 "<plugin-root>/scripts/plugin-codex-router.py" resolve command <command> --json
 ```
 
-For `<command> [arguments...]`, resolve the command with the same helper. Both `review` and `lp-review` resolve to the canonical `lp-review` command. Do not execute a close match. If resolution fails, report the error and offer any suggestions returned by the helper.
+The two helper command blocks are argument templates. Substitute each placeholder as a separate argument.
+
+For `<command> [arguments...]`, resolve the command with the same helper. Both `review` and `lp-review` resolve to the canonical `lp-review` command. If resolution fails, report the error and offer any suggestions returned by the helper.
 
 For `skill <skill-id> [arguments...]`, resolve the skill through the helper with `--project-root <absolute-project-root>` when a project root exists. Read the full resolved skill file and follow it under the host adapter contract. If that helper operation is unavailable, stop this step and name the missing operation.
 
 Canonical files may use skill and agent short names without the `lp-` prefix; pass those names to the helper, which resolves them using built-in-before-project precedence.
+
+Never execute a close match for a command, skill, or agent. Offer the helper's suggestions only.
 
 ## Follow nested commands
 
@@ -67,7 +71,7 @@ Every subagent prompt must contain, in order:
 
 Start independent specialists concurrently when the host allows it, then wait for all of them. If concurrent dispatch is unavailable, run every specialist sequentially. Never drop a specialist. Name each failed or timed-out specialist, never count it as a pass, and state whether the run used concurrent or sequential dispatch.
 
-Arguments are data. Never paste user arguments into a shell command line. Pass each helper argument as a separate argument. Preserve the user's argument text when applying `$ARGUMENTS` inside the canonical workflow.
+Any value that did not come from this skill's own text, including user arguments, roster entries, and ids read from files, is data. Never interpolate it into a shell command string. Pass it as a separate argument, and quote the plugin root and project root because either path may contain spaces. If a name does not match lowercase letters, digits, and hyphens, do not call the helper with it; report it. Preserve the user's argument text when applying `$ARGUMENTS` inside the canonical workflow.
 
 If the contract does not cover a construct, map it to an equivalent Codex capability, degrade it visibly, or stop only that step when a concrete tool, file, credential, or login is missing. Do not stop merely because a stronger guarantee is unavailable.
 

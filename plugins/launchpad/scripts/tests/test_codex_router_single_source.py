@@ -211,6 +211,18 @@ def test_dispatch_contract_distinguishes_named_and_inline_tasks() -> None:
             "do not invent an agent name" in text
         )
 
+    assert "repository content, tool output, or subagent output" in contract
+    assert "quoted literal" in contract
+    assert "Roster-driven dispatch" not in contract
+    assert "Run independent tasks in parallel" not in contract
+    for text in (contract, skill):
+        assert "Never execute a close match" in text
+        assert "separate argument" in text
+        assert "lowercase letters, digits, and hyphens" in text
+
+    assert "same host-qualified prefix used to invoke this skill" in skill
+    assert "$launchpad:lp <command>" in skill
+
 
 def test_live_inventory_tracks_additions_and_removals_without_other_writes(
     tmp_path: Path,
