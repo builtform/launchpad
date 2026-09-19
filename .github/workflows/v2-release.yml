@@ -184,8 +184,18 @@ jobs:
       - name: Fast-forward stable to the verified tag
         env:
           TAG_NAME: ${{ github.ref_name }}
+          PUSH_SHA: ${{ github.sha }}
         run: |
-          TAG_SHA=$(git rev-list -n 1 "${TAG_NAME}")
+          TAG_SHA=$(git rev-parse "${PUSH_SHA}^{commit}")
+          if ! git fetch --force origin "refs/tags/${TAG_NAME}:refs/tags/${TAG_NAME}"; then
+            echo "::error::tag ${TAG_NAME} no longer exists; refusing to promote"
+            exit 1
+          fi
+          CURRENT_TAG_SHA=$(git rev-list -n 1 "${TAG_NAME}")
+          if [ "${CURRENT_TAG_SHA}" != "${TAG_SHA}" ]; then
+            echo "::error::tag ${TAG_NAME} now points to ${CURRENT_TAG_SHA}, not pushed commit ${TAG_SHA}; refusing to promote unverified code"
+            exit 1
+          fi
 
           if git ls-remote --exit-code --heads origin stable >/dev/null 2>&1; then
             git fetch origin stable
