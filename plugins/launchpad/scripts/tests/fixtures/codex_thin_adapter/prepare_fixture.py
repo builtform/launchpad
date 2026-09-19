@@ -21,6 +21,7 @@ TRACKED_FILES = (
 )
 NONCE_PLACEHOLDER = "__HYDRATE_NONCE__"
 PLUGIN_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+PROBE_NONCE_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def _git(git: str, project: Path, *args: str) -> None:
@@ -62,6 +63,10 @@ def main() -> int:
         assert args.probe_nonce
         if not PLUGIN_NAME_PATTERN.fullmatch(args.plugin_name):
             parser.error("plugin name must use lowercase letters, digits, and hyphens")
+        if not PROBE_NONCE_PATTERN.fullmatch(args.probe_nonce):
+            parser.error(
+                "probe nonce must use only letters, digits, underscores, and hyphens"
+            )
 
         plugin_source = Path(args.plugin_source).resolve(strict=True)
         plugin_output = Path(args.plugin_output).resolve()
@@ -70,6 +75,22 @@ def main() -> int:
             parser.error(f"plugin output already exists: {plugin_output}")
         if plugin_output.parent.name != "plugins":
             parser.error("plugin output must be inside a marketplace plugins directory")
+
+        marketplace_root = plugin_output.parent.parent
+        marketplace_name = f"{args.plugin_name}-marketplace"
+        marketplace_dir = marketplace_root / ".claude-plugin"
+        marketplace_path = marketplace_dir / "marketplace.json"
+        if marketplace_path.exists():
+            try:
+                existing_marketplace = json.loads(
+                    marketplace_path.read_text(encoding="utf-8")
+                )
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+                parser.error(f"existing marketplace is unreadable: {exc}")
+            if existing_marketplace.get("name") != marketplace_name:
+                parser.error(
+                    "existing marketplace name does not match the probe marketplace"
+                )
 
         shutil.copytree(plugin_source, plugin_output)
         for manifest_name in (
@@ -95,9 +116,6 @@ def main() -> int:
             encoding="utf-8",
         )
 
-        marketplace_root = plugin_output.parent.parent
-        marketplace_name = f"{args.plugin_name}-marketplace"
-        marketplace_dir = marketplace_root / ".claude-plugin"
         marketplace_dir.mkdir(parents=True, exist_ok=True)
         marketplace = {
             "name": marketplace_name,
@@ -111,7 +129,7 @@ def main() -> int:
                 }
             ],
         }
-        (marketplace_dir / "marketplace.json").write_text(
+        marketplace_path.write_text(
             json.dumps(marketplace, indent=2) + "\n", encoding="utf-8"
         )
         print(

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 
 _SCRIPTS = Path(__file__).resolve().parent.parent
 _PLUGIN = _SCRIPTS.parent
+_ROUTER = _SCRIPTS / "plugin-codex-router.py"
 
 
 def _json(path: Path) -> dict:
@@ -50,11 +52,10 @@ def test_contract_covers_helper_known_host_tokens() -> None:
         / "host-adapter-contract.md"
     ).read_text(encoding="utf-8")
 
-    for token in (
-        "${CLAUDE_PLUGIN_ROOT}",
-        "AskUserQuestion",
-        "allowed-tools",
-        "mcp__*",
-        "subagent_type",
-    ):
+    spec = importlib.util.spec_from_file_location("codex_router_manifest_test", _ROUTER)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    for token in module.KNOWN_HOST_TOKENS:
         assert token in contract

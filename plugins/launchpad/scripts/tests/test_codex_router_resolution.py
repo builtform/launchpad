@@ -116,6 +116,57 @@ def test_installed_layout_with_space_and_block_scalars(tmp_path: Path) -> None:
     assert "installed layout with space" in skill["path"]
 
 
+@pytest.mark.parametrize(
+    ("style", "expected"),
+    (
+        (">2", "First line. Second line."),
+        ("|2-", "First line.\nSecond line."),
+        (">-2", "First line. Second line."),
+    ),
+)
+def test_frontmatter_tolerates_bom_fence_whitespace_and_block_indicators(
+    tmp_path: Path, style: str, expected: str
+) -> None:
+    plugin = _plugin(tmp_path)
+    router = plugin / "scripts" / _ROUTER.name
+    command = plugin / "commands" / "lp-frontmatter-edge.md"
+    command.write_text(
+        "\ufeff---   \n"
+        "name: lp-frontmatter-edge\n"
+        f"description: {style}\n"
+        "  First line.\n"
+        "  Second line.\n"
+        "---   \n\n# Edge\n",
+        encoding="utf-8",
+    )
+
+    record = _ok(router, "resolve", "command", "frontmatter-edge", "--json")
+
+    assert record["description"] == expected
+
+
+def test_indented_block_line_is_not_treated_as_frontmatter_fence(
+    tmp_path: Path,
+) -> None:
+    plugin = _plugin(tmp_path)
+    router = plugin / "scripts" / _ROUTER.name
+    command = plugin / "commands" / "lp-indented-fence.md"
+    command.write_text(
+        "---\n"
+        "name: lp-indented-fence\n"
+        "description: |2-\n"
+        "  First line.\n"
+        "  ---\n"
+        "  Last line.\n"
+        "---   \n\n# Indented fence\n",
+        encoding="utf-8",
+    )
+
+    record = _ok(router, "resolve", "command", "indented-fence", "--json")
+
+    assert record["description"] == "First line.\n---\nLast line."
+
+
 def test_frontmatter_names_allow_comments_outside_quoted_values(
     tmp_path: Path,
 ) -> None:
@@ -147,6 +198,31 @@ def test_frontmatter_names_allow_comments_outside_quoted_values(
     assert unquoted_record["description"] == "Unquoted description"
     assert quoted_record["id"] == "lp-quoted-comment"
     assert quoted_record["description"] == "Hash # stays"
+
+
+def test_plain_apostrophe_does_not_hide_inline_comment_by_mutation(
+    tmp_path: Path,
+) -> None:
+    plugin = _plugin(tmp_path)
+    router = plugin / "scripts" / _ROUTER.name
+    command = plugin / "commands" / "lp-apostrophe-comment.md"
+    original = _frontmatter("lp-apostrophe-comment", "Original description")
+    command.write_text(original, encoding="utf-8")
+    before = _ok(router, "resolve", "command", "apostrophe-comment", "--json")
+
+    command.write_text(
+        "---\n"
+        "name: lp-apostrophe-comment\n"
+        "description: the project's stack # helper note\n"
+        "---\n\n# Apostrophe\n",
+        encoding="utf-8",
+    )
+    during = _ok(router, "resolve", "command", "apostrophe-comment", "--json")
+    assert during["description"] == "the project's stack"
+
+    command.write_text(original, encoding="utf-8")
+    after = _ok(router, "resolve", "command", "apostrophe-comment", "--json")
+    assert _record_identity(after) == _record_identity(before)
 
 
 def test_project_resolution_precedence_and_collision_reports(tmp_path: Path) -> None:
@@ -197,6 +273,24 @@ def test_short_and_full_names_resolve_to_same_built_in_records(
         short = _ok(router, "resolve", kind, short_name, "--json")
         full = _ok(router, "resolve", kind, f"lp-{short_name}", "--json")
         assert _record_identity(short) == _record_identity(full)
+
+
+def test_command_resolution_tries_exact_then_prefixed_and_reports_caller_id(
+    tmp_path: Path,
+) -> None:
+    plugin = _plugin(tmp_path)
+    router = plugin / "scripts" / _ROUTER.name
+    exact = plugin / "commands" / "alpha.md"
+    exact.write_text(_frontmatter("alpha", "Exact command"), encoding="utf-8")
+
+    exact_record = _ok(router, "resolve", "command", "alpha", "--json")
+    prefixed_record = _ok(router, "resolve", "command", "lp-alpha", "--json")
+    missing = _error(router, "resolve", "command", "missing-command", "--json")
+
+    assert exact_record["path"] == str(exact)
+    assert prefixed_record["path"].endswith("commands/lp-alpha.md")
+    assert missing["id"] == "missing-command"
+    assert missing["message"].endswith("missing-command")
 
 
 def test_exact_built_in_short_name_precedes_prefixed_built_in_and_project(
@@ -384,7 +478,7 @@ def _plant_project_agent_problem(
     if case == "readme":
         target = root / "README.md"
         target.write_text("Project-specific agent notes.\n", encoding="utf-8")
-        return None, "invalid_id", [target]
+        return None, "missing_frontmatter", [target]
     if case == "malformed":
         target = root / "lp-malformed.md"
         target.write_text("---\nname: lp-malformed\n", encoding="utf-8")
@@ -407,6 +501,48 @@ def _plant_project_agent_problem(
         target.parent.mkdir()
         target.write_text(_frontmatter("lp-duplicate"), encoding="utf-8")
     return "lp-duplicate", "duplicate_id", targets
+
+
+@pytest.mark.parametrize("kind", ("agent", "skill"))
+def test_project_files_without_frontmatter_are_skipped_by_mutation(
+    tmp_path: Path, kind: str
+) -> None:
+    plugin = _plugin(tmp_path)
+    project = _project(tmp_path)
+    router = plugin / "scripts" / _ROUTER.name
+    project_args = ("--project-root", str(project), "--json")
+    if kind == "agent":
+        target = project / ".claude" / "agents" / "notes.md"
+    else:
+        target = project / ".claude" / "skills" / "notes" / "SKILL.md"
+        target.parent.mkdir()
+
+    before = _ok(router, "inventory", "--kind", kind, *project_args)
+    assert before["skipped"] == []
+
+    target.write_text("Project notes without metadata.\n", encoding="utf-8")
+    during = _ok(router, "inventory", "--kind", kind, *project_args)
+    error = _error(router, "resolve", kind, "notes", *project_args)
+    assert during["skipped"] == [
+        {"code": "missing_frontmatter", "path": str(target)}
+    ]
+    assert error["code"] == "missing_frontmatter"
+
+    target.unlink()
+    after = _ok(router, "inventory", "--kind", kind, *project_args)
+    assert after["skipped"] == []
+
+
+def test_builtin_command_without_frontmatter_keeps_resolving(tmp_path: Path) -> None:
+    plugin = _plugin(tmp_path)
+    router = plugin / "scripts" / _ROUTER.name
+    command = plugin / "commands" / "lp-plain-command.md"
+    command.write_text("# Plain command\n", encoding="utf-8")
+
+    record = _ok(router, "resolve", "command", "plain-command", "--json")
+
+    assert record["id"] == "lp-plain-command"
+    assert record["description"] == ""
 
 
 @pytest.mark.parametrize(
@@ -478,6 +614,30 @@ def test_containment_guard_rejects_both_root_directions(tmp_path: Path) -> None:
     assert second_error.value.code == "outside_root"
 
 
+def test_safe_text_opens_resolved_file_without_following_symlinks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plugin = _plugin(tmp_path)
+    spec = importlib.util.spec_from_file_location(
+        "plugin_codex_router_no_follow_test", plugin / "scripts" / _ROUTER.name
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    observed_flags: list[int] = []
+    real_open = module.os.open
+
+    def tracking_open(path: Path, flags: int) -> int:
+        observed_flags.append(flags)
+        return real_open(path, flags)
+
+    monkeypatch.setattr(module.os, "open", tracking_open)
+    module._safe_text(plugin / "commands" / "lp-alpha.md", plugin / "commands")
+
+    assert observed_flags
+    assert observed_flags[0] & module.os.O_NOFOLLOW
+
+
 def test_relative_project_root_and_unknown_kind_have_stable_codes(
     tmp_path: Path,
 ) -> None:
@@ -498,31 +658,141 @@ def test_relative_project_root_and_unknown_kind_have_stable_codes(
     assert unsupported["code"] == "unsupported_kind"
 
 
-def test_project_extension_root_symlink_is_rejected(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "args",
+    (
+        ("inventory", "--json"),
+        ("resolve", "command"),
+        (),
+        ("unknown-subcommand",),
+    ),
+)
+def test_argument_failures_keep_json_error_contract(
+    tmp_path: Path, args: tuple[str, ...]
+) -> None:
+    plugin = _plugin(tmp_path)
+    error = _error(plugin / "scripts" / _ROUTER.name, *args)
+
+    assert error["code"] == "usage_error"
+
+
+def test_project_extension_root_problem_is_skipped_by_mutation(tmp_path: Path) -> None:
     plugin = _plugin(tmp_path)
     router = plugin / "scripts" / _ROUTER.name
-    project = tmp_path / "symlinked-project-extension"
-    outside = tmp_path / "outside-skills"
-    (project / ".claude").mkdir(parents=True)
-    outside.mkdir()
-    os.symlink(outside, project / ".claude" / "skills")
+    project = _project(tmp_path)
+    skills_root = project / ".claude" / "skills"
+    outside = tmp_path / "shared-skills"
+    project_args = ("--project-root", str(project), "--json")
 
-    error = _error(
-        router,
-        "inventory",
-        "--kind",
-        "skill",
-        "--project-root",
-        str(project),
-        "--json",
+    before = _ok(router, "inventory", "--kind", "skill", *project_args)
+    assert before["skipped"] == []
+
+    skills_root.rename(outside)
+    os.symlink(outside, skills_root)
+    during = _ok(router, "inventory", "--kind", "skill", *project_args)
+    built_in = _ok(
+        router, "resolve", "skill", "lp-shared-skill", *project_args
     )
-    assert error["code"] == "unsafe_root"
+    project_only = _error(
+        router, "resolve", "skill", "lp-project-skill", *project_args
+    )
+    assert during["skipped"] == [
+        {"code": "unsafe_root", "path": str(skills_root)}
+    ]
+    assert {item["origin"] for item in during["items"]} == {"built_in"}
+    assert built_in["origin"] == "built_in"
+    assert built_in["skipped"] == during["skipped"]
+    assert project_only["code"] == "unsafe_root"
+    assert project_only["skipped"] == during["skipped"]
+
+    skills_root.unlink()
+    outside.rename(skills_root)
+    after = _ok(router, "inventory", "--kind", "skill", *project_args)
+    assert after["skipped"] == []
+    assert {item["id"] for item in after["items"]} == {
+        item["id"] for item in before["items"]
+    }
+
+
+@pytest.mark.parametrize("case", ("claude_symlink", "not_directory"))
+def test_other_project_extension_root_problems_do_not_break_built_ins(
+    tmp_path: Path, case: str
+) -> None:
+    plugin = _plugin(tmp_path)
+    router = plugin / "scripts" / _ROUTER.name
+    project = _project(tmp_path)
+    claude_root = project / ".claude"
+    agent_root = claude_root / "agents"
+    expected_path = claude_root if case == "claude_symlink" else agent_root
+
+    if case == "claude_symlink":
+        outside = tmp_path / "shared-claude"
+        claude_root.rename(outside)
+        os.symlink(outside, claude_root)
+    else:
+        outside = tmp_path / "saved-agents"
+        agent_root.rename(outside)
+        agent_root.write_text("not a directory\n", encoding="utf-8")
+
+    project_args = ("--project-root", str(project), "--json")
+    inventory = _ok(router, "inventory", "--kind", "agent", *project_args)
+    built_in = _ok(
+        router, "resolve", "agent", "lp-shared-agent", *project_args
+    )
+
+    assert inventory["skipped"] == [
+        {"code": "unsafe_root", "path": str(expected_path)}
+    ]
+    assert {item["origin"] for item in inventory["items"]} == {"built_in"}
+    assert built_in["origin"] == "built_in"
 
 
 def test_lint_passes_current_corpus() -> None:
     payload = _ok(_ROUTER, "lint", "--json")
     assert payload["status"] == "ok"
     assert "${CLAUDE_PLUGIN_ROOT}" in payload["known_tokens"]
+    assert payload["warnings"] == []
+    assert payload["skipped"] == []
+
+
+def test_lint_ignores_path_fragments_but_warns_for_command_mentions(
+    tmp_path: Path,
+) -> None:
+    plugin = _plugin(tmp_path)
+    router = plugin / "scripts" / _ROUTER.name
+    command = plugin / "commands" / "lp-alpha.md"
+    command.write_text(
+        command.read_text(encoding="utf-8")
+        + "\nPaths: skills/lp-missing-skill and .harness/lp-missing-note.\n"
+        + "Run /lp-missing-command.\n",
+        encoding="utf-8",
+    )
+
+    payload = _ok(router, "lint", "--json")
+
+    assert [warning["token"] for warning in payload["warnings"]] == [
+        "/lp-missing-command"
+    ]
+
+
+def test_lint_reports_project_skips(tmp_path: Path) -> None:
+    plugin = _plugin(tmp_path)
+    project = _project(tmp_path)
+    router = plugin / "scripts" / _ROUTER.name
+    notes = project / ".claude" / "agents" / "notes.md"
+    notes.write_text("Project notes without metadata.\n", encoding="utf-8")
+
+    payload = _ok(
+        router,
+        "lint",
+        "--project-root",
+        str(project),
+        "--json",
+    )
+
+    assert payload["skipped"] == [
+        {"code": "missing_frontmatter", "path": str(notes)}
+    ]
 
 
 def test_lint_rejects_planted_unknown_host_token(tmp_path: Path) -> None:
@@ -596,7 +866,9 @@ def test_orchestration_fixture_prepares_messy_project(tmp_path: Path) -> None:
     inventory = _ok(_ROUTER, "inventory", "--kind", "agent", *project_args)
     assert agent["origin"] == "project"
     assert Path(agent["path"]).name == "fixture-reviewer.md"
-    assert {item["code"] for item in agent["skipped"]} == {"invalid_id"}
+    assert {item["code"] for item in agent["skipped"]} == {
+        "missing_frontmatter"
+    }
     assert {Path(item["path"]).name for item in inventory["skipped"]} == {
         "README.md"
     }
@@ -694,3 +966,70 @@ def test_acceptance_fixture_prepares_distinct_probe_plugin(tmp_path: Path) -> No
     probe_output.write_text(f"{nonce}\n", encoding="utf-8")
     assert probe_output.read_text(encoding="utf-8").strip() == nonce
     assert not (_PLUGIN / "commands" / "lp-zzz-probe.md").exists()
+
+
+def test_acceptance_fixture_rejects_unsafe_probe_nonce(tmp_path: Path) -> None:
+    marketplace = tmp_path / "probe marketplace"
+    plugin = marketplace / "plugins" / "launchpad-probe"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_ORCHESTRATION_FIXTURE / "prepare_fixture.py"),
+            "--plugin-source",
+            str(_PLUGIN),
+            "--plugin-output",
+            str(plugin),
+            "--plugin-name",
+            "launchpad-probe",
+            "--probe-output",
+            str(tmp_path / "probe-result.txt"),
+            "--probe-nonce",
+            "unsafe nonce",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+
+    assert result.returncode == 2
+    assert "probe nonce must use only" in result.stderr
+    assert not plugin.exists()
+
+
+def test_acceptance_fixture_preserves_different_existing_marketplace(
+    tmp_path: Path,
+) -> None:
+    marketplace = tmp_path / "probe marketplace"
+    marketplace_file = marketplace / ".claude-plugin" / "marketplace.json"
+    plugin = marketplace / "plugins" / "launchpad-probe"
+    marketplace_file.parent.mkdir(parents=True)
+    original = '{"name":"different-marketplace","plugins":[]}\n'
+    marketplace_file.write_text(original, encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_ORCHESTRATION_FIXTURE / "prepare_fixture.py"),
+            "--plugin-source",
+            str(_PLUGIN),
+            "--plugin-output",
+            str(plugin),
+            "--plugin-name",
+            "launchpad-probe",
+            "--probe-output",
+            str(tmp_path / "probe-result.txt"),
+            "--probe-nonce",
+            "SAFE_NONCE-1",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+
+    assert result.returncode == 2
+    assert "existing marketplace name does not match" in result.stderr
+    assert marketplace_file.read_text(encoding="utf-8") == original
+    assert not plugin.exists()

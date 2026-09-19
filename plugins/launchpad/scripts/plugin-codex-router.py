@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import json
+import os
 import re
 import sys
 import textwrap
@@ -13,18 +14,22 @@ from typing import NoReturn
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
-COMMAND_REFERENCE_PATTERN = re.compile(r"/lp-[a-z0-9]+(?:-[a-z0-9]+)*")
+COMMAND_REFERENCE_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9_./-])/lp-[a-z0-9]+(?:-[a-z0-9]+)*(?![A-Za-z0-9_/-])"
+)
 CLAUDE_VARIABLE_PATTERN = re.compile(r"\$\{CLAUDE_[A-Z0-9_]+\}")
 MCP_TOKEN_PATTERN = re.compile(r"mcp__[A-Za-z0-9_]+")
+BLOCK_SCALAR_PATTERN = re.compile(r"^[>|](?:[1-9][+-]?|[+-][1-9]?|[+-]?)$")
 MAX_FILE_BYTES = 1_000_000
 
+CLAUDE_PLUGIN_ROOT_TOKEN = "${CLAUDE_PLUGIN_ROOT}"
+DIRECT_HOST_TOKENS = ("AskUserQuestion", "allowed-tools", "subagent_type")
+MCP_WILDCARD_TOKEN = "mcp__*"
 KNOWN_HOST_TOKENS = frozenset(
     {
-        "${CLAUDE_PLUGIN_ROOT}",
-        "AskUserQuestion",
-        "allowed-tools",
-        "mcp__*",
-        "subagent_type",
+        CLAUDE_PLUGIN_ROOT_TOKEN,
+        *DIRECT_HOST_TOKENS,
+        MCP_WILDCARD_TOKEN,
     }
 )
 
@@ -57,28 +62,33 @@ def _fail(code: str, message: str, **details: object) -> NoReturn:
 
 
 def _strip_inline_comment(value: str) -> str:
-    in_single = False
-    in_double = False
+    if not value:
+        return value
+
+    quote = value[0] if value[0] in {'"', "'"} else None
+    if quote is None:
+        for index, char in enumerate(value):
+            if char == "#" and (index == 0 or value[index - 1].isspace()):
+                return value[:index].rstrip()
+        return value.strip()
+
     escaped = False
-    index = 0
+    in_quote = True
+    index = 1
     while index < len(value):
         char = value[index]
-        if in_double:
+        if in_quote and quote == '"':
             if escaped:
                 escaped = False
             elif char == "\\":
                 escaped = True
             elif char == '"':
-                in_double = False
-        elif in_single:
+                in_quote = False
+        elif in_quote:
             if char == "'" and index + 1 < len(value) and value[index + 1] == "'":
                 index += 1
             elif char == "'":
-                in_single = False
-        elif char == '"':
-            in_double = True
-        elif char == "'":
-            in_single = True
+                in_quote = False
         elif char == "#" and (index == 0 or value[index - 1].isspace()):
             return value[:index].rstrip()
         index += 1
@@ -100,7 +110,7 @@ def _parse_scalar(value: str) -> str:
 def _block_scalar(lines: list[str], style: str) -> str:
     content = textwrap.dedent("\n".join(lines)).splitlines()
     indicator = style[0]
-    chomp = style[1:] if len(style) > 1 else ""
+    chomp = "+" if "+" in style[1:] else "-" if "-" in style[1:] else ""
 
     if indicator == "|":
         result = "\n".join(content)
@@ -127,14 +137,18 @@ def _block_scalar(lines: list[str], style: str) -> str:
     return result + "\n" if result else ""
 
 
-def _parse_frontmatter(text: str, path: Path) -> dict[str, str]:
+def _parse_frontmatter(text: str, path: Path) -> dict[str, str] | None:
     lines = text.splitlines()
-    if not lines or lines[0] != "---":
-        return {}
+    if lines:
+        lines[0] = lines[0].removeprefix("\ufeff")
+    if not lines or lines[0].rstrip() != "---":
+        return None
 
-    try:
-        end = lines.index("---", 1)
-    except ValueError:
+    end = next(
+        (index for index, line in enumerate(lines[1:], 1) if line.rstrip() == "---"),
+        None,
+    )
+    if end is None:
         _fail("malformed_frontmatter", f"frontmatter is not closed: {path}")
 
     metadata: dict[str, str] = {}
@@ -147,7 +161,7 @@ def _parse_frontmatter(text: str, path: Path) -> dict[str, str]:
         key, raw_value = line.split(":", 1)
         key = key.strip()
         value = _strip_inline_comment(raw_value.strip())
-        if value in {">", ">-", ">+", "|", "|-", "|+"}:
+        if BLOCK_SCALAR_PATTERN.fullmatch(value):
             block_lines: list[str] = []
             index += 1
             while index < end:
@@ -181,11 +195,17 @@ def _safe_text(path: Path, root: Path) -> tuple[Path, str]:
     if not path_real.is_file():
         _fail("not_regular_file", f"canonical path is not a regular file: {path}")
 
+    file_descriptor: int | None = None
     try:
-        with path_real.open("rb") as handle:
+        file_descriptor = os.open(path_real, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(file_descriptor, "rb") as handle:
+            file_descriptor = None
             raw = handle.read(MAX_FILE_BYTES + 1)
     except OSError as exc:
         _fail("read_failed", f"could not read canonical file: {path}", reason=str(exc))
+    finally:
+        if file_descriptor is not None:
+            os.close(file_descriptor)
     if len(raw) > MAX_FILE_BYTES:
         _fail(
             "oversize",
@@ -227,21 +247,59 @@ def _root(kind: str, origin: str, project_root: Path | None) -> Path | None:
         return PLUGIN_ROOT / dirname
     if kind == "command" or project_root is None:
         return None
-    candidate = project_root / ".claude" / dirname
+    claude_root = project_root / ".claude"
+    if claude_root.is_symlink():
+        _fail(
+            "unsafe_root",
+            f"project extension path uses a symlink: {claude_root}",
+            path=str(claude_root),
+        )
+    if not claude_root.exists():
+        return None
+    if not claude_root.is_dir():
+        _fail(
+            "unsafe_root",
+            f"project extension path is not a directory: {claude_root}",
+            path=str(claude_root),
+        )
+    claude_root_real = claude_root.resolve(strict=True)
+    if not claude_root_real.is_relative_to(project_root):
+        _fail(
+            "unsafe_root",
+            f"project extension path escapes the project: {claude_root}",
+            path=str(claude_root),
+        )
+
+    candidate = claude_root / dirname
     if candidate.is_symlink():
-        _fail("unsafe_root", f"project extension root is a symlink: {candidate}")
+        _fail(
+            "unsafe_root",
+            f"project extension root is a symlink: {candidate}",
+            path=str(candidate),
+        )
     if not candidate.exists():
         return None
     if not candidate.is_dir():
-        _fail("unsafe_root", f"project extension root is not a directory: {candidate}")
-    candidate_real = candidate.resolve(strict=True)
+        _fail(
+            "unsafe_root",
+            f"project extension root is not a directory: {candidate}",
+            path=str(candidate),
+        )
+    try:
+        candidate_real = candidate.resolve(strict=True)
+    except OSError as exc:
+        _fail(
+            "unsafe_root",
+            f"project extension root is unavailable: {candidate}",
+            path=str(candidate),
+            reason=str(exc),
+        )
     if not candidate_real.is_relative_to(project_root):
-        _fail("unsafe_root", f"project extension root escapes the project: {candidate}")
-    cursor = project_root
-    for part in candidate.relative_to(project_root).parts:
-        cursor /= part
-        if cursor.is_symlink():
-            _fail("unsafe_root", f"project extension path uses a symlink: {cursor}")
+        _fail(
+            "unsafe_root",
+            f"project extension root escapes the project: {candidate}",
+            path=str(candidate),
+        )
     return candidate_real
 
 
@@ -262,6 +320,15 @@ def _fallback_id(kind: str, path: Path) -> str:
 def _record(kind: str, origin: str, path: Path, root: Path) -> dict[str, str]:
     path_real, text = _safe_text(path, root)
     metadata = _parse_frontmatter(text, path_real)
+    if metadata is None:
+        if origin == "project" and kind in {"agent", "skill"}:
+            _fail(
+                "missing_frontmatter",
+                f"project {kind} has no frontmatter: {path_real}",
+                id=_fallback_id(kind, path),
+                path=str(path_real),
+            )
+        metadata = {}
     item_id = metadata.get("name", _fallback_id(kind, path))
     if not NAME_PATTERN.fullmatch(item_id):
         _fail("invalid_id", f"canonical id is invalid: {item_id}", path=str(path_real))
@@ -342,13 +409,28 @@ def _project_records(
 
 def _record_set(
     kind: str, project_root: Path | None
-) -> tuple[list[dict[str, str]], list[dict[str, str]], dict[str, RouterError]]:
+) -> tuple[
+    list[dict[str, str]],
+    list[dict[str, str]],
+    dict[str, RouterError],
+    RouterError | None,
+]:
     built_in_root = _root(kind, "built_in", project_root)
     assert built_in_root is not None
     records = _scan_root(kind, "built_in", built_in_root)
     skipped: list[dict[str, str]] = []
     issues: dict[str, RouterError] = {}
-    project_extension_root = _root(kind, "project", project_root)
+    project_root_issue: RouterError | None = None
+    try:
+        project_extension_root = _root(kind, "project", project_root)
+    except RouterError as exc:
+        if exc.code != "unsafe_root":
+            raise
+        issue_path = exc.details.get("path")
+        assert isinstance(issue_path, str)
+        skipped = [{"code": exc.code, "path": issue_path}]
+        project_root_issue = exc
+        project_extension_root = None
     if project_extension_root is not None:
         project_records, skipped, issues = _project_records(
             kind, project_extension_root
@@ -364,12 +446,8 @@ def _record_set(
         ),
         skipped,
         issues,
+        project_root_issue,
     )
-
-
-def _records(kind: str, project_root: Path | None) -> list[dict[str, str]]:
-    records, _, _ = _record_set(kind, project_root)
-    return records
 
 
 def _collision_report(records: list[dict[str, str]]) -> list[dict[str, object]]:
@@ -388,7 +466,7 @@ def _collision_report(records: list[dict[str, str]]) -> list[dict[str, object]]:
 
 
 def _inventory(kind: str, project_root: Path | None) -> dict[str, object]:
-    records, skipped, _ = _record_set(kind, project_root)
+    records, skipped, _, _ = _record_set(kind, project_root)
     return {
         "collisions": _collision_report(records),
         "items": records,
@@ -404,16 +482,16 @@ def _requested_id(kind: str, name: str) -> str:
             "name must contain only lowercase letters, digits, and hyphens",
             name=name,
         )
-    if kind == "command" and not name.startswith("lp-"):
-        return f"lp-{name}"
     return name
 
 
 def _resolve(kind: str, name: str, project_root: Path | None) -> dict[str, object]:
     item_id = _requested_id(kind, name)
-    records, skipped, project_issues = _record_set(kind, project_root)
+    records, skipped, project_issues, project_root_issue = _record_set(
+        kind, project_root
+    )
     built_in_ids = [item_id]
-    if kind in {"agent", "skill"} and not item_id.startswith("lp-"):
+    if not item_id.startswith("lp-"):
         built_in_ids.append(f"lp-{item_id}")
 
     selected = next(
@@ -439,6 +517,14 @@ def _resolve(kind: str, name: str, project_root: Path | None) -> dict[str, objec
         if project_issue is not None:
             project_issue.details["skipped"] = skipped
             raise project_issue
+        if project_root_issue is not None:
+            details = dict(project_root_issue.details)
+            details["skipped"] = skipped
+            raise RouterError(
+                project_root_issue.code,
+                project_root_issue.message,
+                **details,
+            )
         available = sorted({record["id"] for record in records})
         suggestions = difflib.get_close_matches(item_id, available, n=3, cutoff=0.6)
         _fail(
@@ -464,21 +550,23 @@ def _resolve(kind: str, name: str, project_root: Path | None) -> dict[str, objec
 
 def _found_host_tokens(text: str) -> set[str]:
     tokens = set(CLAUDE_VARIABLE_PATTERN.findall(text))
-    for token in ("AskUserQuestion", "allowed-tools", "subagent_type"):
+    for token in DIRECT_HOST_TOKENS:
         if token in text:
             tokens.add(token)
     if MCP_TOKEN_PATTERN.search(text):
-        tokens.add("mcp__*")
+        tokens.add(MCP_WILDCARD_TOKEN)
     return tokens
 
 
 def _lint(project_root: Path | None) -> dict[str, object]:
-    records_by_kind = {
-        kind: _records(kind, project_root) for kind in ("command", "skill", "agent")
+    record_sets = {
+        kind: _record_set(kind, project_root) for kind in ("command", "skill", "agent")
     }
-    for kind in ("command", "skill"):
-        for record in records_by_kind[kind]:
-            _resolve(kind, record["id"], project_root)
+    records_by_kind = {kind: result[0] for kind, result in record_sets.items()}
+    skipped = sorted(
+        [item for result in record_sets.values() for item in result[1]],
+        key=lambda item: (item["path"], item["code"]),
+    )
 
     found_tokens: set[str] = set()
     warnings: list[dict[str, str]] = []
@@ -510,6 +598,7 @@ def _lint(project_root: Path | None) -> dict[str, object]:
         )
     return {
         "known_tokens": sorted(found_tokens),
+        "skipped": skipped,
         "status": "ok",
         "warnings": sorted(warnings, key=lambda item: (item["path"], item["token"])),
     }
@@ -548,10 +637,8 @@ def main(argv: list[str] | None = None) -> int:
             result = _inventory(args.kind, project_root)
         elif args.action == "resolve":
             result = _resolve(args.kind, args.name, project_root)
-        elif args.action == "lint":
-            result = _lint(project_root)
         else:
-            _fail("usage_error", f"unsupported action: {args.action}")
+            result = _lint(project_root)
     except RouterError as exc:
         print(json.dumps(_error_payload(exc), sort_keys=True), file=sys.stderr)
         return 2
