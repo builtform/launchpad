@@ -262,7 +262,15 @@ def _root(kind: str, origin: str, project_root: Path | None) -> Path | None:
             f"project extension path is not a directory: {claude_root}",
             path=str(claude_root),
         )
-    claude_root_real = claude_root.resolve(strict=True)
+    try:
+        claude_root_real = claude_root.resolve(strict=True)
+    except OSError as exc:
+        _fail(
+            "unsafe_root",
+            f"project extension path is unavailable: {claude_root}",
+            path=str(claude_root),
+            reason=str(exc),
+        )
     if not claude_root_real.is_relative_to(project_root):
         _fail(
             "unsafe_root",

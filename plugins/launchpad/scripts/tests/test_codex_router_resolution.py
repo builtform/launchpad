@@ -747,6 +747,39 @@ def test_other_project_extension_root_problems_do_not_break_built_ins(
     assert built_in["origin"] == "built_in"
 
 
+def test_project_extension_root_resolution_error_becomes_skip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plugin = _plugin(tmp_path)
+    project = _project(tmp_path)
+    spec = importlib.util.spec_from_file_location(
+        "plugin_codex_router_root_race_test", plugin / "scripts" / _ROUTER.name
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    claude_root = project / ".claude"
+    real_resolve = Path.resolve
+
+    def flaky_resolve(path: Path, strict: bool = False) -> Path:
+        if path == claude_root:
+            raise OSError("simulated concurrent rename")
+        return real_resolve(path, strict=strict)
+
+    monkeypatch.setattr(Path, "resolve", flaky_resolve)
+    inventory = module._inventory("agent", project)
+    built_in = module._resolve("agent", "lp-shared-agent", project)
+
+    assert inventory["skipped"] == [
+        {"code": "unsafe_root", "path": str(claude_root)}
+    ]
+    assert {item["origin"] for item in inventory["items"]} == {"built_in"}
+    assert built_in["origin"] == "built_in"
+    with pytest.raises(module.RouterError) as project_only:
+        module._resolve("agent", "lp-project-agent", project)
+    assert project_only.value.code == "unsafe_root"
+
+
 def test_lint_passes_current_corpus() -> None:
     payload = _ok(_ROUTER, "lint", "--json")
     assert payload["status"] == "ok"
