@@ -4298,3 +4298,33 @@ LaunchPad emits **four different ruff spellings** across five generator call sit
 **Proposed Resolution**
 
 Derive the generated DoD command text from the same source as the generated gate command, so a consumer's documented check cannot drift from their executing check. Applies to every downstream Python project today, independent of BL-384's nested-config trigger.
+
+---
+
+#### BL-386 - v2.2: Revisit Codex command migration when the manifest can disable it
+
+- **Priority**: P3
+- **Status**: TODO
+- **Area**: Infra
+
+**Encountered**
+
+- **Date**: 2026-09-19
+- **Location**: `plugins/launchpad/.codex-plugin/plugin.json`
+- **Scenario**: Codex CLI `0.154.0-alpha.6.2` generated `launchpad:source-command-*` entries for a subset of canonical commands even though `$launchpad:lp` is the supported adapter path.
+
+**Current Behavior**
+
+The tested Codex manifest schema exposes no option to disable command migration. The generated entries bypass the router contract and are documented as unsupported.
+
+**Desired Behavior**
+
+Only the supported `$launchpad:lp <command>` path is advertised when the host provides an official manifest control for command migration.
+
+**Proposed Fix** (revalidate before implementing)
+
+Re-check the current Codex manifest schema. If it provides an official command-migration switch, disable migration in the existing Codex manifest and rerun PA-0 through PA-4. Do not relocate or duplicate the canonical command tree.
+
+**Notes**
+
+This item is conditional on a future host capability. The current release intentionally ships the host-generated entries with an honest unsupported-path disclosure.
