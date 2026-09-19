@@ -221,7 +221,7 @@ BL-262 remains the home for the real functional gap this doc text was gesturing 
 
 ---
 
-#### BL-377 - v2.2: Backlog-orphan gate cannot read bullet-form `Status` lines
+#### BL-377 - v2.2.x: Backlog-orphan gate cannot read bullet-form `Status` lines
 
 - **Priority**: P3
 - **Status**: TODO
@@ -243,7 +243,7 @@ Either the regex tolerates an optional leading `- ` / `* ` bullet, or the Standa
 
 ---
 
-#### BL-378 - v2.2: Schema-CODEOWNERS gate is neutralized by any bundled formatting pass
+#### BL-378 - v2.2.x: Schema-CODEOWNERS gate is neutralized by any bundled formatting pass
 
 - **Priority**: P2
 - **Status**: TODO
@@ -299,7 +299,7 @@ Whoever picks this up should add regression tests pinning BOTH directions: a tab
 
 ---
 
-#### BL-379 - v2.2: OPERATIONS section 4 specifies two enforcement mechanisms that are implemented by nothing
+#### BL-379 - v2.2.x: OPERATIONS section 4 specifies two enforcement mechanisms that are implemented by nothing
 
 - **Priority**: P2
 - **Status**: TODO
@@ -336,7 +336,7 @@ An interim `IMPLEMENTATION STATUS` note was added to section 4 on 2026-08-01 so 
 
 ---
 
-#### BL-380 - v2.2: promote `supabase` from `curate` to `orchestrate`
+#### BL-380 - v2.2.x: promote `supabase` from `curate` to `orchestrate`
 
 - **Priority**: P3
 - **Status**: TODO
@@ -364,7 +364,7 @@ Note the payoff is small either way: `supabase init` writes exactly one file, so
 
 ---
 
-#### BL-381 - v2.2: Rails `--skip-bundle` suppresses every post-bundle installer with no compensating step
+#### BL-381 - v2.2.x: Rails `--skip-bundle` suppresses every post-bundle installer with no compensating step
 
 - **Priority**: P3
 - **Status**: PARTIALLY SHIPPED in v2.1.11 (PR #145). The broken scaffold is fixed; the cleaner mechanism is still open. See Resolution.
@@ -399,7 +399,7 @@ Whichever direction is finished, add an integration test asserting `config/impor
 
 ---
 
-#### BL-382 - v2.2: adapter version metadata is hardcoded and can contradict the pinned template it describes
+#### BL-382 - v2.2.x: adapter version metadata is hardcoded and can contradict the pinned template it describes
 
 - **Priority**: P2
 - **Status**: TODO
@@ -432,7 +432,7 @@ Rotating pins requires verifying new upstream SHAs against release tags, which i
 
 ---
 
-#### BL-383 - v2.2: no gate models cross-file claim propagation
+#### BL-383 - v2.2.x: no gate models cross-file claim propagation
 
 - **Priority**: P2
 - **Status**: TODO
@@ -464,7 +464,7 @@ Item 2 is the highest value per line of code and should ship first.
 
 ### P2 - Medium
 
-#### BL-100 - v2.2: Restore `cloudflare-workers` to scaffolders.yml + add cf-edge-stack category-pattern
+#### BL-100 - v2.2.x: Restore `cloudflare-workers` to scaffolders.yml + add cf-edge-stack category-pattern
 
 - **Priority**: P2
 - **Status**: TODO
@@ -492,7 +492,7 @@ Add `cloudflare-workers` entry to `scaffolders.yml` (orchestrate, pure-headless 
 
 See [`ROADMAP.md`](../../ROADMAP.md#v22) for the full deferred-stacks list. Telemetry from `/lp-memory-report --v2-pipeline` after v2.0 ship may surface additional demand signal.
 
-#### BL-101 - v2.2: Restore `tauri` to scaffolders.yml + add desktop-tauri category-pattern
+#### BL-101 - v2.2.x: Restore `tauri` to scaffolders.yml + add desktop-tauri category-pattern
 
 - **Priority**: P2
 - **Status**: TODO
@@ -512,7 +512,7 @@ Add `tauri` entry (orchestrate, pure-headless via `npm create tauri-app`), `desk
 
 ~3-4h. Same pattern as BL-100.
 
-#### BL-102 - v2.2: Restore `nestjs` to scaffolders.yml + add enterprise-saas-ts category-pattern
+#### BL-102 - v2.2.x: Restore `nestjs` to scaffolders.yml + add enterprise-saas-ts category-pattern
 
 - **Priority**: P2
 - **Status**: TODO
@@ -532,7 +532,7 @@ Add `nestjs` entry (orchestrate, pure-headless), `enterprise-saas-ts` category-p
 
 ~3-4h.
 
-#### BL-103 - v2.2: Restore `laravel` to scaffolders.yml + add saas-laravel category-pattern
+#### BL-103 - v2.2.x: Restore `laravel` to scaffolders.yml + add saas-laravel category-pattern
 
 - **Priority**: P2
 - **Status**: TODO
@@ -552,7 +552,7 @@ Add `laravel` entry (orchestrate, mixed-prompts), `saas-laravel` category-patter
 
 ~4-5h (mixed-prompts handling is more involved than pure-headless).
 
-#### BL-104 - v2.2: Restore `vite` to scaffolders.yml as generic SPA scaffolder
+#### BL-104 - v2.2.x: Restore `vite` to scaffolders.yml as generic SPA scaffolder
 
 - **Priority**: P2
 - **Status**: TODO
@@ -911,7 +911,7 @@ Low risk; pure refactor with no functional change.
 
 **Default decision**: drop the v2.0 hint, defer the override. Real CI-runner overlayfs need is addressed by Phase -1 acceptance gate (whitelist add for GHA Ubuntu's actual fstype after empirical check).
 
-#### BL-219 - v2.2: `tests/fixtures/manifest.yml` schema_version evolution path
+#### BL-219 - v2.2.x: `tests/fixtures/manifest.yml` schema_version evolution path
 
 **Driver**: Layer 5 data-migration P2-DM5-2 (Layer 7 retarget v2.1→v2.2 per L6-λ #8). v2.0 ships `manifest.yml` with `schema_version: "1.0"` (registered in HANDSHAKE §10 lifecycle bump list per Layer 5; absent vs unknown disambiguation pinned at v2.0 per OPERATIONS §4 Layer 7 closure of L6-λ #2). **v2.1 retarget rationale**: v2.1 is documentation-only per Layer 7 strip-back; no v1.1 manifest schema evolution lands at v2.1. The schema-bridge work makes sense alongside other v2.2 manifest-coupled changes (e.g., `target_recovery_op_enum_version` only matters once BL-231 recovery_commands runtime enforcement ships).
 
@@ -924,7 +924,7 @@ Low risk; pure refactor with no functional change.
 
 **Default decision**: defer to v2.2. v2.0 ships v1.0 only with absent-vs-unknown disambiguation pinned; v2.2 introduces v1.1 with the bridge alongside other manifest-coupled v2.2 work.
 
-#### BL-220 - v2.2: `security-events.jsonl` rotation + verify-chain consumer
+#### BL-220 - v2.2.x: `security-events.jsonl` rotation + verify-chain consumer
 
 **Driver**: Layer 5 security-lens P1-S1. **Layer 7 strip-back** retargets from v2.1 → v2.2 because v2.1 is documentation-only AND the underlying `security-events.jsonl` itself is deferred to v2.2 via BL-223 (forensic_writer split). Without forensic_writer at v2.0, there's no producer for the chain consumer to walk.
 
@@ -938,7 +938,7 @@ Low risk; pure refactor with no functional change.
 
 **Default decision**: defer. v2.0 ships zero forensic logging surface; v2.2 introduces the full set (forensic_writer + chain + consumer).
 
-#### BL-221 - v2.2: Automated recovery tooling for `recovery_commands` consumer
+#### BL-221 - v2.2.x: Automated recovery tooling for `recovery_commands` consumer
 
 **Driver**: OPERATIONS §6 gate #11 + Layer 5 spec-flow P1-LF1 + adversarial P1-A2. **Layer 7 strip-back** retargets from v2.1 → v2.2 (v2.1 docs-only). v2.0 ships the structured `recovery_commands` array as a forward-compat hint; humans read `recommended_recovery_action` prose. No v2.0 tool consumes the structured array. Runtime enforcement contract (closed enum + denylist + idempotency + sha256 + .recovery.lock) is in BL-231.
 
@@ -954,7 +954,7 @@ Low risk; pure refactor with no functional change.
 
 **Default decision**: defer. v2.0's structured array is not load-bearing without the consumer; humans consume the prose.
 
-#### BL-222 - v2.2+: Confirm `forensic_writer.py` split holds after evolution
+#### BL-222 - v2.2.x: Confirm `forensic_writer.py` split holds after evolution
 
 **Driver**: Layer 5 architecture P2-A2. **Layer 7 strip-back** retargets from v2.1+ → v2.2+ since the split itself is deferred to v2.2 via BL-223. Once `forensic_writer.py` ships at v2.2, this BL becomes a v2.3+ retrospective on whether the boundary held.
 
@@ -1008,7 +1008,7 @@ The 13 BL entries below (BL-223 through BL-235) collectively form the v2.2 opera
 
 Detailed BL entries below preserve per-item rationale + at-v2.2-design-time steps + decision criteria.
 
-#### BL-223 - v2.2: `forensic_writer.py` SRP-split module + 4 forensic JSONL paths
+#### BL-223 - v2.2.x: `forensic_writer.py` SRP-split module + 4 forensic JSONL paths
 
 **Driver**: Layer 5 architecture P2-A2 + security-lens P1-S1 (Layer 7 strip-back deferral). v2.0 ships zero forensic-logging surface — neither `security-events.jsonl` nor `scaffold-rejection-<ts>.jsonl` nor `recovery-partial-<ts>.json` nor chain-hashing on `restamp-history.jsonl`. Threat model concedes "compromised in-process Claude session is out of scope" + "same-UID attacker is out of scope" — forensic primitives without a verifier (BL-220 verify-chain consumer also deferred) are YAGNI at single-maintainer scale.
 
@@ -1026,7 +1026,7 @@ Detailed BL entries below preserve per-item rationale + at-v2.2-design-time step
 
 **Default decision**: defer. v2.0 ships zero forensic logging.
 
-#### BL-224 - v2.2: Multi-signal CI detection (`_has_ci_filesystem_signal`)
+#### BL-224 - v2.2.x: Multi-signal CI detection (`_has_ci_filesystem_signal`)
 
 **Driver**: Layer 4 security-lens P1-S1 + Layer 5 adversarial P1-A4 + security-auditor P2-2 + security-lens P2-2 (Layer 7 strip-back deferral). v2.0 ships `_is_ci_environment()` checking only env-vars (`CI=true` + recognized vendor — `GITHUB_ACTIONS`/`GITLAB_CI`/etc.). Multi-layer signal (filesystem `/.dockerenv` + `RUNNER_TEMP` + `/proc/{ppid}/comm` parent-process check) deferred to v2.2.
 
@@ -1041,7 +1041,7 @@ Detailed BL entries below preserve per-item rationale + at-v2.2-design-time step
 
 **Default decision**: defer. v2.0 ships env-var-only `_is_ci_environment()`.
 
-#### BL-225 - v2.2: AST `pull_request_target` shape check via PyYAML
+#### BL-225 - v2.2.x: AST `pull_request_target` shape check via PyYAML
 
 **Driver**: Layer 4 security-lens P1-S2 + Layer 5 security-auditor P2-4 + security P2-S1 (Layer 7 strip-back deferral). v2.0 ships a grep-based forbidden-pattern check (greps for `${{ github.event.pull_request.head.sha }}` + `head.ref` + `merge_commit_sha` etc. as forbidden tokens in `.github/workflows/*.yml`). The PyYAML AST walk + `safe_load` + version pin + Phase -1 acceptance gate is deferred to v2.2.
 
@@ -1066,7 +1066,7 @@ Trade-off: grep can be bypassed via `fromJSON(toJSON())` / bracket-notation / ex
 
 **Default decision**: defer. v2.0 ships grep.
 
-#### BL-226 - v2.2: Tag protection rule + content verification + watchdog
+#### BL-226 - v2.2.x: Tag protection rule + content verification + watchdog
 
 **Driver**: Layer 3 deployment P1-B + Layer 4 deployment N2 + adversarial P2-RT4-G + Layer 5 adversarial P1-A1 + security-lens P2-S3 (Layer 7 strip-back deferral). v2.0 relies on branch protection on `main` for tag-immutability; no separate GitHub tag-protection rule, no broadened pattern, no content verification.
 
@@ -1081,7 +1081,7 @@ Trade-off: grep can be bypassed via `fromJSON(toJSON())` / bracket-notation / ex
 
 **Default decision**: defer. v2.0 ships branch protection only.
 
-#### BL-227 - v2.2: §7.0 `vX.Y.Z-recalled` rename procedure + namespace-squat 404-check
+#### BL-227 - v2.2.x: §7.0 `vX.Y.Z-recalled` rename procedure + namespace-squat 404-check
 
 **Driver**: Layer 3 deployment P1-A + spec-flow P1-1 + Layer 4 spec-flow P1-3 + adversarial P1-RT4-B + Layer 5 spec-flow P2-LF5/P1-LF2 + adversarial P1-A1/P2-A2 + security-auditor P2-3 (Layer 7 strip-back deferral). v2.0 rollback procedure is OPERATIONS §7.1 only (compressed 4-step yank + remediate + re-ship as v2.0.1). No `vX.Y.Z-recalled` tag, no namespace-squat 404 check, no per-id workflow-cancel loop, no idempotent `gh release delete`, no local-clone remediation, no user-facing recall communication checklist.
 
@@ -1096,7 +1096,7 @@ Trade-off: grep can be bypassed via `fromJSON(toJSON())` / bracket-notation / ex
 
 **Default decision**: defer. v2.0 §7.1 is sufficient.
 
-#### BL-228 - v2.2: §7.3 24h post-tag observation window + decision matrix
+#### BL-228 - v2.2.x: §7.3 24h post-tag observation window + decision matrix
 
 **Driver**: Layer 5 deployment P1-D2 (Layer 7 strip-back deferral). v2.0 ships no formal observation window. Post-tag, the maintainer manually monitors for installer issues; no decision matrix, no T+1h/6h/24h install-verification protocol, no `verify-v2-ship` re-run on schedule, no CHANGELOG acknowledgment edit.
 
@@ -1108,7 +1108,7 @@ Trade-off: grep can be bypassed via `fromJSON(toJSON())` / bracket-notation / ex
 
 **Default decision**: defer. v2.0 maintainer monitors informally.
 
-#### BL-229 - v2.2: rollback-runbook.md + branch-protection-token.md authored runbooks
+#### BL-229 - v2.2.x: rollback-runbook.md + branch-protection-token.md authored runbooks
 
 **Driver**: Layer 4 + Layer 5 deployment P1-D1 + security-lens P2-S2 (Layer 7 strip-back deferral). v2.0 does NOT author `docs/maintainer/rollback-runbook.md` or `docs/runbooks/branch-protection-token.md` as Phase -1 deliverables. The compressed §7.1 procedure inline in OPERATIONS is sufficient for v2.0 scale; PAT lifecycle is informally documented in the v2.0.0 release notes (rotate annually, regenerate via GitHub UI).
 
@@ -1120,7 +1120,7 @@ Trade-off: grep can be bypassed via `fromJSON(toJSON())` / bracket-notation / ex
 
 **Default decision**: defer. v2.0 ships compressed §7.1 inline.
 
-#### BL-230 - v2.2: Consolidated `v2-nightly-checks.yml` workflow (3 jobs)
+#### BL-230 - v2.2.x: Consolidated `v2-nightly-checks.yml` workflow (3 jobs)
 
 **Driver**: Layer 5 performance P2-L5-1 + architecture P2-A3 (Layer 7 strip-back deferral). v2.0 ships only `v2-handshake-lint.yml` (PR-triggered) and the basic `v2-release.yml` for tag-emission. No nightly cron workflow, no branch-staleness-check, no separate branch-protection-watchdog, no tag-protection-watchdog (latter blocked on BL-226 anyway).
 
@@ -1133,7 +1133,7 @@ Trade-off: grep can be bypassed via `fromJSON(toJSON())` / bracket-notation / ex
 
 **Default decision**: defer. v2.0 ships PR-triggered lint only.
 
-#### BL-231 - v2.2: `recovery_commands` runtime enforcement contract
+#### BL-231 - v2.2.x: `recovery_commands` runtime enforcement contract
 
 **Driver**: Layer 5 spec-flow P1-LF1/LF6/LF8 + adversarial P1-A2 + security P3-1/S1 (Layer 7 strip-back deferral). v2.0 ships the `recovery_commands` structured array as a forward-compat hint (humans read `recommended_recovery_action` prose; no runtime consumer). No closed enum + denylist + idempotency contract + execute-time path re-validation + sha256 self-hash + `.recovery.lock` consumer concurrency lock + at-most-one-rerun rule + closed `command` set for `rerun` op.
 
@@ -1150,7 +1150,7 @@ Trade-off: grep can be bypassed via `fromJSON(toJSON())` / bracket-notation / ex
 
 **Default decision**: defer. v2.0's structured array is forward-compat hint; humans consume prose.
 
-#### BL-232 - v2.2: Exponential-backoff polling for `verify-v2-ship`
+#### BL-232 - v2.2.x: Exponential-backoff polling for `verify-v2-ship`
 
 **Driver**: Layer 5 frontend-races P2-L5-A2 + deployment P2-D1 (Layer 7 strip-back deferral). v2.0's `verify-v2-ship` CI job runs ONCE post-tag with no propagation-race retry. GitHub check-runs API has ≤120s eventual-consistency window between squash-merge and tag-emission; v2.0 accepts the rare false-fail and relies on manual workflow_dispatch re-run.
 
@@ -1162,7 +1162,7 @@ Trade-off: grep can be bypassed via `fromJSON(toJSON())` / bracket-notation / ex
 
 **Default decision**: defer. v2.0 verify-v2-ship runs once; manual re-run on transient failure.
 
-#### BL-233 - v2.2: KAT cross-platform parity matrix (macOS + Windows)
+#### BL-233 - v2.2.x: KAT cross-platform parity matrix (macOS + Windows)
 
 **Driver**: Layer 2 P2-4 + Layer 3 simplicity P1-A (Layer 7 strip-back deferral). v2.0 KAT runs Linux-only on the v2-handshake-lint workflow. macOS CI matrix leg + the cross-platform parity assertion (Linux CI and macOS CI produce identical new hashes for the same fixture) deferred to v2.2.
 
@@ -1175,7 +1175,7 @@ Trade-off: grep can be bypassed via `fromJSON(toJSON())` / bracket-notation / ex
 
 **Default decision**: defer. v2.0 ships Linux-only KAT; manual macOS spot-check before tag-emission.
 
-#### BL-234 - v2.2: 90-day PAT lifecycle ceremony + token rotation runbook
+#### BL-234 - v2.2.x: 90-day PAT lifecycle ceremony + token rotation runbook
 
 **Driver**: Layer 2 F-03 + Layer 3 security-lens P2-S2 + adversarial P1-RT-3 (Layer 7 strip-back deferral). v2.0 uses a long-lived `BRANCH_PROTECTION_READ_TOKEN` PAT with informal annual-rotation note in v2.0.0 release notes. No 90-day max-lifetime mandate, no formal rotation log in `docs/releases/`, no `branch-protection-token.md` runbook (covered by BL-229).
 
@@ -1189,7 +1189,7 @@ Trade-off: grep can be bypassed via `fromJSON(toJSON())` / bracket-notation / ex
 
 **Default decision**: defer. v2.0 ships long-lived PAT + informal rotation reminder.
 
-#### BL-235 - v2.2: `.first-run-marker` integrity binding + `brainstorm_session_id` schema field + `.first-run-marker.lock`
+#### BL-235 - v2.2.x: `.first-run-marker` integrity binding + `brainstorm_session_id` schema field + `.first-run-marker.lock`
 
 **Driver**: Layer 4 integrity binding + Layer 5 frontend-races P1-L5-A FD-based TOCTOU close + security-auditor P1-1 + spec-flow P1-LF3 + schema-drift P1-SD5-1 (Layer 7 strip-back deferral). v2.0 ships the original Layer 3 `.first-run-marker` as a simple positive-presence sentinel: empty file written by `/lp-brainstorm` ONLY when `greenfield: true`, consumed (renamed to `.first-run-marker.consumed.<iso-ts>`) by `/lp-scaffold-stack` after first successful run. No JSON envelope, no `schema_version`/`brainstorm_session_id`/`bound_cwd`/`sha256` fields, no dedicated `.first-run-marker.lock`, no FD-based read with pre-rename re-stat, no microsecond+pid timestamp precision.
 
@@ -1454,7 +1454,7 @@ The command is **NOT a fit for branch-triggered automation projects** (e.g., pro
 
 **Default decision**: ship in v2.1 as the architecture-defining entry. The V3 design covers 24 locked decisions, 12-phase sequencing, and test strategy.
 
-#### BL-238 - v2.2: Promote django from curate → orchestrate-headless via auto-name derivation
+#### BL-238 - v2.2.x: Promote django from curate → orchestrate-headless via auto-name derivation
 
 **Driver**: PR #41 Codex review cycle 2 (P1 finding #3) escalated the original cycle 1 deferral. Codex argued (correctly) that shipping `django` as `type: orchestrate` with empty `destination_argv` is a known-broken catalog entry — `/lp-scaffold-stack` would invoke `django-admin startproject` without the required positional project name and either prompt (defeating pure-headless), fail with a usage error, or scaffold in the wrong shape.
 
@@ -1473,7 +1473,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.2. v2.0 ships django as `curate` so the orchestrate path can't fail; v2.2 promotes it back to orchestrate-headless via the template-based destination_argv shape.
 
-#### BL-250 - v2.2: Bring-your-own scaffolder mode (cookiecutter / degit / npm-create URL acceptance)
+#### BL-250 - v2.2.x: Bring-your-own scaffolder mode (cookiecutter / degit / npm-create URL acceptance)
 
 **Driver**: v2.1 ships 4 curated wrap-and-overlay adapters (`ts_monorepo`, `nextjs_standalone` over `vercel/next-forge`, `nextjs_fastapi` over `vintasoftware/nextjs-fastapi-template`, `astro` over 3 sub-templates). Once the wrap-and-overlay PATTERN is validated in v2.1, expanding adapter coverage from 4 hand-picked upstreams to "any cookiecutter / degit / npm-create URL the user provides" is structurally cheap. v2.2 unlocks the long tail of community templates without per-adapter LaunchPad maintenance burden. Builds directly on v2.1's wrap-and-overlay pattern.
 
@@ -1490,7 +1490,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: ship in v2.2. Cheap relative to authoring per-adapter from scratch (estimated ~15-25h vs 8-12h per non-BYO adapter). Prerequisite: v2.1 ships and wrap-and-overlay pattern proves stable in production (the `ulc.spec.org` Tier-2 dogfood is the validation gate).
 
-#### BL-251 - v2.2: Phase 1+2 retroactive Tier B residuals bundle
+#### BL-251 - v2.2.x: Phase 1+2 retroactive Tier B residuals bundle
 
 **Driver**: 2026-05-06 retroactive `--full` /lp-harden-plan against shipped Phase 1 + Phase 2 (HEADs `d14f1a4` + `4fe969f`) surfaced ~16-18 P1 across 26 review agents. Triaged into Tier A (amend now, 9 items, shipped at HEADs `dc9dc08` + `c39eaf0`) + Tier B (defer to v2.2, ~10 items captured here).
 
@@ -1511,7 +1511,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.2. None of these are ship-blocking; cumulative effort estimated ~6-10h. Schedule alongside v2.2 operational/security infrastructure bundle.
 
-#### BL-252 - v2.2: Phase 11 deferred manifest tampering scenarios
+#### BL-252 - v2.2.x: Phase 11 deferred manifest tampering scenarios
 
 **Driver**: Phase 11 LOCKED v3 plan (2026-05-06) shipped `test_bootstrap_manifest_tampering.py` with 11 scenarios (existing 9 from Phase 3 Slice C + 2 augments per Phase 11 DA3: SymlinkSubstitution + TOCTOU). Cycle 1 + cycle 2 review surfaced 4 additional attack scenarios that did not make the v2.1 ship cut.
 
@@ -1526,7 +1526,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.2. v2.1 ships with 11 scenarios + 7 attack-class coverage; remaining 4 are exotic edge cases. Cumulative effort estimated ~3-5h.
 
-#### BL-253 - v2.2: Brainstorm Python runner extraction (E2E coverage from brainstorm step)
+#### BL-253 - v2.2.x: Brainstorm Python runner extraction (E2E coverage from brainstorm step)
 
 **Driver**: Phase 11 LOCKED v3 plan (2026-05-06) DA1 + R2 acknowledge that `/lp-brainstorm` is slash-command-only and has no Python runner. The v2.1 E2E test (`test_v21_full_greenfield_pipeline.py`) starts at `pick_stack` and skips brainstorm coverage. v2.0 baseline (PR #41) had the same gap; v2.1 inherits it.
 
@@ -1541,7 +1541,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.2. v2.1 ships with documented coverage gap; brainstorm runtime is LLM-dependent so testing gain is modest. Schedule when telemetry justifies (high brainstorm-step bug rate).
 
-#### BL-254 - v2.2: Promote pip-audit + osv-scanner from advisory to required gates
+#### BL-254 - v2.2.x: Promote pip-audit + osv-scanner from advisory to required gates
 
 **Driver**: Phase 11 LOCKED v3 plan (2026-05-06) Slice E step 9 captures `pip-audit` + `osv-scanner` output as advisory (non-blocking). Cycle 1 security F8 flagged this as A06 Vulnerable Components risk: a known-CVE dependency could ship if reviewer ignores the advisory output. v2.1 keeps advisory mode for tooling-availability reasons; v2.2 should harden.
 
@@ -1604,7 +1604,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. None of the items break user flows in v2.1.0; the bundle is a quality polish.
 
-#### BL-257 - v2.2: Perf optimizations + test infrastructure polish
+#### BL-257 - v2.2.x: Perf optimizations + test infrastructure polish
 
 **Driver**: 2026-05-06 cross-cutting hardening pass surfaced 6 perf items + 3 test-infrastructure items. None breach existing budgets at v2.1.0 (1198 tests in 54.76s under 90s budget — 39% headroom), but the optimizations are real cycle reductions and the test-infra fixes address documented flakiness.
 
@@ -1625,7 +1625,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. Perf headroom is sufficient at v2.1.0 ship; the optimizations are tightening opportunities, not blockers.
 
-#### BL-258 - v2.2: Tag-signing posture promotion (was v2.2 BL-214)
+#### BL-258 - v2.2.x: Tag-signing posture promotion (was v2.2 BL-214)
 
 **Driver**: SECURITY.md "Tags before v2.2 are unsigned" creates a 6+ month maintainer-trust window. The 2026-05-06 cross-cutting hardening pass adversarial-lens flagged this as the longest-lived security gap in the v2.1 ship surface. The mitigation is a 30-minute change (RELEASE_PROCESS.md update + maintainer guidance to enable `tag.gpgSign = true`); the signing infrastructure itself (Sigstore + transparency log per the original BL-214 scope) can stay on v2.2.
 
@@ -1642,7 +1642,7 @@ v2.0 resolves this by demoting django from `orchestrate` → `curate` (matching 
 
 **Default decision**: defer to v2.1.1. v2.1.0 ships unsigned per the documented posture; v2.1.1 closes the gap before any sustained v2.1.x usage period.
 
-#### BL-259 - v2.2: Codex PR #50 deferred findings (docstring + backup-dir + shell word-split)
+#### BL-259 - v2.2.x: Codex PR #50 deferred findings (docstring + backup-dir + shell word-split)
 
 **Driver**: 2026-05-06 Codex automated review on PR #50 surfaced 5 findings; 2 P1 items were fixed in-PR (allowlist-aware early gate at `lp_define_runner.py` + reseal-after-refresh ordering at `lp_update_identity/engine.py`). The remaining 3 items are deferred:
 
@@ -4257,7 +4257,7 @@ None of (1)-(5) bite this repo as-of 2026-05-24 (PostgreSQL provider, no Acceler
 
 ---
 
-#### BL-384 - v2.2: generated ruff config and generated lint invocation must anchor at the same directory
+#### BL-384 - v2.2.x: generated ruff config and generated lint invocation must anchor at the same directory
 
 - **Priority**: P3
 - **Status**: TODO
@@ -4279,7 +4279,7 @@ State the **invariant**, not a mechanism: the generated lint invocation and the 
 
 ---
 
-#### BL-385 - v2.2: generated Definition-of-Done commands must derive from the same source as the generated gate
+#### BL-385 - v2.2.x: generated Definition-of-Done commands must derive from the same source as the generated gate
 
 - **Priority**: P2
 - **Status**: TODO
@@ -4301,7 +4301,7 @@ Derive the generated DoD command text from the same source as the generated gate
 
 ---
 
-#### BL-386 - v2.2: Revisit Codex command migration when the manifest can disable it
+#### BL-386 - v2.2.x: Revisit Codex command migration when the manifest can disable it
 
 - **Priority**: P3
 - **Status**: TODO
@@ -4331,7 +4331,7 @@ This item is conditional on a future host capability. The current release intent
 
 ---
 
-#### BL-387 - v2.2: Add Codex project hooks to LaunchPad and scaffolded projects
+#### BL-387 - v2.2.x: Add Codex project hooks to LaunchPad and scaffolded projects
 
 - **Priority**: P1
 - **Status**: TODO
@@ -4361,7 +4361,7 @@ This is the first Codex follow-up after the thin adapter.
 
 ---
 
-#### BL-388 - v2.2: Evaluate a stable bare `$lp` Codex convenience
+#### BL-388 - v2.2.x: Evaluate a stable bare `$lp` Codex convenience
 
 - **Priority**: P3
 - **Status**: TODO
@@ -4387,7 +4387,7 @@ Re-check Codex alias support. Add a convenience only if it points to the existin
 
 ---
 
-#### BL-389 - v2.2: Add direct agent invocation to the Codex router
+#### BL-389 - v2.2.x: Add direct agent invocation to the Codex router
 
 - **Priority**: P2
 - **Status**: TODO
@@ -4413,7 +4413,7 @@ Extend the existing router grammar with `agent <name> <task>`. Resolve through t
 
 ---
 
-#### BL-390 - v2.2: Prepare the Codex plugin for public-catalog listing
+#### BL-390 - v2.2.x: Prepare the Codex plugin for public-catalog listing
 
 - **Priority**: P2
 - **Status**: TODO
@@ -4443,7 +4443,7 @@ The BuiltForm marketplace (`builtform/marketplace`) is the supported Codex insta
 
 ---
 
-#### BL-391 - v2.2: Verify LaunchPad in Codex desktop and IDE surfaces
+#### BL-391 - v2.2.x: Verify LaunchPad in Codex desktop and IDE surfaces
 
 - **Priority**: P2
 - **Status**: TODO
@@ -4469,7 +4469,7 @@ Run the current install, inventory, hydrate, review, and new-command checks on e
 
 ---
 
-#### BL-392 - v2.2: Evaluate native Gemini packaging
+#### BL-392 - v2.2.x: Evaluate native Gemini packaging
 
 - **Priority**: P3
 - **Status**: TODO
@@ -4495,7 +4495,7 @@ Characterize Gemini's current extension and specialist APIs. Build an adapter on
 
 ---
 
-#### BL-393 - v2.2: Enforce specialist tool restrictions on Codex when supported
+#### BL-393 - v2.2.x: Enforce specialist tool restrictions on Codex when supported
 
 - **Priority**: P2
 - **Status**: TODO
@@ -4521,7 +4521,7 @@ Re-check the host API for enforceable per-specialist tool policies. Map canonica
 
 ---
 
-#### BL-394 - v2.2: Acceptance-test the compound loop with Codex
+#### BL-394 - v2.2.x: Acceptance-test the compound loop with Codex
 
 - **Priority**: P2
 - **Status**: TODO
@@ -4547,7 +4547,7 @@ Create a small fixture run with a runtime nonce and strict iteration cap. Verify
 
 ---
 
-#### BL-395 - v2.2: Add a Codex installation CI lane when headless authentication is available
+#### BL-395 - v2.2.x: Add a Codex installation CI lane when headless authentication is available
 
 - **Priority**: P3
 - **Status**: TODO
@@ -4576,7 +4576,7 @@ Add a lane only after Codex provides a supported headless authentication and bin
 #### BL-396 - v2.2: Promote verified releases to the `stable` branch
 
 - **Priority**: P1
-- **Status**: IN_PROGRESS
+- **Status**: SHIPPED in v2.2.0 (PR #206)
 - **Area**: CI / Release
 
 **Encountered**
@@ -4599,7 +4599,7 @@ The promotion runs only after verification on a tag push, never on manual verifi
 
 ---
 
-#### BL-397 - v2.2: Align the release recovery contract with tag-run reruns
+#### BL-397 - v2.2.x: Close the recovery and release-notes gaps around stable promotion
 
 - **Priority**: P2
 - **Status**: TODO
@@ -4626,3 +4626,5 @@ Update section 7.0a and any related canonical recovery references in a dedicated
 **Notes**
 
 Deferred from PR #206 by maintainer decision. That pull request updates only the maintainer release process and the release workflow comments.
+
+Additional scope recorded 2026-09-19. (1) `promote-stable` depends only on the `verify` job, while the release-notes check is a separate workflow that enforces on pull requests only when the branch is named `<type>/vX.Y.Z-<summary>`. A release merged from a differently named branch can therefore be promoted without its `docs/releases/vX.Y.Z.md` file, and the missing file surfaces only after promotion. Smallest fix: one step in `promote-stable` that refuses to move `stable` when `docs/releases/<tag>.md` is missing; no reusable workflow is needed. (2) `promote-stable` reads `origin/stable` after `git fetch origin stable`, which relies on the checkout action's fetch configuration; reading the branch tip with `git ls-remote origin refs/heads/stable` removes that assumption. Confirm the current behaviour on the first real promotion run before changing it.
