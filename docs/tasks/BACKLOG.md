@@ -4328,3 +4328,245 @@ Re-check the current Codex manifest schema. If it provides an official command-m
 **Notes**
 
 This item is conditional on a future host capability. The current release intentionally ships the host-generated entries with an honest unsupported-path disclosure.
+
+---
+
+#### BL-387 - v2.2: Add Codex project hooks to LaunchPad and scaffolded projects
+
+- **Priority**: P1
+- **Status**: TODO
+- **Area**: Infra
+
+**Encountered**
+
+- **Date**: 2026-09-19
+- **Location**: `.claude/`, `plugins/launchpad/scripts/plugin_default_generators/`
+- **Scenario**: Codex can run LaunchPad workflows, but Claude-specific settings and hooks remain inert on that host.
+
+**Current Behavior**
+
+LaunchPad writes Claude Code hooks for this repository and for scaffolded projects. Codex receives no equivalent project hooks.
+
+**Desired Behavior**
+
+LaunchPad and newly scaffolded projects receive native Codex hooks that preserve the existing safety boundaries without changing Claude Code behavior.
+
+**Proposed Fix** (revalidate before implementing)
+
+Re-check the current Codex project-hook surface. Add the smallest host-specific hook configuration that maps existing safeguards without duplicating canonical workflows.
+
+**Notes**
+
+This is the first Codex follow-up after the thin adapter.
+
+---
+
+#### BL-388 - v2.2: Evaluate a stable bare `$lp` Codex convenience
+
+- **Priority**: P3
+- **Status**: TODO
+- **Area**: Infra
+
+**Encountered**
+
+- **Date**: 2026-09-19
+- **Location**: Codex plugin invocation surface
+- **Scenario**: `$lp <command>` loaded the router during verification, but only `$launchpad:lp <command>` is a supported host-qualified interface.
+
+**Current Behavior**
+
+The short form can work through host inference, but that behavior is not guaranteed and can collide with another skill named `lp`.
+
+**Desired Behavior**
+
+Users have an optional stable short form when Codex provides an official alias mechanism that preserves plugin namespacing.
+
+**Proposed Fix** (revalidate before implementing)
+
+Re-check Codex alias support. Add a convenience only if it points to the existing router without copying the skill or editing user-owned Codex files by hand.
+
+---
+
+#### BL-389 - v2.2: Add direct agent invocation to the Codex router
+
+- **Priority**: P2
+- **Status**: TODO
+- **Area**: Infra
+
+**Encountered**
+
+- **Date**: 2026-09-19
+- **Location**: `$launchpad:lp` router grammar
+- **Scenario**: Canonical workflows can dispatch specialists, but users cannot directly request `agent <name> <task>` through the supported router.
+
+**Current Behavior**
+
+The router accepts help, commands, and skill invocations. Agent resolution is available only inside workflow execution.
+
+**Desired Behavior**
+
+Users can explicitly run a named built-in or project specialist while retaining the same resolution, collision, and disclosure behavior.
+
+**Proposed Fix** (revalidate before implementing)
+
+Extend the existing router grammar with `agent <name> <task>`. Resolve through the current helper and preserve the host contract, project-root checks, and specialist failure reporting.
+
+---
+
+#### BL-390 - v2.2: Prepare the Codex plugin for public-catalog listing
+
+- **Priority**: P2
+- **Status**: TODO
+- **Area**: Infra
+
+**Encountered**
+
+- **Date**: 2026-09-19
+- **Location**: `plugins/launchpad/.codex-plugin/plugin.json`, public Codex catalog
+- **Scenario**: Git marketplace installation works on Codex CLI, while the `plugin-creator` validator applies additional catalog-facing expectations.
+
+**Current Behavior**
+
+The real host requires `"skills": "./codex/skills/"` for the supported router. The `plugin-creator` validator expects the skills path to resolve to `./skills/` and expects an `interface` object. Repointing the current manifest would expose the wrong skill tree and break the verified router path.
+
+**Desired Behavior**
+
+LaunchPad can be listed in the public catalog without moving or copying canonical skills and without making `$launchpad:lp` unreachable.
+
+**Proposed Fix** (revalidate before implementing)
+
+Re-check the current manifest and catalog schemas. Add catalog metadata only when the schema accepts the existing router path, and coordinate any validator mismatch with the catalog rather than relocating the package.
+
+**Notes**
+
+The Git marketplace at `https://github.com/builtform/launchpad.git` remains the supported Codex installation source until this item ships.
+
+---
+
+#### BL-391 - v2.2: Verify LaunchPad in Codex desktop and IDE surfaces
+
+- **Priority**: P2
+- **Status**: TODO
+- **Area**: Testing
+
+**Encountered**
+
+- **Date**: 2026-09-19
+- **Location**: Codex desktop app and IDE integrations
+- **Scenario**: Verification covered Codex CLI `0.154.0-alpha.6.2` only.
+
+**Current Behavior**
+
+Desktop and IDE surfaces are undocumented and unverified for installation, router invocation, specialist dispatch, and workflow artifacts.
+
+**Desired Behavior**
+
+Each supported Codex surface has a recorded installation and workflow matrix, or a clear unsupported designation.
+
+**Proposed Fix** (revalidate before implementing)
+
+Run the current install, inventory, hydrate, review, and new-command checks on each available surface. Document only behavior observed on the real host.
+
+---
+
+#### BL-392 - v2.2: Evaluate native Gemini packaging
+
+- **Priority**: P3
+- **Status**: TODO
+- **Area**: Infra
+
+**Encountered**
+
+- **Date**: 2026-09-19
+- **Location**: `AGENTS.md`, Gemini CLI
+- **Scenario**: Gemini and other CLIs use the manual read-the-file bridge while Claude Code and Codex have native plugin paths.
+
+**Current Behavior**
+
+Gemini can read project instructions and canonical workflow files, but LaunchPad does not provide native installation, routing, or specialist dispatch for it.
+
+**Desired Behavior**
+
+Native Gemini support is evaluated against real demand and preserves the single canonical command, agent, and skill trees.
+
+**Proposed Fix** (revalidate before implementing)
+
+Characterize Gemini's current extension and specialist APIs. Build an adapter only if it can read canonical files in place without generated wrappers or a second workflow tree.
+
+---
+
+#### BL-393 - v2.2: Enforce specialist tool restrictions on Codex when supported
+
+- **Priority**: P2
+- **Status**: TODO
+- **Area**: Infra
+
+**Encountered**
+
+- **Date**: 2026-09-19
+- **Location**: canonical agent `tools:` and `allowed-tools` frontmatter on Codex
+- **Scenario**: Codex can dispatch canonical specialists but does not enforce their Claude-specific tool restrictions.
+
+**Current Behavior**
+
+The router tells each specialist the intended restriction and discloses that enforcement is advisory. Codex approval mode and workspace-only writes remain the user-facing control.
+
+**Desired Behavior**
+
+Codex enforces the canonical specialist's tool boundary when the host exposes a suitable per-specialist capability.
+
+**Proposed Fix** (revalidate before implementing)
+
+Re-check the host API for enforceable per-specialist tool policies. Map canonical restrictions directly when possible and retain visible disclosure for any unmapped control.
+
+---
+
+#### BL-394 - v2.2: Acceptance-test the compound loop with Codex
+
+- **Priority**: P2
+- **Status**: TODO
+- **Area**: Testing
+
+**Encountered**
+
+- **Date**: 2026-09-19
+- **Location**: `scripts/compound/config.json`, `scripts/compound/lib.sh`
+- **Scenario**: The compound runtime accepts `"tool": "codex"`, but the loop was outside the first Codex verification set.
+
+**Current Behavior**
+
+Codex is a recognized tool value and the runtime selects its CLI path. No recorded run proves a full loop iteration, state persistence, or failure handling on Codex.
+
+**Desired Behavior**
+
+A disposable project completes a bounded compound-loop run through Codex with physical checks for output, state, and cleanup.
+
+**Proposed Fix** (revalidate before implementing)
+
+Create a small fixture run with a runtime nonce and strict iteration cap. Verify the produced artifacts and repository state without adding a second Codex-specific loop implementation.
+
+---
+
+#### BL-395 - v2.2: Add a Codex installation CI lane when headless authentication is available
+
+- **Priority**: P3
+- **Status**: TODO
+- **Area**: Infra
+
+**Encountered**
+
+- **Date**: 2026-09-19
+- **Location**: `.github/workflows/`, Codex plugin installation
+- **Scenario**: Real Codex verification requires the Codex binary and an authenticated account, which the current CI environment does not provide.
+
+**Current Behavior**
+
+Release verification uses manual install and inventory checks. Existing CI covers the manifest, helper, resolution, and single-source invariants without running Codex.
+
+**Desired Behavior**
+
+CI installs LaunchPad into an isolated Codex home and verifies router discovery without depending on a maintainer's interactive login.
+
+**Proposed Fix** (revalidate before implementing)
+
+Add a lane only after Codex provides a supported headless authentication and binary-distribution path suitable for CI. Keep the manual release checks until then.

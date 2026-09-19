@@ -43,6 +43,10 @@ This is what CI runs and what blocks PR merge if any check fails.
 
 All test suites must stay green before a PR is mergeable. CI runs them automatically.
 
+### Testing the Codex adapter
+
+Changes to the Codex manifest, router, or helper must keep the canonical `commands/`, `agents/`, and `skills/` trees unchanged. Run the Python adapter tests, then verify a branch-ref install through the `codex plugin` commands documented in [How It Works: Codex CLI](docs/guides/HOW_IT_WORKS.md#codex-cli). Use `$launchpad:lp help` as the supported smoke check. Add and remove test installations through `codex plugin` commands only; do not edit the Codex home or plugin cache by hand.
+
 ## Project structure
 
 ```

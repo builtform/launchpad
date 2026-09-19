@@ -15,11 +15,22 @@ For the day-to-day workflow guide, see [How It Works](HOW_IT_WORKS.md).
 **Contents:**
 
 - [The six-layer model](#the-six-layer-model)
+- [One kernel, thin host adapters](#one-kernel-thin-host-adapters)
 - [The four meta-orchestrators](#the-four-meta-orchestrators)
 - [Design principles](#design-principles)
 - [The agent fleet](#the-agent-fleet)
 - [Skill creation infrastructure](#skill-creation-infrastructure)
 - [Inspirations and credits](#inspirations-and-credits)
+
+---
+
+## One kernel, thin host adapters
+
+LaunchPad keeps workflow truth in one canonical kernel. Each command, agent, and skill has one file, and every supported host reads that file. Claude Code exposes the canonical commands directly. Codex uses one router skill that resolves the requested canonical file and applies a small host-interpretation contract before following it.
+
+One router is deliberately smaller than a set of per-command wrappers. A wrapper for every workflow would duplicate routing logic, drift when a canonical file changes, and require a second file whenever LaunchPad adds a command. A live router inventory makes a new canonical command available without adapter work.
+
+The safety bar is parity with Claude Code plus visible disclosure. Both hosts depend on their own approval, sandbox, and permission systems. When Codex cannot enforce a Claude-specific restriction, LaunchPad preserves the workflow, states the weaker behavior, and names any concrete missing capability that stops a step. It does not claim guarantees that the host cannot provide.
 
 ---
 
