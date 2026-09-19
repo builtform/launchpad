@@ -6,7 +6,7 @@
 
 LaunchPad ships versioned releases via the GitHub release flow. Every release follows this exact sequence to ensure each tag has hand-authored release notes published as a durable artifact in the repo.
 
-Codex adapter releases: bump `plugins/launchpad/.claude-plugin/plugin.json` and `plugins/launchpad/.codex-plugin/plugin.json` together, then run PA-0 and PA-1 by hand before tagging.
+Codex adapter releases: bump `plugins/launchpad/.claude-plugin/plugin.json` and `plugins/launchpad/.codex-plugin/plugin.json` together, then run PA-0 and PA-1 by hand and re-list the host-generated `launchpad:source-command-*` entries before tagging.
 
 ## Why this process exists
 

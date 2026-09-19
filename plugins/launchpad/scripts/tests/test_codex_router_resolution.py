@@ -413,6 +413,8 @@ def test_orchestration_fixture_prepares_messy_project(tmp_path: Path) -> None:
             str(prepared),
             "--nonce",
             nonce,
+            "--plan-path",
+            "docs/plans/fixture-plan.md",
         ],
         capture_output=True,
         text=True,
@@ -423,6 +425,7 @@ def test_orchestration_fixture_prepares_messy_project(tmp_path: Path) -> None:
     payload = json.loads(result.stdout)
     assert payload == {
         "nonce": nonce,
+        "plan_path": str(prepared / "docs" / "plans" / "fixture-plan.md"),
         "project_root": str(prepared),
         "seeded_diff": "CLAUDE.md",
     }
@@ -439,6 +442,9 @@ def test_orchestration_fixture_prepares_messy_project(tmp_path: Path) -> None:
         timeout=30,
     )
     assert status.stdout.splitlines() == [" M CLAUDE.md"]
+    assert "# Fixture plan" in (
+        prepared / "docs" / "plans" / "fixture-plan.md"
+    ).read_text(encoding="utf-8")
 
     project_args = ("--project-root", str(prepared), "--json")
     agent = _ok(_ROUTER, "resolve", "agent", "fixture-reviewer", *project_args)
@@ -473,3 +479,69 @@ def test_orchestration_fixture_prepares_messy_project(tmp_path: Path) -> None:
         raise_on_no_match=True,
     )
     assert filtered == ["fixture-reviewer"]
+
+
+def test_acceptance_fixture_prepares_distinct_probe_plugin(tmp_path: Path) -> None:
+    marketplace = tmp_path / "probe marketplace"
+    plugin = marketplace / "plugins" / "launchpad-pa4"
+    probe_output = tmp_path / "probe-result.txt"
+    nonce = "SECTION5_PA4_NONCE_TEST"
+    source_skill = (_PLUGIN / "codex" / "skills" / "lp" / "SKILL.md").read_bytes()
+    source_helper = (_PLUGIN / "scripts" / _ROUTER.name).read_bytes()
+    source_commands = {path.name for path in (_PLUGIN / "commands").glob("*.md")}
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_ORCHESTRATION_FIXTURE / "prepare_fixture.py"),
+            "--plugin-source",
+            str(_PLUGIN),
+            "--plugin-output",
+            str(plugin),
+            "--plugin-name",
+            "launchpad-pa4",
+            "--probe-output",
+            str(probe_output),
+            "--probe-nonce",
+            nonce,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["invocation"] == f"$launchpad-pa4:lp zzz-probe {nonce}"
+    assert payload["marketplace_name"] == "launchpad-pa4-marketplace"
+    assert payload["marketplace_root"] == str(marketplace)
+    assert payload["plugin_root"] == str(plugin)
+    assert payload["probe_output"] == str(probe_output)
+
+    for manifest_name in (
+        ".claude-plugin/plugin.json",
+        ".codex-plugin/plugin.json",
+    ):
+        source_manifest = json.loads(
+            (_PLUGIN / manifest_name).read_text(encoding="utf-8")
+        )
+        probe_manifest = json.loads(
+            (plugin / manifest_name).read_text(encoding="utf-8")
+        )
+        assert probe_manifest.pop("name") == "launchpad-pa4"
+        source_manifest.pop("name")
+        assert probe_manifest == source_manifest
+
+    assert (plugin / "codex" / "skills" / "lp" / "SKILL.md").read_bytes() == (
+        source_skill
+    )
+    assert (plugin / "scripts" / _ROUTER.name).read_bytes() == source_helper
+    assert {path.name for path in (plugin / "commands").glob("*.md")} == (
+        source_commands | {"lp-zzz-probe.md"}
+    )
+    probe_text = (plugin / "commands" / "lp-zzz-probe.md").read_text(
+        encoding="utf-8"
+    )
+    assert nonce in probe_text
+    assert str(probe_output) in probe_text
+    assert not (_PLUGIN / "commands" / "lp-zzz-probe.md").exists()

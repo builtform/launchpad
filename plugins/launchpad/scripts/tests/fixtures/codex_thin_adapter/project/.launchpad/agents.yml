@@ -8,3 +8,9 @@ review_document_agents:
   - lp-document-truth
 review_document_artifacts:
   - CLAUDE.md
+
+harden_plan_agents:
+  - lp-pattern-finder
+harden_plan_conditional_agents: []
+harden_document_agents:
+  - lp-coherence-reviewer
