@@ -57,7 +57,7 @@ Note: v2.1 (BL-247) decommissioned the `*.template.*` root files. The v2.x kerne
 | `packages/`                                             | Shared internal libraries (db, shared, ui, eslint-config, typescript-config)   |
 | `scripts/`                                              | Repo-wide maintenance and automation                                           |
 | `docs/`                                                 | Centralized documentation hub                                                  |
-| `plugins/launchpad/`                                    | The LaunchPad plugin (commands/, agents/, skills/, .claude-plugin/plugin.json) |
+| `plugins/launchpad/`                                    | The LaunchPad plugin (canonical workflows plus Claude and Codex host adapters) |
 | `.claude-plugin/`                                       | Marketplace manifest (marketplace.json) — points at plugins/launchpad/         |
 | `.github/`                                              | GitHub Actions, issue/PR templates                                             |
 | `.vscode/`                                              | Shared editor settings                                                         |
@@ -206,9 +206,11 @@ docs/                                        # See Decision Tree (Section 6.1) f
 
 plugins/launchpad/                           # The LaunchPad plugin source
 ├── .claude-plugin/plugin.json               # Plugin manifest (name, version, marketplace metadata)
+├── .codex-plugin/plugin.json                # Codex manifest (same identity, router skill path)
 ├── commands/                                # /lp-* slash command markdown definitions
 ├── agents/                                  # Sub-agents (research/, review/, resolve/, design/, skills/, document-review/)
 ├── skills/                                  # Plugin skills (lp-*/SKILL.md + references/ + evals/)
+├── codex/skills/lp/                         # Codex router skill and host adapter contract
 ├── scaffolders/                             # v2.0 per-stack pattern docs with knowledge-anchor `last_validated:` + sha256 pins
 │                                            #   (astro/django/eleventy/expo/fastapi/hono/hugo/next/rails/supabase)
 └── scripts/                                 # Plugin runtime — Python helpers + adapters + tests
@@ -422,7 +424,7 @@ Walk through in order. Stop at the first match.
 
 Create `packages/<name>/` with `package.json` (`@repo/<name>`), `tsconfig.json`, `src/index.ts`. Never under `apps/`.
 
-### 6.13 Claude Code agent, command, or skill
+### 6.13 LaunchPad agent, command, or skill
 
 - Agent → `plugins/launchpad/agents/<namespace>/<name>.md`
 - Command → `plugins/launchpad/commands/<name>.md`
@@ -430,6 +432,7 @@ Create `packages/<name>/` with `package.json` (`@repo/<name>`), `tsconfig.json`,
 - Skill → `plugins/launchpad/skills/<skill-name>/SKILL.md`
 - Skill references → `plugins/launchpad/skills/<skill-name>/references/` (one level deep only)
 - Skill evals → `plugins/launchpad/skills/<skill-name>/evals/`
+- Codex router skill and contract → `plugins/launchpad/codex/skills/lp/`
 - Prompt template → `.claude/Prompts/` (project-local, not plugin content)
 - Profile → `.claude/profiles/` (project-local, not plugin content)
 

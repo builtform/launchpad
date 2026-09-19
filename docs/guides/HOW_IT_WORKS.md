@@ -1,16 +1,19 @@
 # How It Works
 
-LaunchPad is an agentic coding harness with two main layers under the hood: a **governance kernel** plus a **Claude Code plugin** that ride together inside any repository. The kernel is the persistent substrate (`REPOSITORY_STRUCTURE.md` whitelist, `lefthook.yml` pre-commit gates, `.launchpad/config.yml`, `.harness/` runtime, `docs/architecture/` core docs) that survives between sessions; the plugin is the 42 slash commands, 39 sub-agents, and 16 skills that operate against the kernel. The kernel lets each agent run inherit the previous run's findings instead of starting cold; the plugin gives Claude Code the verbs to brainstorm, define, plan, build, review, ship, and learn.
+LaunchPad is an agentic coding harness with two main layers under the hood: a **governance kernel** plus a **plugin for Claude Code and Codex** that ride together inside any repository. The kernel is the persistent substrate (`REPOSITORY_STRUCTURE.md` whitelist, `lefthook.yml` pre-commit gates, `.launchpad/config.yml`, `.harness/` runtime, `docs/architecture/` core docs) that survives between sessions; the plugin is the 42 slash commands, 39 sub-agents, and 16 skills that operate against the kernel. The kernel lets each agent run inherit the previous run's findings instead of starting cold; the plugin gives Claude Code or Codex the verbs to brainstorm, define, plan, build, review, ship, and learn.
 
 Brownfield projects pick up the kernel by adding the plugin to an existing repo and running `/lp-define`, while greenfield projects materialize the kernel from scratch through the four-command v2.0 pipeline (`/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`). Both paths converge on the same operating model. For the framing of why this works, see [README.md](../../README.md). For the day-to-day pipeline below, read on.
 
 This guide walks the full pipeline day-to-day. For the "why" behind the design, see [METHODOLOGY.md](METHODOLOGY.md).
+
+Commands appear in their Claude Code form, `/lp-<name>`. On Codex the same command is `$launchpad:lp <name>`; see [Codex](#codex).
 
 ---
 
 **Contents:**
 
 - [Installing the plugin](#installing-the-plugin)
+- [Codex](#codex)
 - [The Greenfield Pipeline (v2.0)](#the-greenfield-pipeline-v20)
 - [Post-scaffold lifecycle: `/lp-update-identity`](#post-scaffold-lifecycle-lp-update-identity)
 - [The four meta-orchestrators](#the-four-meta-orchestrators)
@@ -93,6 +96,69 @@ v2.x greenfield projects scaffolded via `/lp-brainstorm` → `/lp-pick-stack` �
 ```
 
 Restart Claude Code after updating. The install cache (`~/.claude/plugins/cache/builtform/launchpad/<version>/`) is a snapshot taken at install time, so uninstall + marketplace-update + reinstall is the supported refresh flow.
+
+---
+
+## Codex
+
+Codex installs the same plugin from the same BuiltForm marketplace as Claude Code, so both hosts run the same pinned release. One rule converts everything in this guide: where it writes `/lp-<name>`, type `$launchpad:lp <name>`. `/lp-review` becomes `$launchpad:lp review`.
+
+### Installing on Codex
+
+```bash
+codex plugin marketplace add builtform/marketplace
+codex plugin add launchpad@builtform
+```
+
+Start a new Codex session and run `$launchpad:lp help`. It lists every available command with a one-line description. `codex plugin list` should show `launchpad@builtform` as installed and enabled.
+
+The Codex desktop app and the command line share one plugin configuration, so these commands serve both. If you use only the desktop app and `codex` is not on your PATH, the same binary ships inside the app; on macOS it is `/Applications/ChatGPT.app/Contents/Resources/codex`.
+
+### Updating and removing on Codex
+
+Update:
+
+```bash
+codex plugin marketplace upgrade builtform
+codex plugin add launchpad@builtform
+```
+
+Remove:
+
+```bash
+codex plugin remove launchpad@builtform
+codex plugin marketplace remove builtform
+```
+
+### Running commands on Codex
+
+`$launchpad:lp <command> [arguments]` is the supported form. `$launchpad:lp help <command>` shows one command's description. `$lp <command>` and plain-language requests also reached LaunchPad during verification, but Codex does not guarantee them, so use the full form in scripts and written instructions.
+
+Project agents and skills work from the same folders as on Claude Code, `.claude/agents/` and `.claude/skills/`. A file in those folders that is not a valid agent or skill is skipped and named at the end of the run. It never blocks the valid ones.
+
+Every run ends with a short disclosure of which differences below applied to it.
+
+### What is verified on Codex
+
+As of September 19, 2026, verification has run on a real Codex `0.154.0-alpha.6.2` installation, from its command line in non-interactive `codex exec` sessions.
+
+| Command                     | Result on Codex                                                                                                                                |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `help`, `hydrate`, `review` | Verified end to end. `review` ran its specialists concurrently, including a project-defined agent, and wrote its finding files.                |
+| `harden-plan`               | Loaded its document-review skill, ran its specialists, and reached its apply-or-skip confirmation prompt.                                      |
+| `commit`                    | Ran to its first prerequisite check and refused correctly in a project with no `.launchpad/config.yml`, pointing to `/lp-define` as it should. |
+| Every other command         | Runs through the same router and is not yet verified on Codex. A step may stop with a message that names what is missing.                      |
+
+### Differences from Claude Code
+
+Last checked September 19, 2026, against Codex `0.154.0-alpha.6.2` and Claude Code `2.1.258`. Both hosts change quickly; recheck anything here that matters to you.
+
+- **Sub-agent tool restrictions are advisory.** Claude Code enforces each agent's tool list. Codex does not: a review specialist is told it is read-only, but the host will not stop it from writing. Run review and PR-comment workflows in the `workspace-write` sandbox with approvals on, never with `--dangerously-bypass-approvals-and-sandbox`.
+- **Project hooks do not run.** The hooks LaunchPad writes to `.claude/settings.json`, including the hook layer of [three-layer merge prevention](#three-layer-merge-prevention), are Claude Code hooks. On Codex the command-level refusal and GitHub branch protection still apply; the hook layer does not. Codex-native hooks are not shipped yet.
+- **Specialist dispatch.** Specialists run concurrently when Codex allows it and one after another otherwise. The run says which mode it used and names any specialist that failed or timed out. A failed specialist is never counted as a pass.
+- **Compound loop.** The loop can drive Codex by setting `"tool": "codex"` in `scripts/compound/config.json`. It was not tested on Codex, and it runs Codex with approvals and the sandbox bypassed, the same unattended posture as the Claude Code loop.
+- **Surfaces.** Only the command line was verified, in `codex exec` sessions. The desktop app runs the same engine and reads the same plugin configuration, but LaunchPad has not been run there yet, and neither has the interactive terminal session. OpenAI's documentation says the IDE extension does not support plugins.
+- **Entries Codex generates itself.** Codex may list a few small LaunchPad commands as `launchpad:source-command-*`. Codex creates these on its own; they skip the router, so a nested `/lp-` command inside one may not resolve. Use `$launchpad:lp <command>`.
 
 ---
 
