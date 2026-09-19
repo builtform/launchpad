@@ -233,4 +233,4 @@ Run periodically or when GitHub flags vulnerabilities the open Dependabot PRs do
 4. Squash-merge (the only enabled merge style)
 5. Branch auto-deletes on merge
 
-Tag releases with `vX.Y.Z`, push tag, then `gh release create vX.Y.Z -F docs/releases/vX.Y.Z.md` with hand-authored notes.
+Tag releases with `vX.Y.Z`, push tag, then `gh release create vX.Y.Z -F docs/releases/vX.Y.Z.md` with hand-authored notes. After a tag push passes the `verify-v2-ship` job, `promote-stable` fast-forwards `stable` to the verified tag commit. Manual verification runs do not promote, and the job refuses any update that would not move `stable` forward.

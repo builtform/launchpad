@@ -4573,10 +4573,10 @@ Add a lane only after Codex provides a supported headless authentication and bin
 
 ---
 
-#### BL-396 - v2.2: Move the BuiltForm marketplace pin automatically on release
+#### BL-396 - v2.2: Promote verified releases to the `stable` branch
 
 - **Priority**: P1
-- **Status**: TODO
+- **Status**: IN_PROGRESS
 - **Area**: CI / Release
 
 **Encountered**
@@ -4587,12 +4587,42 @@ Add a lane only after Codex provides a supported headless authentication and bin
 
 **Desired Behavior**
 
-When a `v*` tag is pushed in this repository, a workflow opens a pull request on `builtform/marketplace` that sets the `launchpad` entry's `ref` to the new tag. A maintainer merges it. The workflow authenticates with a credential limited to that one repository, and its actions are pinned by commit SHA like every other workflow here.
+After a `v*.*.*` tag passes the existing release verification job, this repository fast-forwards its `stable` branch to the verified tag commit. The BuiltForm marketplace pins `stable` once, so subsequent releases reach marketplace users without a per-release marketplace change.
 
 **Out of Scope by Decision**
 
-A scheduled drift check.
+No cross-repository credential and no scheduled drift check. Release promotion uses this repository's built-in token only.
 
 **Notes**
 
-Until this ships, the manual pin step in `docs/maintainers/RELEASE_PROCESS.md` applies.
+The promotion runs only after verification on a tag push, never on manual verification runs. `stable` only moves forward; withdrawing a release requires a new patch release.
+
+---
+
+#### BL-397 - v2.2: Align the release recovery contract with tag-run reruns
+
+- **Priority**: P2
+- **Status**: TODO
+- **Area**: Docs
+
+**Encountered**
+
+- **Date**: 2026-09-19
+- **Location**: `docs/architecture/SCAFFOLD_OPERATIONS.md` section 7.0a
+- **Scenario**: Stable promotion intentionally skips the manual `workflow_dispatch` lane, but the canonical recovery text still prescribes that lane after a transient verification failure.
+
+**Current Behavior**
+
+The documented `gh workflow run v2-release.yml --ref <tag>` procedure can verify the tag successfully without running `promote-stable`, leaving marketplace users on the previous release.
+
+**Desired Behavior**
+
+The recovery contract tells maintainers to rerun the failed jobs of the original tag-push run with `gh run rerun <run-id> --failed` and states that the manual lane verifies only.
+
+**Proposed Fix** (revalidate before implementing)
+
+Update section 7.0a and any related canonical recovery references in a dedicated contract change. Preserve the existing contract review and validation requirements.
+
+**Notes**
+
+Deferred from PR #206 by maintainer decision. That pull request updates only the maintainer release process and the release workflow comments.

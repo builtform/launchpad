@@ -23,6 +23,9 @@
 # All checks (steps 0-6) must pass for the tag to be considered
 # "verified-shipped". Failure → §7.1 inline rollback procedure (delete tag from
 # origin, ship a fresh patch on next ship attempt).
+# After verification on a tag push, promote-stable fast-forwards the stable
+# branch to the verified tag commit. stable only moves forward and is never
+# force-pushed.
 name: verify-v2-ship
 
 on:
@@ -33,6 +36,9 @@ on:
   # When verify-v2-ship hits transient propagation lag (≤120s eventual
   # consistency) the maintainer runs `gh workflow run v2-release.yml --ref
   # <tag>` to retry. Three consecutive failures → §7.1 yank procedure.
+  # This manual lane verifies only and never moves stable.
+  # To recover a release, rerun the failed jobs of the original tag-push run
+  # with `gh run rerun <run-id> --failed` so promote-stable runs.
   workflow_dispatch:
     inputs:
       tag:
@@ -166,3 +172,41 @@ jobs:
           # release. If this fails, re-stamp the flagged docs to today and
           # re-tag (contract docs use their re-stamp-affirmation commit form).
           python plugins/launchpad/scripts/plugin-freshness-check.py --gating
+
+  promote-stable:
+    needs: verify
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Fast-forward stable to the verified tag
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+          PUSH_SHA: ${{ github.sha }}
+        run: |
+          TAG_SHA=$(git rev-parse "${PUSH_SHA}^{commit}")
+          if ! git fetch --force origin "refs/tags/${TAG_NAME}:refs/tags/${TAG_NAME}"; then
+            echo "::error::tag ${TAG_NAME} no longer exists; refusing to promote"
+            exit 1
+          fi
+          CURRENT_TAG_SHA=$(git rev-list -n 1 "${TAG_NAME}")
+          if [ "${CURRENT_TAG_SHA}" != "${TAG_SHA}" ]; then
+            echo "::error::tag ${TAG_NAME} now points to ${CURRENT_TAG_SHA}, not pushed commit ${TAG_SHA}; refusing to promote unverified code"
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --heads origin stable >/dev/null 2>&1; then
+            git fetch origin stable
+            STABLE_SHA=$(git rev-parse origin/stable)
+            if ! git merge-base --is-ancestor "${STABLE_SHA}" "${TAG_SHA}"; then
+              echo "::error::stable at ${STABLE_SHA} is not an ancestor of tag ${TAG_NAME} at ${TAG_SHA}; refusing to move stable backward or overwrite a direct commit"
+              exit 1
+            fi
+          fi
+
+          git push origin "${TAG_SHA}:refs/heads/stable"
