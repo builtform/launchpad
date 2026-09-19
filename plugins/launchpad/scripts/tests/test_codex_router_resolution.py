@@ -187,15 +187,16 @@ def test_file_safety_negatives_per_allowed_origin(
             target.parent.mkdir(parents=True)
             target.write_text(_frontmatter("lp-duplicate"), encoding="utf-8")
     else:
-        target = root / f"lp-{case}" / "SKILL.md"
+        case_id = case.replace("_", "-")
+        target = root / f"lp-{case_id}" / "SKILL.md"
         target.parent.mkdir(parents=True)
         if case == "symlink":
             outside = tmp_path / f"outside-{origin}.md"
-            outside.write_text(_frontmatter(f"lp-{case}"), encoding="utf-8")
+            outside.write_text(_frontmatter(f"lp-{case_id}"), encoding="utf-8")
             os.symlink(outside, target)
         elif case == "oversize":
             target.write_text(
-                _frontmatter(f"lp-{case}") + ("x" * 1_000_001),
+                _frontmatter(f"lp-{case_id}") + ("x" * 1_000_001),
                 encoding="utf-8",
             )
         elif case == "invalid_utf8":
@@ -206,11 +207,103 @@ def test_file_safety_negatives_per_allowed_origin(
             )
 
     args = ["inventory", "--kind", "skill"]
-    if origin == "project":
-        args.extend(["--project-root", str(project)])
-    args.append("--json")
-    error = _error(router, *args)
+    if origin == "built_in":
+        args.append("--json")
+        error = _error(router, *args)
+        assert error["code"] == code
+        return
+
+    args.extend(["--project-root", str(project), "--json"])
+    payload = _ok(router, *args)
+    assert code in {item["code"] for item in payload["skipped"]}
+
+    requested_id = f"lp-{case.replace('_', '-')}"
+    error = _error(
+        router,
+        "resolve",
+        "skill",
+        requested_id,
+        "--project-root",
+        str(project),
+        "--json",
+    )
     assert error["code"] == code
+
+
+def _plant_project_agent_problem(
+    root: Path, tmp_path: Path, case: str
+) -> tuple[str | None, str, list[Path]]:
+    if case == "readme":
+        target = root / "README.md"
+        target.write_text("Project-specific agent notes.\n", encoding="utf-8")
+        return None, "invalid_id", [target]
+    if case == "malformed":
+        target = root / "lp-malformed.md"
+        target.write_text("---\nname: lp-malformed\n", encoding="utf-8")
+        return "lp-malformed", "malformed_frontmatter", [target]
+    if case == "invalid_utf8":
+        target = root / "lp-invalid-utf8.md"
+        target.write_bytes(b"---\nname: lp-invalid-utf8\n---\n\xff")
+        return "lp-invalid-utf8", "invalid_utf8", [target]
+    if case == "symlink":
+        target = root / "lp-symlink.md"
+        outside = tmp_path / "outside-agent.md"
+        outside.write_text(_frontmatter("lp-symlink"), encoding="utf-8")
+        os.symlink(outside, target)
+        return "lp-symlink", "symlink_rejected", [target]
+    targets = [
+        root / "one" / "lp-duplicate.md",
+        root / "two" / "lp-duplicate.md",
+    ]
+    for target in targets:
+        target.parent.mkdir()
+        target.write_text(_frontmatter("lp-duplicate"), encoding="utf-8")
+    return "lp-duplicate", "duplicate_id", targets
+
+
+@pytest.mark.parametrize(
+    "case", ("readme", "malformed", "invalid_utf8", "symlink", "duplicate")
+)
+def test_project_agent_problems_are_skipped_for_unaffected_resolutions(
+    tmp_path: Path, case: str
+) -> None:
+    plugin = _plugin(tmp_path)
+    project = _project(tmp_path)
+    router = plugin / "scripts" / _ROUTER.name
+    agent_root = project / ".claude" / "agents"
+    project_args = ("--project-root", str(project), "--json")
+
+    before = _ok(router, "inventory", "--kind", "agent", *project_args)
+    assert before["skipped"] == []
+
+    requested_id, code, targets = _plant_project_agent_problem(
+        agent_root, tmp_path, case
+    )
+    inventory = _ok(router, "inventory", "--kind", "agent", *project_args)
+    valid_project = _ok(
+        router, "resolve", "agent", "lp-project-agent", *project_args
+    )
+    valid_built_in = _ok(
+        router, "resolve", "agent", "lp-shared-agent", *project_args
+    )
+
+    skipped = inventory["skipped"]
+    assert {item["code"] for item in skipped} == {code}
+    assert {item["path"] for item in skipped} == {str(path) for path in targets}
+    assert valid_project["origin"] == "project"
+    assert valid_project["skipped"] == skipped
+    assert valid_built_in["origin"] == "built_in"
+    assert valid_built_in["skipped"] == skipped
+    if requested_id is not None:
+        error = _error(
+            router, "resolve", "agent", requested_id, *project_args
+        )
+        assert error["code"] == code
+
+    for target in targets:
+        target.unlink()
+    after = _ok(router, "inventory", "--kind", "agent", *project_args)
+    assert after["skipped"] == []
 
 
 def test_containment_guard_rejects_both_root_directions(tmp_path: Path) -> None:

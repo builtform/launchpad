@@ -242,6 +242,7 @@ def _record(kind: str, origin: str, path: Path, root: Path) -> dict[str, str]:
         _fail(
             "id_mismatch",
             f"canonical id does not match its path: {item_id}",
+            id=item_id,
             expected=expected,
             path=str(path_real),
         )
@@ -275,17 +276,72 @@ def _scan_root(kind: str, origin: str, root: Path) -> list[dict[str, str]]:
     return records
 
 
-def _records(kind: str, project_root: Path | None) -> list[dict[str, str]]:
+def _project_records(
+    kind: str, root: Path
+) -> tuple[list[dict[str, str]], list[dict[str, str]], dict[str, RouterError]]:
+    records: list[dict[str, str]] = []
+    skipped: list[dict[str, str]] = []
+    issues: dict[str, RouterError] = {}
+    for path in _candidate_paths(kind, root):
+        fallback_id = _fallback_id(kind, path)
+        try:
+            records.append(_record(kind, "project", path, root))
+        except RouterError as exc:
+            skipped.append({"code": exc.code, "path": str(path)})
+            if NAME_PATTERN.fullmatch(fallback_id):
+                issues[fallback_id] = exc
+            declared_id = exc.details.get("id")
+            if isinstance(declared_id, str) and NAME_PATTERN.fullmatch(declared_id):
+                issues[declared_id] = exc
+
+    by_id: dict[str, list[dict[str, str]]] = {}
+    for record in records:
+        by_id.setdefault(record["id"], []).append(record)
+    duplicate_ids = {item_id for item_id, items in by_id.items() if len(items) > 1}
+    for item_id in sorted(duplicate_ids):
+        paths = sorted(item["path"] for item in by_id[item_id])
+        issue = RouterError(
+            "duplicate_id",
+            f"canonical id is duplicated within project: {item_id}",
+            id=item_id,
+            paths=paths,
+        )
+        issues[item_id] = issue
+        skipped.extend({"code": issue.code, "path": path} for path in paths)
+    records = [record for record in records if record["id"] not in duplicate_ids]
+    return records, sorted(skipped, key=lambda item: item["path"]), issues
+
+
+def _record_set(
+    kind: str, project_root: Path | None
+) -> tuple[list[dict[str, str]], list[dict[str, str]], dict[str, RouterError]]:
     built_in_root = _root(kind, "built_in", project_root)
     assert built_in_root is not None
     records = _scan_root(kind, "built_in", built_in_root)
+    skipped: list[dict[str, str]] = []
+    issues: dict[str, RouterError] = {}
     project_extension_root = _root(kind, "project", project_root)
     if project_extension_root is not None:
-        records.extend(_scan_root(kind, "project", project_extension_root))
-    return sorted(
-        records,
-        key=lambda item: (item["id"], 0 if item["origin"] == "built_in" else 1),
+        project_records, skipped, issues = _project_records(
+            kind, project_extension_root
+        )
+        records.extend(project_records)
+    return (
+        sorted(
+            records,
+            key=lambda item: (
+                item["id"],
+                0 if item["origin"] == "built_in" else 1,
+            ),
+        ),
+        skipped,
+        issues,
     )
+
+
+def _records(kind: str, project_root: Path | None) -> list[dict[str, str]]:
+    records, _, _ = _record_set(kind, project_root)
+    return records
 
 
 def _collision_report(records: list[dict[str, str]]) -> list[dict[str, object]]:
@@ -304,11 +360,12 @@ def _collision_report(records: list[dict[str, str]]) -> list[dict[str, object]]:
 
 
 def _inventory(kind: str, project_root: Path | None) -> dict[str, object]:
-    records = _records(kind, project_root)
+    records, skipped, _ = _record_set(kind, project_root)
     return {
         "collisions": _collision_report(records),
         "items": records,
         "kind": kind,
+        "skipped": skipped,
     }
 
 
@@ -326,15 +383,20 @@ def _requested_id(kind: str, name: str) -> str:
 
 def _resolve(kind: str, name: str, project_root: Path | None) -> dict[str, object]:
     item_id = _requested_id(kind, name)
-    records = _records(kind, project_root)
+    records, skipped, project_issues = _record_set(kind, project_root)
     matches = [record for record in records if record["id"] == item_id]
     if not matches:
+        project_issue = project_issues.get(item_id)
+        if project_issue is not None:
+            project_issue.details["skipped"] = skipped
+            raise project_issue
         available = sorted({record["id"] for record in records})
         suggestions = difflib.get_close_matches(item_id, available, n=3, cutoff=0.6)
         _fail(
             "not_found",
             f"canonical {kind} does not exist: {item_id}",
             id=item_id,
+            skipped=skipped,
             suggestions=suggestions,
         )
 
@@ -347,6 +409,7 @@ def _resolve(kind: str, name: str, project_root: Path | None) -> dict[str, objec
         for record in matches
         if record is not selected
     ]
+    result["skipped"] = skipped
     return result
 
 
