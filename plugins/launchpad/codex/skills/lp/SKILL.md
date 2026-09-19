@@ -56,12 +56,14 @@ Before following a resolved command or skill, read `<directory of this SKILL.md>
 
 When a canonical workflow reads a roster from `.launchpad/agents.yml`, resolve every configured name through the helper with the absolute project root. Use only the resolved lists, log each helper call with its raw JSON, and follow the workflow's own filtering and refusal procedure exactly as its canonical file states it. Do not substitute an invented roster or drop a specialist to make the run faster.
 
-Immediately before each dispatch, resolve that agent through the helper. Every subagent prompt must contain, in order:
+Immediately before dispatching a named specialist, resolve that agent through the helper. When the canonical workflow defines an inline subagent task without naming a specialist, do not invent an agent name or require a canonical agent file. Dispatch the inline task directly under the same contract.
+
+Every subagent prompt must contain, in order:
 
 1. The complete host adapter contract.
 2. The absolute resolved plugin root and project root.
-3. The resolved canonical agent prompt.
-4. The task for that agent.
+3. The resolved canonical agent prompt for a named specialist, or the canonical workflow's complete inline task definition.
+4. The task for that agent when it is distinct from the inline task definition.
 
 Start independent specialists concurrently when the host allows it, then wait for all of them. If concurrent dispatch is unavailable, run every specialist sequentially. Never drop a specialist. Name each failed or timed-out specialist, never count it as a pass, and state whether the run used concurrent or sequential dispatch.
 

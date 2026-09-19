@@ -191,6 +191,27 @@ def test_adapter_names_no_canonical_command_or_script(tmp_path: Path) -> None:
     assert not any(_named_canonical_references(plugin).values())
 
 
+def test_dispatch_contract_distinguishes_named_and_inline_tasks() -> None:
+    contract = (
+        _PLUGIN
+        / "codex"
+        / "skills"
+        / "lp"
+        / "references"
+        / "host-adapter-contract.md"
+    ).read_text(encoding="utf-8")
+    skill = (_PLUGIN / "codex" / "skills" / "lp" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+
+    for text in (contract, skill):
+        assert "named specialist" in text
+        assert "inline subagent task" in text
+        assert "without inventing an agent name" in text or (
+            "do not invent an agent name" in text
+        )
+
+
 def test_live_inventory_tracks_additions_and_removals_without_other_writes(
     tmp_path: Path,
 ) -> None:
