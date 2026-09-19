@@ -50,9 +50,7 @@ Before following a resolved command or skill, read `<directory of this SKILL.md>
 
 ## Dispatch specialists
 
-Use the roster named by the canonical workflow. For `lp-review`, read `.launchpad/agents.yml`, resolve each configured roster entry with `resolve agent <name> --project-root <absolute-project-root> --json`, and use only the resolved lists in later review steps. Keep every helper call and its raw JSON in the run log.
-
-Apply the stack filtering procedure from `lp-review.md` exactly. Load persisted stacks with `plugin-config-loader.py` and filter the resolved general review roster through `plugin-agent-scope-filter.py`, including validated project-agent scopes and `raise_on_no_match=True`. Preserve the canonical refusal, fallback, and partial-drop behavior. Do not substitute an invented roster or drop a specialist to make the run faster.
+When a canonical workflow reads a roster from `.launchpad/agents.yml`, resolve every configured name through the helper with the absolute project root. Use only the resolved lists, log each helper call with its raw JSON, and follow the workflow's own filtering and refusal procedure exactly as its canonical file states it. Do not substitute an invented roster or drop a specialist to make the run faster.
 
 Immediately before each dispatch, resolve that agent through the helper. Every subagent prompt must contain, in order:
 

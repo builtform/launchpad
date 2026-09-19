@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -85,6 +86,54 @@ def _ids(payload: dict) -> set[str]:
     return {item["id"] for item in payload["items"]}
 
 
+def _named_canonical_references(plugin: Path) -> dict[str, list[str]]:
+    contract_path = (
+        plugin
+        / "codex"
+        / "skills"
+        / "lp"
+        / "references"
+        / "host-adapter-contract.md"
+    )
+    skill_path = plugin / "codex" / "skills" / "lp" / "SKILL.md"
+    contract = contract_path.read_text(encoding="utf-8")
+    skill = skill_path.read_text(encoding="utf-8")
+
+    grammar_example = next(
+        line
+        for line in skill.splitlines()
+        if "Both `review` and `lp-review` resolve" in line
+    )
+    skill_without_exceptions = skill.replace(grammar_example, "").replace(
+        "plugin-codex-router.py", ""
+    )
+    command_ids = {
+        path.stem for path in (plugin / "commands").glob("*.md")
+    }
+    script_names = {
+        path.name
+        for path in (plugin / "scripts").iterdir()
+        if path.is_file() and path.suffix in {".py", ".sh"}
+    }
+
+    def found(text: str, candidates: set[str]) -> list[str]:
+        return sorted(
+            candidate
+            for candidate in candidates
+            if re.search(
+                rf"(?<![a-z0-9-]){re.escape(candidate)}(?![a-z0-9-])",
+                text,
+            )
+        )
+
+    return {
+        "contract_commands": found(contract, command_ids),
+        "contract_scripts": found(contract, script_names),
+        "skill_commands": found(skill_without_exceptions, command_ids),
+        "skill_scripts": found(skill_without_exceptions, script_names),
+    }
+
+
 def test_codex_tree_contains_no_canonical_body_copy() -> None:
     assert not (_PLUGIN / "codex" / "commands").exists()
     assert _duplicate_bodies(_PLUGIN) == []
@@ -99,6 +148,47 @@ def test_single_source_guard_detects_and_clears_both_mutations(tmp_path: Path) -
     assert _duplicate_bodies(plugin)
     copied.unlink()
     assert _duplicate_bodies(plugin) == []
+
+
+def test_adapter_names_no_canonical_command_or_script(tmp_path: Path) -> None:
+    plugin = _copy_plugin(tmp_path)
+    contract = (
+        plugin
+        / "codex"
+        / "skills"
+        / "lp"
+        / "references"
+        / "host-adapter-contract.md"
+    )
+    skill = plugin / "codex" / "skills" / "lp" / "SKILL.md"
+    assert _named_canonical_references(plugin) == {
+        "contract_commands": [],
+        "contract_scripts": [],
+        "skill_commands": [],
+        "skill_scripts": [],
+    }
+
+    contract_before = contract.read_text(encoding="utf-8")
+    contract.write_text(
+        contract_before + "\nRun lp-hydrate with plugin-config-loader.py.\n",
+        encoding="utf-8",
+    )
+    mutated_contract = _named_canonical_references(plugin)
+    assert mutated_contract["contract_commands"] == ["lp-hydrate"]
+    assert mutated_contract["contract_scripts"] == ["plugin-config-loader.py"]
+    contract.write_text(contract_before, encoding="utf-8")
+    assert not any(_named_canonical_references(plugin).values())
+
+    skill_before = skill.read_text(encoding="utf-8")
+    skill.write_text(
+        skill_before + "\nRun lp-hydrate with plugin-config-loader.py.\n",
+        encoding="utf-8",
+    )
+    mutated_skill = _named_canonical_references(plugin)
+    assert mutated_skill["skill_commands"] == ["lp-hydrate"]
+    assert mutated_skill["skill_scripts"] == ["plugin-config-loader.py"]
+    skill.write_text(skill_before, encoding="utf-8")
+    assert not any(_named_canonical_references(plugin).values())
 
 
 def test_live_inventory_tracks_additions_and_removals_without_other_writes(
