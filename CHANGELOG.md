@@ -8,6 +8,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.2.0: BL-365 (parallelize preflight probe dispatch + short-TTL cache), BL-367 (programmatic GitHub-repo linkage verification for provider project probes), BL-368 (DNS `dig +short --` sentinel bug), and BL-366 (18-item preflight polish). The v2.2 series lands the 15 operational/security infrastructure surfaces deferred from v2.0, plus BL-374 (TypeScript 5.x -> 6.x upgrade audit, seeded by v2.1.9), BL-375 (Prisma 6.x -> 7.x upgrade audit, seeded by v2.1.10), BL-377 through BL-385 (CI gate correctness, freshness-contract enforcement, lint parity, and scaffolder catalog follow-ups), BL-386 through BL-395 (Codex follow-ups), plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
 
+## [v2.2.1]
+
+Cleanup after the Codex release. Two commands gain the frontmatter that lets their short names resolve, a decommissioned command stub is removed, the release workflow refuses to promote a release that has no notes file, and the Codex desktop app is recorded as checked.
+
+### For LaunchPad users
+
+- **Short names resolve for two more commands.** `/lp-pnf` and `/lp-research-codebase` now carry a `name` field, so Claude Code resolves the short form instead of answering "Unknown command". `/lp-research-codebase` also gains a description, which clears the one frontmatter warning in plugin validation.
+- **`/lp-pull-launchpad` removed.** The command was decommissioned in v2.1 and survived only as a stub that still appeared in command menus. The stub and its mentions in the guides are gone. LaunchPad now has 42 commands. To update the plugin, follow [How It Works: Updating](docs/guides/HOW_IT_WORKS.md#updating).
+- **Codex desktop app checked (BL-391).** LaunchPad installed through the BuiltForm marketplace loads and runs in the Codex desktop app. The IDE extension remains unsupported because it does not load plugins.
+
+### Plugin-internal changes
+
+- **Release notes are required for promotion (BL-397).** `promote-stable` refuses to move `stable` when `docs/releases/<tag>.md` is missing, and the recovery procedure in `docs/architecture/SCAFFOLD_OPERATIONS.md` now reruns the failed jobs of the original tag-push run, which is the only path that promotes.
+- **Three `mcp` advisory suppressions removed.** `mcp` now resolves to 1.29.0, which contains the fixes, so `osv-scanner.toml` carries no active suppressions.
+- **Housekeeping.** `ROADMAP.md` punctuation, a repository structure note that allows temporary review drafts which are never committed, and a backlog item for one flaky test (BL-398).
+
 ## [v2.2.0]
 
 Codex support, verified release promotion, project-extension tolerance, and ten dependency updates. LaunchPad now runs its canonical workflows on Codex through one router, and verified tags move a forward-only `stable` branch for the marketplace.
@@ -547,7 +563,8 @@ Carried forward into v1.1:
 
 Full v1.1 scope in [ROADMAP.md](ROADMAP.md).
 
-[Unreleased]: https://github.com/builtform/launchpad/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/builtform/launchpad/compare/v2.2.1...HEAD
+[v2.2.1]: https://github.com/builtform/launchpad/compare/v2.2.0...v2.2.1
 [v2.2.0]: https://github.com/builtform/launchpad/compare/v2.1.12...v2.2.0
 [v2.1.9]: https://github.com/builtform/launchpad/compare/v2.1.8...v2.1.9
 [v2.1.8]: https://github.com/builtform/launchpad/compare/v2.1.7...v2.1.8

@@ -1,3 +1,8 @@
+---
+name: lp-research-codebase
+description: "Research the codebase with parallel sub-agents and write a findings report to docs/reports/"
+---
+
 # Research Codebase
 
 You are tasked with conducting comprehensive research across the codebase to answer user questions by spawning parallel sub-agents and synthesizing their findings.

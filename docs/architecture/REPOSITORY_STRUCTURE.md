@@ -411,6 +411,7 @@ Walk through in order. Stop at the first match.
 
 - Exploratory notes → `docs/experiments/`
 - **Never create `file v2.ts`, `file copy.ts`, or `file 2.ts` anywhere.** These are macOS Finder artifacts or lazy experimentation — both unacceptable in production directories.
+- **One exception: a temporary review draft of a long document.** A proposed revision may sit beside its canonical file as `<name>.v2.md` while it is under review. It is never committed (keep `*.v[0-9]*.md` in `.git/info/exclude`), and it is removed in the same step that folds it into the canonical file or discards it.
 - Prototype in `docs/experiments/`, then copy proven logic to canonical location and remove the experiment.
 - **Never import from `docs/experiments/` in production code.**
 

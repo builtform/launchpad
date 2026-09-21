@@ -184,6 +184,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Require the release notes file
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          if [ ! -f "docs/releases/${TAG_NAME}.md" ]; then
+            echo "::error::docs/releases/${TAG_NAME}.md is missing; refusing to promote a release without notes"
+            exit 1
+          fi
+
       - name: Fast-forward stable to the verified tag
         env:
           TAG_NAME: ${{ github.ref_name }}
