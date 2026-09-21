@@ -4448,7 +4448,7 @@ The BuiltForm marketplace (`builtform/marketplace`) is the supported Codex insta
 **Status (2026-09-20)**: SHIPPED in v2.2.1. The maintainer installed LaunchPad 2.2.0 through the BuiltForm marketplace and ran the router in the Codex desktop app, which shares the command line's plugin configuration. The IDE extension stays designated unsupported because OpenAI's documentation says it does not load plugins. `docs/guides/HOW_IT_WORKS.md` records both. A full workflow matrix per surface was not run, by decision.
 
 - **Priority**: P2
-- **Status**: TODO
+- **Status**: SHIPPED in v2.2.1 (PR #208)
 - **Area**: Testing
 
 **Encountered**
@@ -4606,7 +4606,7 @@ The promotion runs only after verification on a tag push, never on manual verifi
 **Status (2026-09-20)**: SHIPPED in v2.2.1. Section 7.0a of `docs/architecture/SCAFFOLD_OPERATIONS.md` now prescribes rerunning the failed jobs of the original tag-push run, and `promote-stable` refuses to move `stable` when `docs/releases/<tag>.md` is missing. The optional `git ls-remote` change was not made: the first real promotion run (v2.2.0) worked as written.
 
 - **Priority**: P2
-- **Status**: TODO
+- **Status**: SHIPPED in v2.2.1 (PR #208)
 - **Area**: Docs
 
 **Encountered**
