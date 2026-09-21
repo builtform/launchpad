@@ -134,6 +134,8 @@ codex plugin marketplace remove builtform
 
 `$launchpad:lp <command> [arguments]` is the supported form. `$launchpad:lp help <command>` shows one command's description. `$lp <command>` and plain-language requests also reached LaunchPad during verification, but Codex does not guarantee them, so use the full form in scripts and written instructions.
 
+The Codex `$` menu completes skill names only, so it shows `launchpad:lp` and does not list the commands behind it. Run `$launchpad:lp help` to see every command.
+
 Project agents and skills work from the same folders as on Claude Code, `.claude/agents/` and `.claude/skills/`. A file in those folders that is not a valid agent or skill is skipped and named at the end of the run. It never blocks the valid ones.
 
 Every run ends with a short disclosure of which differences below applied to it.
@@ -157,7 +159,7 @@ Last checked September 19, 2026, against Codex `0.154.0-alpha.6.2` and Claude Co
 - **Project hooks do not run.** The hooks LaunchPad writes to `.claude/settings.json`, including the hook layer of [three-layer merge prevention](#three-layer-merge-prevention), are Claude Code hooks. On Codex the command-level refusal and GitHub branch protection still apply; the hook layer does not. Codex-native hooks are not shipped yet.
 - **Specialist dispatch.** Specialists run concurrently when Codex allows it and one after another otherwise. The run says which mode it used and names any specialist that failed or timed out. A failed specialist is never counted as a pass.
 - **Compound loop.** The loop can drive Codex by setting `"tool": "codex"` in `scripts/compound/config.json`. It was not tested on Codex, and it runs Codex with approvals and the sandbox bypassed, the same unattended posture as the Claude Code loop.
-- **Surfaces.** Only the command line was verified, in `codex exec` sessions. The desktop app runs the same engine and reads the same plugin configuration, but LaunchPad has not been run there yet, and neither has the interactive terminal session. OpenAI's documentation says the IDE extension does not support plugins.
+- **Surfaces.** The command line was verified in `codex exec` sessions. The desktop app runs the same engine and reads the same plugin configuration, and as of September 20, 2026, LaunchPad installed through the marketplace loads and runs there. The interactive terminal session has not been verified. OpenAI's documentation says the IDE extension does not support plugins.
 - **Entries Codex generates itself.** Codex may list a few small LaunchPad commands as `launchpad:source-command-*`. Codex creates these on its own; they skip the router, so a nested `/lp-` command inside one may not resolve. Use `$launchpad:lp <command>`.
 
 ---
@@ -531,7 +533,6 @@ Collaborative idea exploration. Loads brainstorming skill, dispatches research a
 | `/lp-update-spec`         | Scans all spec files for gaps, TBDs, cross-file inconsistencies                                                                                                     |
 | `/lp-hydrate`             | Session bootstrapping with minimal context                                                                                                                          |
 | `/lp-research-codebase`   | Two-wave research → `docs/reports/` (input for `/lp-inf`)                                                                                                           |
-| `/lp-pull-launchpad`      | Decommissioned in v2.1 (BL-247); use `claude /plugin update launchpad` instead                                                                                      |
 | `/lp-create-agent`        | Create a new agent or convert an existing skill into an agent                                                                                                       |
 | `/lp-memory-report`       | Update session memory files and create a detailed session report                                                                                                    |
 | `/lp-design-onboard`      | Design onboarding flows, empty states, first-time user experiences (invoked from `/lp-plan` Step 2b when relevant)                                                  |
@@ -862,16 +863,6 @@ Print the current canonical hash with `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-conf
 
 Restart Claude Code after updating.
 
-### Pulling upstream LaunchPad scaffold updates (decommissioned in v2.1)
-
-v0/v1 used `/lp-pull-launchpad` and `scripts/setup/pull-upstream.launchpad.sh` to delta-patch downstream template-cloned projects. v2.1 (BL-247) decommissioned both because v2.x kernel-renderer projects no longer carry a forked copy of the scaffold; all scaffold content is rendered by the plugin at scaffold time. To sync from upstream in v2.x:
-
-```
-claude /plugin update launchpad
-```
-
-If you need legacy v0/v1 scaffold-pull behavior, pin to v2.0.x: `git checkout v2.0.x`. See `docs/maintainers/decommission-history.md`.
-
 ### Refreshing a stale plugin cache
 
 The plugin cache at `~/.claude/plugins/cache/builtform/launchpad/<version>/` is a snapshot taken at install time. After updating LaunchPad, always refresh via the uninstall + marketplace-update + reinstall flow above, the cache does not update in place.
@@ -988,8 +979,6 @@ For the canonical post-tag verification flow and the rollback procedure if `veri
 **L2 commands (`/lp-commit`, `/lp-review`, `/lp-ship`, `/lp-harden-plan`) halt at Step 0 Lite with "run /lp-define."** `.launchpad/agents.yml` is missing, run `/lp-define` to seed it. `/lp-define` is the authoritative seeder for that file.
 
 **Plugin commands aren't available after install.** Restart Claude Code. If still missing, verify install: `claude plugin list`. If installed but commands aren't registering, the cache may be stale, uninstall + marketplace-update + reinstall.
-
-**`/lp-pull-launchpad` is decommissioned in v2.1.** Use `claude /plugin update launchpad` instead. Pin to v2.0.x for the legacy delta-patch flow. See `docs/maintainers/decommission-history.md`.
 
 ---
 

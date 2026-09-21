@@ -4443,10 +4443,12 @@ The BuiltForm marketplace (`builtform/marketplace`) is the supported Codex insta
 
 ---
 
-#### BL-391 - v2.2.x: Verify LaunchPad in Codex desktop and IDE surfaces
+#### BL-391 - v2.2.1: Verify LaunchPad in Codex desktop and IDE surfaces
+
+**Status (2026-09-20)**: SHIPPED in v2.2.1. The maintainer installed LaunchPad 2.2.0 through the BuiltForm marketplace and ran the router in the Codex desktop app, which shares the command line's plugin configuration. The IDE extension stays designated unsupported because OpenAI's documentation says it does not load plugins. `docs/guides/HOW_IT_WORKS.md` records both. A full workflow matrix per surface was not run, by decision.
 
 - **Priority**: P2
-- **Status**: TODO
+- **Status**: SHIPPED in v2.2.1 (PR #208)
 - **Area**: Testing
 
 **Encountered**
@@ -4599,10 +4601,12 @@ The promotion runs only after verification on a tag push, never on manual verifi
 
 ---
 
-#### BL-397 - v2.2.x: Close the recovery and release-notes gaps around stable promotion
+#### BL-397 - v2.2.1: Close the recovery and release-notes gaps around stable promotion
+
+**Status (2026-09-20)**: SHIPPED in v2.2.1. Section 7.0a of `docs/architecture/SCAFFOLD_OPERATIONS.md` now prescribes rerunning the failed jobs of the original tag-push run, and `promote-stable` refuses to move `stable` when `docs/releases/<tag>.md` is missing. The optional `git ls-remote` change was not made: the first real promotion run (v2.2.0) worked as written.
 
 - **Priority**: P2
-- **Status**: TODO
+- **Status**: SHIPPED in v2.2.1 (PR #208)
 - **Area**: Docs
 
 **Encountered**
@@ -4628,3 +4632,29 @@ Update section 7.0a and any related canonical recovery references in a dedicated
 Deferred from PR #206 by maintainer decision. That pull request updates only the maintainer release process and the release workflow comments.
 
 Additional scope recorded 2026-09-19. (1) `promote-stable` depends only on the `verify` job, while the release-notes check is a separate workflow that enforces on pull requests only when the branch is named `<type>/vX.Y.Z-<summary>`. A release merged from a differently named branch can therefore be promoted without its `docs/releases/vX.Y.Z.md` file, and the missing file surfaces only after promotion. Smallest fix: one step in `promote-stable` that refuses to move `stable` when `docs/releases/<tag>.md` is missing; no reusable workflow is needed. (2) `promote-stable` reads `origin/stable` after `git fetch origin stable`, which relies on the checkout action's fetch configuration; reading the branch tip with `git ls-remote origin refs/heads/stable` removes that assumption. Confirm the current behaviour on the first real promotion run before changing it.
+
+---
+
+#### BL-398 - v2.2.x: Stabilize `test_modify_commit_caught` temporary directory cleanup
+
+- **Priority**: P3
+- **Status**: TODO
+- **Area**: Testing
+
+**Encountered**
+
+- **Date**: 2026-09-19
+- **Location**: `plugins/launchpad/scripts/tests/test_autonomous_guard.py::test_modify_commit_caught`
+- **Scenario**: The test failed once in CI on a dependency-only pull request (#201) and passed on rerun with no code change.
+
+**Current Behavior**
+
+The test builds a Git repository inside `tempfile.TemporaryDirectory` and runs Git subprocesses in it. The failure came from the directory cleanup at the end of the `with` block, not from the guard assertions, so an unrelated pull request can go red.
+
+**Desired Behavior**
+
+The test passes or fails on the guard's behavior only. Cleanup of the scratch repository cannot fail the test.
+
+**Proposed Fix** (revalidate before implementing)
+
+Reproduce first by running the test in a loop. Likely candidates: use pytest's `tmp_path` fixture, which does not fail a test on cleanup, or pass `ignore_cleanup_errors=True`; check whether a background Git process (for example `gc --auto` or the fsmonitor daemon) still writes into the directory at cleanup time and disable it in the scratch repository's configuration.

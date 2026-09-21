@@ -1,4 +1,5 @@
 ---
+name: lp-pnf
 description: "Plan Next Feature — create an implementation plan from a section spec"
 ---
 

@@ -14,46 +14,10 @@
 # so `click` now resolves to 8.4.2 (>= the 8.3.3 fix) and the finding is
 # genuinely fixed rather than suppressed. That is the intended lifecycle
 # for every entry below.
-
-# --- mcp: 3 server-side advisories, unreachable fix, not exploitable here ---
 #
-# Each entry below states its own (a)/(b)/(c) rationale so it stands alone if
-# one is fixed independently. Revisit at expiry OR when semgrep moves its mcp
-# pin, whichever comes first; then re-lock via `make lock-deps` and delete the
-# cleared entries.
-
-[[IgnoredVulns]]
-id = "GHSA-hvrp-rf83-w775"
-ignoreUntil = 2026-10-31
-reason = """
-MCP Python SDK: experimental task handlers (server.experimental.enable_tasks())
-do not check which session created a task, letting any connected client observe
-or cancel another client's tasks. Fixed in mcp 1.27.2. Unreachable: semgrep
-hard-pins mcp==1.23.3 (still true at semgrep 1.171.0). Not exploitable here:
-this repo runs no MCP server and never enables the experimental tasks feature;
-no first-party code imports mcp.
-"""
-
-[[IgnoredVulns]]
-id = "GHSA-jpw9-pfvf-9f58"
-ignoreUntil = 2026-10-31
-reason = """
-MCP Python SDK: SSE and Streamable HTTP server transports route requests to an
-existing session by session id alone, without verifying the request is
-authenticated as the principal that created the session. Fixed in mcp 1.27.2.
-Unreachable: semgrep hard-pins mcp==1.23.3 (still true at semgrep 1.171.0).
-Not exploitable here: this repo serves no MCP HTTP/SSE transport; no
-first-party code imports mcp.
-"""
-
-[[IgnoredVulns]]
-id = "GHSA-vj7q-gjh5-988w"
-ignoreUntil = 2026-10-31
-reason = """
-MCP Python SDK: the deprecated WebSocket server transport
-(mcp.server.websocket.websocket_server) accepts handshakes without Host/Origin
-validation, bypassing TransportSecuritySettings. Fixed in mcp 1.28.1.
-Unreachable: semgrep hard-pins mcp==1.23.3 (still true at semgrep 1.171.0).
-Not exploitable here: this repo serves no MCP WebSocket transport; no
-first-party code imports mcp.
-"""
+# The three mcp entries (GHSA-hvrp-rf83-w775, GHSA-jpw9-pfvf-9f58,
+# GHSA-vj7q-gjh5-988w) were removed on 2026-09-20 -- semgrep 1.177.0 no
+# longer pins mcp==1.23.3, so `mcp` now resolves to 1.29.0 (>= the 1.27.2
+# and 1.28.1 fixes) and the findings are fixed rather than suppressed.
+#
+# No suppressions are active.

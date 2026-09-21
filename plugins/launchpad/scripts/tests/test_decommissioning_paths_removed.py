@@ -30,12 +30,12 @@ DELETED_PATHS_HARD = (
     "ROADMAP.template.md",
     "greptile.template.json",
     "plugins/launchpad/scripts/tests/test_init_agents_yml.py",
+    "plugins/launchpad/commands/lp-pull-launchpad.md",
 )
 
 SIGNPOST_STUB_PATHS = (
     "scripts/setup/init-project.sh",
     "scripts/setup/pull-upstream.launchpad.sh",
-    "plugins/launchpad/commands/lp-pull-launchpad.md",
 )
 
 DELETED_OR_STUBBED = DELETED_PATHS_HARD + SIGNPOST_STUB_PATHS

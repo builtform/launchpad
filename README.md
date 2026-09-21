@@ -245,7 +245,7 @@ LaunchPad/
 │   └── marketplace.json        # name=launchpad
 ├── plugins/launchpad/          # the plugin itself
 │   ├── .claude-plugin/
-│   │   └── plugin.json         # name=launchpad, version=2.2.0
+│   │   └── plugin.json         # name=launchpad, version=2.2.1
 │   ├── .codex-plugin/
 │   │   └── plugin.json         # Codex package manifest
 │   ├── commands/               # /lp-* slash commands
@@ -357,7 +357,7 @@ Cost: about 30 minutes of install plus the first `/lp-define`. Plugin is MIT and
 - [How It Works](docs/guides/HOW_IT_WORKS.md): day-to-day operator's manual
 - [Methodology](docs/guides/METHODOLOGY.md): architecture, design principles, credits
 - [Repository structure](docs/architecture/REPOSITORY_STRUCTURE.md): file-placement decision tree
-- [Release notes](docs/releases/v2.2.0.md)
+- [Release notes](docs/releases/v2.2.1.md)
 - [Contributing](CONTRIBUTING.md)
 
 ---
