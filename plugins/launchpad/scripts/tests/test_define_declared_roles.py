@@ -8,15 +8,20 @@ from pathlib import Path
 
 import pytest
 
+import lp_define_runner
 from lp_pick_stack.decision_writer import write_decision_file
 from lp_scaffold_stack.receipt_writer import build_receipt_payload, write_receipt
 from plugin_stack_adapters import generic, polyglot
-from plugin_stack_adapters._package_managers import lefthook_hooks_for_family
+from plugin_stack_adapters._package_managers import STACK_FAMILY, lefthook_hooks_for_family
 from plugin_stack_adapters._vendor import yaml
 
 _SCRIPTS = Path(__file__).resolve().parent.parent
 _FIELDS = ("test", "typecheck", "lint", "format", "build")
 _TS_COMMANDS = {field: [lefthook_hooks_for_family("ts")[field + "_command"]] for field in _FIELDS}
+
+
+def test_stack_families_have_known_toolchains() -> None:
+    assert set(STACK_FAMILY.values()) <= set(lp_define_runner._FAMILY_TOOLCHAINS)
 
 
 def _layers(*entries: tuple[str, str, str]) -> list[dict]:

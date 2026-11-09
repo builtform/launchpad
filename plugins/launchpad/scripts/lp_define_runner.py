@@ -80,6 +80,14 @@ from plugin_stack_adapters.polyglot_path_rewriter import (  # noqa: E402
     _rewrite_adapter_paths,
 )
 
+_FAMILY_TOOLCHAINS: Final[dict[str, set[str]]] = {
+    "ts": {"node"},
+    "ts_python": {"node", "python"},
+    "python": {"python"},
+    "ruby": {"ruby"},
+    "go": {"go"},
+}
+
 # Phase 8.5 plan section 3.12 verbatim.
 TRUST_BANNER = (
     "This command will render and atomically write the LaunchPad "
@@ -919,14 +927,10 @@ def generate(
 
     seeded_commands: dict[str, list[str]] = {}
     family = primary_family_for_stacks(derive_stacks([{"stack": s} for s in stacks]))
-    required_toolchains = {
-        "ts": {"node"},
-        "ts_python": {"node", "python"},
-        "python": {"python"},
-        "ruby": {"ruby"},
-        "go": {"go"},
-    }
-    if required_toolchains[family].issubset(receipt_toolchains):
+    required_toolchains = _FAMILY_TOOLCHAINS.get(family)
+    if required_toolchains is not None and required_toolchains.issubset(
+        receipt_toolchains
+    ):
         hooks = lefthook_hooks_for_family(family)
         for field, hook_command in (
             ("test", hooks["test_command"]),
