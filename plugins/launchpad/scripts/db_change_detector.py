@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import fnmatch
 import json
 import os
 import re
+import stat
 import sys
+from bisect import bisect_right
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -26,6 +29,7 @@ _EXCLUDED = {
 }
 _JS_EXTENSIONS = {".ts", ".js", ".mts", ".mjs", ".cts", ".cjs"}
 _STRING = r"""(['"\x60])((?:\\.|(?!\1)[^\\])*)\1"""
+_JS_TOKEN = r"""'(?:\\.|[^'\\])*(?:'|\Z)|"(?:\\.|[^"\\])*(?:"|\Z)|`(?:\\.|[^`\\])*(?:`|\Z)|(?P<comment>//[^\n]*|/\*.*?(?:\*/|\Z))"""
 _DEFAULT_SCHEMA = (
     "src/schema.ts",
     "src/schema/**/*.ts",
@@ -57,30 +61,63 @@ def _join(root: str, relative: str) -> str | None:
 
 
 def _matches(path: str, pattern: str) -> bool:
-    """Match POSIX globs; a double-star directory also matches zero directories."""
-    if "*" not in pattern and "?" not in pattern:
+    """Match POSIX globs with bounded state propagation and zero-directory **/."""
+    if not any(char in pattern for char in "*?["):
         if PurePosixPath(pattern).suffix:
             return path == pattern
         return _under(path, pattern) and PurePosixPath(path).suffix in _JS_EXTENSIONS
-    pieces = []
+    # Each token visits at most len(path) + 1 states; no regex backtracking.
+    reachable = {0}
     i = 0
-    while i < len(pattern):
+    while i < len(pattern) and reachable:
         if pattern[i : i + 3] == "**/":
-            pieces.append("(?:[^/]+/)*")
+            following = set(reachable)
+            in_component = False
+            for index, char in enumerate(path):
+                if char == "/":
+                    if in_component:
+                        following.add(index + 1)
+                    in_component = False
+                else:
+                    in_component = in_component or index in following
+            reachable = following
             i += 3
         elif pattern[i : i + 2] == "**":
-            pieces.append(".*")
+            reachable = set(range(min(reachable), len(path) + 1))
             i += 2
         elif pattern[i] == "*":
-            pieces.append("[^/]*")
-            i += 1
-        elif pattern[i] == "?":
-            pieces.append("[^/]")
+            for index, char in enumerate(path):
+                if char != "/" and index in reachable:
+                    reachable.add(index + 1)
             i += 1
         else:
-            pieces.append(re.escape(pattern[i]))
+            part = pattern[i]
+            if part == "[":
+                start = i + 1
+                if pattern[start : start + 1] == "!":
+                    start += 1
+                if pattern[start : start + 1] == "]":
+                    start += 1
+                end = pattern.find("]", start)
+                if end != -1:
+                    part = pattern[i : end + 1]
+                    i = end
+            reachable = {
+                index + 1
+                for index in reachable
+                if index < len(path)
+                and (
+                    (part == "?" and path[index] != "/")
+                    or (
+                        len(part) > 1
+                        and path[index] != "/"
+                        and fnmatch.fnmatchcase(path[index], part)
+                    )
+                    or path[index] == part
+                )
+            }
             i += 1
-    return re.fullmatch("".join(pieces), path) is not None
+    return i == len(pattern) and len(path) in reachable
 
 
 def _literal(raw: str) -> tuple[str, str] | None:
@@ -94,10 +131,23 @@ def _literal(raw: str) -> tuple[str, str] | None:
 
 
 def _field_start(text: str, key: str) -> int | None:
-    match = re.search(
-        rf"""(?:^|[{{,])\s*(?:{key}|"{key}"|'{key}')\s*:\s*""", text, re.M
-    )
-    return match.end() if match else None
+    strings = []
+
+    def mask_comments(match: re.Match[str]) -> str:
+        if match.group("comment") is not None:
+            return " " * len(match.group())
+        strings.append((match.start(), match.end()))
+        return match.group()
+
+    source = re.sub(_JS_TOKEN, mask_comments, text, flags=re.S)
+    starts = [start for start, _ in strings]
+    for match in re.finditer(
+        rf"""(?:^|[{{,])\s*(?:{key}|"{key}"|'{key}')\s*:\s*""", source, re.M
+    ):
+        index = bisect_right(starts, match.start()) - 1
+        if index < 0 or match.start() >= strings[index][1]:
+            return match.end()
+    return None
 
 
 def _config_value(text: str, key: str) -> str | list[str] | None:
@@ -162,8 +212,19 @@ class _Repository:
             )
             for filename in sorted(files):
                 path = Path(folder) / filename
-                if not self._is_symlink(path):
+                if not self._is_symlink(path) and self._is_regular_file(path):
                     self.files.add(path.relative_to(self.root).as_posix())
+
+    def _is_regular_file(self, path: Path) -> bool:
+        try:
+            if stat.S_ISREG(path.lstat().st_mode):
+                return True
+            detail = "non-regular file"
+        except (OSError, UnicodeError, ValueError) as exc:
+            detail = type(exc).__name__
+        name = path.relative_to(self.root).as_posix()
+        self.notes[name] = f"unresolved file {name}: {detail}"
+        return False
 
     def _is_symlink(self, path: Path) -> bool:
         try:
@@ -189,6 +250,8 @@ class _Repository:
         try:
             if not self.confined(name):
                 self.notes[name] = f"unresolved file outside repository: {name}"
+                return None
+            if not self._is_regular_file(self.root / name):
                 return None
             with (self.root / name).open("rb") as stream:
                 content = stream.read(_MAX_BYTES + 1)
@@ -559,7 +622,19 @@ def detect(changed_paths: Iterable[str], repo_root: Path) -> dict:
                 repo.add(instance, kind, path)
                 continue
 
-        for instance in _best(repo.instances.values(), "alembic", path):
+        alembic_instances = sorted(
+            (
+                instance
+                for instance in repo.instances.values()
+                if instance.tool == "alembic"
+                and (path in instance.other or _under(path, instance.root))
+            ),
+            key=lambda instance: (
+                -len(PurePosixPath(instance.root).parts),
+                instance.root,
+            ),
+        )
+        for instance in alembic_instances:
             if path in instance.other:
                 repo.add(instance, "other", path)
             elif any(

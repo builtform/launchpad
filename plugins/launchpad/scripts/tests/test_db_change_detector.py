@@ -323,3 +323,130 @@ def test_project_read_errors_are_notes(tmp_path: Path, monkeypatch, error):
     result = detect(["src/schema.ts"], tmp_path)
     assert result["db_changes"]
     assert any(type(error).__name__ in note for note in result["projects"][0]["notes"])
+
+
+def test_drizzle_comments_and_strings_do_not_shadow_schema(tmp_path: Path):
+    _seed(tmp_path, {
+        "drizzle.config.ts": '// Previous setup: {schema: "./old-schema.ts"}\n'
+        'const note = "{schema: \'./also-old.ts\'}";\n'
+        '/* {schema: "./retired.ts"} */\n'
+        'export default {schema: "./src/schema.ts"};',
+        "src/schema.ts": "",
+    })
+    result = detect(["src/schema.ts"], tmp_path)
+    assert result["db_changes"] is True
+    assert result["projects"][0]["changed_schema"] == ["src/schema.ts"]
+    assert result["projects"][0]["schema_paths"] == ["src/schema.ts"]
+
+
+def test_drizzle_bracket_schema_glob(tmp_path: Path):
+    _seed(tmp_path, {"drizzle.config.ts": 'export default {schema: "./src/[a-z]*.ts"};', "src/schema.ts": "", "src/1-decoy.ts": ""})
+    result = detect(["src/schema.ts"], tmp_path)
+    assert result["db_changes"] is True
+    assert result["projects"][0]["schema_paths"] == ["src/schema.ts"]
+
+
+def test_nested_alembic_configuration_change(tmp_path: Path):
+    _seed(tmp_path, {"alembic.ini": "[alembic]\nscript_location = src/migrations\n", "src/migrations/env.py": "", "src/migrations/script.py.mako": ""})
+    result = detect(["alembic.ini"], tmp_path)
+    assert result["db_changes"] is True
+    project = result["projects"][0]
+    assert project["tool"] == "alembic"
+    assert project["root"] == "src"
+    assert project["changed_other"] == ["alembic.ini"]
+    assert project["migrations_dir"] == "src/migrations/versions"
+
+
+def test_adversarial_schema_glob_has_bounded_cli_runtime(tmp_path: Path):
+    name = "src/" + "a" * 60 + ".ts"
+    pattern = "src/" + "*a" * 10 + "b.ts"
+    _seed(tmp_path, {"drizzle.config.ts": f'export default {{schema: "{pattern}"}};', name: ""})
+    result = subprocess.run([sys.executable, str(_SCRIPT), "--repo-root", str(tmp_path)], input=name + "\n", text=True, capture_output=True, check=False, timeout=2)
+    assert result.returncode == 0
+    assert json.loads(result.stdout)["db_changes"] is False
+
+
+def test_fifo_config_does_not_block_cli(tmp_path: Path):
+    import os
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("FIFO files unavailable")
+    _seed(tmp_path, {"src/schema.ts": ""})
+    os.mkfifo(tmp_path / "drizzle.config.ts")
+    result = subprocess.run([sys.executable, str(_SCRIPT), "--repo-root", str(tmp_path)], input="drizzle.config.ts\n", text=True, capture_output=True, check=False, timeout=2)
+    assert result.returncode == 0
+    assert any("non-regular" in note for project in json.loads(result.stdout)["projects"] for note in project["notes"])
+
+
+def test_custom_alembic_location_from_here(tmp_path: Path):
+    _seed(tmp_path, {"alembic.ini": "[alembic]\nscript_location = %(here)s/revisions\n", "revisions/env.py": "", "revisions/script.py.mako": "", "models.py": "from sqlalchemy.orm import DeclarativeBase\n"})
+    result = detect(["models.py"], tmp_path)
+    assert result["db_changes"] is True
+    project = result["projects"][0]
+    assert project["tool"] == "alembic"
+    assert project["schema_paths"] == ["models.py"]
+    assert project["changed_schema"] == ["models.py"]
+    assert project["migrations_dir"] == "revisions/versions"
+
+
+@pytest.mark.parametrize("config", ["not a config section", "[alembic]\nscript_location = ../outside\n", "[alembic]\nscript_location = /outside\n"])
+def test_invalid_alembic_config_keeps_conventional_discovery(tmp_path: Path, config: str):
+    _seed(tmp_path, {**_ALEMBIC, "alembic.ini": config, "models.py": "from sqlalchemy.orm import DeclarativeBase\n"})
+    project = detect(["models.py"], tmp_path)["projects"][0]
+    assert project["tool"] == "alembic"
+    assert project["changed_schema"] == ["models.py"]
+    assert any("unresolved script_location" in note for note in project["notes"])
+
+
+@pytest.mark.parametrize("changed", ["drizzle.config.ts", "drizzle/meta/_journal.json", "drizzle/meta/0001_snapshot.json"])
+def test_drizzle_metadata_only_change(tmp_path: Path, changed: str):
+    _seed(tmp_path, {"drizzle.config.ts": _DRIZZLE, "src/schema.ts": "", "drizzle/meta/_journal.json": "{}", "drizzle/meta/0001_snapshot.json": "{}"})
+    result = detect([changed], tmp_path)
+    assert result["db_changes"] is True
+    project = result["projects"][0]
+    assert project["tool"] == "drizzle"
+    assert project["changed_other"] == [changed]
+    assert project["changed_schema"] == project["changed_migrations"] == []
+    assert project["schema_paths"] == ["src/schema.ts"]
+    assert project["migrations_dir"] == "drizzle"
+
+
+@pytest.mark.parametrize("changed", ["prisma.config.ts", "prisma/migrations/migration_lock.toml"])
+def test_prisma_metadata_only_change(tmp_path: Path, changed: str):
+    _seed(tmp_path, {"prisma.config.ts": "export default {};", "prisma/schema.prisma": "", "prisma/migrations/migration_lock.toml": ""})
+    result = detect([changed], tmp_path)
+    assert result["db_changes"] is True
+    project = result["projects"][0]
+    assert project["tool"] == "prisma"
+    assert project["changed_other"] == [changed]
+    assert project["changed_schema"] == project["changed_migrations"] == []
+    assert project["schema_paths"] == ["prisma/schema.prisma"]
+    assert project["migrations_dir"] == "prisma/migrations"
+
+
+def test_supabase_declarative_schema_only_change(tmp_path: Path):
+    name = "supabase/schemas/public/users.sql"
+    _seed(tmp_path, {name: "create table users (id integer);"})
+    result = detect([name], tmp_path)
+    assert result["db_changes"] is True
+    project = result["projects"][0]
+    assert project["tool"] == "supabase"
+    assert project["schema_paths"] == project["changed_schema"] == [name]
+    assert project["migrations_dir"] == "supabase/migrations"
+    assert project["changed_migrations"] == project["changed_other"] == []
+
+
+@pytest.mark.parametrize(("path", "pattern", "expected"), [
+    ("src/schema.ts", "src/**/*.ts", True),
+    ("src/nested/schema.ts", "src/**/*.ts", True),
+    ("src/nested/schema.ts", "src/*.ts", False),
+    ("src/a.ts", "src/?.ts", True),
+    ("src/ab.ts", "src/?.ts", False),
+    ("src/a.ts", "src/[!0-9]*.ts", True),
+    ("src/5.ts", "src/[!0-9]*.ts", False),
+    ("src/].ts", "src/[]].ts", True),
+    ("src/foo/bar.ts", "src/foo**/bar.ts", False),
+    ("src/foo-x/bar.ts", "src/foo**/bar.ts", True),
+])
+def test_posix_glob_boundaries(path: str, pattern: str, expected: bool):
+    from db_change_detector import _matches
+    assert _matches(path, pattern) is expected
