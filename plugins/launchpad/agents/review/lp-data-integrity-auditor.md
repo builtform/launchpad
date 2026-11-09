@@ -42,8 +42,10 @@ Do NOT read the entire codebase.
    copies and search indexes.
 
 6. **Supabase row level security**: a new table in an exposed schema
-   (default `public`) needs `alter table ... enable row level security`
-   and at least one policy. Missing either is **P1**.
+   (default `public`) without `alter table ... enable row level security`
+   is **P1**. A new table with row level security enabled and no policy is
+   closed to API clients; report it as **P3** and ask the author to confirm
+   the table is service-only. Do not propose adding a policy as the fix.
 
 ## SQL-first examples
 
