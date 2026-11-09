@@ -56,6 +56,12 @@ CANONICAL_PROJECT_DESCRIPTION = (
 def _simulate_brainstorm(cwd: Path) -> None:
     """Write the brainstorm-summary frontmatter and first-run-marker that
     `/lp-pick-stack` Step 0 reads (per HANDSHAKE section 7)."""
+    brainstorms = cwd / "docs" / "brainstorms"
+    brainstorms.mkdir(parents=True, exist_ok=True)
+    (brainstorms / "2026-05-06-blog-brainstorm.md").write_text(
+        "# Blog brainstorm\n\n" + CANONICAL_PROJECT_DESCRIPTION * 3 + "\n",
+        encoding="utf-8",
+    )
     launchpad = cwd / ".launchpad"
     launchpad.mkdir(parents=True, exist_ok=True)
     summary = launchpad / "brainstorm-summary.md"
@@ -113,7 +119,7 @@ def test_full_greenfield_pipeline(tmp_path: Path) -> None:
 
     # Phase 1: simulated brainstorm.
     _simulate_brainstorm(cwd)
-    assert cwd_state(cwd) in {"empty", "launchpad-only"}
+    assert cwd_state(cwd) == "empty"
 
     # Phase 2: pick-stack via library API.
     pick_result = pick_stack_run(

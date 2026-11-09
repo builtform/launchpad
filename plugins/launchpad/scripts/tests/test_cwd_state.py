@@ -37,6 +37,57 @@ def test_empty_with_okay_files(tmp_path: Path):
     assert cwd_state(tmp_path) == "empty"
 
 
+@pytest.mark.parametrize(
+    ("directories", "files", "symlink_docs", "expected"),
+    [
+        (("docs/brainstorms",), (), False, "empty"),
+        ((), ("docs/brainstorms/2026-11-05-x-brainstorm.md",), False, "empty"),
+        ((), ("docs/brainstorms/a.md", ".launchpad/brainstorm-summary.md"), False, "empty"),
+        (("docs/plans",), ("docs/brainstorms/a.md",), False, "ambiguous"),
+        ((), ("docs/notes.md",), False, "ambiguous"),
+        ((), ("docs/brainstorms/a.md", "package.json"), False, "brownfield"),
+        ((), (".DS_Store",), False, "empty"),
+        ((), ("docs/.DS_Store", "docs/brainstorms/a.md"), False, "empty"),
+        (("docs/brainstorms",), ("docs/.DS_Store", "docs/Thumbs.db", "docs/desktop.ini"), False, "empty"),
+        (("docs/brainstorms", "docs/zz"), ("docs/.DS_Store", "docs/Thumbs.db", "docs/desktop.ini"), False, "ambiguous"),
+        ((), ("docs/brainstorms",), False, "ambiguous"),
+        ((), (), True, "ambiguous"),
+        ((), ("README.md", "docs/brainstorms/a.md", "big.txt"), False, "ambiguous"),
+        ((), (".harness/observations/v2-pipeline-2026-11-07T00-00-00Z.jsonl", ".harness/observations/.telemetry.lock"), False, "empty"),
+        ((), (".harness/observations/v2-pipeline-2026-11-07T00-00-00Z.jsonl", "package.json"), False, "brownfield"),
+        ((), (".harness/observations/v2-pipeline-2026-11-07T00-00-00Z.jsonl", ".launchpad/brainstorm-summary.md", "docs/brainstorms/a.md", ".DS_Store"), False, "empty"),
+    ],
+    ids=[
+        "empty-brainstorms", "brainstorm-document", "brainstorm-summary",
+        "plans-extra", "notes-only", "brainstorm-brownfield", "root-noise",
+        "docs-noise", "all-docs-noise", "docs-extra-directory",
+        "brainstorms-file", "docs-symlink", "large-extra",
+        "telemetry-and-lock", "telemetry-brownfield", "refused-run-state",
+    ],
+)
+def test_greenfield_neutral_entries(
+    tmp_path: Path,
+    directories: tuple[str, ...],
+    files: tuple[str, ...],
+    symlink_docs: bool,
+    expected: str,
+):
+    for directory in directories:
+        (tmp_path / directory).mkdir(parents=True, exist_ok=True)
+    for filename in files:
+        path = tmp_path / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x" * 6000, encoding="utf-8")
+    if symlink_docs:
+        target = tmp_path.parent / f"{tmp_path.name}-docs-target"
+        (target / "brainstorms").mkdir(parents=True)
+        try:
+            (tmp_path / "docs").symlink_to(target, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            pytest.skip("directory symlinks are unavailable")
+    assert cwd_state(tmp_path) == expected
+
+
 def test_brownfield_package_json(tmp_path: Path):
     (tmp_path / "package.json").write_text("{}")
     assert cwd_state(tmp_path) == "brownfield"

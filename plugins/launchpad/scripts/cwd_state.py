@@ -1,9 +1,10 @@
 """Greenfield/brownfield/ambiguous classifier for the v2.0 pipeline.
 
-Single source of truth (HANDSHAKE §8). Used by /lp-brainstorm (routing) and
-/lp-scaffold-stack (idempotency). The shared `BROWNFIELD_MANIFESTS` constant
-is also imported by `plugin-stack-detector.py` so the heuristic does not
-drift between v1 and v2 surfaces.
+Single source of truth (HANDSHAKE §8). Used by /lp-brainstorm (routing),
+/lp-pick-stack (pre-question gate), and /lp-scaffold-stack (idempotency).
+The shared `BROWNFIELD_MANIFESTS` constant is also imported by
+`plugin-stack-detector.py` so the heuristic does not drift between v1
+and v2 surfaces.
 
 The 500-entry iteration cap (HANDSHAKE §8 + Layer 5 performance P3-L5-1)
 bounds the slow-path syscall burst when the user accidentally invokes from
@@ -17,9 +18,13 @@ from pathlib import Path
 from typing import Literal
 
 GREENFIELD_OK_FILES = {".gitignore", "README.md", "LICENSE"}
-GREENFIELD_OK_DIRS = {".git", ".launchpad"}
+GREENFIELD_OK_DIRS = {".git", ".harness", ".launchpad"}
 
-# Single source of truth — also imported by plugin-stack-detector.py.
+# Files the operating system drops into any folder a user opens in Finder or
+# Explorer. Never a project signal.
+OS_NOISE_FILES = {".DS_Store", "Thumbs.db", "desktop.ini"}
+
+# Single source of truth, also imported by plugin-stack-detector.py.
 # Compared case-INsensitively below: macOS (APFS default) and Windows (NTFS
 # default) are case-insensitive filesystems where `Package.json` and
 # `package.json` resolve to the same file. Linux comparison is also lower-cased
@@ -71,6 +76,24 @@ _BROWNFIELD_MANIFESTS_LOWER = frozenset(m.lower() for m in BROWNFIELD_MANIFESTS)
 _CWD_STATE_MAX_ENTRIES = 500
 
 
+def _is_brainstorms_only_docs(docs: Path) -> bool:
+    """True when `docs` is a real directory whose only child, OS noise aside,
+    is a real `brainstorms/` directory. The brainstorms contents are not
+    inspected (HANDSHAKE §8, greenfield-neutral entries)."""
+    if docs.is_symlink() or not docs.is_dir():
+        return False
+    children = []
+    for i, child in enumerate(docs.iterdir()):
+        if i > len(OS_NOISE_FILES):
+            return False  # more entries than OS noise plus brainstorms/
+        if child.name not in OS_NOISE_FILES:
+            children.append(child)
+    if len(children) != 1:
+        return False
+    only = children[0]
+    return only.name == "brainstorms" and not only.is_symlink() and only.is_dir()
+
+
 def cwd_state(cwd: Path) -> Literal["empty", "brownfield", "ambiguous"]:
     if not cwd.exists():
         raise NotADirectoryError(f"cwd_state: path does not exist: {cwd!r}")
@@ -79,25 +102,23 @@ def cwd_state(cwd: Path) -> Literal["empty", "brownfield", "ambiguous"]:
     entries = []
     for i, e in enumerate(cwd.iterdir()):
         if i >= _CWD_STATE_MAX_ENTRIES:
-            return "ambiguous"  # too many entries — fail safe without stat()
+            return "ambiguous"  # too many entries: fail safe without stat()
         entries.append(e)
     names = {e.name for e in entries}
     names_lower = {n.lower() for n in names}
     if names_lower & _BROWNFIELD_MANIFESTS_LOWER:
         return "brownfield"
-    extras = names - GREENFIELD_OK_FILES - GREENFIELD_OK_DIRS
+    extras = names - GREENFIELD_OK_FILES - GREENFIELD_OK_DIRS - OS_NOISE_FILES
+    if "docs" in extras and _is_brainstorms_only_docs(cwd / "docs"):
+        extras.discard("docs")
     if not extras:
         return "empty"
     if len(extras) == 1 and "README.md" in names:
-        # D15 clarity rewrite: README.md sits in GREENFIELD_OK_FILES so it
-        # is filtered OUT of `extras`. So `extras = {<one non-OK name>}`,
-        # never `{"README.md"}`. The carve-out reads as "README is present
-        # AND there is exactly one OTHER non-OK file" (e.g., a stub
-        # `.editorconfig` or `LICENSE.txt`).
-        #
-        # PR #41 cycle 7 #3 closure: BOTH files must be small to qualify as
-        # "empty". Sizing only the README would let a 50-byte README next
-        # to a 100KB stray file classify as "empty" — user-overwrite hazard.
+        # README.md sits in GREENFIELD_OK_FILES, so it is filtered out of
+        # `extras`: this branch reads "README is present AND there is exactly
+        # one other non-OK entry". BOTH must be small to qualify as "empty";
+        # sizing only the README would let a 50-byte README next to a 100KB
+        # stray file classify as "empty" (user-overwrite hazard).
         readme_size_ok = (cwd / "README.md").stat().st_size < 500
         other_name = next(iter(extras))
         other_path = cwd / other_name
@@ -138,6 +159,7 @@ __all__ = [
     "BROWNFIELD_MANIFESTS",
     "GREENFIELD_OK_FILES",
     "GREENFIELD_OK_DIRS",
+    "OS_NOISE_FILES",
     "cwd_state",
     "infrastructure_present",
     "refuse_if_not_greenfield",
