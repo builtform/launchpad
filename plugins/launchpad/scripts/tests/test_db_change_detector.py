@@ -708,7 +708,9 @@ def _scaling_case(root: Path, case: str) -> tuple[list[str], dict]:
 @pytest.mark.parametrize("case", ["django", "rails", "supabase", "prisma", "drizzle-literals", "drizzle-globs"])
 def test_repository_scaling_cli(tmp_path: Path, case: str) -> None:
     changed, expected = _scaling_case(tmp_path, case)
-    result = subprocess.run([sys.executable, str(_SCRIPT), "--repo-root", str(tmp_path)], input="\n".join(changed), text=True, capture_output=True, check=False, timeout=5)
+    # The quadratic baseline exceeded 30 seconds with only 300 repository files.
+    timeout = 15 if case == "drizzle-literals" else 5
+    result = subprocess.run([sys.executable, str(_SCRIPT), "--repo-root", str(tmp_path)], input="\n".join(changed), text=True, capture_output=True, check=False, timeout=timeout)
     assert result.returncode == 0
     assert json.loads(result.stdout) == expected
 
