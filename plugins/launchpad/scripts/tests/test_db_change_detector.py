@@ -450,3 +450,22 @@ def test_supabase_declarative_schema_only_change(tmp_path: Path):
 def test_posix_glob_boundaries(path: str, pattern: str, expected: bool):
     from db_change_detector import _matches
     assert _matches(path, pattern) is expected
+
+
+@pytest.mark.parametrize("prefix", [
+    'const quote = /"/;',
+    "const quote = /'/;",
+    'const quote = /`/;',
+    'const quote = /["/]/;',
+    r'const quote = /\{schema:"old"\}/;',
+    'function quote() { return /"/; }',
+    'const ratio = a / b / c;',
+    'const quote = matches(/"/);',
+])
+def test_regex_literals_do_not_hide_live_drizzle_schema(tmp_path: Path, prefix: str):
+    name = "custom/schema.ts"
+    _seed(tmp_path, {"drizzle.config.ts": prefix + '\nexport default {schema: "./custom/schema.ts"};', name: ""})
+    result = detect([name], tmp_path)
+    assert result["db_changes"] is True
+    assert result["projects"][0]["schema_paths"] == [name]
+    assert result["projects"][0]["changed_schema"] == [name]
