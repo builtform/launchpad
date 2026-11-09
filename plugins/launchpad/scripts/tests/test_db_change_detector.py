@@ -689,7 +689,7 @@ def _scaling_case(root: Path, case: str) -> tuple[list[str], dict]:
         if globs:
             files["src/schema.ts"] = ""
             changed = ["drizzle.config.ts"]
-            schemas = ["src/schema.ts"]
+            schemas = ["custom/users.ts", "src/schema.ts"]
             notes = ["unresolved schema in drizzle.config.ts: more than 64 glob entries"]
         else:
             changed = ["custom/users.ts"]
@@ -724,7 +724,7 @@ def test_distinct_drizzle_glob_limit(tmp_path: Path, count: int) -> None:
         assert project["schema_paths"] == ["custom/users.ts"]
         assert project["notes"] == ["schema location read from drizzle.config.ts"]
     else:
-        assert project["schema_paths"] == ["src/schema.ts"]
+        assert project["schema_paths"] == ["custom/users.ts", "src/schema.ts"]
         assert project["notes"] == ["unresolved schema in drizzle.config.ts: more than 64 glob entries"]
 
 
@@ -734,3 +734,58 @@ def test_normalized_duplicate_globs_do_not_use_the_limit(tmp_path: Path) -> None
     project = detect(["drizzle.config.ts"], tmp_path)["projects"][0]
     assert project["schema_paths"] == ["custom/users.ts"]
     assert project["notes"] == ["schema location read from drizzle.config.ts"]
+
+
+@pytest.mark.parametrize("literal", ["./custom/users.ts", "./custom"])
+def test_capped_globs_preserve_changed_literal_schema(tmp_path: Path, literal: str) -> None:
+    values = [literal, *[f"./custom/group_{n}/*.ts" for n in range(65)]]
+    _seed(tmp_path, {"drizzle.config.ts": 'export default {schema:' + json.dumps(values) + '};', "custom/users.ts": ""})
+    result = detect(["custom/users.ts"], tmp_path)
+    assert result["db_changes"] is True
+    project = result["projects"][0]
+    assert project["changed_schema"] == project["schema_paths"] == ["custom/users.ts"]
+    assert project["notes"] == ["unresolved schema in drizzle.config.ts: more than 64 glob entries"]
+
+
+@pytest.mark.parametrize("config", [
+    pytest.param('export default defineConfig({migrations:{table:"journal",schema:"drizzle"},schema:"./custom/users.ts",out:"./generated"});', id="migrations-before"),
+    pytest.param('export default defineConfig({schema:"./custom/users.ts",migrations:{table:"journal",schema:"drizzle"},out:"./generated"});', id="migrations-after"),
+    pytest.param('module.exports = {migrations:{out:"./nested"},schema:"./custom/users.ts",out:"./generated"};', id="nested-out-before"),
+    pytest.param('const config = {schema:"./custom/users.ts",migrations:{out:"./nested"},out:"./generated"} satisfies Config;', id="const-satisfies"),
+])
+def test_drizzle_top_level_properties(tmp_path: Path, config: str) -> None:
+    _seed(tmp_path, {"drizzle.config.ts": config, "custom/users.ts": ""})
+    result = detect(["custom/users.ts"], tmp_path)
+    assert result["db_changes"] is True
+    project = result["projects"][0]
+    assert project["schema_paths"] == ["custom/users.ts"]
+    assert project["migrations_dir"] == "generated"
+
+
+def test_drizzle_ambiguous_top_level_schema_is_unresolved(tmp_path: Path) -> None:
+    _seed(tmp_path, {"drizzle.config.ts": 'const helper={schema:"public"}; export default defineConfig({schema:"./custom/users.ts"});', "custom/users.ts": "", "public/helper.ts": "", "src/schema.ts": ""})
+    project = detect(["drizzle.config.ts"], tmp_path)["projects"][0]
+    assert project["schema_paths"] == ["src/schema.ts"]
+    assert any("unresolved schema" in note for note in project["notes"])
+    assert "public" not in json.dumps(project)
+
+
+@pytest.mark.parametrize("unit", ["{", "}"])
+def test_deep_config_braces_at_read_cap(tmp_path: Path, unit: str) -> None:
+    header = 'export default {schema:"./src/schema.ts",out:"./generated"};\n'
+    text = header + unit * (1024 * 1024 - len(header))
+    _seed(tmp_path, {"drizzle.config.ts": text, "src/schema.ts": ""})
+    result = subprocess.run([sys.executable, str(_SCRIPT), "--repo-root", str(tmp_path)], input="src/schema.ts\n", text=True, capture_output=True, check=False, timeout=5)
+    assert result.returncode == 0
+    project = json.loads(result.stdout)["projects"][0]
+    assert project["schema_paths"] == ["src/schema.ts"]
+    assert project["migrations_dir"] == "generated"
+
+
+def test_drizzle_ambiguous_top_level_out_is_unresolved(tmp_path: Path) -> None:
+    _seed(tmp_path, {"drizzle.config.ts": 'const helper={out:"./helper"}; export default {schema:"./custom/users.ts",out:"./generated"};', "custom/users.ts": ""})
+    project = detect(["custom/users.ts"], tmp_path)["projects"][0]
+    assert project["schema_paths"] == ["custom/users.ts"]
+    assert project["migrations_dir"] == "drizzle"
+    assert any("unresolved out" in note for note in project["notes"])
+    assert "helper" not in json.dumps(project)

@@ -147,7 +147,7 @@ def _literal(text: str, start: int) -> tuple[str, int] | None:
 
 
 def _field_start(text: str, key: str) -> int | None:
-    """Locate a property in one forward pass, skipping comments and literals."""
+    """Locate a unique depth-one property; return -1 for ambiguous ownership."""
     state = "code"
     previous = ""
     key_position = True
@@ -157,6 +157,8 @@ def _field_start(text: str, key: str) -> int | None:
     literal_start = 0
     literal_key = False
     in_class = False
+    depth = 0
+    found: int | None = None
     i = 0
     while i < len(text):
         char = text[i]
@@ -220,12 +222,13 @@ def _field_start(text: str, key: str) -> int | None:
             i += 2
             continue
         if want_value:
-            return i
+            found = i
+            want_value = False
         if char in "'\"`":
             state = "string"
             quote = char
             literal_start = i
-            literal_key = key_position and char != "`"
+            literal_key = depth == 1 and key_position and char != "`"
             i += 1
             continue
         if char == "/" and (
@@ -243,15 +246,21 @@ def _field_start(text: str, key: str) -> int | None:
             while i < len(text) and (text[i].isalnum() or text[i] in "_$"):
                 i += 1
             previous = text[start:i]
-            pending_key = key_position and previous == key
+            pending_key = depth == 1 and key_position and previous == key
             key_position = False
             continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth = max(0, depth - 1)
         want_value = pending_key and char == ":"
+        if want_value and found is not None:
+            return -1
         pending_key = False
         key_position = char in "{,"
         previous = char
         i += 1
-    return None
+    return found
 
 
 def _space_end(text: str, start: int) -> int:
@@ -274,7 +283,7 @@ def _space_end(text: str, start: int) -> int:
 def _config_value(text: str, key: str) -> str | list[str] | None:
     """Read a static literal string or array using forward-only source offsets."""
     start = _field_start(text, key)
-    if start is None:
+    if start is None or start < 0:
         return None
     if text[start] == "[":
         start = _space_end(text, start + 1)
@@ -605,6 +614,9 @@ def _discover_drizzle(repo: _Repository, changed: set[str]) -> None:
         if capped:
             instance.notes.add(
                 f"unresolved schema in {config}: more than 64 glob entries"
+            )
+            instance.patterns.extend(
+                p for p in raw_patterns if p is not None and not _has_glob(p)
             )
         else:
             # Keep lexical patterns to claim an unsafe changed symlink without reading it.
