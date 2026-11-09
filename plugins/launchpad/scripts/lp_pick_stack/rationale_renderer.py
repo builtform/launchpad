@@ -110,7 +110,7 @@ def render_rationale(
 
     Inputs:
 
-    - `matched`: a MatchCandidate from `matcher.match_categories()` OR (when
+    - `matched`: a MatchCandidate from `matcher.shortlist_categories()` OR (when
       `matched_category_id` is provided) None equivalent — the explicit
       `matched_category_id`/`canonical_stack`/`matched_name`/
       `matched_explanation` parameters override the MatchCandidate fields,
@@ -129,8 +129,8 @@ def render_rationale(
     HANDSHAKE §4 rule 7 enforcement: at least one section MUST contain ≥1
     non-empty bullet. The renderer enforces this implicitly via the
     matched-category + stack defaults (always produced when the input is
-    well-formed); ambiguity-cluster matches additionally require ≥1
-    `alternatives` bullet > 30 chars (caller's responsibility to supply).
+    well-formed). The engine supplies alternatives from its shortlist when
+    the caller provides none; each such bullet is 31 to 240 characters.
     """
     cat_id = matched_category_id or matched.id
     stack_layers = (
@@ -189,9 +189,7 @@ def render_rationale(
     lines.append("")
 
     # --- alternatives ---
-    alt_bullets = _render_bullets(alternatives) or [
-        "- No close alternatives surfaced by the matcher."
-    ]
+    alt_bullets = _render_bullets(alternatives) or ["- No alternatives were recorded."]
     lines.append("## alternatives")
     lines.append("")
     lines.extend(alt_bullets)

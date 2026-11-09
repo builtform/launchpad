@@ -24,8 +24,7 @@ wildcard and description evidence, sorted by descending score then id.
 `match_categories()` preserves the top-score slice for existing callers.
 `confident_pick()` requires a unique top result with no wildcard and either
 a description hit or no description atoms. `resolve_choice()` selects from
-the entire shortlist. The legacy `resolve_in_cluster()` remains available
-until engine callers migrate to shortlist selection.
+the entire shortlist.
 
 Manual-override (HANDSHAKE §4 rule 4): the reserved id `manual-override`
 is filtered out of normal matching. The engine selects it explicitly when
@@ -276,25 +275,6 @@ def resolve_choice(
     )
 
 
-def resolve_in_cluster(
-    candidates: Sequence[MatchCandidate],
-    chosen_id: str,
-) -> MatchCandidate:
-    """Narrow a tied candidate set to one via the user's chosen id.
-
-    Caller (engine) is responsible for prompting the user with the cluster's
-    `differentiator` field and collecting the chosen id. This helper only
-    enforces that the choice is among the tied set.
-    """
-    for c in candidates:
-        if c.id == chosen_id:
-            return c
-    raise ValueError(
-        f"chosen id {chosen_id!r} not in tied candidate set: "
-        f"{[c.id for c in candidates]}"
-    )
-
-
 __all__ = [
     "MANUAL_OVERRIDE_ID",
     "MatchCandidate",
@@ -302,6 +282,5 @@ __all__ = [
     "confident_pick",
     "match_categories",
     "resolve_choice",
-    "resolve_in_cluster",
     "shortlist_categories",
 ]

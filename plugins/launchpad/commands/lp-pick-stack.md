@@ -216,21 +216,19 @@ Per pick-stack plan §2.1 + `SCAFFOLD_HANDSHAKE.md` §4 rule 7:
    via `yaml.safe_load`. (No subprocess; no shell; no LLM call. The catalog
    is plugin-shipped + CODEOWNERS-gated per OPERATIONS §2.)
 
-2. Pass validated answers to `matcher.match_categories()`. Returns a list
-   of `MatchCandidate` records sorted by descending score.
+2. Pass validated answers to `matcher.shortlist_categories()`. Returns all
+   eligible positive-score `MatchCandidate` records in descending score,
+   then id order, including wildcard and description evidence.
 
 3. **Match-resolution outcomes**:
-   - **Exactly 1 candidate**: that's the match. `matched_category_id =
-candidate.id`. Continue to Step 5 (skip Step 4).
-   - **Multiple tied candidates AND they share an `ambiguity_clusters[]`
-     membership**: surface the cluster's `differentiator` field to the
-     user along with the tied candidate ids; prompt for the user's choice;
-     pass via `cluster_choice` to `run_pipeline()`. The matcher's
-     `resolve_in_cluster()` helper narrows.
-   - **Multiple tied candidates AND no shared cluster**: refuse with
-     `reason: "category_match_ambiguous_no_cluster"`. (Defensive — the
-     catalog's `ambiguity_clusters[]` block should cover every realistic
-     tie shape.)
+   - **Confident result without a choice**: the library engine can seal it
+     using `confident_pick()`. Continue to Step 5 (skip Step 4).
+   - **Selection required** (`category_selection_required`): show the full
+     shortlist, including ties across clusters, and ask the user to choose.
+     Pass `chosen_category_id` to `run_pipeline()`; `resolve_choice()` checks
+     that the id is on the shortlist.
+   - **Invalid choice** (`category_choice_invalid`): show `result.candidates`
+     and re-ask the pick; do not re-ask the questions.
    - **Zero candidates**: prompt user to either (a) re-describe the
      project shape OR (b) take the manual-override branch (Step 4).
 

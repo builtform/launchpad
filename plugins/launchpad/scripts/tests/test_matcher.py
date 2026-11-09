@@ -16,7 +16,7 @@ from lp_pick_stack.matcher import (
     MatchCandidate,
     confident_pick,
     match_categories,
-    resolve_in_cluster,
+    resolve_choice,
     shortlist_categories,
 )
 
@@ -102,19 +102,19 @@ def test_static_blog_trio_ambiguity(catalog: dict):
     assert clusters == {"static-blog-trio"}
 
 
-def test_resolve_in_cluster_picks_chosen():
+def test_resolve_choice_picks_chosen():
     cands = [
         MatchCandidate("a", "A", 3, (), "", "x"),
         MatchCandidate("b", "B", 3, (), "", "x"),
     ]
-    chosen = resolve_in_cluster(cands, "b")
+    chosen = resolve_choice(cands, "b")
     assert chosen.id == "b"
 
 
-def test_resolve_in_cluster_rejects_unknown():
+def test_resolve_choice_rejects_unknown():
     cands = [MatchCandidate("a", "A", 3, (), "", "x")]
     with pytest.raises(ValueError):
-        resolve_in_cluster(cands, "z")
+        resolve_choice(cands, "z")
 
 
 # --- no-match ---

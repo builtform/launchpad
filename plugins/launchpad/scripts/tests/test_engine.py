@@ -77,8 +77,7 @@ def test_pipeline_ambiguity_cluster_requires_choice(tmp_path: Path):
         write_telemetry=False,
     )
     assert not result.success
-    assert result.reason == "ambiguity_cluster_disambiguation_required"
-    assert result.cluster == "static-blog-trio"
+    assert result.reason == "category_selection_required"
     assert len(result.candidates) >= 2
 
 
@@ -87,7 +86,7 @@ def test_pipeline_ambiguity_resolved_with_choice(tmp_path: Path):
         tmp_path,
         VALID_ANSWERS,
         project_description="Blog using both TypeScript and Hugo for build speed",
-        cluster_choice="static-blog-hugo",
+        chosen_category_id="static-blog-hugo",
         write_telemetry=False,
     )
     assert result.success, result.message
@@ -215,3 +214,49 @@ def test_pipeline_result_carries_elapsed(tmp_path: Path):
 
 def test_command_name_constant():
     assert COMMAND_NAME == "/lp-pick-stack"
+
+
+@pytest.mark.parametrize(
+    ("case", "choice", "reason", "matched_id"),
+    [
+        ("A", None, "category_selection_required", None),
+        ("D", None, "category_selection_required", None),
+        ("D", "polyglot-next-hono", None, "polyglot-next-hono"),
+        ("D", "static-blog-astro", "category_choice_invalid", None),
+        ("E", None, None, "polyglot-next-hono"),
+        ("A", "polyglot-next-hono", None, "polyglot-next-hono"),
+    ],
+)
+def test_pipeline_category_selection(tmp_path: Path, case, choice, reason, matched_id):
+    from test_matcher import _CASE_A, _CASE_D, _INFORMED_DESCRIPTION
+    from lp_pick_stack.engine import _load_category_patterns
+    from lp_pick_stack.matcher import shortlist_categories
+
+    answers = {
+        "A": _CASE_A,
+        "D": _CASE_D,
+        "E": dict(_CASE_D, describe=_INFORMED_DESCRIPTION),
+    }[case]
+    expected = shortlist_categories(answers, _load_category_patterns(None))
+    result = run_pipeline(tmp_path, answers, chosen_category_id=choice)
+    assert result.reason == reason
+    assert result.matched_category_id == matched_id
+    assert result.success == (matched_id is not None)
+    if reason:
+        assert result.outcome == Outcome.ABORTED
+        assert result.candidates == expected
+        assert not (tmp_path / ".launchpad" / "scaffold-decision.json").exists()
+        assert not (tmp_path / ".harness" / "observations").exists()
+        if case == "D":
+            assert [c.id for c in result.candidates] == [
+                "polyglot-next-hono", "saas-next-supabase", "multi-frontend-astro-next",
+            ]
+    else:
+        decision = json.loads(result.decision_path.read_text())
+        alternatives = next(s["bullets"] for s in decision["rationale_summary"] if s["section"] == "alternatives")
+        others = [c for c in expected if c.id != matched_id]
+        assert len(alternatives) == len(others)
+        for candidate, bullet in zip(others, alternatives, strict=True):
+            assert bullet == f"{candidate.name} ({candidate.id}): also qualified for these answers, not chosen."
+            assert 31 <= len(bullet) <= 240
+            assert "<" not in bullet and ">" not in bullet and "`" not in bullet
