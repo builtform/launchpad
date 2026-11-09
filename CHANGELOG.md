@@ -14,6 +14,8 @@ Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.
 - **Choose a stack from an honest shortlist.** Undecided answers keep eligible categories in the shortlist. `/lp-pick-stack` proposes answers from the brainstorm for your confirmation, explains how the candidates fit its constraints, and seals your choice, including ties across categories.
 - **Database review across migration tools.** `/lp-review` now runs database reviewers for the tools LaunchPad scaffolds plus Drizzle and Prisma, including plain SQL migrations. The integrity review flags exposed Supabase tables missing row level security or policies, and `/lp-ship` no longer auto-fixes their migration files.
 - **Repository URL updates with personal data opted out.** `/lp-update-identity` can fill the repository URL while keeping personal-data placeholders. Its preview now validates with the same checks as the write.
+- **Bootstrap files match the selected stack.** A new project's hooks, ignore files and structure check now match its stack, and the structure check passes on a freshly scaffolded project. Projects bootstrapped by an earlier version can run `/lp-bootstrap --accept-plugin-version-drift` once to re-render them, with user edits backed up under `.launchpad/backups/`.
+- **Declared frontends get the UI pipeline.** A declared frontend gets the design stages, browser tests and an app-flow skeleton, and empty gate commands are filled with editable defaults.
 
 ## [v2.2.1]
 
