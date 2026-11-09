@@ -114,17 +114,18 @@ If any inline section below contradicts this strip-back notice, **THIS NOTICE WI
 
 ## 2. Trust boundaries
 
-| Source                                                                                  | Trust level                                                          | Validation point                                                                                                                                              |
-| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `plugins/launchpad/scaffolders.yml`                                                     | **Trusted** (plugin-shipped, CODEOWNERS-gated per OPERATIONS §2)     | Schema validated at load                                                                                                                                      |
-| `plugins/launchpad/scripts/lp_pick_stack/data/category-patterns.yml`                    | **Trusted** (plugin-shipped, CODEOWNERS-gated)                       | Schema validated at load                                                                                                                                      |
-| `plugins/launchpad/scripts/lp_pick_stack/data/pillar-framework.md`                      | **Trusted** (plugin-shipped)                                         | Read-only context                                                                                                                                             |
-| `plugins/launchpad/scaffolders/<stack>-pattern.md`                                      | **Trusted** (plugin-shipped, checksum-pinned)                        | SHA-256 verified via atomic `read_and_verify()` (§9), bytes-buffer-only consumption                                                                           |
-| User free-text input (project description, Q1 free-text branch, manual-override values) | **Untrusted**                                                        | Wrapped in `<untrusted_user_input>` envelope; never reaches a tool with shell or filesystem access                                                            |
-| `.launchpad/brainstorm-summary.md`                                                      | **Untrusted-as-data** (contains user-derived content)                | Frontmatter validated; body treated as data, never instructions                                                                                               |
-| `.launchpad/scaffold-decision.json`                                                     | **Untrusted-as-input** (orchestration treats as adversarial)         | Full schema validation + SHA-256 + nonce + bound_cwd-triple at consumption (§4)                                                                               |
-| `.launchpad/rationale.md`                                                               | **Untrusted-as-data** (derived from user input)                      | NEVER read directly by `/lp-define`; `/lp-define` reads only the pre-extracted, sanitized `rationale_summary` array embedded in `scaffold-decision.json` (§9) |
-| `.launchpad/scaffold-receipt.json`                                                      | **Trusted-internally** (orchestration writes; `/lp-define` consumes) | SHA-256 self-hash; orchestration is the only writer                                                                                                           |
+| Source                                                                                  | Trust level                                                          | Validation point                                                                                                                                                    |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `plugins/launchpad/scaffolders.yml`                                                     | **Trusted** (plugin-shipped, CODEOWNERS-gated per OPERATIONS §2)     | Schema validated at load                                                                                                                                            |
+| `plugins/launchpad/scripts/lp_pick_stack/data/category-patterns.yml`                    | **Trusted** (plugin-shipped, CODEOWNERS-gated)                       | Schema validated at load                                                                                                                                            |
+| `plugins/launchpad/scripts/lp_pick_stack/data/pillar-framework.md`                      | **Trusted** (plugin-shipped)                                         | Read-only context                                                                                                                                                   |
+| `plugins/launchpad/scaffolders/<stack>-pattern.md`                                      | **Trusted** (plugin-shipped, checksum-pinned)                        | SHA-256 verified via atomic `read_and_verify()` (§9), bytes-buffer-only consumption                                                                                 |
+| User free-text input (project description, Q1 free-text branch, manual-override values) | **Untrusted**                                                        | Wrapped in `<untrusted_user_input>` envelope; never reaches a tool with shell or filesystem access                                                                  |
+| `.launchpad/brainstorm-summary.md`                                                      | **Untrusted-as-data** (contains user-derived content)                | Frontmatter validated (§7); body read by `/lp-pick-stack`'s Claude layer as data inside `<untrusted_user_input>`, never as instructions; never opened by the engine |
+| Brainstorm document named by the summary's `brainstorm_doc` (under `docs/brainstorms/`) | **Untrusted-as-data** (contains user-derived content)                | Path confined by the summary validator (§7); read as data like the summary body; never opened by the engine                                                         |
+| `.launchpad/scaffold-decision.json`                                                     | **Untrusted-as-input** (orchestration treats as adversarial)         | Full schema validation + SHA-256 + nonce + bound_cwd-triple at consumption (§4)                                                                                     |
+| `.launchpad/rationale.md`                                                               | **Untrusted-as-data** (derived from user input)                      | NEVER read directly by `/lp-define`; `/lp-define` reads only the pre-extracted, sanitized `rationale_summary` array embedded in `scaffold-decision.json` (§9)       |
+| `.launchpad/scaffold-receipt.json`                                                      | **Trusted-internally** (orchestration writes; `/lp-define` consumes) | SHA-256 self-hash; orchestration is the only writer                                                                                                                 |
 
 ### Residual trust assumptions (explicit non-goals)
 
@@ -750,6 +751,7 @@ generated_at: 2026-04-30T19:42:11Z
 generated_by: /lp-brainstorm
 greenfield: true
 cwd_state_when_generated: empty
+brainstorm_doc: docs/brainstorms/2026-04-30-example-brainstorm.md
 ---
 
 # Project summary
@@ -758,42 +760,63 @@ cwd_state_when_generated: empty
 Written by Claude during the brainstorm session. Treated as untrusted-as-data
 by all downstream consumers.>
 
+# Stack-relevant constraints
+
+<One bullet per fact the brainstorm settled that bears on the stack choice:
+data store, runtime shape (always-on process, scheduled jobs, whether
+short-timeout serverless is acceptable), sign-in method, realtime or push,
+AI or LLM use, hosting constraints, team language preference. A topic the
+brainstorm left open is written as "undecided", never guessed.>
+
 # Suggested next step
 
 Run `/lp-pick-stack` next to choose a stack.
 ```
 
-Frontmatter validation: `generated_at` ISO 8601 UTC; `generated_by` ∈ `{"/lp-brainstorm"}`; `greenfield` boolean; `cwd_state_when_generated` ∈ `{"empty", "brownfield", "ambiguous"}` (see §8).
+Frontmatter validation: `generated_at` ISO 8601 UTC; `generated_by` ∈ `{"/lp-brainstorm"}`; `greenfield` boolean; `cwd_state_when_generated` ∈ `{"empty", "brownfield", "ambiguous"}` (see §8). `brainstorm_doc` is optional. When present it MUST be a string that passes the §6 path validator (`path_validator.validate_relative_path`: relative POSIX, character allowlist, no `..` segment, no leading `/`, no reserved prefix, no symlink in the path or its ancestors, realpath inside the cwd) and end in `.md`; anything else fails with `reason: "brainstorm_summary_invalid_frontmatter"`. A well-formed path that does not resolve to a regular file is treated as absent: validation succeeds, the validator returns a warning, and `/lp-pick-stack` prints it and works from the summary alone. The validator only resolves and stats the path; it never opens the document. A summary without `brainstorm_doc` or without the "Stack-relevant constraints" heading (written before this revision) stays valid, and `/lp-pick-stack` then works from the project summary alone.
 
-`/lp-pick-stack` always re-asks the user for a project description rather than parsing the brainstorm body. The brainstorm summary is shown to the user as context but never piped into Claude as instructions. Re-running `/lp-brainstorm` overwrites the existing summary with a new `generated_at`.
+Re-running `/lp-brainstorm` overwrites the existing summary with a new `generated_at`.
 
-### `.first-run-marker` write — greenfield-only (Layer 5 spec-flow P3-LF7)
+### How `/lp-pick-stack` uses the brainstorm
+
+The brainstorm informs the stack choice. It never decides it, and it never reaches the engine.
+
+1. **Validated, then read as data.** `/lp-pick-stack` first runs the Python validator (`validate_brainstorm_summary(cwd)`) and refuses on any error exactly as the engine would. Only then does its Claude layer read the summary body and, when the validator returned one, the `brainstorm_doc` file at the path the validator resolved, never at the raw frontmatter value. Each text is truncated to 64 KiB with a visible note, every `<untrusted_user_input` or `</untrusted_user_input` sequence inside it, matched case-insensitively, is replaced by `[tag removed]`, and both are wrapped in `<untrusted_user_input>` before any reasoning. Nothing in them is followed as an instruction, and neither is passed to a tool with shell or filesystem access.
+2. **Shown to the user.** Before the questions, the command prints the summary's "Stack-relevant constraints" (for an older summary, the project summary) and names the brainstorm document it read.
+3. **Proposed, then confirmed.** For the project description and for each of Q1 to Q5, the command proposes an answer drawn from the brainstorm and cites the brainstorm line it came from. The user confirms or changes every answer. No question is skipped and no answer is filled in silently. Only confirmed answers reach the engine.
+4. **Reconciled.** The engine returns every catalog category the confirmed answers qualify for, with the evidence for each (`/lp-pick-stack` Step 3). Claude weighs that shortlist against the brainstorm's constraints, recommends one category, and names the conflict that rules out each of the others. When no shortlisted category meets the hard constraints, it says so and offers the manual-override branch (§4 rule 4) instead of recommending the least bad fit.
+5. **Chosen by the user.** The user picks a category from the shortlist, or the manual override. The engine seals only that choice, and only if it is in the engine's own shortlist. A library caller that passes no choice is sealed only when the shortlist has one candidate alone at the top, matched without any undecided answer and with a description hit wherever its predicate has description atoms (`confident_pick`); `/lp-pick-stack` always passes the user's pick. The brainstorm can inform the pick but can never widen what may be sealed.
+6. **Recorded.** The constraints that decided the pick go into `rationale.md` under `why-this-fits`; the other shortlisted categories and their conflicts go under `alternatives`.
+
+The engine (`plugins/launchpad/scripts/lp_pick_stack/`) never opens the summary body or the brainstorm document. It sees only validated answers, the description the user confirmed, and the category id the user picked.
+
+### `.first-run-marker` write: greenfield-only (Layer 5 spec-flow P3-LF7)
 
 The `.first-run-marker` (per §4 rule 10) is written ONLY when `greenfield: true`. On `greenfield: false` (brownfield) or `ambiguous-without-confirmation`, NO marker is written; subsequent `/lp-pick-stack`/`/lp-scaffold-stack` invocations route via the brownfield path which doesn't require the marker. This prevents the footgun where a brownfield-context marker collides with a future `cd <new-dir>` greenfield run if the user moves the marker file. The marker is ONLY a positive first-run signal for the greenfield happy path.
 
-### Brainstorm re-run on cwd with unconsumed marker (Layer 8 — closes spec-flow P2-1)
+### Brainstorm re-run on cwd with unconsumed marker (Layer 8, closes spec-flow P2-1)
 
-If `/lp-brainstorm` is re-invoked in a cwd where `.launchpad/.first-run-marker` already exists (and is unconsumed — i.e., not yet renamed to `.first-run-marker.consumed.<ts>`), the new invocation MUST refuse with `reason: "first_run_marker_concurrent_invocation"` and the user-facing message: "session in progress; remove `.launchpad/.first-run-marker` if stale OR run `/lp-scaffold-stack` to consume it first." The `O_CREAT|O_EXCL` flag in the v2.0 marker write protocol (per §4 rule 10 strip-back substitute) provides the race-detection mechanism.
+If `/lp-brainstorm` is re-invoked in a cwd where `.launchpad/.first-run-marker` already exists (and is unconsumed, i.e., not yet renamed to `.first-run-marker.consumed.<ts>`), the new invocation MUST refuse with `reason: "first_run_marker_concurrent_invocation"` and the user-facing message: "session in progress; remove `.launchpad/.first-run-marker` if stale OR run `/lp-scaffold-stack` to consume it first." The `O_CREAT|O_EXCL` flag in the v2.0 marker write protocol (per §4 rule 10 strip-back substitute) provides the race-detection mechanism.
 
 After marker has been `.consumed.<ts>` by `/lp-scaffold-stack`, re-running `/lp-brainstorm` succeeds: a fresh empty marker overwrites prior state; the prior `.consumed.<ts>` is preserved as audit trail.
 
-### Mid-pipeline `cd` parity (Layer 8 — closes spec-flow P2-2)
+### Mid-pipeline `cd` parity (Layer 8, closes spec-flow P2-2)
 
 `bound_cwd` triple binding at `/lp-pick-stack` write-time + `/lp-scaffold-stack` consume-time covers the pick-stack → scaffold-stack boundary. The brainstorm → pick-stack boundary is unbound at v2.0: `/lp-pick-stack` does NOT verify cwd parity with the brainstorm summary's location. **Documented v2.0 behavior**: if the user `cd`s between `/lp-brainstorm` and `/lp-pick-stack`, pick-stack proceeds in the new cwd; if the new cwd does not contain a `.launchpad/brainstorm-summary.md`, pick-stack treats the invocation as standalone (no marker, no session continuity). v2.2 may add cwd-parity verification alongside `brainstorm_session_id` per BL-235.
 
-### Concurrent `/lp-pick-stack` race (Layer 8 — closes spec-flow P2-4; Layer 9 hardened — closes spec-flow P3 rationale.md atomicity)
+### Concurrent `/lp-pick-stack` race (Layer 8, closes spec-flow P2-4; Layer 9 hardened, closes spec-flow P3 rationale.md atomicity)
 
-Two simultaneous `/lp-pick-stack` invocations on the same cwd would each compute their own integrity envelope and race to write `.launchpad/scaffold-decision.json` AND `.launchpad/rationale.md`. v2.0 acceptance scope: **single-process invocation model** — concurrent pick-stack on same cwd is "user error scope," undefined behavior. The pick-stack writer SHOULD use `os.open(... O_WRONLY|O_CREAT|O_EXCL, 0o600)` on **both** files: write `rationale.md` FIRST (closes the L9-surfaced footgun where the loser's rationale.md would otherwise overwrite the survivor's, surfacing later as a confusing scaffold-stack `rationale_sha256` mismatch), then compute `rationale_sha256`, then write `scaffold-decision.json` second. On `FileExistsError` from EITHER file, refuse with `reason: "scaffold_decision_already_exists"` (covers both rationale.md and decision.json races under the same reason — the user's recovery action is identical: remove `.launchpad/` and re-run). This is a defense-in-depth measure; the load-bearing race protection is the user-driven single-process invocation model.
+Two simultaneous `/lp-pick-stack` invocations on the same cwd would each compute their own integrity envelope and race to write `.launchpad/scaffold-decision.json` AND `.launchpad/rationale.md`. v2.0 acceptance scope: **single-process invocation model**: concurrent pick-stack on same cwd is "user error scope," undefined behavior. The pick-stack writer SHOULD use `os.open(... O_WRONLY|O_CREAT|O_EXCL, 0o600)` on **both** files: write `rationale.md` FIRST (closes the L9-surfaced footgun where the loser's rationale.md would otherwise overwrite the survivor's, surfacing later as a confusing scaffold-stack `rationale_sha256` mismatch), then compute `rationale_sha256`, then write `scaffold-decision.json` second. On `FileExistsError` from EITHER file, refuse with `reason: "scaffold_decision_already_exists"` (covers both rationale.md and decision.json races under the same reason, since the user's recovery action is identical: remove `.launchpad/` and re-run). This is a defense-in-depth measure; the load-bearing race protection is the user-driven single-process invocation model.
 
 ### Brainstorm re-run state recomputation
 
 Every `/lp-brainstorm` re-run **recomputes** `cwd_state_when_generated` and `greenfield` against the current cwd; never inherited from a prior summary. If state changed since the prior run (e.g., user added files between sessions, going from `empty` to `brownfield`), the new summary's "Suggested next step" reflects the new state. Pick-stack reads only the current summary; never caches across runs.
 
-**Brownfield re-run + cwd-state transition** (Layer 5 spec-flow P2-LF4; Layer 8 wording normalized — closes spec-flow P2-3): after a successful `/lp-scaffold-stack`, the cwd transitions from "empty" to "brownfield." Subsequent `/lp-brainstorm` re-runs in the same cwd will detect brownfield and **suggest** `/lp-define` (the brownfield happy path), NOT `/lp-pick-stack`. v2.0 has NO auto-routing or auto-invocation across commands; everything is user-driven. This is correct behavior: the user's intent in re-running is captured by `/lp-brainstorm`'s brownfield suggestion, not by fighting `/lp-scaffold-stack`'s idempotency check. The "redo scaffold" workflow is not supported in v2.0; the user must `cd` to a fresh directory or manually clean cwd before re-invoking the greenfield pipeline.
+**Brownfield re-run + cwd-state transition** (Layer 5 spec-flow P2-LF4; Layer 8 wording normalized, closes spec-flow P2-3): after a successful `/lp-scaffold-stack`, the cwd transitions from "empty" to "brownfield." Subsequent `/lp-brainstorm` re-runs in the same cwd will detect brownfield and **suggest** `/lp-define` (the brownfield happy path), NOT `/lp-pick-stack`. v2.0 has NO auto-routing or auto-invocation across commands; everything is user-driven. This is correct behavior: the user's intent in re-running is captured by `/lp-brainstorm`'s brownfield suggestion, not by fighting `/lp-scaffold-stack`'s idempotency check. The "redo scaffold" workflow is not supported in v2.0; the user must `cd` to a fresh directory or manually clean cwd before re-invoking the greenfield pipeline.
 
 ## 8. Greenfield-detection heuristic
 
-Single source of truth, used by `/lp-brainstorm` (routing) and `/lp-scaffold-stack` (idempotency). Lives at `plugins/launchpad/scripts/cwd_state.py`. The shared `BROWNFIELD_MANIFESTS` constant is also imported by `plugins/launchpad/scripts/plugin-stack-detector.py` so the heuristic does not drift between v1 and v2 surfaces.
+Single source of truth, used by `/lp-brainstorm` (routing), `/lp-pick-stack` (pre-question gate) and `/lp-scaffold-stack` (idempotency). Lives at `plugins/launchpad/scripts/cwd_state.py`. The shared `BROWNFIELD_MANIFESTS` constant is also imported by `plugins/launchpad/scripts/plugin-stack-detector.py` so the heuristic does not drift between v1 and v2 surfaces.
 
 **Single-source enforcement (Layer 2 P2-1 + P3-7).** The "single source of truth" claim is enforced at three layers:
 
@@ -809,6 +832,8 @@ Single source of truth, used by `/lp-brainstorm` (routing) and `/lp-scaffold-sta
 2. **CI lint grep**: `plugin-v2-handshake-lint.py` asserts `grep -rEn 'BROWNFIELD_MANIFESTS\s*=\s*\{' plugins/launchpad/scripts/` matches exactly one file (`cwd_state.py`); any other definition is a CI failure.
 3. **Import grep** (Layer 5 pattern P3-L5-F tightened for relative-import resilience): `grep -rEn '^\s*from\s+(\.|cwd_state)\s+import.*BROWNFIELD_MANIFESTS' --include='*.py' plugins/launchpad/scripts/` (with cwd_state.py self-excluded) MUST account for every reference outside `cwd_state.py`. Pattern handles both absolute (`from cwd_state import`) and relative (`from .cwd_state import`) import forms; multi-line `from cwd_state import (BROWNFIELD_MANIFESTS,` paren-style imports also matched via subsequent line continuation. Commented imports (`# from cwd_state import …`) are excluded by the `^\s*` anchor.
 
+**Greenfield-neutral entries.** Some entries never make a folder non-greenfield: the files in `GREENFIELD_OK_FILES`, the directories in `GREENFIELD_OK_DIRS` (`.git/`, `.launchpad/`, and `.harness/`, where `/lp-pick-stack` and `/lp-scaffold-stack` write their run logs on every run, a refused one included), the operating-system files in `OS_NOISE_FILES` (`.DS_Store`, `Thumbs.db`, `desktop.ini`, which Finder and Explorer create in any folder a user opens), and a `docs/` directory whose only child, OS noise aside, is a `brainstorms/` directory. `/lp-kickoff` and `/lp-brainstorm` write brainstorm documents to `docs/brainstorms/` before `/lp-pick-stack` runs, so that directory is LaunchPad's own output and its contents are not inspected. Any other child of `docs/`, or a `docs/` or `brainstorms/` that is a symlink, falls back to the generic rule. Only the default path is honored: `.launchpad/config.yml`, where `paths.brainstorms_dir` can be customized, is written by `/lp-define` after scaffolding, so a greenfield folder never has one, and `/lp-brainstorm` writes to `docs/brainstorms/` regardless. A brownfield manifest still wins over every neutral entry.
+
 ```python
 from __future__ import annotations
 
@@ -816,9 +841,13 @@ from pathlib import Path
 from typing import Literal
 
 GREENFIELD_OK_FILES = {".gitignore", "README.md", "LICENSE"}
-GREENFIELD_OK_DIRS  = {".git", ".launchpad"}
+GREENFIELD_OK_DIRS = {".git", ".harness", ".launchpad"}
 
-# Single source of truth — also imported by plugin-stack-detector.py.
+# Files the operating system drops into any folder a user opens in Finder or
+# Explorer. Never a project signal.
+OS_NOISE_FILES = {".DS_Store", "Thumbs.db", "desktop.ini"}
+
+# Single source of truth, also imported by plugin-stack-detector.py.
 # Compared case-INsensitively below: macOS (APFS default) and Windows (NTFS default)
 # are case-insensitive filesystems where `Package.json` and `package.json` resolve
 # to the same file. Linux comparison is also lower-cased for cross-platform parity.
@@ -857,6 +886,24 @@ _BROWNFIELD_MANIFESTS_LOWER = frozenset(m.lower() for m in BROWNFIELD_MANIFESTS)
 _CWD_STATE_MAX_ENTRIES = 500
 
 
+def _is_brainstorms_only_docs(docs: Path) -> bool:
+    """True when `docs` is a real directory whose only child, OS noise aside,
+    is a real `brainstorms/` directory. The brainstorms contents are not
+    inspected (HANDSHAKE §8, greenfield-neutral entries)."""
+    if docs.is_symlink() or not docs.is_dir():
+        return False
+    children = []
+    for i, child in enumerate(docs.iterdir()):
+        if i > len(OS_NOISE_FILES):
+            return False  # more entries than OS noise plus brainstorms/
+        if child.name not in OS_NOISE_FILES:
+            children.append(child)
+    if len(children) != 1:
+        return False
+    only = children[0]
+    return only.name == "brainstorms" and not only.is_symlink() and only.is_dir()
+
+
 def cwd_state(cwd: Path) -> Literal["empty", "brownfield", "ambiguous"]:
     if not cwd.exists():
         raise NotADirectoryError(f"cwd_state: path does not exist: {cwd!r}")
@@ -865,18 +912,28 @@ def cwd_state(cwd: Path) -> Literal["empty", "brownfield", "ambiguous"]:
     entries = []
     for i, e in enumerate(cwd.iterdir()):
         if i >= _CWD_STATE_MAX_ENTRIES:
-            return "ambiguous"  # too many entries — fail safe without stat()
+            return "ambiguous"  # too many entries: fail safe without stat()
         entries.append(e)
     names = {e.name for e in entries}
     names_lower = {n.lower() for n in names}
     if names_lower & _BROWNFIELD_MANIFESTS_LOWER:
         return "brownfield"
-    extras = names - GREENFIELD_OK_FILES - GREENFIELD_OK_DIRS
+    extras = names - GREENFIELD_OK_FILES - GREENFIELD_OK_DIRS - OS_NOISE_FILES
+    if "docs" in extras and _is_brainstorms_only_docs(cwd / "docs"):
+        extras.discard("docs")
     if not extras:
         return "empty"
     if len(extras) == 1 and "README.md" in names:
-        readme = cwd / "README.md"
-        if readme.stat().st_size < 500:
+        # README.md sits in GREENFIELD_OK_FILES, so it is filtered out of
+        # `extras`: this branch reads "README is present AND there is exactly
+        # one other non-OK entry". BOTH must be small to qualify as "empty";
+        # sizing only the README would let a 50-byte README next to a 100KB
+        # stray file classify as "empty" (user-overwrite hazard).
+        readme_size_ok = (cwd / "README.md").stat().st_size < 500
+        other_name = next(iter(extras))
+        other_path = cwd / other_name
+        other_size_ok = other_path.is_file() and other_path.stat().st_size <= 100
+        if readme_size_ok and other_size_ok:
             return "empty"
     # Generic safeguard: any unrecognized file > 100 bytes triggers ambiguous
     # so unknown ecosystems fail safe rather than greenfield-by-omission.
@@ -908,17 +965,17 @@ def refuse_if_not_greenfield(cwd: Path, command_name: str) -> None:
         )
 ```
 
-| State        | `/lp-brainstorm` action                                    | `/lp-pick-stack` action                                                           | `/lp-scaffold-stack` action                            |
-| ------------ | ---------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `empty`      | Write summary `greenfield: true`; suggest `/lp-pick-stack` | Proceed                                                                           | Proceed                                                |
-| `brownfield` | Write summary `greenfield: false`; suggest `/lp-define`    | **Refuse before asking questions** with structured error pointing at `/lp-define` | Refuse: "cwd is brownfield; pick-stack not applicable" |
-| `ambiguous`  | Prompt user; default to brownfield path on no-answer       | Prompt user (proceed at user's confirmation)                                      | Refuse and ask user to clean cwd                       |
+| State        | `/lp-brainstorm` action                                    | `/lp-pick-stack` action                                                                                              | `/lp-scaffold-stack` action                            |
+| ------------ | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `empty`      | Write summary `greenfield: true`; suggest `/lp-pick-stack` | Proceed                                                                                                              | Proceed                                                |
+| `brownfield` | Write summary `greenfield: false`; suggest `/lp-define`    | **Refuse before asking questions** with structured error pointing at `/lp-define`                                    | Refuse: "cwd is brownfield; pick-stack not applicable" |
+| `ambiguous`  | Prompt user; default to brownfield path on no-answer       | **Refuse before asking questions** with `reason: cwd_state_ambiguous`; the user clears the stray entries and re-runs | Refuse and ask user to clean cwd                       |
 
 ### Brownfield sub-app workflow
 
-A user wanting to add a sub-app inside an existing brownfield monorepo (e.g., adding `apps/admin` next to an existing `apps/web`) does not use the four-command pipeline. The "refuse before asking questions" behavior of `/lp-pick-stack` is correct — its contract is "scaffold a fresh project," not "extend an existing one."
+A user wanting to add a sub-app inside an existing brownfield monorepo (e.g., adding `apps/admin` next to an existing `apps/web`) does not use the four-command pipeline. The "refuse before asking questions" behavior of `/lp-pick-stack` is correct: its contract is "scaffold a fresh project," not "extend an existing one."
 
-**Canonical workflow**: use a live Claude Code session. Have a regular conversation about whether you need a separate sub-app or just a route in the existing app. When you've decided, ask Claude to scaffold the new sub-app, matching existing monorepo conventions read live from the parent (shared `@repo/*` packages, ESLint inheritance, tsconfig path aliases, lefthook config, `pnpm-workspace.yaml`, `turbo.json`). LaunchPad's value-add for this task is the workflow harness around live agentic work (`/lp-review`, `/lp-learn`, `/lp-plan`, `/lp-build`, `/lp-design-review`), not the file-creation step itself — the catalog scaffolder cannot read parent-monorepo conventions, so a live Claude session is structurally better suited to producing output that integrates cleanly.
+**Canonical workflow**: use a live Claude Code session. Have a regular conversation about whether you need a separate sub-app or just a route in the existing app. When you've decided, ask Claude to scaffold the new sub-app, matching existing monorepo conventions read live from the parent (shared `@repo/*` packages, ESLint inheritance, tsconfig path aliases, lefthook config, `pnpm-workspace.yaml`, `turbo.json`). LaunchPad's value-add for this task is the workflow harness around live agentic work (`/lp-review`, `/lp-learn`, `/lp-plan`, `/lp-build`, `/lp-design-review`), not the file-creation step itself. The catalog scaffolder cannot read parent-monorepo conventions, so a live Claude session is structurally better suited to producing output that integrates cleanly.
 
 No `--allow-brownfield` flag is added to the four-command pipeline because that pattern normalizes "edit safety check locally."
 
@@ -1166,6 +1223,14 @@ Additive amendments to the v2.1 schema contract land in v2.1.6 from a post-v2.1.
 - **BL-345: stack-detector extensions.** `plugin-stack-detector.py` `detect_from_manifest` recognises additional dependency markers — `astro` → stack id `astro`; single-app Next.js (no workspaces, no turbo) → stack id `nextjs_standalone`; non-Django Python (FastAPI / Flask / plain) → stack id `python_generic` (Django still → `python_django`). Surfaces `@11ty/eleventy`, `expo`, `@supabase/*` in the frameworks list as v2.2-active-enum candidates (no new stack id mapping at v2.1). `lp_define_runner._single_adapter` extended to dispatch `nextjs_standalone` and `python_generic` to the appropriate adapter — `nextjs_standalone` → the `NextjsStandaloneAdapter` Adapter Protocol class, `python_generic` → the `generic` module-level adapter shim (no Python-generic Adapter class exists yet; v2.2 candidate). The receipt schema is unchanged; the `stacks` array carries the new ids verbatim.
 
 - **BL-356: `assert_autonomous_ack` raising-API helper + `AutonomousAckError` exception hierarchy.** `plugin_stack_adapters/autonomous_guard.py` gains `assert_autonomous_ack(repo_root) -> None` raising `AutonomousAckMissingError` if `.launchpad/autonomous-ack.md` is absent + `assert_ack_not_same_commit_as(repo_root, section_name) -> None` raising `AutonomousAckSameCommitError` (wraps the v2.1.5 `section_added_with_ack` predicate). The existing predicate is preserved for v2.1.5 callers; the raising APIs are additive. Refuse-message embeds the canonical starter template constant `AUTONOMOUS_ACK_TEMPLATE` so first-time users hitting the refuse have inline copy-paste content. Five command markdown files (`/lp-build`, `/lp-inf`, `/lp-resolve-todo-parallel`, `/lp-ship`, `/lp-plan`) reference the shared helpers by name; test-enforced single-source-of-truth invariant prevents inline absence-check drift.
+
+### 10.v2.2.2: greenfield bootstrap amendments
+
+These amendments change no on-disk schema. They correct where the bootstrap enrichers get their stack list and what the rendered structure check accepts.
+
+- **One stack source for the bootstrap enrichers.** The stack-aware enrichers (`stack_lefthook`, both `stack_pkg_manager` rewrites, `stack_structure_check`, and the three `stack_ignore_patterns` surfaces) read their stack list through one resolver in `lp_bootstrap/_enricher_common.py`. It uses the `stacks:` line of `.launchpad/config.yml` when that line is present and non-empty, and otherwise the `stacks` array of `.launchpad/scaffold-decision.json`. In a greenfield run the decision is the only stack record when bootstrap runs, because `/lp-scaffold-stack` renders the overlay before `/lp-define` writes `config.yml`. The resolver then passes the list through `derive_stacks` (`lp_pick_stack/decision_writer.py`), so catalog shortnames (`next`, `django`, `hono`, `supabase` and the rest) become the `STACK_ID_ACTIVE_ENUM` ids that key `_structure_allowlists.py`, `_ignore_patterns.py`, `_package_managers.py` and the per-stack lefthook fragments; ids already in the enum pass through unchanged. Any read or parse failure still yields an empty list, and an empty list still leaves the kernel bytes unchanged. This replaces the BL-347 entry's "reads `stacks:` from `.launchpad/config.yml`" and its greenfield fail-closed sentence in §10.v2.1.6, and applies equally to the BL-350 and BL-346 + BL-352 enrichers; the kernel-only allowlist now applies only when neither file yields a stack.
+- **Layer directories in the structure check.** `stack_structure_check` also allows the first path segment of every `layers[].path` in the decision (`apps` for `apps/api`), and `packages` whenever those layers make `/lp-scaffold-stack` write `pnpm-workspace.yaml`.
+- **LaunchPad's own files and agents in the structure check.** `.gitleaks.toml`, which the overlay writes, is an allowed root config. Bootstrap renders the names of the plugin's own agents into `scripts/maintenance/check-repo-structure.sh` between `BUILTIN_AGENTS_BEGIN` and `BUILTIN_AGENTS_END`. Check 6 accepts an `agents.yml` entry that is in that list, that resolves to a file under `.claude/agents/`, or, inside the LaunchPad repository itself, that resolves under `plugins/launchpad/agents/`. Any other name still fails; the message names `/lp-bootstrap --refresh-all` for agents that a newer plugin version added.
 
 ## 11. Stack catalog (v2.0 — 10 entries)
 
