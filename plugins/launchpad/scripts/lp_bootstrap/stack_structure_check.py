@@ -2,7 +2,7 @@
 
 The kernel template ships with universal ALLOWED_DIRS / ALLOWED_CONFIGS
 entries plus sentinel-comment placeholders for per-stack additions. This
-module reads the persisted `stacks:` array from `.launchpad/config.yml`,
+module reads normalized config or decision stacks through the shared resolver,
 looks up each stack's allowlist data in
 `plugin_stack_adapters._structure_allowlists`, and rewrites the rendered
 shell-script bytes to inject those additions between the sentinels.
@@ -12,8 +12,7 @@ Architecture mirrors `stack_lefthook.enrich_lefthook_with_stacks`:
   1. engine.py renders the kernel `check-repo-structure.sh.j2` -> kernel
      bytes.
   2. `enrich_structure_check_with_stacks(kernel_bytes, cwd)` reads
-     `.launchpad/config.yml` for persisted stacks via the existing
-     `plugin-config-loader.read_stacks` loader.
+     normalized config or decision stacks through the shared resolver.
   3. For each stack, look up `stack_allowed_dirs(stack_id)` and
      `stack_allowed_configs(stack_id)`.
   4. Splice the union of those entries between the sentinel-comment
@@ -21,8 +20,8 @@ Architecture mirrors `stack_lefthook.enrich_lefthook_with_stacks`:
   5. Return the rewritten bytes. The engine's SHA computation,
      manifest stamping, and policy dispatch see the enriched output.
 
-Greenfield (no `.launchpad/config.yml` or empty stacks list): returns
-kernel bytes unchanged for byte-identical behavior with v2.1.5.
+Without usable config or decision stacks, stack enrichment returns kernel
+bytes unchanged. Greenfield decisions supply stacks before config exists.
 
 Defense-in-depth: every parse / lookup / splice failure path returns the
 input bytes rather than raising. The kernel `check-repo-structure.sh`
@@ -37,7 +36,7 @@ import importlib.util
 import re
 from pathlib import Path
 
-from ._enricher_common import dedupe_preserving_order, read_stacks_safe
+from ._enricher_common import dedupe_preserving_order, read_enricher_stacks
 
 _SCRIPTS_ROOT = Path(__file__).resolve().parent.parent
 _ALLOWLISTS_PATH = _SCRIPTS_ROOT / "plugin_stack_adapters" / "_structure_allowlists.py"
@@ -122,16 +121,15 @@ def enrich_structure_check_with_stacks(kernel_bytes: bytes, cwd: Path) -> bytes:
     markers.
 
     Returns `kernel_bytes` unchanged when:
-      * `.launchpad/config.yml` is absent or has no `stacks:`
+      * neither config nor decision yields usable stacks
       * the allowlist data module fails to import
       * the sentinel markers are missing from the kernel template
       * no stack contributes any entries
 
-    Greenfield projects (no stacks persisted) ship the kernel-only
-    allowlist — strictly safer than the pre-v2.1.6 monorepo-hardcoded
-    allowlist for any non-monorepo shape.
+    Projects without a usable stack record receive the universal baseline
+    allowlist.
     """
-    stacks = read_stacks_safe(
+    stacks = read_enricher_stacks(
         cwd, module_spec_name="plugin_config_loader_stack_structure"
     )
     if not stacks:
