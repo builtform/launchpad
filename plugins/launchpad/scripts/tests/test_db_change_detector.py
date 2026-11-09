@@ -481,3 +481,42 @@ def test_comment_prefix_scanning_has_bounded_cli_runtime(tmp_path: Path):
     result = subprocess.run([sys.executable, str(_SCRIPT), "--repo-root", str(tmp_path)], input=name + "\n", text=True, capture_output=True, check=False, timeout=2)
     assert result.returncode == 0
     assert json.loads(result.stdout)["projects"][0]["changed_schema"] == [name]
+
+
+@pytest.mark.parametrize("unit", [
+    pytest.param("[/", id="class-slash"),
+    pytest.param("=/[", id="eq-slash-bracket"),
+    pytest.param("=/*", id="unclosed-comment"),
+    pytest.param("= /* */ ", id="closed-comments"),
+    pytest.param("=//x\n", id="line-comments"),
+    pytest.param("\"'", id="quote-runs"),
+    pytest.param("=" + " " * 50 + "x", id="whitespace-runs"),
+    pytest.param("=/**/", id="comment-runs"),
+    pytest.param("[/" * 200 + "\n", id="multiline-class-slash"),
+])
+def test_linear_config_scan_at_read_cap(tmp_path: Path, unit: str):
+    header = 'export default {schema: "./src/schema.ts", out: "./drizzle"}\n'
+    remaining = 1024 * 1024 - len(header)
+    text = header + (unit * (remaining // len(unit) + 1))[:remaining]
+    assert len(text.encode()) == 1024 * 1024
+    _seed(tmp_path, {"drizzle.config.ts": text, "src/schema.ts": ""})
+    result = subprocess.run([sys.executable, str(_SCRIPT), "--repo-root", str(tmp_path)], input="src/schema.ts\n", text=True, capture_output=True, check=False, timeout=5)
+    assert result.returncode == 0
+    project = json.loads(result.stdout)["projects"][0]
+    assert project["schema_paths"] == ["src/schema.ts"]
+    assert project["migrations_dir"] == "drizzle"
+    assert any("schema location read" in note for note in project["notes"])
+    assert not any("over 1 MiB" in note for note in project["notes"])
+
+
+def test_missing_config_field_has_bounded_scan_at_read_cap(tmp_path: Path):
+    header = 'export default {schema: "./src/schema.ts"}\n'
+    remaining = 1024 * 1024 - len(header)
+    text = header + ("=/[" * (remaining // 3 + 1))[:remaining]
+    _seed(tmp_path, {"drizzle.config.ts": text, "src/schema.ts": ""})
+    result = subprocess.run([sys.executable, str(_SCRIPT), "--repo-root", str(tmp_path)], input="src/schema.ts\n", text=True, capture_output=True, check=False, timeout=5)
+    assert result.returncode == 0
+    project = json.loads(result.stdout)["projects"][0]
+    assert project["schema_paths"] == ["src/schema.ts"]
+    assert project["migrations_dir"] == "drizzle"
+    assert any("schema location read" in note for note in project["notes"])

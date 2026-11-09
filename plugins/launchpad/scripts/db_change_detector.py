@@ -10,7 +10,6 @@ import os
 import re
 import stat
 import sys
-from bisect import bisect_right
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -28,17 +27,20 @@ _EXCLUDED = {
     "build",
 }
 _JS_EXTENSIONS = {".ts", ".js", ".mts", ".mjs", ".cts", ".cjs"}
-_STRING = r"""(['"\x60])((?:\\.|(?!\1)[^\\])*)\1"""
-_JS_SPACE = r"(?:\s|/\*(?:[^*]|\*(?!/))*\*/|//[^\n]*(?:\n|\Z))*"
-_JS_REGEX = (
-    r"""(?:^|[=(:,\[!&|?;+\-*%<>^~/]|\b(?:return|throw|case|yield|await|void|typeof|delete|in|instanceof)\b)"""
-    + _JS_SPACE
-    + r"""/(?![/*])(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^/\\\[\n])+/[a-z]*"""
-)
-_JS_TOKEN = (
-    r"(?P<comment>//[^\n]*|/\*.*?(?:\*/|\Z))|"
-    + _JS_REGEX
-    + r"""|'(?:\\.|[^'\\])*(?:'|\Z)|"(?:\\.|[^"\\])*(?:"|\Z)|`(?:\\.|[^`\\])*(?:`|\Z)"""
+_REGEX_PREFIXES = frozenset("=(:,[!&|?;+-*%<>^~/")
+_REGEX_KEYWORDS = frozenset(
+    {
+        "return",
+        "throw",
+        "case",
+        "yield",
+        "await",
+        "void",
+        "typeof",
+        "delete",
+        "in",
+        "instanceof",
+    }
 )
 _DEFAULT_SCHEMA = (
     "src/schema.ts",
@@ -130,64 +132,165 @@ def _matches(path: str, pattern: str) -> bool:
     return i == len(pattern) and len(path) in reachable
 
 
-def _literal(raw: str) -> tuple[str, str] | None:
-    match = re.match(_STRING, raw, re.S)
-    if not match:
+def _literal(text: str, start: int) -> tuple[str, int] | None:
+    """Read one unescaped string literal without copying the remaining source."""
+    if start >= len(text) or text[start] not in "'\"`":
         return None
-    value = match.group(2)
+    end = text.find(text[start], start + 1)
+    if end == -1:
+        return None
+    value = text[start + 1 : end]
     if (chr(36) + "{") in value or "\\" in value:
         return None
-    return value, raw[match.end() :]
+    return value, end + 1
 
 
 def _field_start(text: str, key: str) -> int | None:
-    strings = []
+    """Locate a property in one forward pass, skipping comments and literals."""
+    state = "code"
+    previous = ""
+    key_position = True
+    pending_key = False
+    want_value = False
+    quote = ""
+    literal_start = 0
+    literal_key = False
+    in_class = False
+    i = 0
+    while i < len(text):
+        char = text[i]
+        if state == "line_comment":
+            if char in "\r\n":
+                state = "code"
+                key_position = True
+            i += 1
+            continue
+        if state == "block_comment":
+            if text.startswith("*/", i):
+                state = "code"
+                i += 2
+            else:
+                i += 1
+            continue
+        if state == "string":
+            if char == "\\":
+                i += 2
+                continue
+            if char == quote:
+                pending_key = literal_key and text[literal_start + 1 : i] == key
+                previous = "<literal>"
+                key_position = False
+                state = "code"
+            i += 1
+            continue
+        if state == "regex":
+            if char in "\r\n":
+                state = "code"
+                previous = "<regex>"
+                key_position = True
+            elif char == "\\":
+                i += 2
+                continue
+            elif char == "[":
+                in_class = True
+            elif char == "]":
+                in_class = False
+            elif char == "/" and not in_class:
+                i += 1
+                while i < len(text) and text[i].isalpha():
+                    i += 1
+                state = "code"
+                previous = "<regex>"
+                continue
+            i += 1
+            continue
 
-    def mask_comments(match: re.Match[str]) -> str:
-        if match.group("comment") is not None:
-            return " " * len(match.group())
-        strings.append((match.start(), match.end()))
-        return match.group()
-
-    source = re.sub(_JS_TOKEN, mask_comments, text, flags=re.S)
-    starts = [start for start, _ in strings]
-    for match in re.finditer(
-        rf"""(?:^|[{{,])\s*(?:{key}|"{key}"|'{key}')\s*:\s*""", source, re.M
-    ):
-        index = bisect_right(starts, match.start()) - 1
-        if index < 0 or match.start() >= strings[index][1]:
-            return match.end()
+        if char.isspace():
+            if char in "\r\n":
+                key_position = True
+            i += 1
+            continue
+        if text.startswith("//", i):
+            state = "line_comment"
+            i += 2
+            continue
+        if text.startswith("/*", i):
+            state = "block_comment"
+            i += 2
+            continue
+        if want_value:
+            return i
+        if char in "'\"`":
+            state = "string"
+            quote = char
+            literal_start = i
+            literal_key = key_position and char != "`"
+            i += 1
+            continue
+        if char == "/" and (
+            not previous or previous in _REGEX_PREFIXES or previous in _REGEX_KEYWORDS
+        ):
+            state = "regex"
+            in_class = False
+            pending_key = False
+            key_position = False
+            i += 1
+            continue
+        if char.isalnum() or char in "_$":
+            start = i
+            i += 1
+            while i < len(text) and (text[i].isalnum() or text[i] in "_$"):
+                i += 1
+            previous = text[start:i]
+            pending_key = key_position and previous == key
+            key_position = False
+            continue
+        want_value = pending_key and char == ":"
+        pending_key = False
+        key_position = char in "{,"
+        previous = char
+        i += 1
     return None
 
 
+def _space_end(text: str, start: int) -> int:
+    while start < len(text) and text[start].isspace():
+        start += 1
+    return start
+
+
 def _config_value(text: str, key: str) -> str | list[str] | None:
-    """Read a literal string or array from an object property using regex only."""
+    """Read a static literal string or array using forward-only source offsets."""
     start = _field_start(text, key)
     if start is None:
         return None
-    raw = text[start:]
-    if raw.startswith("["):
-        remaining = raw[1:].lstrip()
+    if text[start] == "[":
+        start = _space_end(text, start + 1)
         values = []
-        while not remaining.startswith("]"):
-            item = _literal(remaining)
+        while start < len(text) and text[start] != "]":
+            item = _literal(text, start)
             if item is None:
                 return None
-            value, remaining = item
+            value, start = item
             values.append(value)
-            remaining = remaining.lstrip()
-            if remaining.startswith(","):
-                remaining = remaining[1:].lstrip()
-            elif not remaining.startswith("]"):
+            start = _space_end(text, start)
+            if text.startswith(",", start):
+                start = _space_end(text, start + 1)
+            elif not text.startswith("]", start):
                 return None
-        tail = remaining[1:]
+        if not text.startswith("]", start):
+            return None
+        start += 1
         result: str | list[str] = values
     else:
-        item = _literal(raw)
+        item = _literal(text, start)
         if item is None:
             return None
-        result, tail = item
-    if not re.match(r"\s*(?:[,}]|$|//|/\*)", tail):
+        result, start = item
+    start = _space_end(text, start)
+    if start != len(text) and not (
+        text[start] in ",}" or text.startswith(("//", "/*"), start)
+    ):
         return None
     return result
 
