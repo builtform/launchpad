@@ -9,7 +9,7 @@ from pathlib import Path, PurePosixPath
 
 import pytest
 
-from db_change_detector import detect
+from db_change_detector import _Repository, detect
 
 _SCRIPT = Path(__file__).resolve().parents[1] / "db_change_detector.py"
 _DRIZZLE = 'export default defineConfig({schema: "./src/schema.ts", out: "./drizzle"});'
@@ -827,3 +827,63 @@ def test_repeated_config_properties_at_read_cap(tmp_path: Path) -> None:
     assert project["schema_paths"] == ["src/schema.ts"]
     assert project["migrations_dir"] == "generated"
     assert any("unresolved schema" in note for note in project["notes"])
+
+
+@pytest.mark.parametrize("config", [
+    'export default defineConfig({...shared,migrations:{schema:"drizzle"}});',
+    'export default defineConfig({...shared,migrations:{x:[{schema:"deep"}]}});',
+    'export default defineConfig({...shared,"migrations" /* key */ : /* value */ {schema:"drizzle"}});',
+])
+def test_nested_config_section_cannot_supply_schema(tmp_path: Path, config: str) -> None:
+    _seed(tmp_path, {"drizzle.config.ts": config, "src/schema.ts": "", "drizzle/users.ts": "", "deep/users.ts": ""})
+    project = detect(["src/schema.ts"], tmp_path)["projects"][0]
+    assert project["changed_schema"] == project["schema_paths"] == ["src/schema.ts"]
+    assert any("unresolved schema" in note for note in project["notes"])
+
+
+def test_literal_drizzle_folder_is_not_nested_metadata(tmp_path: Path) -> None:
+    _seed(tmp_path, {"drizzle.config.ts": 'export default {schema:"./drizzle",migrations:{schema:"public"}};', "drizzle/users.ts": "", "public/helper.ts": ""})
+    project = detect(["drizzle/users.ts"], tmp_path)["projects"][0]
+    assert project["schema_paths"] == ["drizzle/users.ts"]
+    assert project["notes"] == ["schema location read from drizzle.config.ts"]
+
+
+def test_ternary_config_objects_stay_ambiguous(tmp_path: Path) -> None:
+    _seed(tmp_path, {"drizzle.config.ts": 'export default cond ? {schema:"./a.ts"} : {schema:"./b.ts"};', "src/schema.ts": "", "a.ts": "", "b.ts": ""})
+    project = detect(["src/schema.ts"], tmp_path)["projects"][0]
+    assert project["schema_paths"] == ["src/schema.ts"]
+    assert any("unresolved schema" in note for note in project["notes"])
+
+
+@pytest.mark.parametrize("unit", ["a:{", "{a:{schema:1}},"])
+def test_nested_config_sections_at_read_cap(tmp_path: Path, unit: str) -> None:
+    header = 'export default {schema:"./src/schema.ts",out:"./generated"};\n'
+    remaining = 1024 * 1024 - len(header)
+    text = header + unit * (remaining // len(unit)) + " " * (remaining % len(unit))
+    _seed(tmp_path, {"drizzle.config.ts": text, "src/schema.ts": ""})
+    result = subprocess.run([sys.executable, str(_SCRIPT), "--repo-root", str(tmp_path)], input="src/schema.ts\n", text=True, capture_output=True, check=False, timeout=5)
+    assert result.returncode == 0
+    project = json.loads(result.stdout)["projects"][0]
+    assert project["schema_paths"] == ["src/schema.ts"]
+    assert project["migrations_dir"] == "generated"
+    assert project["notes"] == ["schema location read from drizzle.config.ts"]
+
+
+def test_generated_web_directories_are_not_inventoried(tmp_path: Path) -> None:
+    _seed(tmp_path, {".next/cache/generated.js": "", ".turbo/cache/generated.js": "", "src/app.ts": ""})
+    assert _Repository(tmp_path).files == {"src/app.ts"}
+
+
+def test_changed_sql_in_generated_directory_is_still_classified(tmp_path: Path) -> None:
+    path = ".next/cache/sql/001.sql"
+    _seed(tmp_path, {path: ""})
+    project = detect([path], tmp_path)["projects"][0]
+    assert project["tool"] == "sql"
+    assert project["changed_migrations"] == [path]
+
+
+def test_newline_before_ternary_branch_does_not_make_property_key(tmp_path: Path) -> None:
+    config = 'export default defineConfig({metadata: cond ?\nvalue : {schema:"./custom/users.ts"}});'
+    _seed(tmp_path, {"drizzle.config.ts": config, "custom/users.ts": ""})
+    project = detect(["custom/users.ts"], tmp_path)["projects"][0]
+    assert project["schema_paths"] == ["custom/users.ts"]

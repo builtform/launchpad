@@ -19,6 +19,8 @@ _MAX_BYTES = 1024 * 1024
 _MAX_DRIZZLE_GLOBS = 64
 _EXCLUDED = {
     ".git",
+    ".next",
+    ".turbo",
     "node_modules",
     ".venv",
     "venv",
@@ -147,17 +149,21 @@ def _literal(text: str, start: int) -> tuple[str, int] | None:
 
 
 def _field_start(text: str, key: str) -> int | None:
-    """Locate a unique shallowest property; return -1 for ambiguous ownership."""
+    """Ignore nested sections; return -1 if shallowest property ownership ties."""
     state = "code"
     previous = ""
     key_position = True
     pending_key = False
+    pending_property = False
     want_value = False
+    want_section = False
     quote = ""
     literal_start = 0
     literal_key = False
+    literal_property = False
     in_class = False
     depth = 0
+    section_depth: int | None = None
     best_depth: int | None = None
     matches = 0
     found: int | None = None
@@ -167,7 +173,6 @@ def _field_start(text: str, key: str) -> int | None:
         if state == "line_comment":
             if char in "\r\n":
                 state = "code"
-                key_position = True
             i += 1
             continue
         if state == "block_comment":
@@ -183,6 +188,7 @@ def _field_start(text: str, key: str) -> int | None:
                 continue
             if char == quote:
                 pending_key = literal_key and text[literal_start + 1 : i] == key
+                pending_property = literal_property
                 previous = "<literal>"
                 key_position = False
                 state = "code"
@@ -192,7 +198,6 @@ def _field_start(text: str, key: str) -> int | None:
             if char in "\r\n":
                 state = "code"
                 previous = "<regex>"
-                key_position = True
             elif char == "\\":
                 i += 2
                 continue
@@ -211,8 +216,6 @@ def _field_start(text: str, key: str) -> int | None:
             continue
 
         if char.isspace():
-            if char in "\r\n":
-                key_position = True
             i += 1
             continue
         if text.startswith("//", i):
@@ -226,11 +229,16 @@ def _field_start(text: str, key: str) -> int | None:
         if want_value:
             found = i
             want_value = False
+        if want_section:
+            if char == "{" and section_depth is None:
+                section_depth = depth + 1
+            want_section = False
         if char in "'\"`":
             state = "string"
             quote = char
             literal_start = i
-            literal_key = depth >= 1 and key_position and char != "`"
+            literal_property = depth >= 1 and key_position and char != "`"
+            literal_key = literal_property and section_depth is None
             i += 1
             continue
         if char == "/" and (
@@ -239,6 +247,7 @@ def _field_start(text: str, key: str) -> int | None:
             state = "regex"
             in_class = False
             pending_key = False
+            pending_property = False
             key_position = False
             i += 1
             continue
@@ -248,13 +257,17 @@ def _field_start(text: str, key: str) -> int | None:
             while i < len(text) and (text[i].isalnum() or text[i] in "_$"):
                 i += 1
             previous = text[start:i]
-            pending_key = depth >= 1 and key_position and previous == key
+            pending_property = depth >= 1 and key_position
+            pending_key = pending_property and section_depth is None and previous == key
             key_position = False
             continue
         if char == "{":
             depth += 1
         elif char == "}":
             depth = max(0, depth - 1)
+            if section_depth is not None and depth < section_depth:
+                section_depth = None
+        want_section = pending_property and char == ":"
         if pending_key and char == ":":
             if best_depth is None or depth < best_depth:
                 best_depth = depth
@@ -264,6 +277,7 @@ def _field_start(text: str, key: str) -> int | None:
             elif depth == best_depth:
                 matches += 1
         pending_key = False
+        pending_property = False
         key_position = char in "{,"
         previous = char
         i += 1
