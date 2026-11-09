@@ -77,7 +77,7 @@ def test_greenfield_neutral_entries(
     for filename in files:
         path = tmp_path / filename
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("x" * 6000, encoding="utf-8")
+        path.write_text("x" * (10 if filename == "README.md" else 6000), encoding="utf-8")
     if symlink_docs:
         target = tmp_path.parent / f"{tmp_path.name}-docs-target"
         (target / "brainstorms").mkdir(parents=True)
