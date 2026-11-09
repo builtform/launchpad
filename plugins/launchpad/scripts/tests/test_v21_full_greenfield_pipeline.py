@@ -189,3 +189,64 @@ def test_full_greenfield_pipeline(tmp_path: Path) -> None:
     assert not (cwd / "apps").exists(), (
         "astro single-mode must not wrap files under apps/"
     )
+
+
+def test_undecided_answers_after_brainstorm(tmp_path: Path) -> None:
+    from lp_pick_stack.brainstorm_summary_validator import validate_brainstorm_summary
+    from lp_pick_stack.engine import _load_category_patterns
+    from lp_pick_stack.matcher import shortlist_categories
+    from test_matcher import _CASE_A, _EXPECTED_A
+
+    os.chmod(tmp_path, 0o700)
+    document = tmp_path / "docs/brainstorms/2026-11-08-plan-brainstorm.md"
+    document.parent.mkdir(parents=True)
+    document.write_text("# Project summary\n\n" + _CASE_A["describe"], encoding="utf-8")
+    launchpad = tmp_path / ".launchpad"
+    launchpad.mkdir()
+    (launchpad / "brainstorm-summary.md").write_text(
+        "---\n"
+        "generated_at: 2026-11-08T12:00:00Z\n"
+        "generated_by: /lp-brainstorm\n"
+        "greenfield: true\n"
+        "cwd_state_when_generated: empty\n"
+        "brainstorm_doc: docs/brainstorms/2026-11-08-plan-brainstorm.md\n"
+        "---\n\n"
+        "# Project summary\n\n" + _CASE_A["describe"] + "\n\n"
+        "# Stack-relevant constraints\n\n"
+        "- PostgreSQL, an always-on scheduler, passkey sign-in and web push.\n"
+        "- Backend language and deployment choice remain undecided.\n",
+        encoding="utf-8",
+    )
+    assert cwd_state(tmp_path) == "empty"
+    assert validate_brainstorm_summary(tmp_path).brainstorm_doc == document.resolve()
+    candidates = shortlist_categories(_CASE_A, _load_category_patterns(None))
+    assert [
+        (c.id, c.score, c.matched_by_wildcard, len(c.describe_hits), c.describe_atoms)
+        for c in candidates
+    ] == _EXPECTED_A
+
+    selection = pick_stack_run(tmp_path, _CASE_A, write_telemetry=True)
+    assert not selection.success
+    assert selection.reason == "category_selection_required"
+    assert not (launchpad / "scaffold-decision.json").exists()
+    alternatives = (
+        "Python SaaS (Django monolith): a Python backend is not part of the chosen TypeScript stack.",
+        "Multi-frontend hybrid: a separate public content site is not needed for this private application.",
+        "Realtime Python (Django Channels): the selected stack does not need a Python realtime server.",
+        "TypeScript SaaS (Next + Supabase): the user chose to own the API server rather than use a managed backend.",
+    )
+    sealed = pick_stack_run(
+        tmp_path, _CASE_A, chosen_category_id="polyglot-next-hono",
+        alternatives=alternatives, write_telemetry=True,
+    )
+    assert sealed.success, sealed.message
+    assert sealed.outcome == PickStackOutcome.ACCEPTED
+    decision = json.loads((launchpad / "scaffold-decision.json").read_text(encoding="utf-8"))
+    assert decision["matched_category_id"] == "polyglot-next-hono"
+    assert next(s["bullets"] for s in decision["rationale_summary"] if s["section"] == "alternatives") == list(alternatives)
+    logs = list((tmp_path / ".harness/observations").glob("v2-pipeline-*.jsonl"))
+    assert len(logs) == 1
+    entries = [json.loads(line) for line in logs[0].read_text(encoding="utf-8").splitlines()]
+    assert len(entries) == 1
+    assert entries[0]["outcome"] == PickStackOutcome.ACCEPTED
+    assert cwd_state(tmp_path) == "empty"
