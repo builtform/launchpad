@@ -51,28 +51,42 @@ separate by tool and root, and inspect the complete migration directory.
    its generated schema. Supabase migrations without a `supabase/schemas/`
    change are normal and are not this pattern. Do not evaluate it for
    plain SQL, which has no schema side.
+   Data-only migrations with no schema effects are also exempt: SQL using
+   only DML (`UPDATE`, `INSERT`, `DELETE`), Django `RunPython` backfills or
+   `RunSQL` with only DML, Alembic `op.execute` or `op.bulk_insert` with only
+   DML, and Rails migration methods that only change rows. List these under
+   Legitimate Changes so both safety auditors review them. Keep the SQL
+   quality checks for these legitimate changes.
 
 3. **Migration from another branch**: **P2**, using the tool's history:
    - Prisma, Supabase and Rails: a timestamp prefix older than the newest
      migration already on the base branch.
    - Drizzle: `meta/_journal.json` has a repeated `idx`, a `when` older than
      the last base entry, or a snapshot whose `prevId` does not chain.
-   - Django: two migrations in one app share a number, or `dependencies`
-     do not name that app's latest base migration.
-   - Alembic: two revisions share the same `down_revision`.
+   - Django: a shared migration number or `dependencies` that do not name
+     the app's latest base migration are evidence. Report P2 only if no
+     merge migration in that app has `dependencies` naming every leaf.
+   - Alembic: a shared `down_revision` is evidence. A revision whose tuple
+     `down_revision` names both heads resolves it. A revision declaring
+     `branch_labels` starts an intentional branch and is not drift. Report
+     P2 only when nothing resolves the history.
+
+   For Django and Alembic, list resolved merges under Legitimate Changes.
 
 4. **Migration does not match the schema change**: **P1**. Compare migration
    SQL for Prisma, Drizzle, Supabase and plain SQL, or operations for Django
    (`operations`), Alembic (`op.*` calls) and Rails (migration methods),
    against the schema diff. If the project has no schema side to compare,
    mark this pattern not evaluated with the tool and reason.
+   Do not evaluate this pattern for a data-only migration with no schema
+   change; keep that migration under Legitimate Changes.
 
 ## Core Process (4 Steps)
 
 1. **Identify changes**: group the supplied database paths by tool and root
    using the layouts and `db_review`; keep changed and full schema paths.
 2. **Cross-reference**: match schema and migration changes under the rules
-   above, honoring the Supabase and plain-SQL exceptions.
+   above, honoring the data-only, Supabase and plain-SQL exceptions.
 3. **Detect drift**: compare migration history with the base branch and
    verify SQL/operation alignment and unrelated schema changes.
 4. **Check SQL quality**: retain these four checks: transactions wrapping

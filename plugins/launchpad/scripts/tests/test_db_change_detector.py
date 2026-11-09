@@ -352,7 +352,8 @@ def test_nested_alembic_configuration_change(tmp_path: Path):
     assert result["db_changes"] is True
     project = result["projects"][0]
     assert project["tool"] == "alembic"
-    assert project["root"] == "src"
+    # The config owns the project's models; the script folder only holds revisions.
+    assert project["root"] == "."
     assert project["changed_other"] == ["alembic.ini"]
     assert project["migrations_dir"] == "src/migrations/versions"
 
@@ -546,3 +547,81 @@ def test_sqlalchemy_classification_at_read_cap(tmp_path: Path, unit: str, prefix
         assert not any("over 1 MiB" in note for note in project["notes"])
     else:
         assert payload["projects"] == []
+
+
+@pytest.mark.parametrize(("array", "expected"), [
+    pytest.param('[/* tables */ "./custom/users.ts"]', ["custom/users.ts"], id="leading-block"),
+    pytest.param('[// tables\n "./custom/users.ts"]', ["custom/users.ts"], id="leading-line"),
+    pytest.param('[// tables\r "./custom/users.ts"]', ["custom/users.ts"], id="leading-line-cr"),
+    pytest.param('["./custom/users.ts" /* end */]', ["custom/users.ts"], id="after-item"),
+    pytest.param('["./custom/users.ts" /* comma */, "./custom/posts.ts"]', ["custom/posts.ts", "custom/users.ts"], id="before-comma"),
+    pytest.param('["./custom/users.ts", /* posts */ "./custom/posts.ts"]', ["custom/posts.ts", "custom/users.ts"], id="after-comma-block"),
+    pytest.param('["./custom/users.ts", // posts\n "./custom/posts.ts"]', ["custom/posts.ts", "custom/users.ts"], id="after-comma-line"),
+    pytest.param('["./custom/users.ts" // end\n]', ["custom/users.ts"], id="before-end-line"),
+    pytest.param('["./custom/users.ts", /* trailing */]', ["custom/users.ts"], id="trailing-comma"),
+])
+def test_commented_drizzle_arrays(tmp_path: Path, array: str, expected: list[str]) -> None:
+    _seed(tmp_path, {"drizzle.config.ts": f"export default {{schema: {array}}};", "custom/users.ts": "", "custom/posts.ts": ""})
+    result = detect(["custom/users.ts"], tmp_path)
+    assert result["db_changes"] is True
+    project = result["projects"][0]
+    assert project["schema_paths"] == expected
+    assert project["changed_schema"] == ["custom/users.ts"]
+
+
+def test_configured_alembic_model_scope(tmp_path: Path) -> None:
+    _seed(tmp_path, {"alembic.ini": "[alembic]\nscript_location = src/migrations\n", "src/migrations/env.py": "", "src/migrations/script.py.mako": "", "app/models.py": "from sqlalchemy.orm import DeclarativeBase\n"})
+    result = detect(["app/models.py"], tmp_path)
+    assert result["db_changes"] is True
+    project = result["projects"][0]
+    assert project["root"] == "."
+    assert project["changed_schema"] == project["schema_paths"] == ["app/models.py"]
+    assert project["migrations_dir"] == "src/migrations/versions"
+
+
+@pytest.mark.parametrize(("unit", "unresolved"), [
+    pytest.param("/*", True, id="unclosed-comment"),
+    pytest.param("/**/", False, id="closed-comment"),
+    pytest.param("// \n", False, id="line-comment"),
+    pytest.param('"a", /* */', False, id="repeated-item-comment"),
+    pytest.param("/*,", True, id="unclosed-comment-comma"),
+])
+def test_array_comment_scan_at_read_cap(tmp_path: Path, unit: str, unresolved: bool) -> None:
+    header = 'export default {out: "./drizzle", schema: ["./src/schema.ts", '
+    footer = ']};\n'
+    remaining = 1024 * 1024 - len(header) - len(footer)
+    copies, padding = divmod(remaining, len(unit))
+    text = header + unit * copies + " " * padding + footer
+    assert len(text.encode()) == 1024 * 1024
+    _seed(tmp_path, {"drizzle.config.ts": text, "src/schema.ts": ""})
+    result = subprocess.run([sys.executable, str(_SCRIPT), "--repo-root", str(tmp_path)], input="src/schema.ts\n", text=True, capture_output=True, check=False, timeout=5)
+    assert result.returncode == 0
+    project = json.loads(result.stdout)["projects"][0]
+    assert project["schema_paths"] == ["src/schema.ts"]
+    assert any("unresolved schema" in note for note in project["notes"]) is unresolved
+    assert not any("over 1 MiB" in note for note in project["notes"])
+    if not unresolved:
+        assert any("schema location read" in note for note in project["notes"])
+
+
+def test_configured_alembic_folder_is_one_instance(tmp_path: Path) -> None:
+    migration = "src/migrations/versions/x.py"
+    _seed(tmp_path, {"alembic.ini": "[alembic]\nscript_location = src/migrations\n", "src/migrations/env.py": "", "src/migrations/script.py.mako": "", migration: ""})
+    result = detect([migration], tmp_path)
+    assert len(result["projects"]) == 1
+    project = result["projects"][0]
+    assert project["root"] == "."
+    assert project["changed_migrations"] == [migration]
+    assert project["migrations_dir"] == "src/migrations/versions"
+
+
+@pytest.mark.parametrize(("folder", "root"), [("src/migrations", "src"), ("services/api/alembic", "services/api")])
+def test_automatic_alembic_roots_are_unchanged(tmp_path: Path, folder: str, root: str) -> None:
+    model = root + "/models.py"
+    _seed(tmp_path, {folder + "/env.py": "", folder + "/script.py.mako": "", model: "from sqlalchemy.orm import DeclarativeBase\n"})
+    result = detect([model], tmp_path)
+    assert result["db_changes"] is True
+    project = result["projects"][0]
+    assert project["root"] == root
+    assert project["schema_paths"] == [model]
+    assert project["migrations_dir"] == folder + "/versions"

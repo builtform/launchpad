@@ -254,8 +254,19 @@ def _field_start(text: str, key: str) -> int | None:
 
 
 def _space_end(text: str, start: int) -> int:
-    while start < len(text) and text[start].isspace():
-        start += 1
+    """Skip whitespace and comment trivia with a forward-only cursor."""
+    while start < len(text):
+        if text[start].isspace():
+            start += 1
+        elif text.startswith("//", start):
+            start += 2
+            while start < len(text) and text[start] not in "\r\n":
+                start += 1
+        elif text.startswith("/*", start):
+            end = text.find("*/", start + 2)
+            start = len(text) if end == -1 else end + 2
+        else:
+            break
     return start
 
 
@@ -505,6 +516,8 @@ def _discover_drizzle(repo: _Repository, changed: set[str]) -> None:
         text = repo.read(config) or ""
         schema = _config_value(text, "schema")
         values = [schema] if isinstance(schema, str) else schema
+        if values is not None:
+            values = list(dict.fromkeys(values))
         raw_patterns = (
             [_join(root, value) for value in values] if values is not None else []
         )
@@ -546,6 +559,7 @@ def _discover_drizzle(repo: _Repository, changed: set[str]) -> None:
 def _discover_alembic(repo: _Repository, changed: set[str]) -> None:
     folders = set()
     notes = set()
+    configured_folder: str | None = None
     for path in repo.files:
         parent = PurePosixPath(path).parent
         if (
@@ -568,6 +582,7 @@ def _discover_alembic(repo: _Repository, changed: set[str]) -> None:
                 location = _join(".", value.replace("%(here)s", "."))
                 if location is not None and repo.confined(location):
                     folders.add(location)
+                    configured_folder = location
                 else:
                     notes.add("unresolved script_location in alembic.ini")
             except (configparser.Error, ValueError):
@@ -582,7 +597,11 @@ def _discover_alembic(repo: _Repository, changed: set[str]) -> None:
             or not repo.exists(template)
         ):
             continue
-        root = PurePosixPath(folder).parent.as_posix()
+        root = (
+            "."
+            if folder == configured_folder
+            else PurePosixPath(folder).parent.as_posix()
+        )
         instance = repo.instance("alembic", root)
         instance.migrations.add(_join(folder, "versions") or folder)
         instance.other.update({env, "alembic.ini"})

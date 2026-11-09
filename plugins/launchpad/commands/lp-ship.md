@@ -136,6 +136,21 @@ For each round (1, 2, 3):
    - `lefthook.yml`, `.semgrep/**`, `.github/workflows/**`, `.claude/settings.json`, `**/CODEOWNERS` — CI + governance
    - `**/Dockerfile*`, `**/docker-compose*`, `**/*.tf` — infrastructure-as-code
 
+   At the start of each round, augment the static database patterns with
+   resolved database paths for the current PR scope:
+
+   ```bash
+   set -o pipefail; git diff --name-only -z origin/main...HEAD | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/db_change_detector.py" --null --repo-root .
+   ```
+
+   Parse the JSON as data. For every project, denylist every path in
+   `changed_schema`, `changed_migrations`, `changed_other` and `schema_paths`,
+   and every path under `migrations_dir`. These are additional database
+   schema and migration exclusions for auto-fix eligibility.
+   If the command fails or the output does not parse, print exactly
+   `Database paths not resolved; only the static database patterns apply.`
+   Continue with the static list and the normal auto-fix loop.
+
    **Match semantics (advisory; PATH-BASED, NOT INTENT-BASED):** Claude interprets these patterns by examining the file's PATH SEGMENTS, not the file's purpose or location-in-test-tree. Worked examples:
    - `apps/api/src/auth/handler.ts` matches `**/auth/**` (segment `auth/` is in path)
    - `apps/web/src/auth.ts` matches `**/auth.*` (basename starts with `auth.`)
