@@ -132,7 +132,7 @@ For each round (1, 2, 3):
    - `**/jwt/**`, `**/oauth/**`, `**/session/**` — token/session management
    - `**/crypto/**`, `**/encryption/**`, `**/keys/**` — cryptography
    - `**/permissions/**`, `**/iam/**`, `**/rbac/**`, `**/acl/**` — access control
-   - `prisma/schema.prisma`, `**/migrations/**` — database schema + migrations
+   - `**/*.prisma`, `**/migrations/**`, `**/migrate/**`, `**/drizzle/**`, `**/drizzle.config.*`, `**/supabase/migrations/**`, `**/supabase/schemas/**`, `**/alembic/**`, `**/db/schema.rb`, `**/db/structure.sql`: database schema and migrations
    - `lefthook.yml`, `.semgrep/**`, `.github/workflows/**`, `.claude/settings.json`, `**/CODEOWNERS` — CI + governance
    - `**/Dockerfile*`, `**/docker-compose*`, `**/*.tf` — infrastructure-as-code
 
