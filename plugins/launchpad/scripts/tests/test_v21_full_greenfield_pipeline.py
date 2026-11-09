@@ -5,9 +5,9 @@ fresh tmp_path:
 
   pick-stack -> scaffold-stack -> kernel render -> /lp-define
 
-Per Phase 11 plan section 3.1: tests invoke Python runners directly via
-the library API, NOT slash commands or CLI subprocess. Brainstorm has no
-Python runner so the E2E starts at pick-stack (R2 acknowledged).
+Pick-stack and scaffold-stack use their library APIs. Structure-check
+flows also invoke the define CLI and the rendered Bash check. Brainstorm
+has no Python runner, so its output is simulated.
 
 Stack: astro static-blog (uses curate-mode stub scaffolders.yml so no
 `npm create` spawn). Pattern lifted from `test_joint_pipeline_smoke.py`.
@@ -17,6 +17,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -250,3 +252,92 @@ def test_undecided_answers_after_brainstorm(tmp_path: Path) -> None:
     assert len(entries) == 1
     assert entries[0]["outcome"] == PickStackOutcome.ACCEPTED
     assert cwd_state(tmp_path) == "empty"
+
+
+def _finish_structure_project(cwd: Path) -> Path:
+    initialized = subprocess.run(
+        ["git", "init", "-q"], cwd=cwd, capture_output=True, text=True,
+        timeout=30, check=False,
+    )
+    assert initialized.returncode == 0, initialized.stderr
+    defined = subprocess.run(
+        [sys.executable, str(_SCRIPTS / "lp_define_runner.py"), "--repo-root", str(cwd), "--force", "--no-trust-banner"],
+        cwd=cwd, capture_output=True, text=True, timeout=120, check=False,
+    )
+    assert defined.returncode == 0, defined.stdout + defined.stderr
+    assert (cwd / ".launchpad/agents.yml").is_file()
+    return cwd
+
+
+def _seed_astro_structure_project(cwd: Path) -> Path:
+    os.chmod(cwd, 0o700)
+    _simulate_brainstorm(cwd)
+    picked = pick_stack_run(
+        cwd, CANONICAL_ANSWERS, project_description=CANONICAL_PROJECT_DESCRIPTION,
+        write_telemetry=False,
+    )
+    assert picked.success, picked.message
+    stub = _stub_scaffolders_yml(cwd / ".launchpad/stub-scaffolders.yml")
+    scaffolded = scaffold_stack_run(
+        cwd, scaffolders_yml=stub, category_patterns_yml=DEFAULT_CATEGORY_PATTERNS_YML,
+        plugins_root=DEFAULT_PLUGINS_ROOT, write_telemetry_flag=False,
+    )
+    assert scaffolded.success, scaffolded.message
+    return _finish_structure_project(cwd)
+
+
+def _seed_two_layer_structure_project(cwd: Path) -> Path:
+    os.chmod(cwd, 0o700)
+    picked = pick_stack_run(
+        cwd, CANONICAL_ANSWERS, manual_override=True,
+        manual_layer_specs=[
+            {"stack": "hono", "role": "backend", "path": "apps/api"},
+            {"stack": "generic", "role": "frontend", "path": "apps/web"},
+        ],
+        write_telemetry=False,
+    )
+    assert picked.success, picked.message
+    scaffolded = scaffold_stack_run(
+        cwd, plugins_root=DEFAULT_PLUGINS_ROOT,
+        category_patterns_yml=DEFAULT_CATEGORY_PATTERNS_YML,
+        write_telemetry_flag=False,
+    )
+    assert scaffolded.success, scaffolded.message
+    receipt = json.loads((cwd / ".launchpad/scaffold-receipt.json").read_text(encoding="utf-8"))
+    assert receipt["toolchains_detected"] == ["node"]
+    for name, text in (
+        ("apps/api/src/index.ts", "export const status = 'ok';\n"),
+        ("apps/web/index.html", "<!doctype html><title>Example</title>\n"),
+        ("packages/.gitkeep", ""),
+    ):
+        target = cwd / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+    return _finish_structure_project(cwd)
+
+
+def _check_structure_project(cwd: Path):
+    result = subprocess.run(
+        ["bash", str(cwd / "scripts/maintenance/check-repo-structure.sh")],
+        cwd=cwd, capture_output=True, text=True, timeout=60, check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Non-whitelisted" not in result.stdout
+    assert "Repository structure violations found" not in result.stdout
+    assert "All agents.yml entries resolve" in result.stdout
+    return result
+
+
+@pytest.mark.skipif(shutil.which("bash") is None or shutil.which("git") is None, reason="bash and git are required")
+def test_structure_check_passes_on_astro_project(tmp_path: Path):
+    _check_structure_project(_seed_astro_structure_project(tmp_path))
+
+
+@pytest.mark.skipif(shutil.which("bash") is None or shutil.which("git") is None, reason="bash and git are required")
+def test_structure_check_passes_on_two_layer_project(tmp_path: Path):
+    root = _seed_two_layer_structure_project(tmp_path)
+    _check_structure_project(root)
+    script = (root / "scripts/maintenance/check-repo-structure.sh").read_text(encoding="utf-8")
+    block = re.search(r"STACK_AWARE_DIRS_BEGIN[^\n]*\n(.*?)\s*# STACK_AWARE_DIRS_END", script, re.S).group(1)
+    assert '"apps"' in block
+    assert '"packages"' in block

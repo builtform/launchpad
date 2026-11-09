@@ -1162,9 +1162,13 @@ def _render_loop(
         # astro.config.mjs for astro. Without usable stacks, the universal
         # baseline remains.
         if target_relpath == "scripts/maintenance/check-repo-structure.sh":
-            from .stack_structure_check import enrich_structure_check_with_stacks
+            from .stack_structure_check import (
+                enrich_structure_check_with_builtin_agents,
+                enrich_structure_check_with_stacks,
+            )
 
             rendered_bytes = enrich_structure_check_with_stacks(rendered_bytes, cwd)
+            rendered_bytes = enrich_structure_check_with_builtin_agents(rendered_bytes)
         # v2.1.6 BL-350: stack-aware ignore-pattern injection. Three
         # surfaces (`.gitignore`, `.gitleaks.toml`, `.greptile.json`)
         # previously hardcoded TS-monorepo cruft (`.next/`, `.turbo/`,
