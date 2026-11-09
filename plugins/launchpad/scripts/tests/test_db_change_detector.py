@@ -789,3 +789,41 @@ def test_drizzle_ambiguous_top_level_out_is_unresolved(tmp_path: Path) -> None:
     assert project["migrations_dir"] == "drizzle"
     assert any("unresolved out" in note for note in project["notes"])
     assert "helper" not in json.dumps(project)
+
+
+@pytest.mark.parametrize("config", [
+    pytest.param('export default (() => { return defineConfig({schema:"./custom/users.ts",out:"./generated"}); })();', id="iife"),
+    pytest.param('export default (() => { return defineConfig({migrations:{table:"journal",schema:"drizzle"},schema:"./custom/users.ts",out:"./generated"}); })();', id="iife-migrations-before"),
+    pytest.param('function helper(){return [{schema:"nested"},{schema:"other"}];} export default {schema:"./custom/users.ts",out:"./generated"};', id="shallower-after-deeper-ambiguity"),
+])
+def test_drizzle_unique_shallowest_config_property(tmp_path: Path, config: str) -> None:
+    _seed(tmp_path, {"drizzle.config.ts": config, "custom/users.ts": ""})
+    result = detect(["custom/users.ts"], tmp_path)
+    assert result["db_changes"] is True
+    project = result["projects"][0]
+    assert project["schema_paths"] == project["changed_schema"] == ["custom/users.ts"]
+    assert project["migrations_dir"] == "generated"
+
+
+def test_drizzle_wrapped_same_depth_properties_are_unresolved(tmp_path: Path) -> None:
+    config = 'export default (() => { const helper={schema:"public"}; return defineConfig({schema:"./custom/users.ts",out:"./generated"}); })();'
+    _seed(tmp_path, {"drizzle.config.ts": config, "custom/users.ts": "", "public/helper.ts": "", "src/schema.ts": ""})
+    project = detect(["drizzle.config.ts"], tmp_path)["projects"][0]
+    assert project["schema_paths"] == ["src/schema.ts"]
+    assert project["migrations_dir"] == "generated"
+    assert any("unresolved schema" in note for note in project["notes"])
+    assert "public" not in json.dumps(project)
+
+
+def test_repeated_config_properties_at_read_cap(tmp_path: Path) -> None:
+    header = 'export default {schema:"./src/schema.ts",out:"./generated"};\n'
+    unit = "{schema:1},"
+    remaining = 1024 * 1024 - len(header)
+    text = header + (unit * (remaining // len(unit))) + " " * (remaining % len(unit))
+    _seed(tmp_path, {"drizzle.config.ts": text, "src/schema.ts": ""})
+    result = subprocess.run([sys.executable, str(_SCRIPT), "--repo-root", str(tmp_path)], input="src/schema.ts\n", text=True, capture_output=True, check=False, timeout=5)
+    assert result.returncode == 0
+    project = json.loads(result.stdout)["projects"][0]
+    assert project["schema_paths"] == ["src/schema.ts"]
+    assert project["migrations_dir"] == "generated"
+    assert any("unresolved schema" in note for note in project["notes"])

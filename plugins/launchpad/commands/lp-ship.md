@@ -145,8 +145,11 @@ For each round (1, 2, 3):
 
    Parse the JSON as data. For every project, denylist every path in
    `changed_schema`, `changed_migrations`, `changed_other` and `schema_paths`,
-   and every path under `migrations_dir`. These are additional database
-   schema and migration exclusions for auto-fix eligibility.
+   and every path under `migrations_dir`. When `migrations_dir` equals the
+   project's `root` (the detector reports several migration folders that way),
+   use instead the folder of each path in `changed_migrations`, skipping any
+   folder equal to the root. These are additional database schema and migration
+   exclusions for auto-fix eligibility.
    If the command fails or the output does not parse, print exactly
    `Database paths not resolved; only the static database patterns apply.`
    Continue with the static list and the normal auto-fix loop.

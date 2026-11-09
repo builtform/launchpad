@@ -147,7 +147,7 @@ def _literal(text: str, start: int) -> tuple[str, int] | None:
 
 
 def _field_start(text: str, key: str) -> int | None:
-    """Locate a unique depth-one property; return -1 for ambiguous ownership."""
+    """Locate a unique shallowest property; return -1 for ambiguous ownership."""
     state = "code"
     previous = ""
     key_position = True
@@ -158,6 +158,8 @@ def _field_start(text: str, key: str) -> int | None:
     literal_key = False
     in_class = False
     depth = 0
+    best_depth: int | None = None
+    matches = 0
     found: int | None = None
     i = 0
     while i < len(text):
@@ -228,7 +230,7 @@ def _field_start(text: str, key: str) -> int | None:
             state = "string"
             quote = char
             literal_start = i
-            literal_key = depth == 1 and key_position and char != "`"
+            literal_key = depth >= 1 and key_position and char != "`"
             i += 1
             continue
         if char == "/" and (
@@ -246,21 +248,26 @@ def _field_start(text: str, key: str) -> int | None:
             while i < len(text) and (text[i].isalnum() or text[i] in "_$"):
                 i += 1
             previous = text[start:i]
-            pending_key = depth == 1 and key_position and previous == key
+            pending_key = depth >= 1 and key_position and previous == key
             key_position = False
             continue
         if char == "{":
             depth += 1
         elif char == "}":
             depth = max(0, depth - 1)
-        want_value = pending_key and char == ":"
-        if want_value and found is not None:
-            return -1
+        if pending_key and char == ":":
+            if best_depth is None or depth < best_depth:
+                best_depth = depth
+                matches = 1
+                found = None
+                want_value = True
+            elif depth == best_depth:
+                matches += 1
         pending_key = False
         key_position = char in "{,"
         previous = char
         i += 1
-    return found
+    return -1 if matches > 1 else found
 
 
 def _space_end(text: str, start: int) -> int:
