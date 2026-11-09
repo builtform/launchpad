@@ -16,6 +16,7 @@ from pathlib import Path, PurePosixPath
 from typing import NoReturn
 
 _MAX_BYTES = 1024 * 1024
+_MAX_DRIZZLE_GLOBS = 64
 _EXCLUDED = {
     ".git",
     "node_modules",
@@ -306,11 +307,65 @@ def _config_value(text: str, key: str) -> str | list[str] | None:
     return result
 
 
+def _has_glob(pattern: str) -> bool:
+    return any(char in pattern for char in "*?[")
+
+
+def _ancestors(path: str) -> Iterable[str]:
+    """Yield repository-relative ancestor keys, deepest first."""
+    while path != ".":
+        yield path
+        path = path.rpartition("/")[0] or "."
+    yield "."
+
+
+class _Patterns:
+    """An ordered set with separate literal, folder and glob lookup indexes."""
+
+    def __init__(self) -> None:
+        self._ordered: dict[str, None] = {}
+        self.files: set[str] = set()
+        self.folders: set[str] = set()
+        self.globs: list[str] = []
+
+    def __len__(self) -> int:
+        return len(self._ordered)
+
+    def __contains__(self, pattern: str) -> bool:
+        return pattern in self._ordered
+
+    def append(self, pattern: str) -> None:
+        if pattern in self._ordered:
+            return
+        self._ordered[pattern] = None
+        if _has_glob(pattern):
+            self.globs.append(pattern)
+        elif PurePosixPath(pattern).suffix:
+            self.files.add(pattern)
+        else:
+            self.folders.add(pattern)
+
+    def extend(self, patterns: Iterable[str]) -> None:
+        for pattern in patterns:
+            self.append(pattern)
+
+    def matches(self, path: str) -> bool:
+        if path in self.files:
+            return True
+        if (
+            self.folders
+            and PurePosixPath(path).suffix in _JS_EXTENSIONS
+            and any(parent in self.folders for parent in _ancestors(path))
+        ):
+            return True
+        return any(_matches(path, pattern) for pattern in self.globs)
+
+
 @dataclass
 class _Instance:
     tool: str
     root: str
-    patterns: list[str] = field(default_factory=list)
+    patterns: _Patterns = field(default_factory=_Patterns)
     migrations: set[str] = field(default_factory=set)
     other: set[str] = field(default_factory=set)
     notes: set[str] = field(default_factory=set)
@@ -326,6 +381,8 @@ class _Repository:
         self.files: set[str] = set()
         self.instances: dict[tuple[str, str], _Instance] = {}
         self.active: set[tuple[str, str]] = set()
+        self._confined_cache: dict[str, bool] = {}
+        self._exists_cache: dict[str, bool] = {}
         for folder, directories, files in os.walk(
             self.root, followlinks=False, onerror=self._walk_error
         ):
@@ -363,12 +420,16 @@ class _Repository:
         self.notes["."] = f"unresolved directory listing: {exc.strerror}"
 
     def confined(self, name: str) -> bool:
+        if name in self._confined_cache:
+            return self._confined_cache[name]
         try:
-            return _relative(name) is not None and (
+            result = _relative(name) is not None and (
                 self.root / name
             ).resolve().is_relative_to(self.root)
         except (OSError, UnicodeError, ValueError, RuntimeError):
-            return False
+            result = False
+        self._confined_cache[name] = result
+        return result
 
     def read(self, name: str) -> str | None:
         try:
@@ -388,14 +449,21 @@ class _Repository:
             return None
 
     def exists(self, name: str) -> bool:
+        if name in self._exists_cache:
+            return self._exists_cache[name]
         try:
-            return self.confined(name) and (self.root / name).is_file()
+            result = self.confined(name) and (self.root / name).is_file()
         except (OSError, UnicodeError, ValueError, RuntimeError):
             self.notes[name] = f"unresolved file status: {name}"
-            return False
+            result = False
+        self._exists_cache[name] = result
+        return result
 
     def instance(self, tool: str, root: str) -> _Instance:
-        return self.instances.setdefault((tool, root), _Instance(tool, root))
+        key = (tool, root)
+        if key not in self.instances:
+            self.instances[key] = _Instance(tool, root)
+        return self.instances[key]
 
     def add(self, instance: _Instance, kind: str, name: str) -> None:
         self.active.add((instance.tool, instance.root))
@@ -405,20 +473,34 @@ class _Repository:
             instance.notes.add(f"unresolved changed path outside repository: {name}")
 
     def output(self, changed: set[str]) -> list[dict]:
+        active = {key: self.instances[key] for key in self.active}
+        if not active:
+            return []
+        tools = {tool for tool, _ in active}
+        schemas: dict[tuple[str, str], set[str]] = {key: set() for key in active}
+        context_notes: dict[tuple[str, str], set[str]] = {key: set() for key in active}
+        for path in self.files | changed:
+            for tool in tools:
+                for instance in _best(active, tool, path):
+                    if instance.patterns.matches(path) and self.confined(path):
+                        schemas[(instance.tool, instance.root)].add(path)
+        for path, note in self.notes.items():
+            if path == ".":
+                for values in context_notes.values():
+                    values.add(note)
+            else:
+                for tool in tools:
+                    for instance in _best(active, tool, path):
+                        context_notes[(instance.tool, instance.root)].add(note)
         results: dict[tuple[str, str], dict] = {}
         for key in sorted(self.active):
             instance = self.instances[key]
-            notes = set(instance.notes)
+            notes = instance.notes | context_notes[key]
             root = instance.root
             if not self.confined(root):
                 notes.add(f"unresolved root outside repository: {root}")
                 root = "."
-            schema = sorted(
-                path
-                for path in self.files | changed
-                if any(_matches(path, p) for p in instance.patterns)
-                and self.confined(path)
-            )
+            schema = sorted(schemas[key])
             directories = sorted(instance.migrations)
             migrations = directories[0] if len(directories) == 1 else root
             if len(directories) > 1:
@@ -426,9 +508,6 @@ class _Repository:
             if not self.confined(migrations):
                 notes.add(f"unresolved migrations_dir outside repository: {migrations}")
                 migrations = root
-            for path, note in self.notes.items():
-                if _under(path, instance.root) or path == ".":
-                    notes.add(note)
             result = {
                 "tool": instance.tool,
                 "root": root,
@@ -469,9 +548,13 @@ def _prisma_root(name: str) -> str:
 
 
 def _discover_prisma(repo: _Repository, changed: set[str]) -> None:
-    for path in sorted(
-        repo.files | changed, key=lambda p: (not p.endswith("migration_lock.toml"), p)
-    ):
+    paths = repo.files | changed
+    configs: dict[str, set[str]] = {}
+    for path in paths:
+        parent, _, name = path.rpartition("/")
+        if re.fullmatch(r"prisma\.config\.[^/]+", name):
+            configs.setdefault(parent or ".", set()).add(path)
+    for path in sorted(paths, key=lambda p: (not p.endswith("migration_lock.toml"), p)):
         lock = (
             PurePosixPath(path).name == "migration_lock.toml"
             and PurePosixPath(path).parent.name == "migrations"
@@ -480,7 +563,7 @@ def _discover_prisma(repo: _Repository, changed: set[str]) -> None:
             continue
         root = _prisma_root(path)
         if path.endswith(".prisma") and "prisma" not in PurePosixPath(path).parts:
-            anchored = _best(repo.instances.values(), "prisma", path)
+            anchored = _best(repo.instances, "prisma", path)
             if anchored:
                 root = anchored[0].root
         instance = repo.instance("prisma", root)
@@ -493,11 +576,7 @@ def _discover_prisma(repo: _Repository, changed: set[str]) -> None:
     for instance in repo.instances.values():
         if instance.tool != "prisma":
             continue
-        for path in repo.files | changed:
-            if PurePosixPath(path).parent.as_posix() == instance.root and re.fullmatch(
-                r"prisma\.config\.[^/]+", PurePosixPath(path).name
-            ):
-                instance.other.add(path)
+        instance.other.update(configs.get(instance.root, ()))
 
 
 def _discover_drizzle(repo: _Repository, changed: set[str]) -> None:
@@ -521,9 +600,18 @@ def _discover_drizzle(repo: _Repository, changed: set[str]) -> None:
         raw_patterns = (
             [_join(root, value) for value in values] if values is not None else []
         )
-        # Keep lexical patterns for claiming a changed symlink even when it is unsafe to read.
-        instance.patterns.extend(p for p in raw_patterns if p is not None)
-        if values is None or any(
+        glob_entries = {p for p in raw_patterns if p is not None and _has_glob(p)}
+        capped = len(glob_entries) > _MAX_DRIZZLE_GLOBS
+        if capped:
+            instance.notes.add(
+                f"unresolved schema in {config}: more than 64 glob entries"
+            )
+        else:
+            # Keep lexical patterns to claim an unsafe changed symlink without reading it.
+            instance.patterns.extend(p for p in raw_patterns if p is not None)
+        if capped:
+            instance.patterns.extend(_join(root, p) or p for p in _DEFAULT_SCHEMA)
+        elif values is None or any(
             p is None or not repo.confined(p) for p in raw_patterns
         ):
             instance.notes.add(
@@ -609,11 +697,15 @@ def _discover_alembic(repo: _Repository, changed: set[str]) -> None:
         instance.notes.add("schema_paths contains only changed SQLAlchemy model files")
 
 
-def _best(instances: Iterable[_Instance], tool: str, path: str) -> list[_Instance]:
-    return sorted(
-        (i for i in instances if i.tool == tool and _under(path, i.root)),
-        key=lambda i: (-len(PurePosixPath(i.root).parts), i.root),
-    )
+def _best(
+    instances: dict[tuple[str, str], _Instance], tool: str, path: str
+) -> list[_Instance]:
+    """Find matching roots through bounded ancestor lookups, deepest first."""
+    return [
+        instance
+        for root in _ancestors(path)
+        if (instance := instances.get((tool, root))) is not None
+    ]
 
 
 def _layout(name: str, folder: str) -> tuple[str, str] | None:
@@ -641,10 +733,6 @@ def _django_app(repo: _Repository, name: str) -> tuple[str, str] | None:
     return app.as_posix(), kind
 
 
-def _at(directory: str, tail: str) -> str:
-    return tail if directory == "." else re.escape(directory) + "/" + tail
-
-
 def detect(changed_paths: Iterable[str], repo_root: Path) -> dict:
     """Return deterministic, confined database-review context for changed paths."""
     repo = _Repository(Path(repo_root))
@@ -662,18 +750,29 @@ def detect(changed_paths: Iterable[str], repo_root: Path) -> dict:
     _discover_prisma(repo, changed)
     _discover_drizzle(repo, changed)
     _discover_alembic(repo, changed)
+    alembic_other: dict[str, list[_Instance]] = {}
+    for instance in repo.instances.values():
+        if instance.tool == "alembic":
+            for path in instance.other:
+                if not _under(path, instance.root):
+                    alembic_other.setdefault(path, []).append(instance)
+    django_models: dict[str, set[str]] | None = None
     for path in sorted(changed):
         claimed = False
-        for instance in _best(repo.instances.values(), "prisma", path):
+        parent, _, basename = path.rpartition("/")
+        parent = parent or "."
+        grandparent = parent.rpartition("/")[0] or "."
+        for instance in _best(repo.instances, "prisma", path):
             if path in instance.patterns:
                 repo.add(instance, "schema", path)
-            elif path in instance.other or any(
-                re.fullmatch(_at(directory, r"migration_lock\.toml"), path)
+            elif (
+                path in instance.other
+                or (basename == "migration_lock.toml" and parent in instance.migrations)
                 or (
-                    repo.exists(_join(directory, "migration_lock.toml") or "")
-                    and re.fullmatch(_at(directory, r"[^/]+/migration\.sql"), path)
+                    basename == "migration.sql"
+                    and grandparent in instance.migrations
+                    and repo.exists(_join(grandparent, "migration_lock.toml") or "")
                 )
-                for directory in instance.migrations
             ):
                 repo.add(
                     instance,
@@ -689,20 +788,21 @@ def detect(changed_paths: Iterable[str], repo_root: Path) -> dict:
         if claimed:
             continue
 
-        for instance in _best(repo.instances.values(), "drizzle", path):
+        for instance in _best(repo.instances, "drizzle", path):
             if path in instance.other:
                 kind = "other"
-            elif any(_matches(path, p) for p in instance.patterns):
+            elif instance.patterns.matches(path):
                 kind = "schema"
-            elif any(
-                re.fullmatch(_at(d, r"[^/]+\.sql"), path) for d in instance.migrations
+            elif (
+                parent in instance.migrations
+                and path.endswith(".sql")
+                and len(basename) > len(".sql")
             ):
                 kind = "migrations"
-            elif any(
-                re.fullmatch(
-                    _at(d, r"meta/(?:_journal\.json|[^/]+_snapshot\.json)"), path
-                )
-                for d in instance.migrations
+            elif (
+                parent.rpartition("/")[2] == "meta"
+                and grandparent in instance.migrations
+                and re.fullmatch(r"(?:_journal\.json|[^/]+_snapshot\.json)", basename)
             ):
                 kind = "other"
             else:
@@ -754,23 +854,22 @@ def detect(changed_paths: Iterable[str], repo_root: Path) -> dict:
                 repo.add(instance, kind, path)
                 continue
 
-        alembic_instances = sorted(
-            (
-                instance
-                for instance in repo.instances.values()
-                if instance.tool == "alembic"
-                and (path in instance.other or _under(path, instance.root))
-            ),
-            key=lambda instance: (
-                -len(PurePosixPath(instance.root).parts),
-                instance.root,
-            ),
-        )
+        alembic_instances = _best(repo.instances, "alembic", path)
+        if path in alembic_other:
+            alembic_instances = sorted(
+                alembic_instances + alembic_other[path],
+                key=lambda instance: (
+                    -len(PurePosixPath(instance.root).parts),
+                    instance.root,
+                ),
+            )
         for instance in alembic_instances:
             if path in instance.other:
                 repo.add(instance, "other", path)
-            elif any(
-                re.fullmatch(_at(d, r"[^/]+\.py"), path) for d in instance.migrations
+            elif (
+                parent in instance.migrations
+                and path.endswith(".py")
+                and len(basename) > len(".py")
             ):
                 repo.add(instance, "migrations", path)
             elif path.endswith(".py"):
@@ -804,14 +903,15 @@ def detect(changed_paths: Iterable[str], repo_root: Path) -> dict:
             root = PurePosixPath(app).parent.as_posix()
             instance = repo.instance("django", root)
             instance.migrations.add(_join(app, "migrations") or app)
-            for source in repo.files | changed:
-                info = _django_app(repo, source)
-                if (
-                    info
-                    and info[1] == "schema"
-                    and PurePosixPath(info[0]).parent.as_posix() == root
-                ):
-                    instance.patterns.append(source)
+            if django_models is None:
+                django_models = {}
+                for source in repo.files | changed:
+                    info = _django_app(repo, source)
+                    if info and info[1] == "schema":
+                        model_root = PurePosixPath(info[0]).parent.as_posix()
+                        django_models.setdefault(model_root, set()).add(source)
+            if not instance.patterns:
+                instance.patterns.extend(django_models.get(root, ()))
             repo.add(instance, kind, path)
             continue
 

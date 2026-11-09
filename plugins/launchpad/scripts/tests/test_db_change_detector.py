@@ -625,3 +625,110 @@ def test_automatic_alembic_roots_are_unchanged(tmp_path: Path, folder: str, root
     assert project["root"] == root
     assert project["schema_paths"] == [model]
     assert project["migrations_dir"] == folder + "/versions"
+
+
+def _scaling_case(root: Path, case: str) -> tuple[list[str], dict]:
+    files: dict[str, str] = {}
+    changed: list[str] = []
+    projects = []
+    target = 3000
+    if case == "django":
+        target = 4000
+        models = []
+        directories = []
+        for app in range(20):
+            prefix = f"app_{app:02d}"
+            model = prefix + "/models.py"
+            files[model] = ""
+            models.append(model)
+            directories.append(prefix + "/migrations")
+            files[prefix + "/migrations/__init__.py"] = ""
+            for revision in range(10):
+                name = prefix + f"/migrations/{revision:04d}_step.py"
+                files[name] = ""
+                changed.append(name)
+        projects = [dict(tool="django", root=".", schema_paths=sorted(models), migrations_dir=".", changed_schema=[], changed_migrations=sorted(changed), changed_other=[], notes=["multiple migration directories: " + ", ".join(sorted(directories))])]
+    elif case in {"rails", "supabase"}:
+        schema = "db/schema.rb" if case == "rails" else "supabase/schemas/public/users.sql"
+        directory = "db/migrate" if case == "rails" else "supabase/migrations"
+        extension = "rb" if case == "rails" else "sql"
+        files[schema] = ""
+        for revision in range(1000):
+            name = f"{directory}/{revision:014d}_step.{extension}"
+            files[name] = ""
+            changed.append(name)
+        notes = [] if case == "rails" else ["Supabase migrations may be authoritative without declarative schemas"]
+        projects = [dict(tool=case, root=".", schema_paths=[schema], migrations_dir=directory, changed_schema=[], changed_migrations=sorted(changed), changed_other=[], notes=notes)]
+    elif case == "prisma":
+        for number in range(1000):
+            prefix = f"packages/db_{number:04d}"
+            schema = prefix + "/prisma/schema.prisma"
+            files[schema] = ""
+            files[prefix + "/prisma.config.ts"] = ""
+            files[prefix + "/prisma/migrations/migration_lock.toml"] = ""
+            changed.append(schema)
+            projects.append(dict(tool="prisma", root=prefix, schema_paths=[schema], migrations_dir=prefix + "/prisma/migrations", changed_schema=[schema], changed_migrations=[], changed_other=[], notes=[]))
+    else:
+        globs = case == "drizzle-globs"
+        target = 300 if globs else 3000
+        header = 'export default {schema: ["./custom/users.ts",'
+        footer = '], out: "./drizzle"};\n'
+        values = []
+        used = len(header) + len(footer)
+        number = 0
+        while True:
+            value = f'"./custom/missing_{number:06d}' + ('*.ts",' if globs else '.ts",')
+            if used + len(value) > 1024 * 1024:
+                break
+            values.append(value)
+            used += len(value)
+            number += 1
+        files["drizzle.config.ts"] = header + "".join(values) + " " * (1024 * 1024 - used) + footer
+        assert len(files["drizzle.config.ts"].encode()) == 1024 * 1024
+        files["custom/users.ts"] = ""
+        if globs:
+            files["src/schema.ts"] = ""
+            changed = ["drizzle.config.ts"]
+            schemas = ["src/schema.ts"]
+            notes = ["unresolved schema in drizzle.config.ts: more than 64 glob entries"]
+        else:
+            changed = ["custom/users.ts"]
+            schemas = ["custom/users.ts"]
+            notes = ["schema location read from drizzle.config.ts"]
+        projects = [dict(tool="drizzle", root=".", schema_paths=schemas, migrations_dir="drizzle", changed_schema=[] if globs else changed, changed_migrations=[], changed_other=changed if globs else [], notes=notes)]
+    number = 0
+    while len(files) < target:
+        files[f"misc/file_{number:05d}.txt"] = ""
+        number += 1
+    assert len(files) == target
+    _seed(root, files)
+    return changed, dict(detector_version=1, db_changes=True, ignored_paths=0, projects=projects)
+
+
+@pytest.mark.parametrize("case", ["django", "rails", "supabase", "prisma", "drizzle-literals", "drizzle-globs"])
+def test_repository_scaling_cli(tmp_path: Path, case: str) -> None:
+    changed, expected = _scaling_case(tmp_path, case)
+    result = subprocess.run([sys.executable, str(_SCRIPT), "--repo-root", str(tmp_path)], input="\n".join(changed), text=True, capture_output=True, check=False, timeout=5)
+    assert result.returncode == 0
+    assert json.loads(result.stdout) == expected
+
+
+@pytest.mark.parametrize("count", [64, 65])
+def test_distinct_drizzle_glob_limit(tmp_path: Path, count: int) -> None:
+    values = ["./custom/users.ts", *[f"./custom/missing_{number}*.ts" for number in range(count)]]
+    _seed(tmp_path, {"drizzle.config.ts": 'export default {schema: ' + json.dumps(values) + '};', "custom/users.ts": "", "src/schema.ts": ""})
+    project = detect(["drizzle.config.ts"], tmp_path)["projects"][0]
+    if count == 64:
+        assert project["schema_paths"] == ["custom/users.ts"]
+        assert project["notes"] == ["schema location read from drizzle.config.ts"]
+    else:
+        assert project["schema_paths"] == ["src/schema.ts"]
+        assert project["notes"] == ["unresolved schema in drizzle.config.ts: more than 64 glob entries"]
+
+
+def test_normalized_duplicate_globs_do_not_use_the_limit(tmp_path: Path) -> None:
+    values = ["./" * number + "custom/*.ts" for number in range(66)]
+    _seed(tmp_path, {"drizzle.config.ts": 'export default {schema: ' + json.dumps(values) + '};', "custom/users.ts": ""})
+    project = detect(["drizzle.config.ts"], tmp_path)["projects"][0]
+    assert project["schema_paths"] == ["custom/users.ts"]
+    assert project["notes"] == ["schema location read from drizzle.config.ts"]
