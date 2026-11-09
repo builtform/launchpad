@@ -788,7 +788,7 @@ The brainstorm informs the stack choice. It never decides it, and it never reach
 5. **Chosen by the user.** The user picks a category from the shortlist, or the manual override. The engine seals only that choice, and only if it is in the engine's own shortlist. A library caller that passes no choice is sealed only when the shortlist has one candidate alone at the top, matched without any undecided answer and with a description hit wherever its predicate has description atoms (`confident_pick`); `/lp-pick-stack` always passes the user's pick. The brainstorm can inform the pick but can never widen what may be sealed.
 6. **Recorded.** The constraints that decided the pick go into `rationale.md` under `why-this-fits`; the other shortlisted categories and their conflicts go under `alternatives`.
 
-The engine (`plugins/launchpad/scripts/lp_pick_stack/`) never opens the summary body or the brainstorm document. It sees only validated answers, the description the user confirmed, and the category id the user picked.
+The engine (`plugins/launchpad/scripts/lp_pick_stack/`) never interprets the summary body or opens the brainstorm document. It sees only validated answers, the description the user confirmed, and the category id the user picked.
 
 ### `.first-run-marker` write: greenfield-only (Layer 5 spec-flow P3-LF7)
 
