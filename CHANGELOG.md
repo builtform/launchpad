@@ -13,6 +13,7 @@ Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.
 - **Brainstorm and retry without clearing LaunchPad's own folders.** `docs/brainstorms/`, `.harness/` run logs and Finder or Explorer noise files no longer stop the greenfield pipeline. If an earlier version wrote a brainstorm summary while the folder was classified as ambiguous, re-run `/lp-brainstorm` once to refresh it before choosing a stack.
 - **Choose a stack from an honest shortlist.** Undecided answers keep eligible categories in the shortlist. `/lp-pick-stack` proposes answers from the brainstorm for your confirmation, explains how the candidates fit its constraints, and seals your choice, including ties across categories.
 - **Database review across migration tools.** `/lp-review` now runs database reviewers for the tools LaunchPad scaffolds plus Drizzle and Prisma, including plain SQL migrations. The integrity review flags exposed Supabase tables missing row level security or policies, and `/lp-ship` no longer auto-fixes their migration files.
+- **Repository URL updates with personal data opted out.** `/lp-update-identity` can fill the repository URL while keeping personal-data placeholders. Its preview now validates with the same checks as the write.
 
 ## [v2.2.1]
 
