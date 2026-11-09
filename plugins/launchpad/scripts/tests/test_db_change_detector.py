@@ -461,6 +461,9 @@ def test_posix_glob_boundaries(path: str, pattern: str, expected: bool):
     'function quote() { return /"/; }',
     'const ratio = a / b / c;',
     'const quote = matches(/"/);',
+    'const quote = /* quote matcher */ /"/;',
+    'const quote = // quote matcher\n /"/;',
+    'const quote = /* "/ */ /* next */ /"/;',
 ])
 def test_regex_literals_do_not_hide_live_drizzle_schema(tmp_path: Path, prefix: str):
     name = "custom/schema.ts"
@@ -469,3 +472,12 @@ def test_regex_literals_do_not_hide_live_drizzle_schema(tmp_path: Path, prefix: 
     assert result["db_changes"] is True
     assert result["projects"][0]["schema_paths"] == [name]
     assert result["projects"][0]["changed_schema"] == [name]
+
+
+def test_comment_prefix_scanning_has_bounded_cli_runtime(tmp_path: Path):
+    name = "custom/schema.ts"
+    text = "const value = " + "/* comment */ " * 30 + '0;\nexport default {schema: "./custom/schema.ts"};'
+    _seed(tmp_path, {"drizzle.config.ts": text, name: ""})
+    result = subprocess.run([sys.executable, str(_SCRIPT), "--repo-root", str(tmp_path)], input=name + "\n", text=True, capture_output=True, check=False, timeout=2)
+    assert result.returncode == 0
+    assert json.loads(result.stdout)["projects"][0]["changed_schema"] == [name]

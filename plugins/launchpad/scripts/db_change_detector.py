@@ -29,7 +29,12 @@ _EXCLUDED = {
 }
 _JS_EXTENSIONS = {".ts", ".js", ".mts", ".mjs", ".cts", ".cjs"}
 _STRING = r"""(['"\x60])((?:\\.|(?!\1)[^\\])*)\1"""
-_JS_REGEX = r"""(?:^|[=(:,\[!&|?;+\-*%<>^~/]|\b(?:return|throw|case|yield|await|void|typeof|delete|in|instanceof)\b)\s*/(?![/*])(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^/\\\[\n])+/[a-z]*"""
+_JS_SPACE = r"(?:\s|/\*(?:[^*]|\*(?!/))*\*/|//[^\n]*(?:\n|\Z))*"
+_JS_REGEX = (
+    r"""(?:^|[=(:,\[!&|?;+\-*%<>^~/]|\b(?:return|throw|case|yield|await|void|typeof|delete|in|instanceof)\b)"""
+    + _JS_SPACE
+    + r"""/(?![/*])(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^/\\\[\n])+/[a-z]*"""
+)
 _JS_TOKEN = (
     r"(?P<comment>//[^\n]*|/\*.*?(?:\*/|\Z))|"
     + _JS_REGEX
