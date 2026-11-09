@@ -184,6 +184,16 @@ def test_invalid_predicate_atom_does_not_match(catalog: dict):
     assert results == []
 
 
+def test_null_description_scores_as_empty(catalog: dict):
+    answers = {"Q1": "api-only", "Q4": "python", "describe": None}
+    assert [(c.id, c.score) for c in match_categories(answers, catalog)] == [
+        ("api-only-django-drf", 2), ("api-only-fastapi", 2),
+    ]
+    assert shortlist_categories(answers, catalog) == shortlist_categories(
+        dict(answers, describe=""), catalog
+    )
+
+
 _DESCRIPTION = (
     "A private, single-user web app that keeps a long-range personal plan and derives today's single priority "
     "with a scheduler. PostgreSQL, an in-app LLM agent, a token-protected YAML import and export API, "

@@ -148,7 +148,7 @@ def _score_predicate(
     wildcards: list[str] = []
     hits: list[str] = []
     describe_atoms = 0
-    describe_lower = answers.get("describe", "").lower()
+    describe_lower = (answers.get("describe") or "").lower()
     for atom in _split_atoms(predicate):
         kind = _classify_atom(atom)
         matched = _evaluate_atom(atom, answers)
