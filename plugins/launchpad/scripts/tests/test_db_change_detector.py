@@ -520,3 +520,29 @@ def test_missing_config_field_has_bounded_scan_at_read_cap(tmp_path: Path):
     assert project["schema_paths"] == ["src/schema.ts"]
     assert project["migrations_dir"] == "drizzle"
     assert any("schema location read" in note for note in project["notes"])
+
+
+@pytest.mark.parametrize(("unit", "prefix", "expected"), [
+    pytest.param("\n", "", False, id="newlines"),
+    pytest.param("   \n", "", False, id="spaces-newlines"),
+    pytest.param("\t", "", False, id="tabs"),
+    pytest.param("from x\n", "", False, id="from-without-import"),
+    pytest.param("\n", "from sqlalchemy.orm import DeclarativeBase\n", True, id="real-import"),
+])
+def test_sqlalchemy_classification_at_read_cap(tmp_path: Path, unit: str, prefix: str, expected: bool):
+    remaining = 1024 * 1024 - len(prefix)
+    text = prefix + (unit * (remaining // len(unit) + 1))[:remaining]
+    assert len(text.encode()) == 1024 * 1024
+    _seed(tmp_path, {**_ALEMBIC, "app/models.py": text})
+    (tmp_path / "alembic/versions").mkdir()
+    result = subprocess.run([sys.executable, str(_SCRIPT), "--repo-root", str(tmp_path)], input="app/models.py\n", text=True, capture_output=True, check=False, timeout=5)
+    assert result.returncode == 0
+    payload = json.loads(result.stdout)
+    assert payload["db_changes"] is expected
+    if expected:
+        project = payload["projects"][0]
+        assert project["tool"] == "alembic"
+        assert project["schema_paths"] == project["changed_schema"] == ["app/models.py"]
+        assert not any("over 1 MiB" in note for note in project["notes"])
+    else:
+        assert payload["projects"] == []

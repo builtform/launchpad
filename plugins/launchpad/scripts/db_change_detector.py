@@ -762,7 +762,7 @@ def detect(changed_paths: Iterable[str], repo_root: Path) -> dict:
                     )
                     repo.add(instance, "other", path)
                 elif re.search(
-                    r"(?m)^\s*(?:from\s+sqlalchemy(?:\.[\w.]+)?\s+import|import\s+sqlalchemy\b)",
+                    r"(?m)^[ \t]*(?:from[ \t]+sqlalchemy(?:\.[\w.]+)?[ \t]+import|import[ \t]+sqlalchemy\b)",
                     text,
                 ) and re.search(
                     r"\b(?:DeclarativeBase|declarative_base|mapped_column)\b|\bColumn\(",
