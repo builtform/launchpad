@@ -169,7 +169,7 @@ function newcmd(   hidden) {
   }
   S[d] = 0; SK[d] = 0; TG[d] = 0; NW[d] = 0; PV[d] = ""; EV[d] = ""; EVON[d] = 0; SH[d] = 0; GW[d] = 0
   GQ[d] = 0; FB[d] = 0; CX[d] = 0; AP[d] = 0; EX[d] = 0; RI[d] = 0; PI[d] = 0; HX[d] = 0
-  SC[d] = 0; SCB[d] = ""; WR[d] = 0; GHA[d] = 0; CU[d] = 0; CN[d] = ""; MW[d] = 0; CF[d] = 0; PVO[d] = 0
+  SC[d] = 0; SCB[d] = ""; WR[d] = 0; GHA[d] = 0; CU[d] = 0; CN[d] = ""; MW[d] = 0; CF[d] = 0; PVO[d] = 0; HU[d] = 0
 }
 # One argument of an API call, read by role. An option's value is consumed
 # with its role (PVO): 1 harmless (a header, user, output file: an expansion in
@@ -178,7 +178,7 @@ function newcmd(   hidden) {
 # whose =@ or =< form reads a file. Writes, config files and URL files are
 # noted, and a computed word that is not an option value is a possible
 # destination.
-function apiword(x, wc,   v) {
+function apiword(x, wc,   v, sep) {
   if (PVO[d]) {
     v = PVO[d]; PVO[d] = 0
     if (v == 1) { if (wc) CX[d]-- }
@@ -191,6 +191,26 @@ function apiword(x, wc,   v) {
   }
   if (x ~ /^--./) { longopt(x, wc); return }
   if (x ~ /^-./) { cluster(x, wc); return }
+  # http and xh: an optional method word, the URL, then request items. Data
+  # items (=, :=, @, =@, :=@) imply a write and keep an expansion as a body;
+  # the @ forms read a file. Headers (:) and query parameters (==) are harmless.
+  if (CN[d] ~ /^(http|https|xh)$/) {
+    if (!HU[d]) {
+      if (x ~ /^[A-Z]+$/) { if (x ~ /^(POST|PUT|PATCH|DELETE)$/) MW[d] = 1; return }
+      HU[d] = 1
+      if (wc) { EX[d] = 1; CX[d]-- }
+      return
+    }
+    if (match(x, /(==|:=@|:=|=@|=|:|@)/)) {
+      sep = substr(x, RSTART, RLENGTH)
+      if (sep == "==" || sep == ":") { if (wc) CX[d]--; return }
+      MW[d] = 1
+      if (index(sep, "@")) FB[d] = 1
+      return
+    }
+    if (wc) CX[d]--
+    return
+  }
   if (CU[d] && x ~ /^(POST|PUT|PATCH|DELETE)$/) { MW[d] = 1; return }
   if (wc) { EX[d] = 1; CX[d]-- }
 }
