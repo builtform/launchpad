@@ -108,7 +108,7 @@ Each loop iteration (`loop.sh` inside `/lp-inf`) runs in a **fresh AI context**.
 
 ### 4. Multi-layer merge prevention
 
-No automated merge ever happens. Three layers enforce this:
+The pipeline never merges a pull request. Three layers enforce this, and the hook allows one exception for Dependabot pull requests:
 
 1. **Command prohibition**: `/lp-ship` and `/lp-commit` explicitly refuse to run `gh pr merge` or `git merge main`.
 2. **PreToolUse hook**: intercepts merge commands at the tool level, except `gh pr merge <number>` on a Dependabot pull request.

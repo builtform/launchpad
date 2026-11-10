@@ -39,26 +39,37 @@ if [ -n "${CLAUDE_PROJECT_DIR:-}" ] && [ -n "$HOOK_CWD" ]; then
   fi
 fi
 
+# Merge detection runs on the whole command with quotes and backslashes removed
+# and newlines joined, so quoting, line continuations, redirections and command
+# prefixes cannot hide a merge. Text matching cannot see through variables or
+# eval; GitHub branch protection is the server-side backstop for those.
+UNQUOTED=$(printf '%s' "$COMMAND" | tr -d "'\"\\\\" | tr '\n' ' ')
+
+# PR merges through the API are always blocked.
+if printf '%s' "$UNQUOTED" | grep -qiE "pulls/[^[:space:]]*/merge|mergePullRequest|enablePullRequestAutoMerge"; then
+  echo "BLOCKED: merging a PR through the GitHub API is prohibited." >&2
+  exit 2
+fi
+
+# gh pr merge anywhere in the command, except the exempt Dependabot merge
+# above. Fails closed if the author cannot be confirmed.
+if printf '%s' "$UNQUOTED" | grep -qiE "(^|[^A-Za-z0-9_.-])gh[[:space:]]+pr[[:space:]]+merge"; then
+  PR_AUTHOR=""
+  if [ -n "$EXEMPT_PR_NUMBER" ] && [ "$IN_PROJECT" = "yes" ]; then
+    PR_AUTHOR=$(CDPATH='' cd "$HOOK_CWD" && gh pr view "$EXEMPT_PR_NUMBER" --json author --jq '.author.login' 2>/dev/null) || PR_AUTHOR=""
+  fi
+  if [ "$PR_AUTHOR" != "app/dependabot" ]; then
+    echo "BLOCKED: gh pr merge is prohibited. The pipeline stops at PR creation (only a standalone 'gh pr merge <number> [--squash] [--auto] [--delete-branch]' on a Dependabot PR, run from the project directory, is allowed)." >&2
+    exit 2
+  fi
+fi
+
 # Split into segments on && ; || and check each independently.
 # This prevents "git merge origin/main" in one segment from suppressing
 # detection of "git merge main" in another segment.
 while IFS= read -r seg; do
   seg=$(echo "$seg" | sed 's/^[[:space:]]*//')
   [ -z "$seg" ] && continue
-
-  # gh pr merge (also behind env assignments or env/command/exec/nohup/time/
-  # sudo), except the exempt Dependabot merge above. Fails closed if the
-  # author cannot be confirmed.
-  if echo "$seg" | grep -qiE "^(([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|env|command|exec|nohup|time|sudo)[[:space:]]+)*gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)"; then
-    PR_AUTHOR=""
-    if [ -n "$EXEMPT_PR_NUMBER" ] && [ "$IN_PROJECT" = "yes" ]; then
-      PR_AUTHOR=$(CDPATH='' cd "$HOOK_CWD" && gh pr view "$EXEMPT_PR_NUMBER" --json author --jq '.author.login' 2>/dev/null) || PR_AUTHOR=""
-    fi
-    if [ "$PR_AUTHOR" != "app/dependabot" ]; then
-      echo "BLOCKED: gh pr merge is prohibited. The pipeline stops at PR creation (only a standalone 'gh pr merge <number> [--squash] [--auto] [--delete-branch]' on a Dependabot PR, run from the project directory, is allowed)." >&2
-      exit 2
-    fi
-  fi
 
   # git merge main/master (but not origin/main)
   if echo "$seg" | grep -qiE "^git merge[[:space:]]+(main|master)" && \
