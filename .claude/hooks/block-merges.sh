@@ -78,16 +78,18 @@ fi
 # --input or an @ field, or a command substitution) could carry a merge
 # mutation, so it is blocked; pass the query inline instead.
 if [ "$(grep_status -E "(^|[^A-Za-z0-9_])graphql([^A-Za-z0-9_]|$)" "$UNQUOTED")" != 1 ] && \
-   [ "$(grep_status -E '--input|=@|\$\(|`' "$JOINED")" != 1 ]; then
+   { [ "$(grep_status -E '--input|=@' "$UNQUOTED")" != 1 ] || \
+     [ "$(grep_status -E '\$\(|`' "$JOINED")" != 1 ]; }; then
   echo "BLOCKED: a GraphQL request with a body from a file, stdin or a command substitution is prohibited; pass the query inline." >&2
   exit 2
 fi
 
 # gh pr merge anywhere in the command, except the exempt Dependabot merge
 # above. Fails closed if the author cannot be confirmed. Each simple command
-# is split into words (redirections and brace syntax also split). After a `gh`
-# word and a later `pr` word, the first word that is not an option (skipping
-# -R/--repo and its value) is the subcommand, and anything outside a list of
+# is split into words (redirections and brace syntax also split). The first
+# non-option word after `gh` (skipping -R/--repo and its value) must be `pr`
+# or tracking stops; after `pr`, the next non-option word is the subcommand,
+# and anything outside a list of
 # known non-merge subcommands counts as a merge. Options or redirections
 # between words (gh --repo x pr merge, gh 2>&1 pr merge) and leftovers of
 # quoting or expansion in the subcommand (merge$'\0', merg?, mer{g,}e) cannot
@@ -106,9 +108,12 @@ GH_PR_MERGE=$(printf '%s' "$JOINED" | tr -d "'\"\\\\\$" | sed -e 's/>|/>/g' -e '
   { s = 0; skip = 0
     for (i = 1; i <= NF; i++) {
       w = tolower($i)
-      if (s < 2) {
-        if (w == "gh" || w ~ /\/gh$/) s = 1
-        else if (s == 1 && w == "pr") s = 2
+      if (s == 0) { if (w == "gh" || w ~ /\/gh$/) s = 1; continue }
+      if (s == 1) {
+        if (skip) { skip = 0; continue }
+        if (w == "-r" || w == "--repo") { skip = 1; continue }
+        if (w ~ /^-/) continue
+        s = (w == "pr") ? 2 : 0
         continue
       }
       if (skip) { skip = 0; continue }
