@@ -65,8 +65,24 @@ if { printf '%s' "$UNQUOTED" | grep -qiE "pulls/[^[:space:]]*/merge" && \
 fi
 
 # gh pr merge anywhere in the command, except the exempt Dependabot merge
-# above. Fails closed if the author cannot be confirmed.
-if printf '%s' "$UNQUOTED" | grep -qiE "(^|[^A-Za-z0-9_.-])gh[[:space:]]+pr[[:space:]]+merge"; then
+# above. Fails closed if the author cannot be confirmed. Each simple command
+# is split into words (redirections and brace syntax also split), and a merge
+# is a `gh` word followed later by `pr` and then exactly `merge`, so options
+# or redirections between them (gh --repo x pr merge, gh > f pr merge) cannot
+# hide it. Command separators start a new search, so `gh pr view && git merge
+# origin/main` and `gh pr list --state merged` still pass.
+is_gh_pr_merge() {
+  printf '%s' "$JOINED" | tr -d "'\"\\\\\$" | tr ';&|()\140' '\n\n\n\n\n\n' | tr '<>{},' '     ' | awk '
+    { s = 0
+      for (i = 1; i <= NF; i++) {
+        w = tolower($i)
+        if (w == "gh" || w ~ /\/gh$/) { s = 1; continue }
+        if (s == 1 && w == "pr") { s = 2; continue }
+        if (s == 2 && w == "merge") { found = 1; exit }
+      } }
+    END { exit found ? 0 : 1 }'
+}
+if is_gh_pr_merge; then
   PR_AUTHOR=""
   if [ -n "$EXEMPT_PR_NUMBER" ] && [ "$IN_PROJECT" = "yes" ]; then
     PR_AUTHOR=$(CDPATH='' cd "$HOOK_CWD" && gh pr view "$EXEMPT_PR_NUMBER" --json author --jq '.author.login' 2>/dev/null) || PR_AUTHOR=""
