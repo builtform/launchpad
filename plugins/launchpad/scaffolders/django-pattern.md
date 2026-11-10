@@ -2,7 +2,7 @@
 stack: django
 pillar: Backend Python
 type: curate
-last_validated: 2026-09-18
+last_validated: 2026-11-10
 scaffolder_command: django-admin startproject <name> (run by the user; curate until BL-238)
 scaffolder_command_pinned_version: django@6.1+
 ---
@@ -72,13 +72,13 @@ Version pins:
 - `django>=6.1,<6.2` (current stable) or `django>=5.2,<5.3` (LTS track, to April
   2028). Django 6.0 remains on extended support through April 2027; Django 5.1
   and 4.2 are EOL.
-- `psycopg[binary]>=3.3` (psycopg3, NOT psycopg2; Django 6.0's own floor is
-  3.1.12, and it requires PostgreSQL 14+)
+- `psycopg[binary]>=3.3` (psycopg3, NOT psycopg2; Django 6.1's own floor is
+  3.1.12, and it requires PostgreSQL 15+, or 14+ on 5.2 LTS)
 - `gunicorn>=26.0` or `uvicorn[standard]>=0.52` (ASGI)
 - `whitenoise>=6.12` (static file serving in container deploys)
 - `django-environ>=0.14` (env var parsing)
-- `djangorestframework>=3.17` (if API; 3.17 is the first series declaring
-  Django 6.0 support)
+- `djangorestframework>=3.18` (if API; 3.18 is the first series declaring
+  Django 6.1 support)
 - `pytest-django>=4.12` (first series declaring Django 6.0 support), `pytest>=9.1`
 
 ## Scaffolder behavior
@@ -117,8 +117,8 @@ Django does NOT create a lockfile of its own; `uv.lock` materializes from
 - `django-admin startproject` creates the project at `<name>/`; running from
   inside an existing dir requires `django-admin startproject <name> .` (note
   the trailing `.`). LaunchPad's greenfield gate ensures the cwd is empty.
-- Django 6.1 requires Python 3.12+ (supports 3.12/3.13/3.14). Django 5.2 still
-  supports 3.10 through 3.14; 5.1 and earlier are EOL.
+- Django 6.1 requires Python 3.12+ (supports 3.12/3.13/3.14/3.15 as of 6.1.3).
+  Django 5.2 still supports 3.10 through 3.14; 5.1 and earlier are EOL.
 - `psycopg2` is legacy; 2026 idiom uses `psycopg` (psycopg3) — the package name
   collision is a frequent source of confusion.
 - `STATICFILES_STORAGE` + `DEFAULT_FILE_STORAGE` were REMOVED in Django 5.1
@@ -137,7 +137,8 @@ Django does NOT create a lockfile of its own; `uv.lock` materializes from
 
 ## Version evolution
 
-- Django 6.1.1 (2026-09-02, current stable): current 6.1 patch line.
+- Django 6.1.3 (2026-11-03, current stable): current 6.1 patch line; adds
+  Python 3.15 support.
 - Django 6.0 (2025-12-03): built-in Tasks/background-jobs
   framework (`django.tasks`, `TASKS` setting); template partials
   (`{% partialdef %}`); built-in CSP (`ContentSecurityPolicyMiddleware`,

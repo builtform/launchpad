@@ -52,6 +52,7 @@ if str(VENDOR) not in sys.path:
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from lp_pick_stack.decision_writer import derive_stacks  # noqa: E402
 from plugin_default_generators._renderer_base import (  # noqa: E402
     RendererBase,
     SecretScannerViolation,
@@ -70,10 +71,22 @@ from plugin_stack_adapters import (  # noqa: E402
     secret_scanner,
     ts_monorepo,
 )
+from plugin_stack_adapters._package_managers import (  # noqa: E402
+    lefthook_hooks_for_family,
+    primary_family_for_stacks,
+)
 from plugin_stack_adapters.contracts import AdapterOutput  # noqa: E402
 from plugin_stack_adapters.polyglot_path_rewriter import (  # noqa: E402
     _rewrite_adapter_paths,
 )
+
+_FAMILY_TOOLCHAINS: Final[dict[str, set[str]]] = {
+    "ts": {"node"},
+    "ts_python": {"node", "python"},
+    "python": {"python"},
+    "ruby": {"ruby"},
+    "go": {"go"},
+}
 
 # Phase 8.5 plan section 3.12 verbatim.
 TRUST_BANNER = (
@@ -856,6 +869,7 @@ def generate(
     receipt_stacks: list[str] = []
     receipt_layer_paths: dict[str, str] = {}
     receipt_layers: list[dict] = []
+    receipt_toolchains: list[str] = []
     if receipt_path.is_file():
         try:
             from plugin_scaffold_receipt_loader import (
@@ -877,6 +891,7 @@ def generate(
         if load_receipt is not None:
             try:
                 receipt = load_receipt(receipt_path)
+                receipt_toolchains = receipt.get("toolchains_detected", [])
                 for layer in receipt.get("layers_materialized", []):
                     if not isinstance(layer, dict) or "stack" not in layer:
                         continue
@@ -895,6 +910,7 @@ def generate(
                 receipt_stacks = []
                 receipt_layer_paths = {}
                 receipt_layers = []
+                receipt_toolchains = []
 
     stacks = receipt_stacks or report.get("stacks", ["generic"])
     has_role_data = bool(receipt_layers) and any(
@@ -904,8 +920,29 @@ def generate(
         adapter_out = polyglot.compose_with_layers(receipt_layers)
     else:
         adapter_out = compose_adapter_output(stacks)
+        if len(receipt_layers) == 1:
+            adapter_out = polyglot.apply_declared_frontend(adapter_out, receipt_layers)
     if receipt_layer_paths:
         adapter_out = _rewrite_adapter_paths(adapter_out, receipt_layer_paths, stacks)
+
+    seeded_commands: dict[str, list[str]] = {}
+    family = primary_family_for_stacks(derive_stacks([{"stack": s} for s in stacks]))
+    required_toolchains = _FAMILY_TOOLCHAINS.get(family)
+    if required_toolchains is not None and required_toolchains.issubset(
+        receipt_toolchains
+    ):
+        hooks = lefthook_hooks_for_family(family)
+        for field, hook_command in (
+            ("test", hooks["test_command"]),
+            ("typecheck", hooks["typecheck_command"]),
+            ("lint", hooks["lint_command"]),
+            ("format", hooks["format_command"]),
+            ("build", hooks["build_command"]),
+        ):
+            if not adapter_out["commands"][field]:
+                command = [hook_command]
+                adapter_out["commands"][field] = command
+                seeded_commands[field] = command
 
     # 3. Render -- overwrite detector's manifest-derived stacks.
     report["stacks"] = list(stacks)
@@ -936,7 +973,14 @@ def generate(
 
     # 6. Decide what to write per overwrite policy + interactive prompts.
     all_mode = effective_force
-    summary = {"written": [], "kept": [], "skipped": [], "skipped_after_skip_all": []}
+    summary: dict[str, Any] = {
+        "written": [],
+        "kept": [],
+        "skipped": [],
+        "skipped_after_skip_all": [],
+    }
+    if seeded_commands:
+        summary.setdefault("seeded_commands", {}).update(seeded_commands)
     skip_remaining = False
     to_write: dict[Path, bytes] = {}
 
