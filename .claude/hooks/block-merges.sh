@@ -88,7 +88,7 @@ IFS= read -r -d '' SCAN_AWK <<'AWK' || true
 BEGIN {
   n = split("checkout checks close comment create diff edit list ls lock new ready reopen review revert status unlock update-branch view", a, " ")
   for (k = 1; k <= n; k++) safe[a[k]] = 1
-  n = split("sudo env command exec nohup time nice xargs builtin", a, " ")
+  n = split("sudo env command exec nohup time timeout nice xargs builtin", a, " ")
   for (k = 1; k <= n; k++) prefix[a[k]] = 1
   n = split("sh bash zsh dash ksh", a, " ")
   for (k = 1; k <= n; k++) shell[a[k]] = 1
@@ -119,6 +119,31 @@ function pdec(s,   n, parts, out, j, h) {
   return out
 }
 function base(x,   n, parts) { n = split(x, parts, "/"); return parts[n] }
+# JSON request bodies may spell names with \uXXXX escapes.
+function jdec(s,   n, parts, out, j, h) {
+  if (index(s, "\\u") == 0) return s
+  n = split(s, parts, "\\\\u")
+  if (n > 4096) { mut = 1; return s }
+  out = parts[1]
+  for (j = 2; j <= n; j++) {
+    h = tolower(substr(parts[j], 1, 4))
+    if (h ~ /^[0-9a-f][0-9a-f][0-9a-f][0-9a-f]$/) out = out chr(hexval(h)) substr(parts[j], 5)
+    else out = out "\\u" parts[j]
+  }
+  return out
+}
+# A short-option cluster that reaches -K (config) or -T (upload) reads a file,
+# attached value or not (-K f, -Kf, -sSKf, -K-); letters that take a value end
+# the cluster (-XPOST).
+function shortfile(x,   j, c) {
+  if (x !~ /^-[^-]/) return 0
+  for (j = 2; j <= length(x); j++) {
+    c = substr(x, j, 1)
+    if (c == "K" || c == "T") return 1
+    if (index("AbcCdDeEFHmoPQrtuUwxXyYz", c) || c !~ /[A-Za-z0-9#:]/) return 0
+  }
+  return 0
+}
 function enqueue(s) {
   if (Qn >= 64) found = 1
   else { Qn++; QT[Qn] = s }
@@ -135,31 +160,41 @@ function enqueue(s) {
 # endpoint (gh api graphql${SUFFIX:-} --input f).
 function newcmd() {
   if (EV[d] != "") enqueue(EV[d])
+  if (SCB[d] != "") enqueue(SCB[d])
   if (mode == "A" && AP[d] && (GQ[d] || EX[d]) && (FB[d] || CX[d] > 0 || (HX[d] && (RI[d] || PI[d])))) body = 1
   S[d] = 0; SK[d] = 0; TG[d] = 0; NW[d] = 0; PV[d] = ""; EV[d] = ""; EVON[d] = 0; SH[d] = 0; GW[d] = 0
   GQ[d] = 0; FB[d] = 0; CX[d] = 0; AP[d] = 0; GA[d] = 0; GV[d] = 0; EX[d] = 0; RI[d] = 0; PI[d] = 0; HX[d] = 0
+  SC[d] = 0; SCB[d] = ""; WR[d] = 0
 }
-function word(x, wc,   lx, px, comp, cmdpos) {
+function word(x, wc,   lx, px, comp, cmdpos, bl) {
   px = pdec(x)
   if (tolower(px) ~ /pulls\/[^ \t\n]*\/merge/) rest = 1
   if (px ~ /(^|[^A-Za-z0-9_])(mergePullRequest|enablePullRequestAutoMerge|enqueuePullRequest)/) mut = 1
+  if (jdec(px) ~ /(^|[^A-Za-z0-9_])(mergePullRequest|enablePullRequestAutoMerge|enqueuePullRequest)/) mut = 1
   if (tolower(px) ~ /(^|\/)graphql(\/|\?|#|\$|$)/) GQ[d] = 1
-  if (x ~ /^@/ || x ~ /=@/ || x ~ /^-[A-Za-z]+@/ || x ~ /^--(input|upload-file|post-file|body-file|config)(=|$)/ || x == "-T" || x == "-K") FB[d] = 1
+  if (x ~ /^@/ || x ~ /=@/ || x ~ /^-[A-Za-z]+@/ || x ~ /^--(input|upload-file|post-file|body-file|config)(=|$)/ || shortfile(x)) FB[d] = 1
   if (wc) CX[d]++
   if (TG[d]) { TG[d] = 0; return }
   lx = tolower(x)
   if (NW[d] == 0 && x ~ /^[A-Za-z_][A-Za-z0-9_]*=/) return
   NW[d]++
   cmdpos = (NW[d] == 1 || (PV[d] in prefix))
-  # The string after `<shell> -c` and the words after `eval` are scanned again
-  # as commands, whatever wrapper (env, sudo, timeout, xargs) precedes them.
+  # Every word after `<shell> -c` (options and -- included, each on its own
+  # line) and the words after `eval` are scanned again as commands, whatever
+  # wrapper (env, sudo, timeout, xargs) precedes them. An API client counts only
+  # as the command being run: the first word, or any word after a wrapper.
   if (mode == "A") {
-    if (SH[d] && PV[d] ~ /^-[a-z]*c[a-z]*$/) enqueue(x)
+    if (SC[d]) SCB[d] = SCB[d] "\n" x
+    else if (SH[d] && lx ~ /^-[a-z]*c[a-z]*$/) SC[d] = 1
     if (EVON[d]) EV[d] = EV[d] " " x
     if (length(lx) < 256) {
-      if (base(lx) in shell) SH[d] = 1
-      if (base(lx) in api) AP[d] = 1
-      if (base(lx) ~ /^(http|https|xh)$/) HX[d] = 1
+      bl = base(lx)
+      if (bl in shell) SH[d] = 1
+      if (cmdpos || WR[d]) {
+        if (bl in api) AP[d] = 1
+        if (bl ~ /^(http|https|xh)$/) HX[d] = 1
+      }
+      if (cmdpos && (bl in prefix)) WR[d] = 1
     }
     if (lx == "eval") EVON[d] = 1
     if (GA[d]) {
