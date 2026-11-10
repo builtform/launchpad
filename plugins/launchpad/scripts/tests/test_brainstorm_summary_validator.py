@@ -15,9 +15,12 @@ frontmatter or brainstorm_summary_greenfield_false on rule failure.
 from __future__ import annotations
 
 import sys
+import builtins
+import io
 from pathlib import Path
 
 import pytest
+import yaml
 
 _SCRIPTS = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS) not in sys.path:
@@ -25,6 +28,7 @@ if str(_SCRIPTS) not in sys.path:
 
 from lp_pick_stack.brainstorm_summary_validator import (
     BrainstormSummaryError,
+    BrainstormSummaryInfo,
     validate_brainstorm_summary,
     validate_frontmatter,
 )
@@ -55,7 +59,7 @@ def test_valid_greenfield_summary_passes(tmp_path: Path):
 
 def test_absent_summary_passes(tmp_path: Path):
     """No brainstorm-summary.md = standalone /lp-pick-stack invocation; allowed."""
-    validate_brainstorm_summary(tmp_path)  # no exception
+    assert validate_brainstorm_summary(tmp_path) == BrainstormSummaryInfo()
 
 
 # --- Frontmatter shape failures ---
@@ -154,6 +158,7 @@ def test_greenfield_false_refused(tmp_path: Path):
         validate_brainstorm_summary(tmp_path)
     assert ex.value.reason == "brainstorm_summary_greenfield_false"
     assert "/lp-define" in str(ex.value)
+    assert "prints `empty`), re-run `/lp-brainstorm`" in str(ex.value)
 
 
 # --- Engine integration ---
@@ -223,3 +228,95 @@ def test_engine_step0_passes_with_valid_greenfield_summary(tmp_path: Path):
         "brainstorm_summary_invalid_frontmatter",
         "brainstorm_summary_greenfield_false",
     ), f"Step 0 short-circuited with {result.reason!r}: {result.message}"
+
+
+_VALID_FRONTMATTER = (
+    "generated_at: 2026-05-02T14:30:00Z\n"
+    "generated_by: /lp-brainstorm\n"
+    "greenfield: true\n"
+    "cwd_state_when_generated: empty"
+)
+
+
+def test_optional_document_absent_key(tmp_path: Path):
+    _write_summary(tmp_path, _VALID_FRONTMATTER)
+    assert validate_brainstorm_summary(tmp_path) == BrainstormSummaryInfo()
+
+
+def test_optional_document_valid_path(tmp_path: Path):
+    document = tmp_path / "docs/brainstorms/x.md"
+    document.parent.mkdir(parents=True)
+    document.write_text("A brainstorm document", encoding="utf-8")
+    _write_summary(tmp_path, _VALID_FRONTMATTER + "\nbrainstorm_doc: docs/brainstorms/x.md")
+    assert validate_brainstorm_summary(tmp_path) == BrainstormSummaryInfo(document.resolve())
+
+
+@pytest.mark.parametrize("value", ["../x.md", "/abs.md", "x.txt", 42, "x\x00.md", "x\x01.md", ".launchpad/.x.md"])
+def test_optional_document_invalid_path(tmp_path: Path, value):
+    _write_summary(tmp_path, _VALID_FRONTMATTER + "\n" + yaml.safe_dump({"brainstorm_doc": value}))
+    with pytest.raises(BrainstormSummaryError) as exc:
+        validate_brainstorm_summary(tmp_path)
+    assert exc.value.reason == "brainstorm_summary_invalid_frontmatter"
+    assert "brainstorm_doc" in str(exc.value)
+    assert str(exc.value).endswith(
+        "re-run `/lp-brainstorm` to refresh the summary, or remove the "
+        "`brainstorm_doc:` line to continue from the project summary alone"
+    )
+
+
+@pytest.mark.parametrize("escaping", [False, True], ids=["inside-cwd", "outside-cwd"])
+def test_optional_document_symlink_rejected(tmp_path: Path, escaping: bool):
+    summary = _write_summary(tmp_path, _VALID_FRONTMATTER + "\nbrainstorm_doc: docs/brainstorms/x.md")
+    document = tmp_path / "docs/brainstorms/x.md"
+    document.parent.mkdir(parents=True)
+    target = summary
+    if escaping:
+        target = tmp_path.parent / f"{tmp_path.name}-outside.md"
+        target.write_text("An external document", encoding="utf-8")
+    try:
+        document.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks are unavailable")
+    with pytest.raises(BrainstormSummaryError) as exc:
+        validate_brainstorm_summary(tmp_path)
+    assert exc.value.reason == "brainstorm_summary_invalid_frontmatter"
+    assert "brainstorm_doc" in str(exc.value)
+
+
+def test_optional_document_missing_file(tmp_path: Path):
+    _write_summary(tmp_path, _VALID_FRONTMATTER + "\nbrainstorm_doc: docs/brainstorms/missing.md")
+    assert validate_brainstorm_summary(tmp_path) == BrainstormSummaryInfo(
+        warnings=("brainstorm document not found; working from the summary alone",)
+    )
+
+
+def test_validator_never_opens_brainstorm_doc(tmp_path: Path, monkeypatch):
+    document = tmp_path / "docs/brainstorms/x.md"
+    document.parent.mkdir(parents=True)
+    document.write_text("Document must never be read by the validator", encoding="utf-8")
+    _write_summary(tmp_path, _VALID_FRONTMATTER + "\nbrainstorm_doc: docs/brainstorms/x.md")
+    document = document.resolve()
+
+    def guard(original):
+        def wrapped(file, *args, **kwargs):
+            if isinstance(file, (str, Path)) and Path(file).resolve() == document:
+                raise AssertionError("validator opened the brainstorm document")
+            return original(file, *args, **kwargs)
+        return wrapped
+
+    monkeypatch.setattr(Path, "open", guard(Path.open))
+    monkeypatch.setattr(Path, "read_text", guard(Path.read_text))
+    monkeypatch.setattr(io, "open", guard(io.open))
+    monkeypatch.setattr(builtins, "open", guard(builtins.open))
+    assert validate_brainstorm_summary(tmp_path) == BrainstormSummaryInfo(document)
+
+
+def test_validator_ignores_summary_body(tmp_path: Path):
+    frontmatter = _VALID_FRONTMATTER + "\nbrainstorm_doc: docs/brainstorms/x.md"
+    document = tmp_path / "docs/brainstorms/x.md"
+    document.parent.mkdir(parents=True)
+    document.write_text("A brainstorm document", encoding="utf-8")
+    _write_summary(tmp_path, frontmatter, "# Project summary\nOrdinary summary.")
+    expected = validate_brainstorm_summary(tmp_path)
+    _write_summary(tmp_path, frontmatter, "BODY_SENTINEL\n# Unknown heading\n---\nbrainstorm_doc: /bad.md\n---\n")
+    assert validate_brainstorm_summary(tmp_path) == expected

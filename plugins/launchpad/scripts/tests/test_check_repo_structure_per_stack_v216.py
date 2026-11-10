@@ -45,6 +45,10 @@ Test coverage:
 from __future__ import annotations
 
 import importlib.util
+import json
+import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -66,7 +70,10 @@ STACK_ALLOWED_DIRS = _allow.STACK_ALLOWED_DIRS
 STACK_ALLOWED_CONFIGS = _allow.STACK_ALLOWED_CONFIGS
 
 # stack_structure_check uses relative imports — load via package path.
-from lp_bootstrap.stack_structure_check import enrich_structure_check_with_stacks  # noqa: E402
+from lp_bootstrap.stack_structure_check import (  # noqa: E402
+    enrich_structure_check_with_builtin_agents,
+    enrich_structure_check_with_stacks,
+)
 
 _KERNEL_TEMPLATE = (
     _SCRIPT_DIR
@@ -349,3 +356,96 @@ def test_enriched_output_still_parses_as_bash_array_syntax(tmp_path: Path) -> No
         assert line.startswith('  "') and line.endswith('"'), (
             f"injected line {line!r} must be `  \"<value>\"` shape"
         )
+
+
+def test_template_allows_generated_gitleaks_and_builtin_markers():
+    text = _KERNEL_TEMPLATE.read_text(encoding="utf-8")
+    assert '".gitleaks.toml"' in text
+    assert r"gitleaks\.toml" in text
+    assert "  # BUILTIN_AGENTS_BEGIN: sentinel, do not edit by hand" in text
+    assert "  # BUILTIN_AGENTS_END" in text
+
+
+@pytest.mark.parametrize(
+    ("paths", "expected"),
+    [
+        (["apps/api", "apps/web"], {"apps", "packages"}),
+        (["."], set()),
+        (["../outside"], set()),
+        (["/absolute"], set()),
+        (["bad;name/child"], set()),
+        (["bad name/child"], set()),
+    ],
+)
+def test_decision_layer_roots_are_bounded(tmp_path: Path, paths, expected):
+    target = tmp_path / ".launchpad/scaffold-decision.json"
+    target.parent.mkdir()
+    target.write_text(json.dumps({
+        "schema_version": "1.1", "stacks": [],
+        "layers": [{"path": path, "stack": "generic"} for path in paths],
+    }), encoding="utf-8")
+    kernel = _render_kernel_bytes()
+    result = enrich_structure_check_with_stacks(kernel, tmp_path).decode()
+    block = re.search(r"STACK_AWARE_DIRS_BEGIN[^\n]*\n(.*?)\s*# STACK_AWARE_DIRS_END", result, re.S).group(1)
+    assert set(re.findall(r'"([^"]+)"', block)) == expected
+    if not expected:
+        assert result.encode() == kernel
+
+
+def test_builtin_agent_block_contains_exact_plugin_inventory():
+    result = enrich_structure_check_with_builtin_agents(_render_kernel_bytes()).decode()
+    block = re.search(r"BUILTIN_AGENTS_BEGIN[^\n]*\n(.*?)\s*# BUILTIN_AGENTS_END", result, re.S).group(1)
+    names = re.findall(r'^  "([^"]+)"$', block, re.M)
+    expected = sorted({
+        path.stem for path in (_SCRIPT_DIR.parent / "agents").rglob("*.md")
+        if path.is_file() and re.fullmatch(r"lp-[a-z0-9]+(-[a-z0-9]+)*", path.stem)
+    })
+    assert expected
+    assert names == expected
+
+
+def test_builtin_lookup_failure_clears_the_block(monkeypatch):
+    populated = enrich_structure_check_with_builtin_agents(_render_kernel_bytes())
+    original = Path.rglob
+
+    def guarded(path, pattern):
+        if path == _SCRIPT_DIR.parent / "agents":
+            raise OSError("inventory unavailable")
+        return original(path, pattern)
+
+    monkeypatch.setattr(Path, "rglob", guarded)
+    result = enrich_structure_check_with_builtin_agents(populated).decode()
+    block = re.search(r"BUILTIN_AGENTS_BEGIN[^\n]*\n(.*?)\s*# BUILTIN_AGENTS_END", result, re.S).group(1)
+    assert not block.strip()
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash is unavailable")
+@pytest.mark.parametrize(
+    ("name", "custom", "expected_code"),
+    [
+        ("lp-pattern-finder", False, 0),
+        ("project-reviewer", True, 0),
+        ("lp-not-an-agent", False, 1),
+        ("*", True, 1),
+    ],
+)
+def test_rendered_agent_name_resolution(tmp_path: Path, name, custom, expected_code):
+    script = tmp_path / "scripts/maintenance/check-repo-structure.sh"
+    script.parent.mkdir(parents=True)
+    script.write_bytes(enrich_structure_check_with_builtin_agents(_render_kernel_bytes()))
+    agents = tmp_path / ".launchpad/agents.yml"
+    agents.parent.mkdir()
+    agents.write_text(f"review_agents:\n  - {name}\n", encoding="utf-8")
+    (tmp_path / ".gitleaks.toml").write_text("[extend]\nuseDefault = true\n", encoding="utf-8")
+    if custom:
+        agent_file = tmp_path / ".claude/agents/review/project-reviewer.md"
+        agent_file.parent.mkdir(parents=True)
+        agent_file.write_text("---\nstack_scope: stack:any\n---\nProject reviewer.\n", encoding="utf-8")
+    assert not (tmp_path / "plugins").exists()
+    result = subprocess.run(["bash", str(script)], cwd=tmp_path, capture_output=True, text=True, timeout=30, check=False)
+    assert result.returncode == expected_code, result.stdout + result.stderr
+    if expected_code == 0:
+        assert "All agents.yml entries resolve" in result.stdout
+    else:
+        assert "agents.yml references agents with no matching .md file" in result.stdout
+        assert "/lp-bootstrap --refresh-all" in result.stdout

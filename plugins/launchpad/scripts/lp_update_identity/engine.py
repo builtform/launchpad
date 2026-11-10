@@ -17,11 +17,12 @@ Engine ordering (locked in plan §4 Slice C step 1):
      identity block (or empty for case B/D).
   4. No-op fast path (case C): print current sealed identity values per
      product-lens P1; return UpdateIdentityResult(status=NO_OP).
-  5. Sentinel write via O_CREAT|O_EXCL (per DA3 + F2). FileExistsError
-     after liveness check -> IDENTITY_UPDATE_IN_PROGRESS.
-  6. Validate new identity (strict_no_placeholders=True per DA2) +
-     IDENTITY_COPYRIGHT_FORBIDDEN_CHARS extended set per F3.
-  7. Backup directory creation + scaffold-decision atomic re-seal via
+  5. Validate identity shapes, exact placeholders, no placeholder downgrades,
+     and changed personal-data fields against the PII opt-in; preview and
+     write use these same checks.
+  6. Backup directory creation + sentinel write via O_CREAT|O_EXCL
+     (per DA3 + F2). FileExistsError -> IDENTITY_UPDATE_IN_PROGRESS.
+  7. Scaffold-decision atomic re-seal via
      re_seal_decision_atomic (DA9: generated_at preserved byte-identical;
      identity_updated_at + plugin_version + version_drift_log update per
      DA8 + DA9).
@@ -643,6 +644,78 @@ def run_update_identity(
             fields_changed=[],
         )
 
+    # Validate before either preview or write, after the no-op fast path.
+    from lp_pick_stack.decision_writer import (
+        IDENTITY_PLACEHOLDERS,
+        IdentityValidationError,
+        validate_identity,
+    )
+
+    validation_remediation = ""
+    try:
+        validate_identity(identity_input)
+        placeholder_fields = ("project_name", "email", "copyright_holder", "repo_url")
+        for field_name in placeholder_fields:
+            value = identity_input[field_name]
+            if (
+                value.startswith("<")
+                and value.endswith(">")
+                and value != IDENTITY_PLACEHOLDERS[field_name]
+            ):
+                raise IdentityValidationError(
+                    "noncanonical placeholder", field=field_name
+                )
+
+        for field_name in placeholder_fields:
+            if (
+                identity_input[field_name] == IDENTITY_PLACEHOLDERS[field_name]
+                and old_identity is not None
+                and field_name in old_identity
+                and old_identity[field_name] != IDENTITY_PLACEHOLDERS[field_name]
+            ):
+                validation_remediation = (
+                    "a placeholder cannot replace a sealed value; to remove personal data "
+                    "that is already committed, see docs/guides/IDENTITY_AND_PII.md"
+                )
+                raise IdentityValidationError("placeholder downgrade", field=field_name)
+
+        if {"pii_opt_in", "email", "copyright_holder"}.intersection(fields_changed):
+            if (old_identity or {}).get("pii_opt_in") is True and identity_input[
+                "pii_opt_in"
+            ] is False:
+                validation_remediation = (
+                    "opting out after opting in is not supported; to remove personal data "
+                    "that is already committed, see docs/guides/IDENTITY_AND_PII.md"
+                )
+                raise IdentityValidationError(
+                    "PII opt-out unsupported", field="pii_opt_in"
+                )
+            for field_name in ("email", "copyright_holder"):
+                is_placeholder = (
+                    identity_input[field_name] == IDENTITY_PLACEHOLDERS[field_name]
+                )
+                if identity_input["pii_opt_in"] and is_placeholder:
+                    validation_remediation = "with the PII opt-in, email and copyright holder need real values"
+                    raise IdentityValidationError(
+                        "PII opt-in requires real values", field=field_name
+                    )
+                if not identity_input["pii_opt_in"] and not is_placeholder:
+                    validation_remediation = "answer Y to the PII opt-in to store a real email or copyright holder"
+                    raise IdentityValidationError(
+                        "PII opt-out requires placeholders", field=field_name
+                    )
+    except IdentityValidationError as exc:
+        return UpdateIdentityResult(
+            status=None,
+            error_code=IdentityUpdateErrorCode.IDENTITY_VALIDATION_FAILED,
+            error_message=f"identity.{exc.field} failed validation",
+            remediation=validation_remediation
+            or (
+                f"re-run with a valid {exc.field}; consult /lp-pick-stack "
+                "docs for the allowlist regex"
+            ),
+        )
+
     if dry_run:
         return UpdateIdentityResult(
             status=IdentityUpdateStatus.UPDATED
@@ -677,25 +750,7 @@ def run_update_identity(
             ),
         )
 
-    # Step 5: validate strict + sentinel write.
-    from lp_pick_stack.decision_writer import (
-        IdentityValidationError,
-        re_seal_decision_atomic,
-        validate_identity,
-    )
-
-    try:
-        validate_identity(identity_input, strict_no_placeholders=True)
-    except IdentityValidationError as exc:
-        return UpdateIdentityResult(
-            status=None,
-            error_code=IdentityUpdateErrorCode.IDENTITY_VALIDATION_FAILED,
-            error_message=f"identity.{exc.field} failed validation",
-            remediation=(
-                f"re-run with a valid {exc.field}; consult /lp-pick-stack "
-                f"docs for the allowlist regex"
-            ),
-        )
+    from lp_pick_stack.decision_writer import re_seal_decision_atomic
 
     # Compute pre-edit decision sha for sentinel rollback.
     decision_path = cwd / LAUNCHPAD_DIR_NAME / "scaffold-decision.json"

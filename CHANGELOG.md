@@ -8,6 +8,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.2.0: BL-365 (parallelize preflight probe dispatch + short-TTL cache), BL-367 (programmatic GitHub-repo linkage verification for provider project probes), BL-368 (DNS `dig +short --` sentinel bug), and BL-366 (18-item preflight polish). The v2.2 series lands the 15 operational/security infrastructure surfaces deferred from v2.0, plus BL-374 (TypeScript 5.x -> 6.x upgrade audit, seeded by v2.1.9), BL-375 (Prisma 6.x -> 7.x upgrade audit, seeded by v2.1.10), BL-377 through BL-385 (CI gate correctness, freshness-contract enforcement, lint parity, and scaffolder catalog follow-ups), BL-386 through BL-395 (Codex follow-ups), plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
 
+## [v2.2.2]
+
+Greenfield pipeline and database review fixes. Eight defects found when running the full pipeline on a new project are fixed, from brainstorm through bootstrap, and database review now covers every migration tool LaunchPad scaffolds plus Drizzle and Prisma.
+
+### For LaunchPad users
+
+- **Brainstorm and retry without clearing LaunchPad's own folders.** `docs/brainstorms/`, `.harness/` run logs and Finder or Explorer noise files no longer stop the greenfield pipeline. If an earlier version wrote a brainstorm summary while the folder was classified as ambiguous, re-run `/lp-brainstorm` once to refresh it before choosing a stack.
+- **Choose a stack from an honest shortlist.** Undecided answers keep eligible categories in the shortlist. `/lp-pick-stack` proposes answers from the brainstorm for your confirmation, explains how the candidates fit its constraints, and seals your choice, including ties across categories.
+- **Database review across migration tools.** `/lp-review` now runs database reviewers for the tools LaunchPad scaffolds plus Drizzle and Prisma, including plain SQL migrations. The integrity review flags exposed Supabase tables without row level security, and `/lp-ship` no longer auto-fixes their migration files.
+- **Repository URL updates with personal data opted out.** `/lp-update-identity` can fill the repository URL while keeping personal-data placeholders. Its preview now validates with the same checks as the write.
+- **Bootstrap files match the selected stack.** A new project's hooks, ignore files and structure check now match its stack, and the structure check passes on a freshly scaffolded project. Projects bootstrapped by an earlier version can run `/lp-bootstrap --accept-plugin-version-drift` once to re-render them, with user edits backed up under `.launchpad/backups/`.
+- **Declared frontends get the UI pipeline.** A declared frontend gets the design stages, browser tests and an app-flow skeleton, and empty gate commands are filled with editable defaults.
+
+### Plugin-internal changes
+
+- **Database change detector.** `db_change_detector.py` reads project files as text, never runs project config, and stays linear in repository size, with holding tests at its 1 MiB read cap. It skips generated `.next` and `.turbo` folders. Layouts it does not yet recognize are listed under Known gaps in the v2.2.2 release notes.
+- **Freshness targets re-validated.** All eleven knowledge anchors, `scaffolders.yml`, `category-patterns.yml` and the pillar framework were re-checked against upstream (Expo SDK 58, FastAPI 0.162, Supabase CLI v3, Next 16.4 and smaller moves) and re-stamped. The catalog drops `create-next-app`'s `--reset-preferences` and `--yes` and adds `create-hono`'s `--install`. `SCAFFOLD_HANDSHAKE.md` and `SCAFFOLD_OPERATIONS.md` were corrected against the code before their re-stamp, including the rollback procedure, which now ships a fixed patch because `stable` only moves forward.
+
 ## [v2.2.1]
 
 Cleanup after the Codex release. Two commands gain the frontmatter that lets their short names resolve, a decommissioned command stub is removed, the release workflow refuses to promote a release that has no notes file, and the Codex desktop app is recorded as checked.
@@ -563,7 +581,8 @@ Carried forward into v1.1:
 
 Full v1.1 scope in [ROADMAP.md](ROADMAP.md).
 
-[Unreleased]: https://github.com/builtform/launchpad/compare/v2.2.1...HEAD
+[Unreleased]: https://github.com/builtform/launchpad/compare/v2.2.2...HEAD
+[v2.2.2]: https://github.com/builtform/launchpad/compare/v2.2.1...v2.2.2
 [v2.2.1]: https://github.com/builtform/launchpad/compare/v2.2.0...v2.2.1
 [v2.2.0]: https://github.com/builtform/launchpad/compare/v2.1.12...v2.2.0
 [v2.1.9]: https://github.com/builtform/launchpad/compare/v2.1.8...v2.1.9
