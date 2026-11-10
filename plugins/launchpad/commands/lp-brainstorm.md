@@ -55,7 +55,7 @@ Collaborative brainstorming command. Explores ideas, generates approaches, and c
 1. BEFORE writing: scan for unverified absence claims ("does not exist", "no current", "there is no") — verify or relabel as "Assumption: ..."
 2. Scan capture for PII and secrets (email, phone, API keys, tokens, connection strings, internal URLs, real customer data) — replace with anonymized placeholders
 3. Topic slug: lowercase, hyphens only, strip special characters, max 50 chars
-4. Run `mkdir -p docs/brainstorms/` before writing
+4. Run `mkdir -p docs/brainstorms/` before writing. `docs/brainstorms/` is greenfield-neutral when it is the only child of `docs/` apart from OS noise (`docs/architecture/SCAFFOLD_HANDSHAKE.md` section 8), so writing there does not change the folder classification.
 5. Write to: `docs/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md`
 6. Template sections:
    - What We're Building
@@ -74,11 +74,20 @@ Collaborative brainstorming command. Explores ideas, generates approaches, and c
    generated_by: /lp-brainstorm
    greenfield: <true if cwd_state == "empty" else false>
    cwd_state_when_generated: <empty | brownfield | ambiguous>
+   brainstorm_doc: <the path written in step 5>
    ---
 
    # Project summary
 
    <2-4 paragraphs of free-form Markdown describing the project intent.>
+
+   # Stack-relevant constraints
+
+   <One bullet per fact the brainstorm settled that bears on the stack choice:
+   data store, runtime shape (always-on process, scheduled jobs, whether
+   short-timeout serverless is acceptable), sign-in method, realtime or push,
+   AI or LLM use, hosting constraints, team language preference. A topic the
+   brainstorm left open is written as "undecided", never guessed.>
 
    # Suggested next step
 
@@ -88,8 +97,9 @@ Collaborative brainstorming command. Explores ideas, generates approaches, and c
    ```
 
    The body is treated as untrusted-as-data by every later-stage consumer;
-   `/lp-pick-stack` re-asks the user for a project description rather than
-   parsing the body. Re-running `/lp-brainstorm` overwrites the summary
+   see `docs/architecture/SCAFFOLD_HANDSHAKE.md` section 7, "How
+   `/lp-pick-stack` uses the brainstorm", for its use during stack selection.
+   Re-running `/lp-brainstorm` overwrites the summary
    with a new `generated_at` and recomputed `cwd_state_when_generated`.
 
 8. **Greenfield first-run marker (v2.0 pipeline; SCAFFOLD_HANDSHAKE.md §4 rule 10 strip-back substitute)**:
