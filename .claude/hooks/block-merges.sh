@@ -109,6 +109,69 @@ GH_PR_MERGE=$(printf '%s' "$JOINED" | tr -d "'\"\\\\\$" | sed -e 's/>|/>/g' -e '
       s = 0
     } }
   END { print (found ? "yes" : "no") }') || GH_PR_MERGE=yes
+
+# A second, quote-aware scan builds words the way Bash does (single, double and
+# $'...' quoting keep a word whole, so `gh pr -R "x view" merge` is read
+# right) and fails closed on what it cannot resolve: a redirection, command
+# substitution or computed word between `gh` and the subcommand (gh pr >view
+# merge, gh pr $(echo merge)). The first scan still catches merges hidden in
+# quoted command substitutions; a merge found by either scan counts.
+if [ "$GH_PR_MERGE" = "no" ]; then
+  GH_PR_MERGE=$(printf '%s' "$JOINED" | awk '
+    BEGIN {
+      n = split("checkout checks close comment create diff edit list ls lock new ready reopen review revert status unlock update-branch view", a, " ")
+      for (k = 1; k <= n; k++) safe[a[k]] = 1
+    }
+    function word(x,   lx) {
+      lx = tolower(x)
+      if (s == 1 && (index(x, "$(") || index(x, "`"))) { found = 1; return }
+      if (s < 2) {
+        if (lx == "gh" || lx ~ /\/gh$/) s = 1
+        else if (s == 1 && lx == "pr") s = 2
+        return
+      }
+      if (s == 2) {
+        if (skip) { skip = 0; return }
+        if (lx == "-r" || lx == "--repo") { skip = 1; return }
+        if (lx ~ /^-/) return
+        if (!(lx in safe)) found = 1
+        s = 3
+      }
+    }
+    function flush() { if (inw) { word(w); w = ""; inw = 0 } }
+    { buf = buf $0 "\n" }
+    END {
+      L = length(buf); q = 0; w = ""; inw = 0; s = 0; skip = 0
+      for (i = 1; i <= L; i++) {
+        c = substr(buf, i, 1); nx = substr(buf, i + 1, 1)
+        if (q == 1) { if (c == "\047") q = 0; else w = w c; continue }
+        if (q == 3) { if (c == "\\") { w = w c nx; i++ } else if (c == "\047") q = 0; else w = w c; continue }
+        if (q == 2) { if (c == "\\") { w = w nx; i++ } else if (c == "\"") q = 0; else w = w c; continue }
+        if (c == "\\") { w = w nx; i++; inw = 1; continue }
+        if (c == "\047") { q = 1; inw = 1; continue }
+        if (c == "\"") { q = 2; inw = 1; continue }
+        if (c == "$" && nx == "\047") { q = 3; inw = 1; i++; continue }
+        if (c == "$" && nx == "\"") { q = 2; inw = 1; i++; continue }
+        if (c == "#" && !inw) { while (i < L && substr(buf, i + 1, 1) != "\n") i++; continue }
+        if (c == " " || c == "\t") { flush(); continue }
+        if (c == "<" || c == ">" || (c == "&" && nx == ">")) {
+          if (inw && w ~ /^[0-9]+$/) { w = ""; inw = 0 } else flush()
+          while (i < L && index("<>&|-", substr(buf, i + 1, 1))) i++
+          if (s == 1 || s == 2) found = 1
+          continue
+        }
+        if (index(";&|()`\n", c)) {
+          flush()
+          if ((c == "(" || c == "`") && (s == 1 || s == 2)) found = 1
+          s = 0; skip = 0
+          continue
+        }
+        w = w c; inw = 1
+      }
+      flush()
+      print (found ? "yes" : "no")
+    }') || GH_PR_MERGE=yes
+fi
 if [ "$GH_PR_MERGE" != "no" ]; then
   PR_AUTHOR=""
   if [ -n "$EXEMPT_PR_NUMBER" ] && [ "$IN_PROJECT" = "yes" ]; then
