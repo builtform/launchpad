@@ -49,8 +49,11 @@ BACKSLASH_NEWLINE=$'\\\n'
 JOINED=${COMMAND//"$BACKSLASH_NEWLINE"/}
 UNQUOTED=$(printf '%s' "$JOINED" | tr -d "'\"\\\\\$" | tr '\n' ' ')
 
-# PR merges through the API are always blocked.
-if printf '%s' "$UNQUOTED" | grep -qiE "pulls/[^[:space:]]*/merge|mergePullRequest|enablePullRequestAutoMerge"; then
+# PR merges through the API are always blocked. GraphQL names are
+# case-sensitive, so read-only fields such as viewerCanEnablePullRequestAutoMerge
+# do not match.
+if printf '%s' "$UNQUOTED" | grep -qiE "pulls/[^[:space:]]*/merge" || \
+   printf '%s' "$UNQUOTED" | grep -qE "(^|[^A-Za-z0-9_])(mergePullRequest|enablePullRequestAutoMerge)"; then
   echo "BLOCKED: merging a PR through the GitHub API is prohibited." >&2
   exit 2
 fi
