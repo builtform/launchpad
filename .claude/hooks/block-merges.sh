@@ -169,7 +169,7 @@ function newcmd(   hidden) {
   }
   S[d] = 0; SK[d] = 0; TG[d] = 0; NW[d] = 0; PV[d] = ""; EV[d] = ""; EVON[d] = 0; SH[d] = 0; GW[d] = 0
   GQ[d] = 0; FB[d] = 0; CX[d] = 0; AP[d] = 0; EX[d] = 0; RI[d] = 0; PI[d] = 0; HX[d] = 0
-  SC[d] = 0; SCB[d] = ""; WR[d] = 0; GHA[d] = 0; CU[d] = 0; CN[d] = ""; MW[d] = 0; CF[d] = 0; PVO[d] = 0; HU[d] = 0
+  SC[d] = 0; SCB[d] = ""; WR[d] = 0; GHA[d] = 0; CU[d] = 0; CN[d] = ""; MW[d] = 0; CF[d] = 0; PVO[d] = 0; HU[d] = 0; GOFF[d] = 0; EN[d] = 0; ES[d] = 0
 }
 # One argument of an API call, read by role. An option's value is consumed
 # with its role (PVO): 1 harmless (a header, user, output file: an expansion in
@@ -183,7 +183,7 @@ function apiword(x, wc,   v, sep) {
     v = PVO[d]; PVO[d] = 0
     if (v == 1) { if (wc) CX[d]-- }
     else if (v == 2) { if (toupper(x) ~ /^(POST|PUT|PATCH|DELETE)$/) MW[d] = 1 }
-    else if (v == 3) { if (wc) { EX[d] = 1; CX[d]-- } }
+    else if (v == 3) { if (wc) { EX[d] = 1; CX[d]-- } else if (x ~ /^@/) EX[d] = 1 }
     else if (v == 6) { if (tolower(x) ~ /(method|post|body|header|input)/) CF[d] = 1 }
     else if (v == 7) { if (index(x, "@")) FB[d] = 1 }
     else if (v == 8) { if (x ~ /=[@<]/) FB[d] = 1 }
@@ -212,6 +212,9 @@ function apiword(x, wc,   v, sep) {
     return
   }
   if (CU[d] && x ~ /^(POST|PUT|PATCH|DELETE)$/) { MW[d] = 1; return }
+  # curl expands {a,b} and [1-9] in URLs unless -g/--globoff, so a globbed URL
+  # may name a merge or GraphQL endpoint the text does not show.
+  if (CN[d] == "curl" && !GOFF[d] && x ~ /[{[]/) { EX[d] = 1; if (wc) CX[d]--; return }
   if (wc) { EX[d] = 1; CX[d]-- }
 }
 function longopt(x, wc,   eq, o, val) {
@@ -228,7 +231,8 @@ function longopt(x, wc,   eq, o, val) {
     if (o ~ /^--(header|jq|template|hostname|preview|cache)$/) { if (!eq) PVO[d] = 1; else if (wc) CX[d]--; return }
     return
   }
-  if (o == "--url") { if (!eq) PVO[d] = 3; else if (wc) { EX[d] = 1; CX[d]-- }; return }
+  if (o == "--url") { if (!eq) PVO[d] = 3; else if (wc) { EX[d] = 1; CX[d]-- } else if (val ~ /^@/) EX[d] = 1; return }
+  if (o == "--globoff") { GOFF[d] = 1; return }
   if (o == "--config") { CF[d] = 1; if (!eq) PVO[d] = 1; return }
   if (o == "--input-file") { EX[d] = 1; if (!eq) PVO[d] = 1; return }
   if (o == "--execute") { if (!eq) PVO[d] = 6; else if (tolower(val) ~ /(method|post|body|header|input)/) CF[d] = 1; return }
@@ -265,6 +269,7 @@ function cluster(x, wc,   j, n, c, rest) {
       if (c == "d" || c == "T") { MW[d] = 1; if (rest == "") PVO[d] = 5; return }
       if (c == "F") { MW[d] = 1; if (rest == "") PVO[d] = 8; else if (rest ~ /=[@<]/) FB[d] = 1; return }
       if (c == "K") { CF[d] = 1; if (rest == "") PVO[d] = 1; return }
+      if (c == "g") GOFF[d] = 1
       if (index("AbcCDeEHmoPQrtuUwxyYz", c)) { if (rest == "") PVO[d] = 1; else if (wc) CX[d]--; return }
     } else {
       if (index("aoAps", c)) { if (rest == "") PVO[d] = 1; else if (wc) CX[d]--; return }
@@ -293,9 +298,17 @@ function word(x, wc,   lx, px, comp, cmdpos, bl, client) {
     if (SC[d]) SCB[d] = SCB[d] "\n" x
     else if (SH[d] && lx ~ /^-[a-z]*c[a-z]*$/) SC[d] = 1
     if (EVON[d]) EV[d] = EV[d] " " x
+    # env -S / --split-string runs a whole command held in one string.
+    if (EN[d]) {
+      if (ES[d]) { ES[d] = 0; enqueue(x) }
+      else if (x ~ /^(-[A-Za-z0-9]*S|--split-string)$/) ES[d] = 1
+      else if (x ~ /^-[A-Za-z0-9]*S./) enqueue(substr(x, index(x, "S") + 1))
+      else if (x ~ /^--split-string=/) enqueue(substr(x, 16))
+    }
     client = 0
     if (length(lx) < 256) {
       bl = base(lx)
+      if (bl == "env" && (cmdpos || WR[d])) EN[d] = 1
       if (bl in shell) SH[d] = 1
       if ((cmdpos || WR[d]) && !AP[d] && (bl in api)) {
         AP[d] = 1; CU[d] = 1; CN[d] = bl; client = 1
