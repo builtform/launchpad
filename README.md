@@ -83,7 +83,7 @@ The marketplace registration step is required today because BuiltForm is awaitin
 
 ### Path 2: Fresh monorepo (Best for Greenfield)
 
-LaunchPad detects greenfield vs brownfield by **inspecting your project folder**. An empty folder (or one containing only `.gitignore`, a short `README.md`, `LICENSE`, or a fresh `git init`) reads as greenfield. Anything else (a `package.json`, `pyproject.toml`, any other dependency manifest, or even a stray `.DS_Store` from opening the folder in Finder) flips detection and the four-command pipeline will refuse to scaffold.
+LaunchPad detects greenfield vs brownfield by **inspecting your project folder**. An empty folder reads as greenfield, and so does one containing only `.gitignore`, a short `README.md`, `LICENSE`, a fresh `git init`, the `.DS_Store` file Finder adds when you open the folder, LaunchPad's own `.launchpad/` and `.harness/` folders, or the `docs/brainstorms/` folder that `/lp-kickoff` and `/lp-brainstorm` create. Anything else (a `package.json`, `pyproject.toml`, any other dependency manifest, or other files you added) flips detection and the four-command pipeline will refuse to scaffold.
 
 **Step 1.** Create a new, empty folder for your project and `cd` into it:
 

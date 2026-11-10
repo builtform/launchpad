@@ -1,9 +1,8 @@
 """Ambiguity-cluster handling test (Phase 2 §4.4 T4).
 
-When user answers cause multiple categories to tie, AND those categories
-share an `ambiguity_clusters[]` membership, the engine MUST surface the
-disambiguation prompt. On user choice, the matcher narrows to the chosen
-candidate.
+When a category selection needs a choice, the engine returns the full
+shortlist with its cluster metadata. The user's chosen id selects from
+that entire shortlist, including candidates in different clusters.
 
 This is the load-bearing test for HANDSHAKE §4 rule 7 (ambiguity clusters)
 + pick-stack plan §3.1 Step 5 (tiebreak prompt).
@@ -44,36 +43,35 @@ def test_ambiguity_surfaces_without_choice(tmp_path: Path):
         write_telemetry=False,
     )
     assert not result.success
-    assert result.reason == "ambiguity_cluster_disambiguation_required"
-    assert result.cluster == "static-blog-trio"
+    assert result.reason == "category_selection_required"
     assert len(result.candidates) >= 2
     # No decision file written
     assert not (tmp_path / ".launchpad" / "scaffold-decision.json").exists()
 
 
 def test_ambiguity_resolved_with_chosen_id(tmp_path: Path):
-    # Pre-resolve the cluster_choice; engine writes the decision
+    # Pre-resolve the chosen_category_id; engine writes the decision
     result = run_pipeline(
         tmp_path,
         VALID_ANSWERS,
         project_description=_ambiguous_describe(),
-        cluster_choice="static-blog-hugo",
+        chosen_category_id="static-blog-hugo",
         write_telemetry=False,
     )
     assert result.success, result.message
     assert result.matched_category_id == "static-blog-hugo"
 
 
-def test_invalid_cluster_choice_rejected(tmp_path: Path):
+def test_invalid_chosen_category_id_rejected(tmp_path: Path):
     result = run_pipeline(
         tmp_path,
         VALID_ANSWERS,
         project_description=_ambiguous_describe(),
-        cluster_choice="not-in-cluster",
+        chosen_category_id="not-in-cluster",
         write_telemetry=False,
     )
     assert not result.success
-    assert result.reason == "ambiguity_cluster_choice_invalid"
+    assert result.reason == "category_choice_invalid"
 
 
 def test_candidates_carry_cluster_metadata(tmp_path: Path):
@@ -83,5 +81,6 @@ def test_candidates_carry_cluster_metadata(tmp_path: Path):
         project_description=_ambiguous_describe(),
         write_telemetry=False,
     )
-    for c in result.candidates:
-        assert c.cluster == "static-blog-trio"
+    candidates = {c.id: c for c in result.candidates}
+    assert candidates["static-blog-astro"].cluster == "static-blog-trio"
+    assert candidates["static-blog-hugo"].cluster == "static-blog-trio"

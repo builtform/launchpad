@@ -194,16 +194,16 @@ Read-only documentarians. Dispatched during definition, planning, and hardening 
 
 Dispatched by `/lp-review` in parallel with confidence scoring.
 
-| Agent                                                                                                                                                                   | Dispatch condition                 |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| `pattern-finder` / `security-auditor` / `kieran-foad-ts-reviewer` / `performance-auditor` / `code-simplicity-reviewer` / `architecture-strategist` / `testing-reviewer` | Always                             |
-| `schema-drift-detector`                                                                                                                                                 | Prisma changes (runs first)        |
-| `data-migration-auditor` / `data-integrity-auditor`                                                                                                                     | Prisma changes (with drift report) |
-| `spec-flow-analyzer` / `frontend-races-reviewer`                                                                                                                        | Plan hardening                     |
-| `deployment-verification-agent`                                                                                                                                         | Opt-in                             |
-| `lp-claims-auditor`                                                                                                                                                     | Default, all stacks                |
-| `lp-foad-go-reviewer`                                                                                                                                                   | Default roster, Go stacks only     |
-| `lp-document-truth`                                                                                                                                                     | Opt-in via document roster         |
+| Agent                                                                                                                                                                   | Dispatch condition                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `pattern-finder` / `security-auditor` / `kieran-foad-ts-reviewer` / `performance-auditor` / `code-simplicity-reviewer` / `architecture-strategist` / `testing-reviewer` | Always                                                   |
+| `schema-drift-detector`                                                                                                                                                 | Database schema or migration changes (runs first)        |
+| `data-migration-auditor` / `data-integrity-auditor`                                                                                                                     | Database schema or migration changes (with drift report) |
+| `spec-flow-analyzer` / `frontend-races-reviewer`                                                                                                                        | Plan hardening                                           |
+| `deployment-verification-agent`                                                                                                                                         | Opt-in                                                   |
+| `lp-claims-auditor`                                                                                                                                                     | Default, all stacks                                      |
+| `lp-foad-go-reviewer`                                                                                                                                                   | Default roster, Go stacks only                           |
+| `lp-document-truth`                                                                                                                                                     | Opt-in via document roster                               |
 
 ### document-review/ (7 agents)
 
