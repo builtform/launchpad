@@ -92,6 +92,8 @@ BEGIN {
   for (k = 1; k <= n; k++) prefix[a[k]] = 1
   n = split("sh bash zsh dash ksh", a, " ")
   for (k = 1; k <= n; k++) shell[a[k]] = 1
+  n = split("curl wget http https xh", a, " ")
+  for (k = 1; k <= n; k++) api[a[k]] = 1
   Qn = 1
   begin_scan()
 }
@@ -116,26 +118,44 @@ function pdec(s,   n, parts, out, j, h) {
   }
   return out
 }
-function base(x) { sub(/.*\//, "", x); return x }
-function newcmd() {
-  if (EV[d] != "") { Qn++; QT[Qn] = EV[d] }
-  S[d] = 0; SK[d] = 0; TG[d] = 0; NW[d] = 0; CM[d] = ""; PV[d] = ""; EV[d] = ""; GW[d] = 0
+function base(x,   n, parts) { n = split(x, parts, "/"); return parts[n] }
+function enqueue(s) {
+  if (Qn >= 64) found = 1
+  else { Qn++; QT[Qn] = s }
 }
-function word(x,   lx, px, comp, cmdpos) {
+# A GraphQL request is judged per simple command that is an API call (gh api,
+# curl, wget, http, xh): its body is unreadable when that command also takes a
+# body from a file or stdin, or expands a variable or substitution (a literal
+# $ inside single quotes does not count).
+function newcmd() {
+  if (EV[d] != "") enqueue(EV[d])
+  if (mode == "A" && AP[d] && GQ[d] && (FB[d] || CX[d])) body = 1
+  S[d] = 0; SK[d] = 0; TG[d] = 0; NW[d] = 0; PV[d] = ""; EV[d] = ""; EVON[d] = 0; SH[d] = 0; GW[d] = 0
+  GQ[d] = 0; FB[d] = 0; CX[d] = 0; AP[d] = 0
+}
+function word(x, wc,   lx, px, comp, cmdpos) {
   px = pdec(x)
   if (tolower(px) ~ /pulls\/[^ \t\n]*\/merge/) rest = 1
   if (px ~ /(^|[^A-Za-z0-9_])(mergePullRequest|enablePullRequestAutoMerge|enqueuePullRequest)/) mut = 1
-  if (tolower(px) ~ /(^|[^a-z0-9_])graphql([^a-z0-9_]|$)/) gql = 1
-  if (x ~ /^@/ || x ~ /=@/ || x ~ /^-[A-Za-z]+@/ || x ~ /^--(input|upload-file)(=|$)/ || x == "-T") fbody = 1
+  if (tolower(px) ~ /(^|\/)graphql(\/|\?|#|$)/) GQ[d] = 1
+  if (x ~ /^@/ || x ~ /=@/ || x ~ /^-[A-Za-z]+@/ || x ~ /^--(input|upload-file)(=|$)/ || x == "-T") FB[d] = 1
+  if (wc) CX[d] = 1
   if (TG[d]) { TG[d] = 0; return }
   lx = tolower(x)
   if (NW[d] == 0 && x ~ /^[A-Za-z_][A-Za-z0-9_]*=/) return
   NW[d]++
   cmdpos = (NW[d] == 1 || (PV[d] in prefix))
-  if (NW[d] == 1) CM[d] = base(lx)
+  # The string after `<shell> -c` and the words after `eval` are scanned again
+  # as commands, whatever wrapper (env, sudo, timeout, xargs) precedes them.
   if (mode == "A") {
-    if ((CM[d] in shell) && PV[d] ~ /^-[a-z]*c[a-z]*$/) { Qn++; QT[Qn] = x }
-    if (CM[d] == "eval" && NW[d] > 1) EV[d] = EV[d] " " x
+    if (SH[d] && PV[d] ~ /^-[a-z]*c[a-z]*$/) enqueue(x)
+    if (EVON[d]) EV[d] = EV[d] " " x
+    if (length(lx) < 256) {
+      if (base(lx) in shell) SH[d] = 1
+      if (base(lx) in api) AP[d] = 1
+    }
+    if (lx == "eval") EVON[d] = 1
+    if (S[d] == 1 && lx == "api") AP[d] = 1
   }
   PV[d] = lx
   comp = (index(x, "$") || index(x, "`"))
@@ -156,18 +176,18 @@ function word(x,   lx, px, comp, cmdpos) {
   if (comp || !(lx in safe)) found = 1
   S[d] = 3
 }
-function flush() { if (IW[d]) { word(W[d]); W[d] = ""; IW[d] = 0 } }
+function flush() { if (IW[d]) { word(W[d], WC[d]); W[d] = ""; IW[d] = 0; WC[d] = 0 } }
 function push(closer) {
-  W[d] = W[d] "$("; IW[d] = 1; subst = 1
+  W[d] = W[d] "$("; IW[d] = 1; WC[d] = 1
   QS[d] = q; d++
-  W[d] = ""; IW[d] = 0; CL[d] = closer; PD[d] = 0; EV[d] = ""; newcmd(); q = 0
+  W[d] = ""; IW[d] = 0; WC[d] = 0; CL[d] = closer; PD[d] = 0; EV[d] = ""; newcmd(); q = 0
 }
 function pop() {
   flush(); newcmd()
   d--; q = QS[d]; W[d] = W[d] ")"
 }
 function begin_scan() {
-  d = 0; q = 0; W[0] = ""; IW[0] = 0; CL[0] = ""; PD[0] = 0; EV[0] = ""; newcmd(); nul = 0
+  d = 0; q = 0; W[0] = ""; IW[0] = 0; WC[0] = 0; CL[0] = ""; PD[0] = 0; EV[0] = ""; newcmd(); nul = 0
 }
 function end_scan() {
   while (d > 0) pop()
@@ -223,7 +243,7 @@ function feed(t,   L, i, c, nx, e, h, o, mx, v, j) {
       if (c == "$" && nx == "(") { push(")"); i++; continue }
       if (c == "`") { push("`"); continue }
       if (match(substr(t, i, 512), /^[^"\\$`]+/)) { W[d] = W[d] substr(t, i, RLENGTH); i += RLENGTH - 1 }
-      else W[d] = W[d] c
+      else { W[d] = W[d] c; if (c == "$") WC[d] = 1 }
       continue
     }
     if (c == "\\") { W[d] = W[d] nx; i++; IW[d] = 1; continue }
@@ -233,7 +253,7 @@ function feed(t,   L, i, c, nx, e, h, o, mx, v, j) {
     if (mode == "A" && c == "$" && nx == "\"") { q = 2; IW[d] = 1; i++; continue }
     if (c == "$" && nx == "(") { push(")"); i++; continue }
     if (c == "`") { if (CL[d] == "`") pop(); else push("`"); continue }
-    if (c == "#" && !IW[d]) { while (i < L && substr(t, i + 1, 1) != "\n") i++; continue }
+    if (c == "#" && !IW[d]) { j = index(substr(t, i + 1), "\n"); i = j ? i + j - 1 : L; continue }
     if (c == " " || c == "\t") { flush(); continue }
     if ((c == "<" || c == ">") && nx == "(") { push(")"); i++; continue }
     if (c == "<" || c == ">" || (c == "&" && nx == ">")) {
@@ -252,12 +272,13 @@ function feed(t,   L, i, c, nx, e, h, o, mx, v, j) {
     if (index(";&|\n", c)) { flush(); newcmd(); continue }
     if (match(substr(t, i, 512), /^[^ \t\n\\'"$`#<>&;|()]+/)) { W[d] = W[d] substr(t, i, RLENGTH); IW[d] = 1; i += RLENGTH - 1; continue }
     W[d] = W[d] c; IW[d] = 1
+    if (c == "$") WC[d] = 1
   }
 }
 END {
   end_scan()
-  for (qi = 2; qi <= Qn && qi <= 64; qi++) { begin_scan(); feed(QT[qi]); end_scan() }
-  printf "%d %d %d %d\n", found, rest, mut, ((gql && (fbody || subst)) ? 1 : 0)
+  for (qi = 2; qi <= Qn; qi++) { begin_scan(); feed(QT[qi]); end_scan() }
+  printf "%d %d %d %d\n", found, rest, mut, body
 }
 AWK
 
@@ -289,9 +310,10 @@ if { { [ "$A_REST" = 1 ] || [ "$B_REST" = 1 ] || [ "$(grep_status -iE "pulls/[^[
   exit 2
 fi
 
-# A GraphQL request whose body the hook cannot read (a file or stdin through
-# --input, -T, an @ argument or field, or a command substitution) could carry a
-# merge mutation, so it is blocked; pass the query inline instead.
+# A GraphQL API call (gh api, curl, wget, http, xh) whose body the hook cannot
+# read (a file or stdin through --input, -T, an @ argument or field, or a
+# variable or command substitution) could carry a merge mutation, so it is
+# blocked; pass the query inline instead.
 if [ "$A_BODY" = 1 ] || [ "$B_BODY" = 1 ]; then
   echo "BLOCKED: a GraphQL request with a body from a file, stdin or a command substitution is prohibited; pass the query inline." >&2
   exit 2
