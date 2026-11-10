@@ -354,6 +354,42 @@ def _select_by_role(
     return None
 
 
+def apply_declared_frontend(
+    adapter_out: AdapterOutput, layers: list[dict]
+) -> AdapterOutput:
+    """Copy the output and honor a declared frontend's UI capabilities."""
+    frontend_layer = next(
+        (
+            layer
+            for role in _FRONTEND_ROLES
+            for layer in layers
+            if layer.get("role") == role
+        ),
+        None,
+    )
+    result = dict(adapter_out)
+    if frontend_layer is None:
+        return result  # type: ignore[return-value]
+    if adapter_out["frontend"] is None:
+        result["frontend"] = FrontendInfo(
+            framework="Unknown",
+            styling="",
+            component_dir=str(frontend_layer.get("path", ".")).rstrip("/") + "/",
+            routing="",
+        )
+        if adapter_out["app_flow"] is None:
+            result["app_flow"] = AppFlowInfo(
+                entry_routes=[], auth_flow=None, primary_journeys=[]
+            )
+    overrides = PipelineOverrides(**adapter_out["pipeline_overrides"])
+    overrides.pop("design_enabled", None)
+    overrides.pop("test_browser_enabled", None)
+    if all(ADAPTERS.get(layer["stack"], generic) is generic for layer in layers):
+        overrides.pop("frontend_docs_enabled", None)
+    result["pipeline_overrides"] = overrides
+    return result  # type: ignore[return-value]
+
+
 def compose_with_layers(layers: list[dict]) -> AdapterOutput:
     """Role-aware multi-stack composer (PR #41 cycle 11 #1 closure — Codex
     P1).
@@ -404,7 +440,7 @@ def compose_with_layers(layers: list[dict]) -> AdapterOutput:
     precedence_outputs = [ADAPTERS[s].run() for s in ordered_unique]
 
     if len(layer_outputs) == 1:
-        return layer_outputs[0][1]
+        return apply_declared_frontend(layer_outputs[0][1], layers)
 
     backend_out = _select_by_role(layer_outputs, _BACKEND_ROLES)
     frontend_out = _select_by_role(layer_outputs, _FRONTEND_ROLES)
@@ -423,7 +459,21 @@ def compose_with_layers(layers: list[dict]) -> AdapterOutput:
         else _merge_app_flow(precedence_outputs)
     )
 
-    return AdapterOutput(
+    overrides = _merge_pipeline_overrides(precedence_outputs)
+    if frontend_out is not None:
+        non_generic = [
+            out
+            for stack, out in zip(ordered_unique, precedence_outputs, strict=True)
+            if ADAPTERS.get(stack, generic) is not generic
+        ]
+        overrides.pop("frontend_docs_enabled", None)
+        if any(
+            out["pipeline_overrides"].get("frontend_docs_enabled") is False
+            for out in non_generic
+        ):
+            overrides["frontend_docs_enabled"] = False
+
+    composite = AdapterOutput(
         stack_id=ordered_unique[0],
         tech_stack=_merge_tech_stack(precedence_outputs),
         backend=backend,
@@ -431,5 +481,6 @@ def compose_with_layers(layers: list[dict]) -> AdapterOutput:
         app_flow=app_flow,
         product_context=_merge_product_context(precedence_outputs),
         commands=_merge_commands(precedence_outputs),
-        pipeline_overrides=_merge_pipeline_overrides(precedence_outputs),
+        pipeline_overrides=overrides,
     )
+    return apply_declared_frontend(composite, layers)

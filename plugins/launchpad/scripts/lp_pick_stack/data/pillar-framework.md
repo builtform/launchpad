@@ -1,6 +1,6 @@
 ---
 generated_by: hand-authored
-last_validated: 2026-09-18
+last_validated: 2026-11-10
 purpose: rationale-generation context for /lp-pick-stack
 ---
 
@@ -16,10 +16,12 @@ in `<untrusted_user_input>` envelopes upstream.
 
 The v2.0 10-stack catalog (HANDSHAKE §11) spans **four product pillars**.
 Each pillar groups stacks that share runtime model, deployment shape, and
-team-skill prerequisites. The pick-stack engine selects a pillar via Q1
-(project shape) + Q3 (AI/ML need) + Q4 (team-language preference); within a
-pillar, the engine narrows to a specific stack via the category-patterns.yml
-`fits_when` predicates.
+team-skill prerequisites. A later 11th entry, `generic` (added in v2.1.4,
+pillar "Bring-your-own-framework"), sits outside the four pillars. The
+pick-stack engine has no pillar step: it scores every category's
+category-patterns.yml `fits_when` predicate against the answers to Q1 to Q4
+and the project description, returns the whole shortlist, and the user picks.
+Pillars are rationale context.
 
 ### Pillar 1 — Frontend Content/Performance
 
@@ -118,19 +120,23 @@ Native Web). Native UI primitives + React component model.
 - New Architecture (Fabric + TurboModules) is the only architecture from SDK 55
   onward; the legacy architecture was removed and cannot be re-enabled
 - Deploy targets: App Store, Play Store, and a development build or `eas go`
-  for dev/preview (store-published Expo Go now lags the newest SDK by design)
+  for dev/preview (store-published Expo Go supports only the newest SDK and
+  reaches the stores some weeks after each SDK release)
 
 **Standalone vs polyglot**:
 
 - **Standalone expo**: client-only mobile app (no backend), or pairs with an
   existing API
-- **expo + hono polyglot**: edge-native API for the mobile app — common when
-  the team wants TypeScript end-to-end across mobile + backend
+- **expo with a separate API**: an edge-native API such as hono is a common
+  companion when the team wants TypeScript end-to-end, but the catalog cannot
+  scaffold the pair: a mobile layer must be the only layer, and no category
+  pairs expo with a backend, so the API is set up as its own project
 
 ## Cross-pillar tradeoff axes
 
-When a project shape spans pillars, the pick-stack engine prefers the smallest
-viable composition. The following axes drive the decision:
+When a project shape spans pillars, `/lp-pick-stack`'s recommendation should
+prefer the smallest viable composition (the engine itself only scores and
+shortlists). The following axes drive the decision:
 
 | Axis                       | Pulls toward                         | Pulls toward                                            |
 | -------------------------- | ------------------------------------ | ------------------------------------------------------- |
@@ -151,8 +157,8 @@ candidate stack was NOT chosen:
 - **Remix as a separate framework**: Remix v2's React-based continuation is
   React Router v7 (2024), and Remix 3 (beta 2026-04-30) dropped React entirely,
   so "Remix" is ambiguous and rarely what a React team wants today. A React
-  team reaching for Remix should write React Router v7 inside a Next or
-  standalone Vite shell
+  team reaching for Remix should write React Router (v8 since 2026-06) inside a
+  Next or standalone Vite shell
 - **Webpack for new bundling**: Vite (Astro/SvelteKit/Vite-projects) or
   Turbopack (the default for both dev and build in Next 16) are the modern paths
 - **psycopg2 instead of psycopg3**: psycopg3 (`psycopg`) is the 2026 idiom;
@@ -164,14 +170,15 @@ candidate stack was NOT chosen:
 
 ## Notes on the v2.0 catalog (10 stacks)
 
-Per HANDSHAKE §11, v2.0 ships **exactly 10 stacks**. The Layer 3 catalog cut
+Per HANDSHAKE §11, v2.0 shipped **exactly 10 stacks**; v2.1.4 added
+`generic` as an 11th, bring-your-own-framework entry. The Layer 3 catalog cut
 deferred 10 candidate stacks to v2.2 BL entries (BL-100 through BL-104 +
 BL-212): cloudflare-workers, tauri, nestjs, laravel, vite, sveltekit, elysia,
-phoenix-liveview, convex, flutter. The pick-stack engine refuses gracefully
-when a user's project shape best matches a deferred stack, surfacing a v2.2
-roadmap pointer rather than silently substituting a different stack.
+phoenix-liveview, convex, flutter. When no category matches, the engine
+refuses with `category_no_match` and asks the user to re-describe the project
+or use manual override; it never silently substitutes a different stack. The
+deferred stacks are listed in `ROADMAP.md` under "What's next" (v2.2).
 
-The 6-month post-v2.0 freshness review (BL-105) revisits the 10-entry catalog
-for drift; the v2.1 documentation-only release does NOT add stacks. Stack
-restorations land at v2.2 alongside the operational/security infrastructure
-deferrals.
+The 6-month post-v2.0 freshness review (BL-105) revisits the catalog for
+drift. Stack restorations land at v2.2 alongside the operational/security
+infrastructure deferrals.

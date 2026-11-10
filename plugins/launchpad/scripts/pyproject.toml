@@ -145,6 +145,7 @@ ignore = [
 known-first-party = [
     "atomic_io",
     "cwd_state",
+    "db_change_detector",
     "decision_integrity",
     "knowledge_anchor_loader",
     "lp_bootstrap",

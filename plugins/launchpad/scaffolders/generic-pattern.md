@@ -2,7 +2,7 @@
 stack: generic
 pillar: Bring-your-own-framework
 type: curate
-last_validated: 2026-09-18
+last_validated: 2026-11-10
 scaffolder_command: (curate — no scaffolder; user fills the workspace by hand)
 scaffolder_command_pinned_version: n/a
 ---
@@ -25,7 +25,7 @@ Use cases:
   `StackIdV22Candidate` id awaiting an active `Adapter` Protocol
   implementation (`python_django`, `python_generic`,
   `nextjs_hono_cloudflare`, `nextjs_trpc_prisma`, `rails`, `go_cli`), or
-  a framework outside the catalog entirely (SvelteKit, React Router v7,
+  a framework outside the catalog entirely (SvelteKit, React Router v8,
   Solid, Phoenix LiveView).
 - A custom starter the user maintains internally (private monorepo
   template, company-internal scaffold, prototype that hasn't earned a
