@@ -126,10 +126,12 @@ function enqueue(s) {
 # A GraphQL request is judged per simple command that is an API call (gh api,
 # curl, wget, http, xh): its body is unreadable when that command also takes a
 # body from a file or stdin, or expands a variable or substitution (a literal
-# $ inside single quotes does not count).
+# $ inside single quotes does not count). An API call that takes a file or
+# stdin body and expands anything is blocked too, since the expansion may name
+# the GraphQL endpoint (gh api graphql${SUFFIX:-} --input f).
 function newcmd() {
   if (EV[d] != "") enqueue(EV[d])
-  if (mode == "A" && AP[d] && GQ[d] && (FB[d] || CX[d])) body = 1
+  if (mode == "A" && AP[d] && ((GQ[d] && (FB[d] || CX[d])) || (FB[d] && CX[d]))) body = 1
   S[d] = 0; SK[d] = 0; TG[d] = 0; NW[d] = 0; PV[d] = ""; EV[d] = ""; EVON[d] = 0; SH[d] = 0; GW[d] = 0
   GQ[d] = 0; FB[d] = 0; CX[d] = 0; AP[d] = 0
 }
@@ -169,6 +171,7 @@ function word(x, wc,   lx, px, comp, cmdpos) {
   if (lx == "-r" || lx == "--repo") { SK[d] = 1; return }
   if (lx ~ /^-/) return
   if (S[d] == 1) {
+    if (lx == "gh" || lx ~ /\/gh$/) { GW[d] = 1; return }
     if (comp) { if (GW[d] == 1) found = 1; else S[d] = 0; return }
     S[d] = (lx == "pr") ? 2 : 0
     return
