@@ -208,7 +208,7 @@ stacks:
     type: "curate"
     flavor: "n/a"
     knowledge_anchor: "plugins/launchpad/scaffolders/supabase-pattern.md"
-    knowledge_anchor_sha256: "2db51d1e4a314eafb4cdc5fd7f34c6980f479670755636a95a6457d9e102b558"
+    knowledge_anchor_sha256: "b4f9e4c4df6257f5e227416dc99c490134ab686f790b1c76c8ec1b9753875770"
     # options_schema intentionally empty: the vscode_deno_settings /
     # intellij_deno_settings options modelled prompts that no longer exist
     # on `supabase init`.

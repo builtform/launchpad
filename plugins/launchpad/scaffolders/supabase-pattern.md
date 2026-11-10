@@ -66,8 +66,8 @@ Version pins:
 
 - `supabase` CLI v3.x (3.1.x current; binary, or `pnpm add -D supabase`; v2
   stays on the npm `v2.stable` tag, 2.122.x)
-- `@supabase/supabase-js@2.114+` (JS client; 2.119 current, and the floor that
-  `@supabase/ssr@0.12.7` declares as its peer dependency)
+- `@supabase/supabase-js@2.114+` (JS client; 2.119 current; 2.114 is the floor
+  that `@supabase/ssr@0.12.7` declares as its peer dependency, `^2.114.0`)
 - `@supabase/ssr@0.12+` (SSR adapters for Next, Remix, etc.; still pre-1.0, so
   treat minor bumps as potentially breaking)
 - Local Postgres: the init template now sets `db.major_version = 17` (earlier
