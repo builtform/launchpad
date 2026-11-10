@@ -29,14 +29,19 @@ grep_status() {
   echo "$rc"
 }
 
+# Surrounding whitespace, including blank lines, never changes what runs, so it
+# is trimmed before the exact-match exceptions below.
+CMD_TRIM="${COMMAND#"${COMMAND%%[![:space:]]*}"}"
+CMD_TRIM="${CMD_TRIM%"${CMD_TRIM##*[![:space:]]}"}"
+
 # Normalize: convert newlines to ;; (treating each line as a separate command)
 # then flatten to single line for boundary matching.
-FLAT=$(printf '%s' "$COMMAND" | tr '\n' ';')
+FLAT=$(printf '%s' "$CMD_TRIM" | tr '\n' ';')
 
 # Dependabot merge exception. The exempt merge must be the whole command, so
 # nothing else in it can change the directory, environment or repository the
 # merge runs against, and it must run from inside the project directory.
-TRIMMED=$(printf '%s' "$FLAT" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+TRIMMED=$FLAT
 EXEMPT_MERGE_RE='^gh pr merge[[:space:]]+([0-9]+)([[:space:]]+(--squash|--auto|--delete-branch))*$'
 EXEMPT_PR_NUMBER=$(printf '%s' "$TRIMMED" | sed -nE "s/$EXEMPT_MERGE_RE/\1/p")
 HOOK_CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null) || HOOK_CWD=""
@@ -50,15 +55,223 @@ if [ -n "${CLAUDE_PROJECT_DIR:-}" ] && [ -n "$HOOK_CWD" ]; then
   fi
 fi
 
-# Merge detection runs on the whole command with line continuations removed (as
-# Bash does), then quotes, backslashes and $ removed and newlines joined, so
-# quoting, continuations, redirections and command prefixes cannot hide a
-# merge. It fails closed: a command that only mentions a merge is blocked too.
-# Text matching cannot see through variables or eval; GitHub branch protection
-# is the server-side backstop for those.
+# Line continuations are removed as Bash removes them. UNQUOTED additionally
+# drops quotes, backslashes and $ and joins lines, for plain text checks that
+# fail closed: a command that only mentions a merge is blocked too.
 BACKSLASH_NEWLINE=$'\\\n'
 JOINED=${COMMAND//"$BACKSLASH_NEWLINE"/}
 UNQUOTED=$(printf '%s' "$JOINED" | tr -d "'\"\\\\\$" | tr '\n' ' ')
+
+# Shell-aware scan of the command, run in two modes. Mode A builds words the
+# way Bash does: single, double and $'...' quoting keep a word whole, $'...'
+# escapes are decoded (and cut at \0, as Bash does), command and process
+# substitutions are scanned as commands even inside double quotes, and the
+# command strings of `sh/bash/zsh/dash/ksh -c` and `eval` are scanned again.
+# Mode B treats quote characters as absent, so code inside any quoted string is
+# scanned too. In both modes a redirection is an operator plus exactly one
+# target word (`-`, a digit, a file or a process substitution), so neither its
+# fd nor its target is mistaken for a gh word.
+#
+# For gh: the first non-option word after a `gh` word (skipping -R/--repo and
+# its value) must be `pr` or tracking stops; after `pr`, the next non-option
+# word is the subcommand, and anything outside the known non-merge subcommands
+# counts as a merge. A computed word (a variable or substitution) in place of
+# `pr` or the subcommand fails closed, and a computed command word followed by
+# `pr` is treated as gh. Each scan prints four flags: a gh pr merge, a REST
+# pulls/<n>/merge path (after %-decoding), a GraphQL merge mutation, and a
+# GraphQL request whose body the hook cannot read (a file, stdin or a
+# substitution). Out of reach of any text check: gh assembled from pieces at
+# run time (eval of variables, base64 and the like), aliases, and other
+# languages; branch protection is the backstop.
+SCAN_AWK=""
+IFS= read -r -d '' SCAN_AWK <<'AWK' || true
+BEGIN {
+  n = split("checkout checks close comment create diff edit list ls lock new ready reopen review revert status unlock update-branch view", a, " ")
+  for (k = 1; k <= n; k++) safe[a[k]] = 1
+  n = split("sudo env command exec nohup time nice xargs builtin", a, " ")
+  for (k = 1; k <= n; k++) prefix[a[k]] = 1
+  n = split("sh bash zsh dash ksh", a, " ")
+  for (k = 1; k <= n; k++) shell[a[k]] = 1
+  Qn = 1
+  begin_scan()
+}
+# Lines are fed as they arrive and runs of ordinary characters are consumed in
+# one step, so the scan stays linear in the size of the command.
+{ feed($0 "\n") }
+function hexval(h,   v, j) {
+  v = 0
+  for (j = 1; j <= length(h); j++) v = v * 16 + index("0123456789abcdef", substr(h, j, 1)) - 1
+  return v
+}
+function chr(v) { return (v > 0 && v < 256) ? sprintf("%c", v) : "?" }
+function pdec(s,   n, parts, out, j, h) {
+  if (index(s, "%") == 0) return s
+  n = split(s, parts, "%")
+  if (n > 4096) { rest = 1; return s }
+  out = parts[1]
+  for (j = 2; j <= n; j++) {
+    h = tolower(substr(parts[j], 1, 2))
+    if (h ~ /^[0-9a-f][0-9a-f]$/) out = out chr(hexval(h)) substr(parts[j], 3)
+    else out = out "%" parts[j]
+  }
+  return out
+}
+function base(x) { sub(/.*\//, "", x); return x }
+function newcmd() {
+  if (EV[d] != "") { Qn++; QT[Qn] = EV[d] }
+  S[d] = 0; SK[d] = 0; TG[d] = 0; NW[d] = 0; CM[d] = ""; PV[d] = ""; EV[d] = ""; GW[d] = 0
+}
+function word(x,   lx, px, comp, cmdpos) {
+  px = pdec(x)
+  if (tolower(px) ~ /pulls\/[^ \t\n]*\/merge/) rest = 1
+  if (px ~ /(^|[^A-Za-z0-9_])(mergePullRequest|enablePullRequestAutoMerge|enqueuePullRequest)/) mut = 1
+  if (tolower(px) ~ /(^|[^a-z0-9_])graphql([^a-z0-9_]|$)/) gql = 1
+  if (x ~ /^@/ || x ~ /=@/ || x ~ /^-[A-Za-z]+@/ || x ~ /^--(input|upload-file)(=|$)/ || x == "-T") fbody = 1
+  if (TG[d]) { TG[d] = 0; return }
+  lx = tolower(x)
+  if (NW[d] == 0 && x ~ /^[A-Za-z_][A-Za-z0-9_]*=/) return
+  NW[d]++
+  cmdpos = (NW[d] == 1 || (PV[d] in prefix))
+  if (NW[d] == 1) CM[d] = base(lx)
+  if (mode == "A") {
+    if ((CM[d] in shell) && PV[d] ~ /^-[a-z]*c[a-z]*$/) { Qn++; QT[Qn] = x }
+    if (CM[d] == "eval" && NW[d] > 1) EV[d] = EV[d] " " x
+  }
+  PV[d] = lx
+  comp = (index(x, "$") || index(x, "`"))
+  if (S[d] == 0) {
+    if (lx == "gh" || lx ~ /\/gh$/) { S[d] = 1; GW[d] = 1 }
+    else if (comp && cmdpos) { S[d] = 1; GW[d] = 2 }
+    return
+  }
+  if (S[d] == 3) return
+  if (SK[d]) { SK[d] = 0; return }
+  if (lx == "-r" || lx == "--repo") { SK[d] = 1; return }
+  if (lx ~ /^-/) return
+  if (S[d] == 1) {
+    if (comp) { if (GW[d] == 1) found = 1; else S[d] = 0; return }
+    S[d] = (lx == "pr") ? 2 : 0
+    return
+  }
+  if (comp || !(lx in safe)) found = 1
+  S[d] = 3
+}
+function flush() { if (IW[d]) { word(W[d]); W[d] = ""; IW[d] = 0 } }
+function push(closer) {
+  W[d] = W[d] "$("; IW[d] = 1; subst = 1
+  QS[d] = q; d++
+  W[d] = ""; IW[d] = 0; CL[d] = closer; PD[d] = 0; EV[d] = ""; newcmd(); q = 0
+}
+function pop() {
+  flush(); newcmd()
+  d--; q = QS[d]; W[d] = W[d] ")"
+}
+function begin_scan() {
+  d = 0; q = 0; W[0] = ""; IW[0] = 0; CL[0] = ""; PD[0] = 0; EV[0] = ""; newcmd(); nul = 0
+}
+function end_scan() {
+  while (d > 0) pop()
+  flush(); newcmd()
+}
+function feed(t,   L, i, c, nx, e, h, o, mx, v, j) {
+  L = length(t)
+  for (i = 1; i <= L; i++) {
+    c = substr(t, i, 1); nx = substr(t, i + 1, 1)
+    if (mode == "B" && (c == "'" || c == "\"")) continue
+    if (q == 1) {
+      if (c == "'") { q = 0; continue }
+      if (match(substr(t, i, 512), /^[^']+/)) { W[d] = W[d] substr(t, i, RLENGTH); i += RLENGTH - 1 }
+      continue
+    }
+    if (q == 3) {
+      if (c == "\\") {
+        e = nx; i++; v = -1
+        if (e == "x") {
+          h = ""
+          while (length(h) < 2 && tolower(substr(t, i + 1, 1)) ~ /^[0-9a-f]$/) { h = h tolower(substr(t, i + 1, 1)); i++ }
+          v = (h == "") ? -1 : hexval(h)
+        } else if (e == "u" || e == "U") {
+          mx = (e == "u") ? 4 : 8; h = ""
+          while (length(h) < mx && tolower(substr(t, i + 1, 1)) ~ /^[0-9a-f]$/) { h = h tolower(substr(t, i + 1, 1)); i++ }
+          v = (h == "") ? -1 : hexval(h)
+        } else if (e ~ /^[0-7]$/) {
+          o = e
+          while (length(o) < 3 && substr(t, i + 1, 1) ~ /^[0-7]$/) { o = o substr(t, i + 1, 1); i++ }
+          v = 0
+          for (j = 1; j <= length(o); j++) v = v * 8 + substr(o, j, 1)
+        } else if (e == "c") { i++; v = 1 }
+        else if (e == "n") v = 10
+        else if (e == "t") v = 9
+        else if (e == "r") v = 13
+        else if (e == "a") v = 7
+        else if (e == "b") v = 8
+        else if (e == "e" || e == "E") v = 27
+        else if (e == "f") v = 12
+        else if (e == "v") v = 11
+        else if (e == "\\" || e == "\047" || e == "\"" || e == "?") v = -2
+        if (v == 0) nul = 1
+        else if (!nul) W[d] = W[d] ((v == -2) ? e : ((v == -1) ? ("\\" e) : chr(v)))
+        continue
+      }
+      if (c == "'") { q = 0; nul = 0; continue }
+      if (match(substr(t, i, 512), /^[^'\\]+/)) { if (!nul) W[d] = W[d] substr(t, i, RLENGTH); i += RLENGTH - 1 }
+      continue
+    }
+    if (q == 2) {
+      if (c == "\\") { if (index("\"\\$`", nx)) { W[d] = W[d] nx; i++ } else W[d] = W[d] c; continue }
+      if (c == "\"") { q = 0; continue }
+      if (c == "$" && nx == "(") { push(")"); i++; continue }
+      if (c == "`") { push("`"); continue }
+      if (match(substr(t, i, 512), /^[^"\\$`]+/)) { W[d] = W[d] substr(t, i, RLENGTH); i += RLENGTH - 1 }
+      else W[d] = W[d] c
+      continue
+    }
+    if (c == "\\") { W[d] = W[d] nx; i++; IW[d] = 1; continue }
+    if (c == "'") { q = 1; IW[d] = 1; continue }
+    if (c == "\"") { q = 2; IW[d] = 1; continue }
+    if (mode == "A" && c == "$" && nx == "'") { q = 3; nul = 0; IW[d] = 1; i++; continue }
+    if (mode == "A" && c == "$" && nx == "\"") { q = 2; IW[d] = 1; i++; continue }
+    if (c == "$" && nx == "(") { push(")"); i++; continue }
+    if (c == "`") { if (CL[d] == "`") pop(); else push("`"); continue }
+    if (c == "#" && !IW[d]) { while (i < L && substr(t, i + 1, 1) != "\n") i++; continue }
+    if (c == " " || c == "\t") { flush(); continue }
+    if ((c == "<" || c == ">") && nx == "(") { push(")"); i++; continue }
+    if (c == "<" || c == ">" || (c == "&" && nx == ">")) {
+      if (IW[d] && W[d] ~ /^[0-9]+$/) { W[d] = ""; IW[d] = 0 } else flush()
+      while (i < L && index("<>&|", substr(t, i + 1, 1))) i++
+      TG[d] = 1
+      continue
+    }
+    if (c == "(") { flush(); PD[d]++; newcmd(); continue }
+    if (c == ")") {
+      if (PD[d] > 0) { flush(); PD[d]--; newcmd() }
+      else if (CL[d] == ")") pop()
+      else { flush(); newcmd() }
+      continue
+    }
+    if (index(";&|\n", c)) { flush(); newcmd(); continue }
+    if (match(substr(t, i, 512), /^[^ \t\n\\'"$`#<>&;|()]+/)) { W[d] = W[d] substr(t, i, RLENGTH); IW[d] = 1; i += RLENGTH - 1; continue }
+    W[d] = W[d] c; IW[d] = 1
+  }
+}
+END {
+  end_scan()
+  for (qi = 2; qi <= Qn && qi <= 64; qi++) { begin_scan(); feed(QT[qi]); end_scan() }
+  printf "%d %d %d %d\n", found, rest, mut, ((gql && (fbody || subst)) ? 1 : 0)
+}
+AWK
+
+# A scan that fails or prints anything unexpected counts as finding everything.
+scan_flags() {
+  local out
+  out=$(printf '%s' "$JOINED" | awk -v mode="$1" "$SCAN_AWK" 2>/dev/null) || out=""
+  case "$out" in
+    [01]\ [01]\ [01]\ [01]) echo "$out" ;;
+    *) echo "1 1 1 1" ;;
+  esac
+}
+read -r A_MERGE A_REST A_MUT A_BODY <<< "$(scan_flags A)"
+read -r B_MERGE B_REST B_MUT B_BODY <<< "$(scan_flags B)"
 
 # PR merges through the API are blocked. The REST check spares one read form:
 # a standalone `gh api <path>/pulls/<number>/merge` (a GET that reports whether
@@ -67,133 +280,26 @@ UNQUOTED=$(printf '%s' "$JOINED" | tr -d "'\"\\\\\$" | tr '\n' ' ')
 # case-sensitive, so read-only fields such as viewerCanEnablePullRequestAutoMerge
 # do not match.
 API_MERGE_READ_RE='^gh api[[:space:]]+[A-Za-z0-9_.{}/-]*pulls/[0-9]+/merge([[:space:]]+(--silent|-i|--include))*$'
-if { [ "$(grep_status -iE "pulls/[^[:space:]]*/merge" "$UNQUOTED")" != 1 ] && \
+API_MUTATION_RE='(^|[^A-Za-z0-9_])(mergePullRequest|enablePullRequestAutoMerge|enqueuePullRequest)'
+if { { [ "$A_REST" = 1 ] || [ "$B_REST" = 1 ] || [ "$(grep_status -iE "pulls/[^[:space:]]*/merge" "$UNQUOTED")" != 1 ]; } && \
      [ "$(grep_status -E "$API_MERGE_READ_RE" "$TRIMMED")" != 0 ]; } || \
-   [ "$(grep_status -E "(^|[^A-Za-z0-9_])(mergePullRequest|enablePullRequestAutoMerge)" "$UNQUOTED")" != 1 ]; then
+   [ "$A_MUT" = 1 ] || [ "$B_MUT" = 1 ] || \
+   [ "$(grep_status -E "$API_MUTATION_RE" "$UNQUOTED")" != 1 ]; then
   echo "BLOCKED: merging a PR through the GitHub API is prohibited." >&2
   exit 2
 fi
 
 # A GraphQL request whose body the hook cannot read (a file or stdin through
-# --input or an @ field, or a command substitution) could carry a merge
-# mutation, so it is blocked; pass the query inline instead.
-if [ "$(grep_status -E "(^|[^A-Za-z0-9_])graphql([^A-Za-z0-9_]|$)" "$UNQUOTED")" != 1 ] && \
-   { [ "$(grep_status -E '--input|=@' "$UNQUOTED")" != 1 ] || \
-     [ "$(grep_status -E '\$\(|`' "$JOINED")" != 1 ]; }; then
+# --input, -T, an @ argument or field, or a command substitution) could carry a
+# merge mutation, so it is blocked; pass the query inline instead.
+if [ "$A_BODY" = 1 ] || [ "$B_BODY" = 1 ]; then
   echo "BLOCKED: a GraphQL request with a body from a file, stdin or a command substitution is prohibited; pass the query inline." >&2
   exit 2
 fi
 
-# gh pr merge anywhere in the command, except the exempt Dependabot merge
-# above. Fails closed if the author cannot be confirmed. Each simple command
-# is split into words (redirections and brace syntax also split). The first
-# non-option word after `gh` (skipping -R/--repo and its value) must be `pr`
-# or tracking stops; after `pr`, the next non-option word is the subcommand,
-# and anything outside a list of
-# known non-merge subcommands counts as a merge. Options or redirections
-# between words (gh --repo x pr merge, gh 2>&1 pr merge) and leftovers of
-# quoting or expansion in the subcommand (merge$'\0', merg?, mer{g,}e) cannot
-# hide it. Redirections that contain & or | (2>&1, <&0, &>, >|) are folded
-# into a plain > first, so only real separators (; & && | || parentheses,
-# backticks) start a new search; `gh pr view && git merge origin/main` and
-# `gh pr list --state merged` still pass. awk reads all input and prints a
-# verdict, and any pipeline failure counts as a merge. A `gh` or `pr` word
-# that is itself encoded or computed (escapes, variables, eval) is out of
-# reach of any text check; branch protection is the backstop.
-GH_PR_MERGE=$(printf '%s' "$JOINED" | tr -d "'\"\\\\\$" | sed -e 's/>|/>/g' -e 's/[<>]&/>/g' -e 's/&>/>/g' | tr ';&|()\140' '\n\n\n\n\n\n' | tr '<>{},' '     ' | awk '
-  BEGIN {
-    n = split("checkout checks close comment create diff edit list ls lock new ready reopen review revert status unlock update-branch view", a, " ")
-    for (k = 1; k <= n; k++) safe[a[k]] = 1
-  }
-  { s = 0; skip = 0
-    for (i = 1; i <= NF; i++) {
-      w = tolower($i)
-      if (s == 0) { if (w == "gh" || w ~ /\/gh$/) s = 1; continue }
-      if (s == 1) {
-        if (skip) { skip = 0; continue }
-        if (w == "-r" || w == "--repo") { skip = 1; continue }
-        if (w ~ /^-/) continue
-        s = (w == "pr") ? 2 : 0
-        continue
-      }
-      if (skip) { skip = 0; continue }
-      if (w == "-r" || w == "--repo") { skip = 1; continue }
-      if (w ~ /^-/) continue
-      if (!(w in safe)) found = 1
-      s = 0
-    } }
-  END { print (found ? "yes" : "no") }') || GH_PR_MERGE=yes
-
-# A second, quote-aware scan builds words the way Bash does (single, double and
-# $'...' quoting keep a word whole, so `gh pr -R "x view" merge` is read
-# right). A redirection skips its target word (gh pr >view merge), the first
-# non-option word after `gh` (skipping -R/--repo and its value) must be `pr`
-# or tracking stops (gh auth status >/dev/null passes), and a command
-# substitution or computed word between `gh` and the subcommand fails closed
-# (gh pr $(echo merge)). The first scan still catches merges hidden in quoted
-# command substitutions; a merge found by either scan counts.
-if [ "$GH_PR_MERGE" = "no" ]; then
-  GH_PR_MERGE=$(printf '%s' "$JOINED" | awk '
-    BEGIN {
-      n = split("checkout checks close comment create diff edit list ls lock new ready reopen review revert status unlock update-branch view", a, " ")
-      for (k = 1; k <= n; k++) safe[a[k]] = 1
-    }
-    function word(x,   lx) {
-      if (target) { target = 0; return }
-      lx = tolower(x)
-      if (s == 1 && (index(x, "$(") || index(x, "`"))) { found = 1; return }
-      if (s == 0) { if (lx == "gh" || lx ~ /\/gh$/) s = 1; return }
-      if (s == 1) {
-        if (skip) { skip = 0; return }
-        if (lx == "-r" || lx == "--repo") { skip = 1; return }
-        if (lx ~ /^-/) return
-        if (index(x, "$") || index(x, "`")) { found = 1; return }
-        s = (lx == "pr") ? 2 : 0
-        return
-      }
-      if (s == 2) {
-        if (skip) { skip = 0; return }
-        if (lx == "-r" || lx == "--repo") { skip = 1; return }
-        if (lx ~ /^-/) return
-        if (!(lx in safe)) found = 1
-        s = 3
-      }
-    }
-    function flush() { if (inw) { word(w); w = ""; inw = 0 } }
-    { buf = buf $0 "\n" }
-    END {
-      L = length(buf); q = 0; w = ""; inw = 0; s = 0; skip = 0; target = 0
-      for (i = 1; i <= L; i++) {
-        c = substr(buf, i, 1); nx = substr(buf, i + 1, 1)
-        if (q == 1) { if (c == "\047") q = 0; else w = w c; continue }
-        if (q == 3) { if (c == "\\") { w = w c nx; i++ } else if (c == "\047") q = 0; else w = w c; continue }
-        if (q == 2) { if (c == "\\") { w = w nx; i++ } else if (c == "\"") q = 0; else w = w c; continue }
-        if (c == "\\") { w = w nx; i++; inw = 1; continue }
-        if (c == "\047") { q = 1; inw = 1; continue }
-        if (c == "\"") { q = 2; inw = 1; continue }
-        if (c == "$" && nx == "\047") { q = 3; inw = 1; i++; continue }
-        if (c == "$" && nx == "\"") { q = 2; inw = 1; i++; continue }
-        if (c == "#" && !inw) { while (i < L && substr(buf, i + 1, 1) != "\n") i++; continue }
-        if (c == " " || c == "\t") { flush(); continue }
-        if (c == "<" || c == ">" || (c == "&" && nx == ">")) {
-          if (inw && w ~ /^[0-9]+$/) { w = ""; inw = 0 } else flush()
-          while (i < L && index("<>&|-", substr(buf, i + 1, 1))) i++
-          target = 1
-          continue
-        }
-        if (index(";&|()`\n", c)) {
-          flush()
-          if ((c == "(" || c == "`") && (s == 1 || s == 2)) found = 1
-          s = 0; skip = 0; target = 0
-          continue
-        }
-        w = w c; inw = 1
-      }
-      flush()
-      print (found ? "yes" : "no")
-    }') || GH_PR_MERGE=yes
-fi
-if [ "$GH_PR_MERGE" != "no" ]; then
+# gh pr merge, found by either scan, except the exempt Dependabot merge above.
+# Fails closed if the author cannot be confirmed.
+if [ "$A_MERGE" = 1 ] || [ "$B_MERGE" = 1 ]; then
   PR_AUTHOR=""
   if [ -n "$EXEMPT_PR_NUMBER" ] && [ "$IN_PROJECT" = "yes" ]; then
     PR_AUTHOR=$(CDPATH='' cd "$HOOK_CWD" && gh pr view "$EXEMPT_PR_NUMBER" --json author --jq '.author.login' 2>/dev/null) || PR_AUTHOR=""
@@ -204,38 +310,46 @@ if [ "$GH_PR_MERGE" != "no" ]; then
   fi
 fi
 
-# Split into segments on && ; || and check each independently.
-# This prevents "git merge origin/main" in one segment from suppressing
-# detection of "git merge main" in another segment.
-while IFS= read -r seg; do
-  seg=$(echo "$seg" | sed 's/^[[:space:]]*//')
-  [ -z "$seg" ] && continue
+# Split into segments on && ; || | and check each independently, in one awk
+# pass (a per-segment loop of subprocesses took most of a minute on a few
+# thousand lines). This prevents "git merge origin/main" in one segment from
+# suppressing detection of "git merge main" in another segment. A failed or
+# unexpected pass counts as every check matching.
+SEG_FLAGS=$(printf '%s\n' "$FLAT" | tr ';&|' '\n\n\n' | awk '
+  { sub(/^[[:space:]]+/, ""); s = tolower($0) }
+  s ~ /^git merge[[:space:]]+(main|master)/ && s !~ /^git merge[[:space:]]+origin\// { gm = 1 }
+  s ~ /^git push[[:space:]].*--force/ || s ~ /^git push[[:space:]]+-f/ { fp = 1 }
+  s ~ /^git push[[:space:]]+.*origin[[:space:]]+(main|master|head:(main|master))/ { pm = 1 }
+  s ~ /^gh pr review[[:space:]]+--approve/ { ap = 1 }
+  END { printf "%d %d %d %d\n", gm, fp, pm, ap }' 2>/dev/null) || SEG_FLAGS=""
+case "$SEG_FLAGS" in
+  [01]\ [01]\ [01]\ [01]) ;;
+  *) SEG_FLAGS="1 1 1 1" ;;
+esac
+read -r SEG_GIT_MERGE SEG_FORCE_PUSH SEG_PUSH_MAIN SEG_APPROVE <<< "$SEG_FLAGS"
 
-  # git merge main/master (but not origin/main)
-  if [ "$(grep_status -iE "^git merge[[:space:]]+(main|master)" "$seg")" != 1 ] && \
-     [ "$(grep_status -iE "^git merge[[:space:]]+origin/" "$seg")" != 0 ]; then
-    echo "BLOCKED: git merge main/master is prohibited. Use 'git merge origin/main' for safe sync." >&2
-    exit 2
-  fi
+# git merge main/master (but not origin/main)
+if [ "$SEG_GIT_MERGE" = 1 ]; then
+  echo "BLOCKED: git merge main/master is prohibited. Use 'git merge origin/main' for safe sync." >&2
+  exit 2
+fi
 
-  # git push --force / -f
-  if [ "$(grep_status -iE "^git push[[:space:]].*--force|^git push[[:space:]]+-f" "$seg")" != 1 ]; then
-    echo "BLOCKED: force push is prohibited." >&2
-    exit 2
-  fi
+# git push --force / -f
+if [ "$SEG_FORCE_PUSH" = 1 ]; then
+  echo "BLOCKED: force push is prohibited." >&2
+  exit 2
+fi
 
-  # git push to main/master (with any flags before origin)
-  if [ "$(grep_status -iE "^git push[[:space:]]+.*origin[[:space:]]+(main|master|HEAD:(main|master))" "$seg")" != 1 ]; then
-    echo "BLOCKED: push to main/master is prohibited." >&2
-    exit 2
-  fi
+# git push to main/master (with any flags before origin)
+if [ "$SEG_PUSH_MAIN" = 1 ]; then
+  echo "BLOCKED: push to main/master is prohibited." >&2
+  exit 2
+fi
 
-  # gh pr review --approve
-  if [ "$(grep_status -iE "^gh pr review[[:space:]]+--approve" "$seg")" != 1 ]; then
-    echo "BLOCKED: PR auto-approve is prohibited." >&2
-    exit 2
-  fi
-
-done <<< "$(echo "$FLAT" | tr ';&' '\n' | sed 's/|/\n/g')"
+# gh pr review --approve
+if [ "$SEG_APPROVE" = 1 ]; then
+  echo "BLOCKED: PR auto-approve is prohibited." >&2
+  exit 2
+fi
 
 exit 0
