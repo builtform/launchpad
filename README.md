@@ -166,7 +166,7 @@ Nine criteria that matter when picking a coding harness. Each row is an actual c
 - **Multi-agent review:** multiple specialist review agents dispatched per PR or diff (security, performance, architecture, etc.) rather than a single generalist.
 - **P1 floor + audit:** critical/P1 findings cannot be auto-suppressed; suppression decisions land as auditable artifacts in your repo. (Confidence scoring alone is no longer differentiating; Claude Code's open-source review plugin ships that half since March 2026.)
 - **Compound learning:** structured solutions or skills captured from resolved problems get reloaded by future agent runs.
-- **Merge refusal:** three-layer hard refusal of automated merge to `main`/`master` (command refusal + PreToolUse hook + branch protection, all three layers required to fail before a merge happens).
+- **Merge refusal:** three-layer hard refusal of automated merge to `main`/`master` (command refusal + PreToolUse hook + branch protection, all three layers required to fail before a merge happens; the hook exempts Dependabot pull requests).
 - **Open source:** MIT, Apache, or similar permissive license; source code available for audit.
 
 **The honest picture.**
