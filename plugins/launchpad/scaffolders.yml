@@ -72,7 +72,7 @@ stacks:
     # default bundler in Next 16, and 16.2+ no longer declares the flag.
     headless_flags: ["--no-agents-md", "--typescript", "--eslint", "--tailwind", "--app"]
     knowledge_anchor: "plugins/launchpad/scaffolders/next-pattern.md"
-    knowledge_anchor_sha256: "58fecc7b2d6bd1b27db939a8ee7d458b1771b9f7eb0f9ac3511d076335d37955"
+    knowledge_anchor_sha256: "e5d9aac91bf8391c50cadd3d96c68a642f0a23eed33acda6ab53ebc29d997f83"
     # Per v2.0.1 BL-244 #2 (PR #41 cycle-12 #2 closure): `src_dir` requires
     # the `--src-dir` kebab-case spelling that `create-next-app` expects;
     # without the option_flags override, layer_materializer would emit
@@ -131,7 +131,7 @@ stacks:
     # then picks the package manager for that install.
     headless_flags: ["--", "--install", "--pm", "npm"]
     knowledge_anchor: "plugins/launchpad/scaffolders/hono-pattern.md"
-    knowledge_anchor_sha256: "604f31654a7452b83b55216c94008385091549de732b06748ca1b6f3fff2033a"
+    knowledge_anchor_sha256: "194a6aa454a689616f7eb115e16406e8e4093e379222aa669650d24b50fce886"
     options_schema:
       template: "string"
     last_validated: "2026-11-10"

@@ -3,7 +3,7 @@ stack: next
 pillar: Frontend App
 type: orchestrate
 last_validated: 2026-11-10
-scaffolder_command: npx create-next-app@latest --yes --no-agents-md --typescript --eslint --tailwind --app
+scaffolder_command: npx create-next-app@latest --no-agents-md --typescript --eslint --tailwind --app
 scaffolder_command_pinned_version: create-next-app@16
 ---
 
@@ -49,20 +49,17 @@ a default. Minimum Node.js is 20.9; minimum TypeScript is 5.1.
 
 ## Scaffolder behavior
 
-`npx create-next-app@latest --yes --no-agents-md --typescript --eslint
---tailwind --app` runs the official Next CLI in non-interactive mode. Flag
-effects:
+`npx create-next-app@latest --no-agents-md --typescript --eslint --tailwind
+--app` runs the official Next CLI in non-interactive mode. Flag effects:
 
-- `--yes` fills every option not passed explicitly from previously saved
-  preferences, else from the CLI defaults. Do NOT pair it with
-  `--reset-preferences`: that flag is a standalone mode which prompts "Would you
-  like to reset the saved preferences?" and exits 0 without scaffolding
-  (unchanged since 16.0.0). For reproducible headless runs on a machine that has
-  run the CLI before, pass explicit flags for options the harness relies on
-  (`--no-react-compiler`, `--src-dir` / `--no-src-dir`, `--cache-components` /
-  `--no-cache-components`) or omit `--yes`: with any `--` flag on the command
-  line and `CI` unset, the CLI ignores saved preferences and applies its
-  hardcoded recommended defaults
+- No `--yes`: with any `--` flag on the command line and `CI` unset, the CLI
+  skips every prompt and applies its hardcoded recommended defaults to options
+  not passed explicitly, so output is reproducible even on a machine that has
+  run the CLI before. `--yes` would instead fill those options from previously
+  saved preferences (source layout, React Compiler, Cache Components). Never
+  pass `--reset-preferences`: that flag is a standalone mode which prompts
+  "Would you like to reset the saved preferences?" and exits 0 without
+  scaffolding (unchanged since 16.0.0)
 - `--no-agents-md` suppresses the `AGENTS.md` the CLI writes by default in Next
   16.2+. Versions 16.2 and 16.3 also wrote a `CLAUDE.md` that would collide with
   the harness-authored `CLAUDE.md`; 16.4.0 dropped it. Separately, `next dev`
@@ -91,7 +88,7 @@ Writes `next.config.ts`, `package.json`, `tsconfig.json`, `next-env.d.ts`,
 `cacheComponents: true` and `partialPrefetching: true`. Without
 `--no-agents-md` it also writes `AGENTS.md` (and `CLAUDE.md` on 16.2 and 16.3).
 The CLI runs `npm install` (or detected pm) by default;
-the headless `--yes` flag accepts that. Lockfile produced (`package-lock.json`
+the headless run accepts that without a prompt. Lockfile produced (`package-lock.json`
 unless yarn/pnpm/bun detected).
 
 `--src-dir` controls whether `app/` lives at root or under `src/`; not in our

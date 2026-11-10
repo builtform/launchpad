@@ -3,7 +3,7 @@ stack: hono
 pillar: Backend Edge-native TS
 type: orchestrate
 last_validated: 2026-11-10
-scaffolder_command: npm create hono@latest <target-dir> -- --template <template> --pm npm
+scaffolder_command: npm create hono@latest <target-dir> -- --template <template> --install --pm npm
 scaffolder_command_pinned_version: create-hono@0.19 (framework: hono@4)
 ---
 
@@ -48,9 +48,10 @@ the recommended path).
 
 ## Scaffolder behavior
 
-`npm create hono@latest <target-dir> -- --template <template>` runs the official
-Hono CLI. There is NO `--yes` flag; non-interactivity comes from supplying the
-`[target]` positional plus `-t/--template`. Supported flags: `-t, --template`,
+`npm create hono@latest <target-dir> -- --template <template> --install --pm npm`
+runs the official Hono CLI. There is NO `--yes` flag; non-interactivity comes
+from supplying the `[target]` positional, `-t/--template` and `-i/--install`
+(see the install note below). Supported flags: `-t, --template`,
 `-i, --install`, `-p, --pm <pnpm|bun|deno|npm|yarn>` (defaults to npm),
 `-o, --offline`.
 
