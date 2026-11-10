@@ -2,7 +2,7 @@
 stack: hono
 pillar: Backend Edge-native TS
 type: orchestrate
-last_validated: 2026-09-18
+last_validated: 2026-11-10
 scaffolder_command: npm create hono@latest <target-dir> -- --template <template> --pm npm
 scaffolder_command_pinned_version: create-hono@0.19 (framework: hono@4)
 ---
@@ -11,7 +11,7 @@ scaffolder_command_pinned_version: create-hono@0.19 (framework: hono@4)
 
 ## Idiomatic 2026 pattern
 
-Hono 4 (current 4.12.x; no v5 exists) is the canonical edge-native TypeScript
+Hono 4 (current 4.13.x; no stable v5, only 5.0.0-rc.1 on the `next` dist-tag) is the canonical edge-native TypeScript
 backend framework, optimized for
 Cloudflare Workers, Deno Deploy, Vercel Edge, AWS Lambda, Bun, and Node. The
 2026 idiom uses TypeScript-first routing with composable middleware,
@@ -38,9 +38,9 @@ schema library should stay swappable (Standard Schema: zod / valibot / arktype).
 RPC client generation via Hono's built-in type-export
 (`type AppType = typeof app`).
 
-Version pins: `hono@4.12.x`, `@hono/zod-validator@0.9.x` (requires
+Version pins: `hono@4.13.x`, `@hono/zod-validator@0.9.x` (requires
 `hono >=4.11.2`; peers `zod ^3.25 || ^4`), `zod@4.x`. Adapter pins vary per
-template: Node uses `@hono/node-server@2.0.x` (Node 20+ required; the `/vercel`
+template: Node uses `@hono/node-server@2.1.x` (Node 20+ required; the `/vercel`
 adapter was removed in v2). Cloudflare uses `wrangler@4.x` and generates Worker
 types with `wrangler types` into `worker-configuration.d.ts` rather than
 depending on `@cloudflare/workers-types` (now v5, date-versioned, and no longer
@@ -59,18 +59,28 @@ hard-errors): `aws-lambda`, `bun`, `cloudflare-workers`,
 `cloudflare-workers+vite`, `deno`, `fastly`, `lambda-edge`, `netlify`, `nextjs`,
 `nodejs`, `vercel`, `cloudflare-pages`, `x-basic`. The scaffolder writes:
 
-- `src/index.ts` skeleton with one example route
+- `src/index.ts` skeleton with one example route (`src/index.tsx` for
+  `cloudflare-pages` and `cloudflare-workers+vite`, `main.ts` for `deno`, `app/`
+  for `nextjs` and `x-basic`)
 - `package.json` with framework + adapter pins
 - `tsconfig.json` configured for the target runtime
-- Adapter-specific config (`wrangler.jsonc` for Workers, `vercel.json`, etc.)
+- Adapter-specific config (`wrangler.jsonc` for Workers, `fastly.toml`,
+  `netlify.toml`, `deno.json`, etc.; the `vercel` template ships no
+  `vercel.json`)
+- `pnpm-workspace.yaml` (pnpm build-script allowlist) in every template except
+  `bun`, `deno` and `netlify`
 - `.gitignore`
 - `README.md` with template-specific dev/deploy instructions
 
-It does NOT install dependencies unless `-i/--install` is passed; install is
-opt-in, not suppressed by a headless flag. It does NOT initialize git. Lockfile
-materializes during the post-scaffold install step. Only `src/index.ts` is
-emitted under `src/`; `src/routes/` and `src/middleware/` above are convention
-you add, not scaffolder output.
+It installs dependencies only when `-i/--install` is passed, but without that
+flag it does not skip the step: it prompts "Do you want to install project
+dependencies?" (default yes) for every template except `deno` and `netlify`.
+There is no `--no-install`, so a headless run that wants no prompt must pass
+`--install`; `--pm` is consulted only after the install answer. It does NOT
+initialize git. Lockfile materializes during the install step. Where a template
+has a `src/` directory it holds only the entry file (plus `renderer.tsx` and
+`style.css` in the two Vite-based templates); `src/routes/` and
+`src/middleware/` above are convention you add, not scaffolder output.
 
 ## Tier-1 detection signals
 
@@ -83,11 +93,14 @@ you add, not scaffolder output.
 
 ## Common pitfalls + cold-rerun gotchas
 
-- v3 to v4 breaking changes, per the upstream `docs/MIGRATION.md`: `c.req` is a
-  `HonoRequest` (use `c.req.raw` for the raw `Request`); the old validator
-  middleware is gone; serve-static moved to per-runtime adapters; the `Hono`
-  constructor generics are `{ Bindings, Variables }`. Rarely encountered in 2026
-  but still bites vendored or long-dormant code.
+- v2 to v3 and v3 to v4 breaking changes, per the upstream `docs/MIGRATION.md`.
+  v3: `c.req` is a `HonoRequest` (use `c.req.raw` for the raw `Request`); the old
+  validator middleware is gone; serve-static moved to per-runtime adapters; the
+  `Hono` constructor generics (`{ Bindings, Variables }`) must be a `type`, not an
+  `interface`. v4: deprecated APIs removed (`c.jsonT()`, `c.stream()` and
+  `c.streamText()`, `hono/nextjs`, `c.req.cookie()`), and the JSX Renderer
+  `docType` default became `true`. Rarely encountered in 2026 but still bites
+  vendored or long-dormant code.
 - The `cloudflare-workers` template no longer depends on
   `@cloudflare/workers-types` and its tsconfig has no `types` array. Worker
   types come from `npm run cf-typegen` (`wrangler types --env-interface
@@ -96,8 +109,10 @@ you add, not scaffolder output.
   failure mode.
 - JSX in Hono uses `hono/jsx` runtime, NOT React; importing React JSX
   unintentionally produces runtime errors that look like React mismatches.
-- Both the `[target]` positional and `-t/--template` are required for a truly
-  non-interactive run; omitting either drops into a prompt. Passing `--yes`
+- The `[target]` positional, `-t/--template` and `-i/--install` are all required
+  for a truly non-interactive run (except `deno` and `netlify`, which have no
+  install step); omitting any drops into a prompt. A non-empty target directory
+  also prompts ("Directory not empty. Continue?", default no). Passing `--yes`
   errors out as an unknown option: `create-hono` has no such flag.
 - RPC client (`hc<AppType>`) requires the type-only export to compile, not
   the runtime app instance; mis-export breaks type inference silently.
@@ -108,10 +123,13 @@ you add, not scaffolder output.
 
 ## Version evolution
 
-- Hono 4 (Jan 2024, still the current major at 4.12.x): `HonoRequest`; improved
-  JSX performance; built-in RPC type-inference; `hono/serve-static` rewritten.
-- Hono 3 (2023): Bun adapter; Deno Deploy adapter; Zod validator middleware.
-- Hono 2 (2022): edge-first architecture; Cloudflare Workers-native.
+- Hono 4 (Feb 2024, still the current major at 4.13.x; v5 is only a pre-release,
+  5.0.0-rc.1 on the `next` dist-tag since 2026-10-10): SSG helper (`hono/ssg`);
+  Client Components (`hono/jsx/dom`); file-based routing; deprecated v3 APIs
+  removed.
+- Hono 3 (Feb 2023): `HonoRequest`; `hc` RPC client; new validator plus Zod
+  validator middleware; RegExpRouter becomes the fastest router.
+- Hono 2 (Jul 2022): Deno and Bun support.
 
 Track upstream `create-hono` releases; the template list expands per minor
 release as new edge runtimes gain Hono adapters.

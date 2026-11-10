@@ -2,8 +2,8 @@
 stack: next
 pillar: Frontend App
 type: orchestrate
-last_validated: 2026-09-18
-scaffolder_command: npx create-next-app@latest --yes --reset-preferences --no-agents-md --typescript --eslint --tailwind --app
+last_validated: 2026-11-10
+scaffolder_command: npx create-next-app@latest --yes --no-agents-md --typescript --eslint --tailwind --app
 scaffolder_command_pinned_version: create-next-app@16
 ---
 
@@ -11,13 +11,15 @@ scaffolder_command_pinned_version: create-next-app@16
 
 ## Idiomatic 2026 pattern
 
-Next.js 16 ships React 19.2 + the App Router as the canonical paradigm; the Pages
-Router remains supported but new projects use App Router exclusively. Server
-Actions are stable; Server Components are the default rendering mode with `"use
+Next.js 16 ships React 19.2 (19.3 from 16.4) + the App Router as the canonical
+paradigm; the Pages Router remains supported but new projects use App Router
+exclusively. Server Actions are stable; Server Components are the default rendering mode with `"use
 client"` opt-in for interactivity. Turbopack is the default bundler for both
 `next dev` and `next build`; opt out with `--webpack`. Caching is opt-in via
 Cache Components and the `"use cache"` directive, so dynamic code runs at
-request time by default.
+request time by default. From 16.4 `create-next-app` enables Cache Components in
+new App Router projects (the framework default only in Next 17); pass
+`--no-cache-components` to opt out.
 
 The canonical 2026 layout: `src/app/` (or `app/` at root) containing
 `layout.tsx`, `page.tsx`, route segments as nested folders, `loading.tsx` /
@@ -29,44 +31,66 @@ supported.
 
 Tailwind v4 ships as the styling default with CSS-first config: there is no
 `tailwind.config.*` file. Theme tokens live in `@theme inline` inside
-`app/globals.css`, wired through `postcss.config.mjs` + `@tailwindcss/postcss`.
+`app/globals.css`. Under the default Turbopack bundler the scaffold wires
+Tailwind through `@tailwindcss/turbopack` (a `turbopack.rules` entry in
+`next.config.ts`) and writes no `postcss.config.mjs`; `postcss.config.mjs` +
+`@tailwindcss/postcss` is the Rspack/manual path.
 ESLint uses flat config importing `eslint-config-next/core-web-vitals` and
 `eslint-config-next/typescript`.
 
-Version pins written by the scaffolder: `next@16`, `react@19.2.x`,
-`react-dom@19.2.x`, `typescript@^5`, `tailwindcss@^4`, `@tailwindcss/postcss@^4`,
-`eslint@^9` (flat config), `@types/node@^20`, `@types/react@^19`. Ecosystem
+Version pins written by the scaffolder: `next@16`, `react@19.3.0`,
+`react-dom@19.3.0`, `typescript@^5`, `tailwindcss@4.3.3`,
+`@tailwindcss/turbopack@4.3.3` (exact pins as of 16.4.6, previously `^4`; Tailwind
+4.3.4 breaks on Node before 20.19 / 22.12), `eslint@^9` (flat config),
+`@types/node@^20`, `@types/react@^19`. Ecosystem
 latest runs ahead of several of these (`typescript@7.x`, `eslint@10.x`,
 `@types/node@26.x`); moving past the scaffolded pins is a deliberate choice, not
 a default. Minimum Node.js is 20.9; minimum TypeScript is 5.1.
 
 ## Scaffolder behavior
 
-`npx create-next-app@latest --yes --reset-preferences --no-agents-md
---typescript --eslint --tailwind --app` runs the official Next CLI in
-non-interactive mode. Flag effects:
+`npx create-next-app@latest --yes --no-agents-md --typescript --eslint
+--tailwind --app` runs the official Next CLI in non-interactive mode. Flag
+effects:
 
-- `--yes` uses previously saved preferences OR defaults; pair with
-  `--reset-preferences` so headless runs are reproducible on a machine that has
-  run the CLI before
-- `--no-agents-md` suppresses the `AGENTS.md` + `CLAUDE.md` files the CLI writes
-  by default in Next 16.2+, which would otherwise collide with the
-  harness-authored `CLAUDE.md`
+- `--yes` fills every option not passed explicitly from previously saved
+  preferences, else from the CLI defaults. Do NOT pair it with
+  `--reset-preferences`: that flag is a standalone mode which prompts "Would you
+  like to reset the saved preferences?" and exits 0 without scaffolding
+  (unchanged since 16.0.0). For reproducible headless runs on a machine that has
+  run the CLI before, pass explicit flags for options the harness relies on
+  (`--no-react-compiler`, `--src-dir` / `--no-src-dir`, `--cache-components` /
+  `--no-cache-components`) or omit `--yes`: with any `--` flag on the command
+  line and `CI` unset, the CLI ignores saved preferences and applies its
+  hardcoded recommended defaults
+- `--no-agents-md` suppresses the `AGENTS.md` the CLI writes by default in Next
+  16.2+. Versions 16.2 and 16.3 also wrote a `CLAUDE.md` that would collide with
+  the harness-authored `CLAUDE.md`; 16.4.0 dropped it. Separately, `next dev`
+  creates or updates the `AGENTS.md` rules block when it detects a coding agent,
+  unless `agentRules: false` is set in `next.config.ts`
 - `--typescript` writes `tsconfig.json` and `.tsx` skeleton
 - `--eslint` writes `eslint.config.mjs` (flat config) importing
   `eslint-config-next/core-web-vitals` + `eslint-config-next/typescript`
-- `--tailwind` configures Tailwind v4 + writes `globals.css` with `@import
+- `--tailwind` configures Tailwind v4 (the `@tailwindcss/turbopack` loader rule
+  in `next.config.ts` under Turbopack) + writes `globals.css` with `@import
 "tailwindcss";`
 - `--app` selects App Router (vs Pages Router)
 
-Turbopack needs no flag in Next 16: it is the default for dev and build. The
-`--turbopack` flag still exists but is redundant; `--webpack` is the opt-out.
+Turbopack needs no flag in Next 16: it is the default for dev and build, and
+`create-next-app` always scaffolds for it (`--rspack` selects Rspack). Since
+16.2.0 the CLI no longer declares `--turbopack` or `--webpack`; its parser
+silently ignores unknown flags, so `--webpack` does NOT produce a webpack
+project (the official CLI docs page still lists both). The opt-out is at run
+time: `next dev --webpack` / `next build --webpack`.
 
 Writes `next.config.ts`, `package.json`, `tsconfig.json`, `next-env.d.ts`,
-`eslint.config.mjs`, `postcss.config.mjs`, `app/layout.tsx`, `app/page.tsx`,
+`eslint.config.mjs`, `app/layout.tsx`, `app/page.tsx`,
 `app/globals.css`, `app/favicon.ico`, `public/`, `.gitignore`, `README.md`. No
-`tailwind.config.*` is written. Without `--no-agents-md` it also writes
-`AGENTS.md` + `CLAUDE.md`. The CLI runs `npm install` (or detected pm) by default;
+`tailwind.config.*` is written, and no `postcss.config.mjs` under Turbopack.
+`next.config.ts` carries the Tailwind `turbopack.rules` entry plus, by default,
+`cacheComponents: true` and `partialPrefetching: true`. Without
+`--no-agents-md` it also writes `AGENTS.md` (and `CLAUDE.md` on 16.2 and 16.3).
+The CLI runs `npm install` (or detected pm) by default;
 the headless `--yes` flag accepts that. Lockfile produced (`package-lock.json`
 unless yarn/pnpm/bun detected).
 
@@ -113,6 +137,9 @@ default flag set (defaults to root-level `app/`).
 - Next 16 (2025-10-21): Turbopack default for dev and build; Cache Components /
   `"use cache"` replaces implicit caching; `middleware.ts` renamed to
   `proxy.ts`; `next lint` removed; Node 20.9+ minimum; AMP removed.
+- Next 16.4 (2026-10-06): `create-next-app` enables Cache Components by default
+  and scaffolds React 19.3.0, Tailwind via `@tailwindcss/turbopack`, and
+  `AGENTS.md` only (no `CLAUDE.md`); `eslint-config-next` supports ESLint 10.
 - Next 15 (2024 H4 → stable 2025): React 19 baseline; Turbopack stable for dev,
   preview-stable for build; async `cookies()`/`headers()`/`params`/`searchParams`;
   `next.config.ts` TypeScript config.
