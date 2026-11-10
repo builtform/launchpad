@@ -45,7 +45,16 @@ git diff --name-only origin/main...HEAD
 - Record `review_scope_mode = normal`, `review_diff_base = origin/main`, `review_head_identity = git rev-parse HEAD`, and `review_base_sha = git merge-base origin/main HEAD`
 - Set `review_commit_range = <review_base_sha>..HEAD` and record `review_commit_log` from `git log --format=fuller "$review_base_sha"..HEAD`; this exact merge-base-derived range matches the three-dot diff and is authoritative for claims auditing
 
-- Check for Prisma changes (files matching `packages/db/**`, `prisma/**`, `*.prisma`) → set `db_changes = true/false`
+- In normal mode only (Step 1.A not triggered), run
+  `set -o pipefail; git diff --name-only -z origin/main...HEAD | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/db_change_detector.py" --null --repo-root .`.
+  Store the JSON as `db_review`; set `db_changes = db_review.db_changes`.
+  If the pipeline exits non-zero or its output does not parse as detector
+  JSON, set `db_review = null`, `db_changes = true`. In interactive mode
+  (Step 7), emit `> ⚠ database detection failed (<reason>); dispatching database agents on the raw diff`.
+  In both modes record one `## Coverage Limitations` entry in
+  `.harness/review-summary.md`: agent `db_change_detector`, the reason,
+  and "database agents ran on the raw diff". A failing git command must
+  take this fail-open path, never look like an empty change list.
 
 ### Step 1.A: Pre-first-commit fallback (v2.1.5 BL-337)
 
@@ -81,7 +90,18 @@ HAS_REMOTE=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo yes || e
 **Both cases share the post-scoping handling:**
 
 - **Pre-first-commit secret scan (v2.1.5 round-3 review fix A3 + round-4 fix Codex P1-B):** there is no `origin/main..HEAD` diff to scan, but the scoped files CAN contain secrets the user filled in by hand (e.g., API keys pasted into `.env.example`). Run the same `.launchpad/secret-patterns.txt` patterns against the FULL CONTENT of every scoped file (treating each as an all-added-lines diff). On any match, HALT with the standard Step 2 warning. Skipping the scan entirely was the prior shape and shipped first-pass secret leaks.
-- Set `db_changes = false` (Case 1: no Prisma migration in a pre-first-commit scaffold; Case 2: best-effort, since we can't reliably diff against `origin/main`).
+- Case 1 with `--staged`: run
+  `set -o pipefail; git diff --cached --name-only -z | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/db_change_detector.py" --null --repo-root .`.
+- Case 1 default: run
+  `set -o pipefail; { git ls-files --others --exclude-standard -z && git diff --cached --name-only -z; } | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/db_change_detector.py" --null --repo-root .`.
+- Case 2: run
+  `set -o pipefail; { git diff --name-only -z HEAD && git diff --cached --name-only -z && git ls-files --others --exclude-standard -z; } | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/db_change_detector.py" --null --repo-root .`.
+- Each case stores the JSON as `db_review` and sets `db_changes` from it.
+  If any pipeline fails or its output does not parse as detector JSON,
+  apply the same fail-open handling as Step 1: `db_review = null`,
+  `db_changes = true`, the interactive warning banner, and the
+  `Coverage Limitations` entry in both modes. Join concatenated listings
+  with `&&` inside the group so an earlier failure cannot be hidden.
 
 ## Step 1.5: Read PR Intent Context (best-effort)
 
@@ -184,17 +204,17 @@ For each survivor agent from `resolved_review_agents`:
 
 ## Step 4: Conditional DB Agent Dispatch (sequential-then-parallel)
 
-IF changed files match `prisma/schema.prisma` OR `prisma/migrations/*`:
+IF db_changes:
 
 **Step 4a:** IF `lp-schema-drift-detector` is present in `resolved_review_db_agents`, dispatch it SEQUENTIALLY; otherwise use an empty `drift_report`
 
-- Pass: diff + Prisma files + review context
+- Pass: diff + database files: `db_review`, every path in each project's `changed_*` lists and `schema_paths`, and a listing of each `migrations_dir` + review context. With `db_review = null`, pass the raw diff.
 - Wait for output → `drift_report`
 
 **Step 4b:** Dispatch the following agents IN PARALLEL only when each is present in `resolved_review_db_agents`, with drift report as context:
 
-- `lp-data-migration-auditor` — receives: diff + Prisma files + review context + `drift_report`
-- `lp-data-integrity-auditor` — receives: diff + Prisma files + review context + `drift_report`
+- `lp-data-migration-auditor`: receives diff + database files: `db_review`, every path in each project's `changed_*` lists and `schema_paths`, and a listing of each `migrations_dir` + review context + `drift_report`. With `db_review = null`, pass the raw diff.
+- `lp-data-integrity-auditor`: receives diff + database files: `db_review`, every path in each project's `changed_*` lists and `schema_paths`, and a listing of each `migrations_dir` + review context + `drift_report`. With `db_review = null`, pass the raw diff.
 
 The drift report lets downstream agents focus only on legitimate changes, ignoring drifted changes that should be removed.
 

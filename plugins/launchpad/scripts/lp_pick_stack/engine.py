@@ -6,7 +6,7 @@ Coordinates Steps 0-6 into a single `run_pipeline()` entrypoint:
            summary frontmatter parse, optional)
   Step 1 — Project description envelope (privacy notice, free-text capture)
   Step 2 — 5-question funnel validation (question_funnel.validate_answers)
-  Step 3 — Match + resolve (matcher.match_categories + cluster narrowing)
+  Step 3: Shortlist + select (matcher.shortlist_categories + user choice)
   Step 4 — Manual-override branch (manual_override_resolver.resolve_manual)
   Step 5 — Rationale generation + extract_summary (rationale_renderer +
            rationale_summary_extractor)
@@ -58,15 +58,19 @@ from lp_pick_stack.manual_override_resolver import (  # noqa: E402
 from lp_pick_stack.matcher import (  # noqa: E402
     MANUAL_OVERRIDE_ID,
     MatchCandidate,
-    match_categories,
-    resolve_in_cluster,
+    confident_pick,
+    resolve_choice,
+    shortlist_categories,
 )
 from lp_pick_stack.question_funnel import (  # noqa: E402
     AnswerValidationError,
     validate_answers,
 )
 from lp_pick_stack.rationale_renderer import render_rationale  # noqa: E402
-from lp_pick_stack.rationale_summary_extractor import extract_summary  # noqa: E402
+from lp_pick_stack.rationale_summary_extractor import (  # noqa: E402
+    MAX_BULLETS_PER_SECTION,
+    extract_summary,
+)
 from telemetry_writer import write_telemetry_entry  # noqa: E402
 
 COMMAND_NAME = "/lp-pick-stack"
@@ -99,7 +103,6 @@ class PipelineResult:
     reason: str | None = None
     message: str | None = None
     candidates: list[MatchCandidate] = field(default_factory=list)
-    cluster: str | None = None  # set when ambiguity cluster needs disambiguation
     elapsed_seconds: float = 0.0
 
 
@@ -151,7 +154,7 @@ def run_pipeline(
     no_rationale: bool = False,
     manual_override: bool = False,
     manual_layer_specs: Sequence[Mapping[str, Any]] | None = None,
-    cluster_choice: str | None = None,
+    chosen_category_id: str | None = None,
     project_understanding: Sequence[str] = (),
     why_this_fits: Sequence[str] = (),
     alternatives: Sequence[str] = (),
@@ -165,7 +168,7 @@ def run_pipeline(
     """Execute the 6-step pick-stack pipeline.
 
     Returns a PipelineResult; the engine never raises for expected refusal
-    paths (greenfield gate, ambiguity-without-cluster, write-conflict),
+    paths (greenfield gate, selection required, invalid choice, write conflict),
     instead returning `success=False` with a `reason` tag the markdown
     command surfaces. Programming errors (TypeError, etc.) propagate.
 
@@ -174,16 +177,17 @@ def run_pipeline(
     - `cwd`: working directory the decision file is written into. MUST exist.
     - `answers`: validated by question_funnel; the engine re-runs validation
       defensively in case the caller skipped that step.
-    - `project_description`: free-text from Step 1 (used as `describe` if
-      Q1 == something-else-describe AND not already in answers).
+    - `project_description`: free-text from Step 1, used as `describe`
+      when that key is absent from answers.
     - `no_rationale`: when True, skip rationale.md write; rationale_sha256
       becomes EMPTY_FILE_SHA256 (per Phase 2 handoff §4.1 Step 5 + §6
       acceptance criterion).
     - `manual_override`: True when user picks `[m]anual override`. Caller
       MUST pass `manual_layer_specs`.
     - `manual_layer_specs`: list of {stack, role, path, options?} dicts.
-    - `cluster_choice`: when the matcher returns multiple tied candidates in
-      the same cluster, this picks one (must be in the tied set).
+    - `chosen_category_id`: the user's choice from the entire eligible
+      shortlist. Without a choice, only a confident result is sealed; other
+      results return category_selection_required with the shortlist.
     - `project_understanding`/`why_this_fits`/`alternatives`/`notes`:
       caller-supplied bullets for the rationale renderer.
     - `category_patterns_path`: override the default catalog path (test hook).
@@ -303,9 +307,9 @@ def run_pipeline(
         )
 
     catalog = _load_category_patterns(category_patterns_path)
-    candidates = match_categories(validated, catalog)
+    shortlist = shortlist_categories(validated, catalog)
 
-    if not candidates:
+    if not shortlist:
         elapsed = time.monotonic() - start
         result = PipelineResult(
             success=False,
@@ -321,63 +325,39 @@ def run_pipeline(
             _emit_telemetry(cwd, result)
         return result
 
-    if len(candidates) > 1:
-        # Tied-at-the-top: ambiguity cluster narrowing.
-        # D13: single-pass set-comp keeps each candidate's cluster (including
-        # None for unclustered) so the size check + None-presence check both
-        # operate on one materialized set, instead of double-scanning.
-        all_clusters = {c.cluster for c in candidates}
-        if len(all_clusters) != 1 or None in all_clusters:
-            elapsed = time.monotonic() - start
-            result = PipelineResult(
-                success=False,
-                outcome=Outcome.ABORTED,
-                reason="category_match_ambiguous_no_cluster",
-                message=(
-                    "Multiple categories tied without a documented ambiguity "
-                    "cluster — defensive refusal. Categories: "
-                    f"{[c.id for c in candidates]}"
-                ),
-                candidates=list(candidates),
-                elapsed_seconds=elapsed,
-            )
-            if write_telemetry:
-                _emit_telemetry(cwd, result)
-            return result
-
-        # D13: post-refusal block, all_clusters is the {one non-None}
-        # singleton (None-presence + size-mismatch both already refused above).
-        cluster_name = next(iter(all_clusters))
-        if cluster_choice is None:
-            elapsed = time.monotonic() - start
-            return PipelineResult(
-                success=False,
-                outcome=Outcome.ABORTED,
-                reason="ambiguity_cluster_disambiguation_required",
-                message=(
-                    f"Ambiguity cluster {cluster_name!r}: caller must pass "
-                    "cluster_choice to narrow to one of: "
-                    f"{[c.id for c in candidates]}"
-                ),
-                candidates=list(candidates),
-                cluster=cluster_name,
-                elapsed_seconds=elapsed,
-            )
+    if chosen_category_id is not None:
         try:
-            chosen = resolve_in_cluster(candidates, cluster_choice)
+            chosen = resolve_choice(shortlist, chosen_category_id)
         except ValueError as exc:
-            elapsed = time.monotonic() - start
             return PipelineResult(
                 success=False,
                 outcome=Outcome.ABORTED,
-                reason="ambiguity_cluster_choice_invalid",
+                reason="category_choice_invalid",
                 message=str(exc),
-                candidates=list(candidates),
-                cluster=cluster_name,
-                elapsed_seconds=elapsed,
+                candidates=shortlist,
+                elapsed_seconds=time.monotonic() - start,
             )
     else:
-        chosen = candidates[0]
+        chosen = confident_pick(shortlist)
+        if chosen is None:
+            return PipelineResult(
+                success=False,
+                outcome=Outcome.ABORTED,
+                reason="category_selection_required",
+                message=(
+                    "Choose a category from the shortlist with chosen_category_id: "
+                    f"{[c.id for c in shortlist]}"
+                ),
+                candidates=shortlist,
+                elapsed_seconds=time.monotonic() - start,
+            )
+
+    if not alternatives:
+        alternatives = [
+            f"{c.name} ({c.id}): also qualified for these answers, not chosen."[:240]
+            for c in shortlist
+            if c.id != chosen.id
+        ][:MAX_BULLETS_PER_SECTION]
 
     # --- Step 5: rationale + extract_summary ---
     return _finalize_decision(
