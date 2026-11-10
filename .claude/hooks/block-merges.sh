@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # PreToolUse hook: blocks merge, force-push, and approve commands.
-# One exception: Dependabot PRs may be merged by number (see below).
+# One exception: Dependabot PRs may be merged by number (see EXEMPT_MERGE_RE).
 # Claude Code passes tool input as JSON on stdin.
 # Exit 0 = allow, Exit 2 = block.
 
@@ -23,6 +23,22 @@ fi
 # then flatten to single line for boundary matching.
 FLAT=$(printf '%s' "$COMMAND" | tr '\n' ';')
 
+# Dependabot merge exception. The exempt merge must be the whole command, so
+# nothing else in it can change the directory, environment or repository the
+# merge runs against, and it must run from inside the project directory.
+EXEMPT_MERGE_RE='^gh pr merge[[:space:]]+([0-9]+)([[:space:]]+(--squash|--auto|--delete-branch))*$'
+EXEMPT_PR_NUMBER=$(printf '%s' "$FLAT" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | sed -nE "s/$EXEMPT_MERGE_RE/\1/p")
+HOOK_CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null) || HOOK_CWD=""
+HOOK_CWD=${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-}}
+IN_PROJECT=no
+if [ -n "${CLAUDE_PROJECT_DIR:-}" ] && [ -n "$HOOK_CWD" ]; then
+  PROJECT_REAL=$(CDPATH='' cd "$CLAUDE_PROJECT_DIR" 2>/dev/null && pwd -P) || PROJECT_REAL=""
+  CWD_REAL=$(CDPATH='' cd "$HOOK_CWD" 2>/dev/null && pwd -P) || CWD_REAL=""
+  if [ -n "$PROJECT_REAL" ] && [ -n "$CWD_REAL" ]; then
+    case "$CWD_REAL/" in "$PROJECT_REAL"/*) IN_PROJECT=yes ;; esac
+  fi
+fi
+
 # Split into segments on && ; || and check each independently.
 # This prevents "git merge origin/main" in one segment from suppressing
 # detection of "git merge main" in another segment.
@@ -30,18 +46,16 @@ while IFS= read -r seg; do
   seg=$(echo "$seg" | sed 's/^[[:space:]]*//')
   [ -z "$seg" ] && continue
 
-  # gh pr merge, except `gh pr merge <number>` on a Dependabot PR in this
-  # repository without --admin. Fails closed if the author cannot be confirmed.
-  if echo "$seg" | grep -qiE "^gh pr merge"; then
+  # gh pr merge (also behind env assignments or env/command/exec/nohup/time/
+  # sudo), except the exempt Dependabot merge above. Fails closed if the
+  # author cannot be confirmed.
+  if echo "$seg" | grep -qiE "^(([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|env|command|exec|nohup|time|sudo)[[:space:]]+)*gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)"; then
     PR_AUTHOR=""
-    if ! echo "$seg" | grep -qE -- "(^|[[:space:]])(--admin|-R|--repo)([[:space:]=]|$)"; then
-      PR_NUMBER=$(echo "$seg" | sed -nE 's/^gh pr merge[[:space:]]+([0-9]+)([[:space:]].*)?$/\1/p')
-      if [ -n "$PR_NUMBER" ]; then
-        PR_AUTHOR=$(cd "${CLAUDE_PROJECT_DIR:-.}" && gh pr view "$PR_NUMBER" --json author --jq '.author.login' 2>/dev/null) || PR_AUTHOR=""
-      fi
+    if [ -n "$EXEMPT_PR_NUMBER" ] && [ "$IN_PROJECT" = "yes" ]; then
+      PR_AUTHOR=$(CDPATH='' cd "$HOOK_CWD" && gh pr view "$EXEMPT_PR_NUMBER" --json author --jq '.author.login' 2>/dev/null) || PR_AUTHOR=""
     fi
     if [ "$PR_AUTHOR" != "app/dependabot" ]; then
-      echo "BLOCKED: gh pr merge is prohibited. The pipeline stops at PR creation (only 'gh pr merge <number>' on a Dependabot PR, without --admin, is allowed)." >&2
+      echo "BLOCKED: gh pr merge is prohibited. The pipeline stops at PR creation (only a standalone 'gh pr merge <number> [--squash] [--auto] [--delete-branch]' on a Dependabot PR, run from the project directory, is allowed)." >&2
       exit 2
     fi
   fi

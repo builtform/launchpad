@@ -22,7 +22,7 @@ Security fixes are released as patch versions on the latest minor. Older minors 
 
 These are protections that ship in the box. You do not need to configure anything to get them.
 
-1. **Pull requests, never direct merges.** `/lp-ship` and `/lp-commit` refuse to run `gh pr merge` or `git merge main`. A `PreToolUse` hook (`.claude/hooks/block-merges.sh`) intercepts the blocked commands at the tool level before execution. GitHub branch protection on `main` backs the same rule server-side. The hook also blocks `git push --force`, push to `main`/`master`, and `gh pr review --approve`. Its one exception is `gh pr merge <number>` without `--admin` on a pull request opened by Dependabot; your branch protection still decides whether that pull request can merge.
+1. **Pull requests, never direct merges.** `/lp-ship` and `/lp-commit` refuse to run `gh pr merge` or `git merge main`. A `PreToolUse` hook (`.claude/hooks/block-merges.sh`) intercepts the blocked commands at the tool level before execution. GitHub branch protection on `main` backs the same rule server-side. The hook also blocks `git push --force`, push to `main`/`master`, and `gh pr review --approve`. Its one exception is a standalone `gh pr merge <number>`, with no options other than `--squash`, `--auto` or `--delete-branch`, run from the project directory on a pull request opened by Dependabot; your branch protection still decides whether that pull request can merge.
 
 2. **Realpath-confined writes.** Commands that create or move project files (`/lp-define`, `/lp-shape-section`, `/lp-build`) resolve every write path through `realpath` and refuse anything that escapes the project root. A symlink trick or `..` traversal cannot reach outside the repo.
 
