@@ -74,6 +74,15 @@ if { [ "$(grep_status -iE "pulls/[^[:space:]]*/merge" "$UNQUOTED")" != 1 ] && \
   exit 2
 fi
 
+# A GraphQL request whose body the hook cannot read (a file or stdin through
+# --input or an @ field, or a command substitution) could carry a merge
+# mutation, so it is blocked; pass the query inline instead.
+if [ "$(grep_status -E "(^|[^A-Za-z0-9_])graphql([^A-Za-z0-9_]|$)" "$UNQUOTED")" != 1 ] && \
+   [ "$(grep_status -E '--input|=@|\$\(|`' "$JOINED")" != 1 ]; then
+  echo "BLOCKED: a GraphQL request with a body from a file, stdin or a command substitution is prohibited; pass the query inline." >&2
+  exit 2
+fi
+
 # gh pr merge anywhere in the command, except the exempt Dependabot merge
 # above. Fails closed if the author cannot be confirmed. Each simple command
 # is split into words (redirections and brace syntax also split). After a `gh`
@@ -112,10 +121,12 @@ GH_PR_MERGE=$(printf '%s' "$JOINED" | tr -d "'\"\\\\\$" | sed -e 's/>|/>/g' -e '
 
 # A second, quote-aware scan builds words the way Bash does (single, double and
 # $'...' quoting keep a word whole, so `gh pr -R "x view" merge` is read
-# right) and fails closed on what it cannot resolve: a redirection, command
-# substitution or computed word between `gh` and the subcommand (gh pr >view
-# merge, gh pr $(echo merge)). The first scan still catches merges hidden in
-# quoted command substitutions; a merge found by either scan counts.
+# right). A redirection skips its target word (gh pr >view merge), the first
+# non-option word after `gh` (skipping -R/--repo and its value) must be `pr`
+# or tracking stops (gh auth status >/dev/null passes), and a command
+# substitution or computed word between `gh` and the subcommand fails closed
+# (gh pr $(echo merge)). The first scan still catches merges hidden in quoted
+# command substitutions; a merge found by either scan counts.
 if [ "$GH_PR_MERGE" = "no" ]; then
   GH_PR_MERGE=$(printf '%s' "$JOINED" | awk '
     BEGIN {
@@ -123,11 +134,16 @@ if [ "$GH_PR_MERGE" = "no" ]; then
       for (k = 1; k <= n; k++) safe[a[k]] = 1
     }
     function word(x,   lx) {
+      if (target) { target = 0; return }
       lx = tolower(x)
       if (s == 1 && (index(x, "$(") || index(x, "`"))) { found = 1; return }
-      if (s < 2) {
-        if (lx == "gh" || lx ~ /\/gh$/) s = 1
-        else if (s == 1 && lx == "pr") s = 2
+      if (s == 0) { if (lx == "gh" || lx ~ /\/gh$/) s = 1; return }
+      if (s == 1) {
+        if (skip) { skip = 0; return }
+        if (lx == "-r" || lx == "--repo") { skip = 1; return }
+        if (lx ~ /^-/) return
+        if (index(x, "$") || index(x, "`")) { found = 1; return }
+        s = (lx == "pr") ? 2 : 0
         return
       }
       if (s == 2) {
@@ -141,7 +157,7 @@ if [ "$GH_PR_MERGE" = "no" ]; then
     function flush() { if (inw) { word(w); w = ""; inw = 0 } }
     { buf = buf $0 "\n" }
     END {
-      L = length(buf); q = 0; w = ""; inw = 0; s = 0; skip = 0
+      L = length(buf); q = 0; w = ""; inw = 0; s = 0; skip = 0; target = 0
       for (i = 1; i <= L; i++) {
         c = substr(buf, i, 1); nx = substr(buf, i + 1, 1)
         if (q == 1) { if (c == "\047") q = 0; else w = w c; continue }
@@ -157,13 +173,13 @@ if [ "$GH_PR_MERGE" = "no" ]; then
         if (c == "<" || c == ">" || (c == "&" && nx == ">")) {
           if (inw && w ~ /^[0-9]+$/) { w = ""; inw = 0 } else flush()
           while (i < L && index("<>&|-", substr(buf, i + 1, 1))) i++
-          if (s == 1 || s == 2) found = 1
+          target = 1
           continue
         }
         if (index(";&|()`\n", c)) {
           flush()
           if ((c == "(" || c == "`") && (s == 1 || s == 2)) found = 1
-          s = 0; skip = 0
+          s = 0; skip = 0; target = 0
           continue
         }
         w = w c; inw = 1
