@@ -129,6 +129,7 @@ def test_default_bullet_when_section_input_empty():
     body = render_rationale(_basic_candidate(), VALID_ANSWERS)
     # project-understanding gets a default bullet derived from Q1
     assert "static-site-or-blog" in body
+    assert "No alternatives were recorded." in body
 
 
 def test_nfkc_normalization_strips_confusables():

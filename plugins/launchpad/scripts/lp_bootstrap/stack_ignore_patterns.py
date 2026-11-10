@@ -6,7 +6,7 @@ surfaces — `.gitignore` lines, `.gitleaks.toml` allowlist paths, and
 template with TS-monorepo cruft baked in (`.next/`, `.turbo/`,
 `pnpm-lock.yaml`). v2.1.6 BL-350 moves those entries into per-stack
 data in `plugin_stack_adapters._ignore_patterns` and injects them at
-bootstrap-render time based on the persisted `stacks:` list.
+bootstrap-render time using the shared config or decision stack source.
 
 Three template surfaces, three sentinel pairs:
 
@@ -33,7 +33,7 @@ import importlib.util
 import re
 from pathlib import Path
 
-from ._enricher_common import dedupe_preserving_order, read_stacks_safe
+from ._enricher_common import dedupe_preserving_order, read_enricher_stacks
 
 _SCRIPTS_ROOT = Path(__file__).resolve().parent.parent
 _IGNORE_PATTERNS_PATH = _SCRIPTS_ROOT / "plugin_stack_adapters" / "_ignore_patterns.py"
@@ -144,11 +144,12 @@ def _format_greptile_inline(patterns: list[str]) -> str:
 def enrich_gitignore_with_stacks(kernel_bytes: bytes, cwd: Path) -> bytes:
     """Enrich `.gitignore` with per-stack patterns.
 
-    On greenfield (no stacks), returns kernel bytes unchanged — the
-    sentinel comments remain in `.gitignore` and are inert (gitignore
-    treats them as comments).
+    Without usable config or decision stacks, returns kernel bytes unchanged.
+    The sentinel comments remain inert in gitignore.
     """
-    stacks = read_stacks_safe(cwd, module_spec_name="plugin_config_loader_stack_ignore")
+    stacks = read_enricher_stacks(
+        cwd, module_spec_name="plugin_config_loader_stack_ignore"
+    )
     if not stacks:
         return kernel_bytes
     gitignore, _, _ = _load_ignore_data()
@@ -163,10 +164,12 @@ def enrich_gitignore_with_stacks(kernel_bytes: bytes, cwd: Path) -> bytes:
 def enrich_gitleaks_with_stacks(kernel_bytes: bytes, cwd: Path) -> bytes:
     """Enrich `.gitleaks.toml` allowlist with per-stack regex paths.
 
-    On greenfield (no stacks), returns kernel bytes unchanged — the
-    sentinel comments remain inside the TOML array and are inert.
+    Without usable config or decision stacks, returns kernel bytes unchanged.
+    The sentinel comments remain inert inside the TOML array.
     """
-    stacks = read_stacks_safe(cwd, module_spec_name="plugin_config_loader_stack_ignore")
+    stacks = read_enricher_stacks(
+        cwd, module_spec_name="plugin_config_loader_stack_ignore"
+    )
     if not stacks:
         return kernel_bytes
     _, gitleaks, _ = _load_ignore_data()
@@ -181,13 +184,13 @@ def enrich_gitleaks_with_stacks(kernel_bytes: bytes, cwd: Path) -> bytes:
 def enrich_greptile_with_stacks(kernel_bytes: bytes, cwd: Path) -> bytes:
     """Enrich `.greptile.json` ignorePatterns with per-stack glob patterns.
 
-    UNLIKE the gitignore / gitleaks enrichers, this one ALWAYS rewrites
-    the sentinel block — even on greenfield with empty patterns — because
+    This surface always rewrites its sentinel block, including when neither
+    config nor decision supplies patterns, because
     the sentinel markers live inside a JSON string value. Leaving them
     in-place would produce a literal
     `STACK_AWARE_GREPTILE_BEGIN\\nSTACK_AWARE_GREPTILE_END` string in the
     rendered `ignorePatterns` field, which Greptile would interpret as a
-    literal file pattern. On greenfield, the sentinels are stripped and
+    literal file pattern. Without usable stacks, the sentinels are stripped and
     `ignorePatterns` becomes an empty string — empty pattern list,
     Greptile reviews everything, no spurious literal pattern.
 
@@ -195,7 +198,9 @@ def enrich_greptile_with_stacks(kernel_bytes: bytes, cwd: Path) -> bytes:
     only exist as template anchors, not in the rendered output.
     """
     _, _, greptile = _load_ignore_data()
-    stacks = read_stacks_safe(cwd, module_spec_name="plugin_config_loader_stack_ignore")
+    stacks = read_enricher_stacks(
+        cwd, module_spec_name="plugin_config_loader_stack_ignore"
+    )
     patterns = _accumulate(stacks, greptile) if (stacks and greptile) else []
     formatted = _format_greptile_inline(patterns) if patterns else ""
 

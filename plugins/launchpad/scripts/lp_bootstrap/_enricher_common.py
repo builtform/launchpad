@@ -1,21 +1,11 @@
-"""Shared helpers for the v2.1.6 stack-aware enrichers.
+"""Shared stack-source and formatting helpers for the bootstrap enrichers.
 
-Closes BL-356 review findings F4 (`_read_stacks` triplicated across the
-three new enricher modules) and F5 (`_dedupe_preserving_order` duplicated
-between `stack_structure_check` and `stack_ignore_patterns`).
+A non-empty configured stacks list wins; otherwise the sealed decision
+supplies the stack list before config exists. The shared resolver normalizes
+catalog shortnames and keeps only active ids used by the enrichment tables.
 
-The four enricher modules — `stack_lefthook` (pre-existing),
-`stack_structure_check`, `stack_ignore_patterns`, `stack_pkg_manager` —
-each had a private `_read_stacks(cwd)` helper that lazy-imported
-`plugin-config-loader.py` via `importlib.util.spec_from_file_location`.
-The implementations were byte-identical except for the unique `sys.modules`
-spec-name string. This module centralises the shape; each enricher passes
-its own unique spec name to avoid `sys.modules` collisions across imports.
-
-Defense-in-depth invariant: every exported helper returns a safe default
-(`[]` for stacks, `[]` for dedupe input) on any failure path. Enrichers
-that build on these helpers preserve the "input bytes returned unchanged
-on any failure" contract documented in each enricher's module docstring.
+Stack readers return an empty list on failure; the decision reader returns
+an empty object. Enrichers retain their safe fallback to the input bytes.
 """
 
 from __future__ import annotations
@@ -60,6 +50,52 @@ def read_stacks_safe(cwd: Path, *, module_spec_name: str) -> list[str]:
     return [str(s) for s in result]
 
 
+def read_decision_payload_safe(cwd: Path, *, module_spec_name: str) -> dict:
+    """Return the canonical decision reader's payload, or an empty object.
+
+    The payload only selects table entries here; signature verification
+    remains with the decision consumers. All loader and reader failures,
+    including ConfigError, return the safe default.
+    """
+    try:
+        if not _CONFIG_LOADER_PATH.is_file():
+            return {}
+        spec = importlib.util.spec_from_file_location(
+            module_spec_name, _CONFIG_LOADER_PATH
+        )
+        if spec is None or spec.loader is None:
+            return {}
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        payload = mod.read_scaffold_decision(cwd).payload
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def read_enricher_stacks(cwd: Path, *, module_spec_name: str) -> list[str]:
+    """Read configured stacks or decision stacks, normalize and filter them.
+
+    A non-empty config list takes precedence. The fallback decision list
+    must contain only strings. Unknown normalized ids are omitted, and any
+    read, import or normalization failure returns an empty list.
+    """
+    try:
+        ids = read_stacks_safe(cwd, module_spec_name=module_spec_name)
+        if not ids:
+            payload = read_decision_payload_safe(cwd, module_spec_name=module_spec_name)
+            ids = payload.get("stacks")
+            if not isinstance(ids, list) or not all(isinstance(s, str) for s in ids):
+                return []
+        from lp_pick_stack.decision_writer import derive_stacks
+        from plugin_default_generators._renderer_base import STACK_ID_ACTIVE_ENUM
+
+        normalized = derive_stacks([{"stack": stack_id} for stack_id in ids])
+        return [stack_id for stack_id in normalized if stack_id in STACK_ID_ACTIVE_ENUM]
+    except Exception:
+        return []
+
+
 def dedupe_preserving_order(items: list[str]) -> list[str]:
     """Return `items` with duplicates removed, preserving first-occurrence
     order.
@@ -84,4 +120,9 @@ def dedupe_preserving_order(items: list[str]) -> list[str]:
     return result
 
 
-__all__ = ["dedupe_preserving_order", "read_stacks_safe"]
+__all__ = [
+    "dedupe_preserving_order",
+    "read_decision_payload_safe",
+    "read_enricher_stacks",
+    "read_stacks_safe",
+]

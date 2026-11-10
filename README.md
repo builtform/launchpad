@@ -83,7 +83,7 @@ The marketplace registration step is required today because BuiltForm is awaitin
 
 ### Path 2: Fresh monorepo (Best for Greenfield)
 
-LaunchPad detects greenfield vs brownfield by **inspecting your project folder**. An empty folder (or one containing only `.gitignore`, a short `README.md`, `LICENSE`, or a fresh `git init`) reads as greenfield. Anything else (a `package.json`, `pyproject.toml`, any other dependency manifest, or even a stray `.DS_Store` from opening the folder in Finder) flips detection and the four-command pipeline will refuse to scaffold.
+LaunchPad detects greenfield vs brownfield by **inspecting your project folder**. An empty folder reads as greenfield, and so does one containing only `.gitignore`, a short `README.md`, `LICENSE`, a fresh `git init`, the `.DS_Store` file Finder adds when you open the folder, LaunchPad's own `.launchpad/` and `.harness/` folders, or the `docs/brainstorms/` folder that `/lp-kickoff` and `/lp-brainstorm` create. Anything else (a `package.json`, `pyproject.toml`, any other dependency manifest, or other files you added) flips detection and the four-command pipeline will refuse to scaffold.
 
 **Step 1.** Create a new, empty folder for your project and `cd` into it:
 
@@ -166,7 +166,7 @@ Nine criteria that matter when picking a coding harness. Each row is an actual c
 - **Multi-agent review:** multiple specialist review agents dispatched per PR or diff (security, performance, architecture, etc.) rather than a single generalist.
 - **P1 floor + audit:** critical/P1 findings cannot be auto-suppressed; suppression decisions land as auditable artifacts in your repo. (Confidence scoring alone is no longer differentiating; Claude Code's open-source review plugin ships that half since March 2026.)
 - **Compound learning:** structured solutions or skills captured from resolved problems get reloaded by future agent runs.
-- **Merge refusal:** three-layer hard refusal of automated merge to `main`/`master` (command refusal + PreToolUse hook + branch protection, all three layers required to fail before a merge happens).
+- **Merge refusal:** three-layer hard refusal of automated merge to `main`/`master` (command refusal + PreToolUse hook + branch protection, all three layers required to fail before a merge happens; the hook exempts Dependabot pull requests).
 - **Open source:** MIT, Apache, or similar permissive license; source code available for audit.
 
 **The honest picture.**
@@ -245,7 +245,7 @@ LaunchPad/
 │   └── marketplace.json        # name=launchpad
 ├── plugins/launchpad/          # the plugin itself
 │   ├── .claude-plugin/
-│   │   └── plugin.json         # name=launchpad, version=2.2.1
+│   │   └── plugin.json         # name=launchpad, version=2.2.2
 │   ├── .codex-plugin/
 │   │   └── plugin.json         # Codex package manifest
 │   ├── commands/               # /lp-* slash commands
@@ -357,7 +357,7 @@ Cost: about 30 minutes of install plus the first `/lp-define`. Plugin is MIT and
 - [How It Works](docs/guides/HOW_IT_WORKS.md): day-to-day operator's manual
 - [Methodology](docs/guides/METHODOLOGY.md): architecture, design principles, credits
 - [Repository structure](docs/architecture/REPOSITORY_STRUCTURE.md): file-placement decision tree
-- [Release notes](docs/releases/v2.2.1.md)
+- [Release notes](docs/releases/v2.2.2.md)
 - [Contributing](CONTRIBUTING.md)
 
 ---
