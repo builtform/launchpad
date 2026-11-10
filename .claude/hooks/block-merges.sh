@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # PreToolUse hook: blocks merge, force-push, and approve commands.
+# One exception: Dependabot PRs may be merged by number (see below).
 # Claude Code passes tool input as JSON on stdin.
 # Exit 0 = allow, Exit 2 = block.
 
@@ -29,10 +30,20 @@ while IFS= read -r seg; do
   seg=$(echo "$seg" | sed 's/^[[:space:]]*//')
   [ -z "$seg" ] && continue
 
-  # gh pr merge
+  # gh pr merge, except `gh pr merge <number>` on a Dependabot PR in this
+  # repository without --admin. Fails closed if the author cannot be confirmed.
   if echo "$seg" | grep -qiE "^gh pr merge"; then
-    echo "BLOCKED: gh pr merge is prohibited. The pipeline stops at PR creation." >&2
-    exit 2
+    PR_AUTHOR=""
+    if ! echo "$seg" | grep -qE -- "(^|[[:space:]])(--admin|-R|--repo)([[:space:]=]|$)"; then
+      PR_NUMBER=$(echo "$seg" | sed -nE 's/^gh pr merge[[:space:]]+([0-9]+)([[:space:]].*)?$/\1/p')
+      if [ -n "$PR_NUMBER" ]; then
+        PR_AUTHOR=$(cd "${CLAUDE_PROJECT_DIR:-.}" && gh pr view "$PR_NUMBER" --json author --jq '.author.login' 2>/dev/null) || PR_AUTHOR=""
+      fi
+    fi
+    if [ "$PR_AUTHOR" != "app/dependabot" ]; then
+      echo "BLOCKED: gh pr merge is prohibited. The pipeline stops at PR creation (only 'gh pr merge <number>' on a Dependabot PR, without --admin, is allowed)." >&2
+      exit 2
+    fi
   fi
 
   # git merge main/master (but not origin/main)
