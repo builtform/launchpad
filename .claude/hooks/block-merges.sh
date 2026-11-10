@@ -208,13 +208,14 @@ function apiword(x, wc,   v, sep) {
       if (index(sep, "@")) FB[d] = 1
       return
     }
-    if (wc) CX[d]--
+    # A computed word that is not an item may be the real URL.
+    if (wc) { EX[d] = 1; CX[d]-- }
     return
   }
   if (CU[d] && x ~ /^(POST|PUT|PATCH|DELETE)$/) { MW[d] = 1; return }
   # curl expands {a,b} and [1-9] in URLs unless -g/--globoff, so a globbed URL
   # may name a merge or GraphQL endpoint the text does not show.
-  if (CN[d] == "curl" && !GOFF[d] && x ~ /[{[]/) { EX[d] = 1; if (wc) CX[d]--; return }
+  if (CN[d] == "curl" && !GOFF[d] && noipv6(x) ~ /[{[]/) { EX[d] = 1; if (wc) CX[d]--; return }
   if (wc) { EX[d] = 1; CX[d]-- }
 }
 function longopt(x, wc,   eq, o, val) {
@@ -248,7 +249,17 @@ function longopt(x, wc,   eq, o, val) {
     if (!eq) PVO[d] = 1; else if (wc) CX[d]--
     return
   }
+  # http and xh options that take a value, so the value is not taken for the URL.
+  if (CN[d] ~ /^(http|https|xh)$/) {
+    if (o == "--raw") { MW[d] = 1; if (!eq) PVO[d] = 5; return }
+    if (o ~ /^--(verify|auth-type|session|session-read-only|print|pretty|style|format-options|cert-key|cert-key-pass|max-redirects|max-headers|default-scheme|ssl|ciphers|boundary|response-charset|response-mime|history-print|bearer|http-version|resolve|interface|unix-socket)$/) {
+      if (!eq) PVO[d] = 1; else if (wc) CX[d]--
+      return
+    }
+  }
 }
+# An IPv6 host in brackets (http://[::1]:3000) is not curl glob syntax.
+function noipv6(x) { gsub(/:\/\/\[[0-9A-Za-z.%_]*:[0-9A-Za-z:.%_]*\]/, "://h", x); return x }
 # A short-option cluster walked letter by letter for the client: boolean
 # letters continue, and the first letter that takes a value ends the cluster
 # with the rest of the word, or the next word, as its value.
