@@ -94,6 +94,8 @@ BEGIN {
   for (k = 1; k <= n; k++) shell[a[k]] = 1
   n = split("curl wget http https xh", a, " ")
   for (k = 1; k <= n; k++) api[a[k]] = 1
+  n = split("if then else elif do while until ! { ( time coproc", a, " ")
+  for (k = 1; k <= n; k++) reserved[a[k]] = 1
   Qn = 1
   begin_scan()
 }
@@ -144,29 +146,67 @@ function shortfile(x,   j, c) {
   }
   return 0
 }
+# The same walk for -K alone: a curl config file can set the URL and the body.
+function shortk(x,   j, c) {
+  if (x !~ /^-[^-]/) return 0
+  for (j = 2; j <= length(x); j++) {
+    c = substr(x, j, 1)
+    if (c == "K") return 1
+    if (c == "T" || index("AbcCdDeEFHmoPQrtuUwxXyYz", c) || c !~ /[A-Za-z0-9#:]/) return 0
+  }
+  return 0
+}
 function enqueue(s) {
   if (Qn >= 64) found = 1
   else { Qn++; QT[Qn] = s }
 }
-# A GraphQL request is judged per simple command that is an API call (gh api,
-# curl, wget, http, xh): its body is unreadable when that command also takes a
-# body from a file or stdin, or expands a variable or substitution (a literal
-# $ inside single quotes does not count). A body from a file or stdin covers
-# file options (--input, -T, --upload-file, --post-file, --body-file, -K,
-# --config, @ arguments and fields) and, for http and xh, which send stdin as
-# the body, stdin fed by < or a pipe. For gh api
-# the endpoint is the first non-option argument; a computed endpoint with any
-# file, stdin or computed body is blocked too, since it may name the GraphQL
-# endpoint (gh api graphql${SUFFIX:-} --input f).
-function newcmd() {
+# An API call (gh api, or curl, wget, http or xh as the command being run) is
+# judged per simple command. Its body is hidden when it comes from a file or
+# stdin (--input, -T, --upload-file, --post-file, --body-file, @ arguments and
+# fields, and for http and xh, which send stdin as the body, stdin fed by < or
+# a pipe) or from an expanded variable or substitution (a literal $ inside
+# single quotes does not count). Its destination is hidden when the gh api
+# endpoint or a curl-family URL is computed. Blocked: a GraphQL call with a
+# hidden body; a hidden destination with a hidden body or any write (a write
+# method, data or field options, an HTTP method word), since it may name the
+# GraphQL or merge endpoint; and a curl config file, which can set both.
+function newcmd(   hidden) {
   if (EV[d] != "") enqueue(EV[d])
   if (SCB[d] != "") enqueue(SCB[d])
-  if (mode == "A" && AP[d] && (GQ[d] || EX[d]) && (FB[d] || CX[d] > 0 || (HX[d] && (RI[d] || PI[d])))) body = 1
+  if (mode == "A" && AP[d]) {
+    hidden = FB[d] || CX[d] > 0 || (HX[d] && (RI[d] || PI[d]))
+    if ((GQ[d] && hidden) || (EX[d] && (hidden || MW[d])) || CF[d]) body = 1
+  }
   S[d] = 0; SK[d] = 0; TG[d] = 0; NW[d] = 0; PV[d] = ""; EV[d] = ""; EVON[d] = 0; SH[d] = 0; GW[d] = 0
-  GQ[d] = 0; FB[d] = 0; CX[d] = 0; AP[d] = 0; GA[d] = 0; GV[d] = 0; EX[d] = 0; RI[d] = 0; PI[d] = 0; HX[d] = 0
-  SC[d] = 0; SCB[d] = ""; WR[d] = 0
+  GQ[d] = 0; FB[d] = 0; CX[d] = 0; AP[d] = 0; EX[d] = 0; RI[d] = 0; PI[d] = 0; HX[d] = 0
+  SC[d] = 0; SCB[d] = ""; WR[d] = 0; GHA[d] = 0; CU[d] = 0; MW[d] = 0; CF[d] = 0; PVO[d] = 0
 }
-function word(x, wc,   lx, px, comp, cmdpos, bl) {
+# One argument of an API call: option values are consumed, writes and config
+# files are noted, and a computed word that is not an option value is a
+# possible destination.
+function apiword(x, wc) {
+  if (PVO[d] == 2) { PVO[d] = 0; if (toupper(x) ~ /^(POST|PUT|PATCH|DELETE)$/) MW[d] = 1; return }
+  if (PVO[d] == 3) { PVO[d] = 0; if (wc) { EX[d] = 1; CX[d]-- }; return }
+  if (PVO[d] == 1) { PVO[d] = 0; return }
+  if (x ~ /^(-X|--request|--method)$/) { PVO[d] = 2; return }
+  if (toupper(x) ~ /^(-X|--REQUEST=|--METHOD=)(POST|PUT|PATCH|DELETE)$/) { MW[d] = 1; return }
+  if (x == "--url") { PVO[d] = 3; return }
+  if (x ~ /^--url=/) { if (wc) { EX[d] = 1; CX[d]-- }; return }
+  if (x ~ /^--config(=|$)/ || (CU[d] && shortk(x))) CF[d] = 1
+  if (GHA[d]) {
+    if (x ~ /^(-f|-F|--field|--raw-field|--input)$/) { MW[d] = 1; PVO[d] = 1; return }
+    if (x ~ /^(-f|-F)./ || x ~ /^(--field|--raw-field|--input)=/) { MW[d] = 1; return }
+    if (x ~ /^(-H|--header|-q|--jq|-t|--template|--hostname|-p|--preview|--cache)$/) { PVO[d] = 1; return }
+  } else {
+    if (x ~ /^(-d|--data|--data-raw|--data-binary|--data-urlencode|--data-ascii|--json|-F|--form|--form-string|--post-data|--body-data|--post-file|--body-file|-T|--upload-file)$/) { MW[d] = 1; PVO[d] = 1; return }
+    if (x ~ /^(-d|-F|-T)./ || x ~ /^(--data|--data-raw|--data-binary|--data-urlencode|--data-ascii|--json|--form|--form-string|--post-data|--body-data|--post-file|--body-file|--upload-file)=/) { MW[d] = 1; return }
+    if (x ~ /^(-H|--header|-u|--user|-A|--user-agent|-e|--referer|-b|--cookie|-a|--auth)$/) { PVO[d] = 1; return }
+  }
+  if (x ~ /^-/) return
+  if (CU[d] && x ~ /^(POST|PUT|PATCH|DELETE)$/) { MW[d] = 1; return }
+  if (wc) { EX[d] = 1; CX[d]-- }
+}
+function word(x, wc,   lx, px, comp, cmdpos, bl, client) {
   px = pdec(x)
   if (tolower(px) ~ /pulls\/[^ \t\n]*\/merge/) rest = 1
   if (px ~ /(^|[^A-Za-z0-9_])(mergePullRequest|enablePullRequestAutoMerge|enqueuePullRequest)/) mut = 1
@@ -178,31 +218,29 @@ function word(x, wc,   lx, px, comp, cmdpos, bl) {
   lx = tolower(x)
   if (NW[d] == 0 && x ~ /^[A-Za-z_][A-Za-z0-9_]*=/) return
   NW[d]++
-  cmdpos = (NW[d] == 1 || (PV[d] in prefix))
+  cmdpos = (NW[d] == 1 || (PV[d] in prefix) || (PV[d] in reserved))
   # Every word after `<shell> -c` (options and -- included, each on its own
   # line) and the words after `eval` are scanned again as commands, whatever
   # wrapper (env, sudo, timeout, xargs) precedes them. An API client counts only
-  # as the command being run: the first word, or any word after a wrapper.
+  # as the command being run: the first word, a word after a wrapper or a shell
+  # keyword (if, while, !, then, do), or any word after a wrapper.
   if (mode == "A") {
     if (SC[d]) SCB[d] = SCB[d] "\n" x
     else if (SH[d] && lx ~ /^-[a-z]*c[a-z]*$/) SC[d] = 1
     if (EVON[d]) EV[d] = EV[d] " " x
+    client = 0
     if (length(lx) < 256) {
       bl = base(lx)
       if (bl in shell) SH[d] = 1
-      if (cmdpos || WR[d]) {
-        if (bl in api) AP[d] = 1
+      if ((cmdpos || WR[d]) && !AP[d] && (bl in api)) {
+        AP[d] = 1; CU[d] = 1; client = 1
         if (bl ~ /^(http|https|xh)$/) HX[d] = 1
       }
       if (cmdpos && (bl in prefix)) WR[d] = 1
     }
     if (lx == "eval") EVON[d] = 1
-    if (GA[d]) {
-      if (GV[d]) GV[d] = 0
-      else if (lx ~ /^(-x|--method|-h|--header|-f|--raw-field|--field|--input|-q|--jq|-t|--template|--hostname|-p|--preview|--cache)$/) GV[d] = 1
-      else if (lx !~ /^-/) { GA[d] = 0; if (wc) { EX[d] = 1; CX[d]-- } }
-    }
-    if (S[d] == 1 && lx == "api") { AP[d] = 1; GA[d] = 1 }
+    if ((GHA[d] || CU[d]) && !client) apiword(x, wc)
+    if (S[d] == 1 && lx == "api" && !AP[d]) { AP[d] = 1; GHA[d] = 1 }
   }
   PV[d] = lx
   comp = (index(x, "$") || index(x, "`"))
@@ -364,12 +402,11 @@ if { { [ "$A_REST" = 1 ] || [ "$B_REST" = 1 ] || [ "$(grep_status -iE "pulls/[^[
   exit 2
 fi
 
-# A GraphQL API call (gh api, curl, wget, http, xh) whose body the hook cannot
-# read (a file or stdin through --input, -T, an @ argument or field, or a
-# variable or command substitution) could carry a merge mutation, so it is
-# blocked; pass the query inline instead.
+# An API call (gh api, curl, wget, http, xh) whose GraphQL body or whose
+# destination the hook cannot read could carry a merge (see the scan's newcmd),
+# so it is blocked; write the endpoint, URL and query inline instead.
 if [ "$A_BODY" = 1 ] || [ "$B_BODY" = 1 ]; then
-  echo "BLOCKED: a GraphQL request with a body from a file, stdin or a command substitution is prohibited; pass the query inline." >&2
+  echo "BLOCKED: an API request whose GraphQL body or whose endpoint or URL the hook cannot read is prohibited; write the endpoint, URL and query inline." >&2
   exit 2
 fi
 
