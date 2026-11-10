@@ -15,6 +15,9 @@ Required frontmatter keys (per HANDSHAKE §7):
   - `greenfield`: bool
   - `cwd_state_when_generated`: one of `empty` / `brownfield` / `ambiguous`
 
+Optional: `brainstorm_doc`, a relative .md path validated without opening
+the document. Missing documents return a warning and no document path.
+
 The frontmatter parser is intentionally minimal — we don't depend on the
 heavyweight `frontmatter` package; the simple `---` block delimiters and
 YAML body parse via the already-vendored PyYAML.
@@ -23,6 +26,7 @@ YAML body parse via the already-vendored PyYAML.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -34,6 +38,14 @@ ALLOWED_GENERATED_BY = "/lp-brainstorm"
 
 # ISO 8601 UTC sec-precision with explicit Z suffix per HANDSHAKE §7.
 _ISO_Z_SEC_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+
+
+@dataclass(frozen=True)
+class BrainstormSummaryInfo:
+    """Validated document location and non-blocking summary warnings."""
+
+    brainstorm_doc: Path | None = None
+    warnings: tuple[str, ...] = ()
 
 
 class BrainstormSummaryError(RuntimeError):
@@ -196,24 +208,27 @@ def validate_frontmatter(fm: dict[str, Any]) -> None:
         raise BrainstormSummaryError(
             f"brainstorm-summary.md was generated for a NON-greenfield cwd "
             f"(cwd_state_when_generated={cwd_state!r}). /lp-pick-stack only "
-            f"applies to greenfield projects. Use /lp-define instead.",
+            f"applies to greenfield projects. Use /lp-define instead. "
+            "If this folder is now greenfield (`python3 <plugin>/scripts/cwd_state.py .` "
+            "prints `empty`), re-run `/lp-brainstorm` to refresh the summary.",
             reason="brainstorm_summary_greenfield_false",
         )
 
 
-def validate_brainstorm_summary(cwd: Path) -> None:
+def validate_brainstorm_summary(cwd: Path) -> BrainstormSummaryInfo:
     """Top-level entry: validate `.launchpad/brainstorm-summary.md` if present.
 
-    If the file is absent: returns silently (standalone /lp-pick-stack
+    If the file is absent: returns empty info (standalone /lp-pick-stack
     invocation is permitted per HANDSHAKE §7 + lp-pick-stack.md Step 0
     step 3).
 
     If present: reads, parses, validates. Raises BrainstormSummaryError
-    on any rule failure.
+    on any rule failure. The optional brainstorm_doc is resolved and checked
+    as a regular file, never opened; a missing document returns a warning.
     """
     summary_path = cwd / ".launchpad" / "brainstorm-summary.md"
     if not summary_path.is_file():
-        return
+        return BrainstormSummaryInfo()
 
     try:
         text = summary_path.read_text(encoding="utf-8")
@@ -226,12 +241,35 @@ def validate_brainstorm_summary(cwd: Path) -> None:
     fm_yaml, _body = _split_frontmatter(text)
     fm = _parse_frontmatter(fm_yaml)
     validate_frontmatter(fm)
+    if "brainstorm_doc" not in fm:
+        return BrainstormSummaryInfo()
+
+    from path_validator import PathValidationError, validate_relative_path
+
+    try:
+        value = fm["brainstorm_doc"]
+        if not isinstance(value, str) or not value.endswith(".md"):
+            raise ValueError("expected a relative path ending in .md")
+        document = validate_relative_path(value, cwd, field_name="brainstorm_doc")
+    except (PathValidationError, ValueError) as exc:
+        raise BrainstormSummaryError(
+            f"brainstorm-summary.md `brainstorm_doc` is invalid: {exc}; "
+            "re-run `/lp-brainstorm` to refresh the summary, or remove the "
+            "`brainstorm_doc:` line to continue from the project summary alone",
+            reason="brainstorm_summary_invalid_frontmatter",
+        ) from exc
+    if not document.is_file():
+        return BrainstormSummaryInfo(
+            warnings=("brainstorm document not found; working from the summary alone",)
+        )
+    return BrainstormSummaryInfo(brainstorm_doc=document)
 
 
 __all__ = [
     "ALLOWED_CWD_STATES",
     "ALLOWED_GENERATED_BY",
     "BrainstormSummaryError",
+    "BrainstormSummaryInfo",
     "validate_brainstorm_summary",
     "validate_frontmatter",
 ]

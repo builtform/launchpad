@@ -10,7 +10,7 @@ review_agents:
   - lp-architecture-strategist
   - lp-testing-reviewer
 
-# DB agents — only when diff touches Prisma files
+# Database agents: dispatched by /lp-review when schema or migration files change
 # Dispatch order defined in /lp-review Step 4 (sequential-then-parallel), not by list order
 review_db_agents:
   - lp-schema-drift-detector
