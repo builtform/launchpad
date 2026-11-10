@@ -26,8 +26,9 @@ FLAT=$(printf '%s' "$COMMAND" | tr '\n' ';')
 # Dependabot merge exception. The exempt merge must be the whole command, so
 # nothing else in it can change the directory, environment or repository the
 # merge runs against, and it must run from inside the project directory.
+TRIMMED=$(printf '%s' "$FLAT" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 EXEMPT_MERGE_RE='^gh pr merge[[:space:]]+([0-9]+)([[:space:]]+(--squash|--auto|--delete-branch))*$'
-EXEMPT_PR_NUMBER=$(printf '%s' "$FLAT" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | sed -nE "s/$EXEMPT_MERGE_RE/\1/p")
+EXEMPT_PR_NUMBER=$(printf '%s' "$TRIMMED" | sed -nE "s/$EXEMPT_MERGE_RE/\1/p")
 HOOK_CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null) || HOOK_CWD=""
 HOOK_CWD=${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-}}
 IN_PROJECT=no
@@ -49,10 +50,15 @@ BACKSLASH_NEWLINE=$'\\\n'
 JOINED=${COMMAND//"$BACKSLASH_NEWLINE"/}
 UNQUOTED=$(printf '%s' "$JOINED" | tr -d "'\"\\\\\$" | tr '\n' ' ')
 
-# PR merges through the API are always blocked. GraphQL names are
+# PR merges through the API are blocked. The REST check spares one read form:
+# a standalone `gh api <path>/pulls/<number>/merge` (a GET that reports whether
+# the PR is merged) with at most --silent or -i/--include; a method flag, a
+# field, shell syntax or any other token keeps it blocked. GraphQL names are
 # case-sensitive, so read-only fields such as viewerCanEnablePullRequestAutoMerge
 # do not match.
-if printf '%s' "$UNQUOTED" | grep -qiE "pulls/[^[:space:]]*/merge" || \
+API_MERGE_READ_RE='^gh api[[:space:]]+[A-Za-z0-9_.{}/-]*pulls/[0-9]+/merge([[:space:]]+(--silent|-i|--include))*$'
+if { printf '%s' "$UNQUOTED" | grep -qiE "pulls/[^[:space:]]*/merge" && \
+     ! printf '%s' "$TRIMMED" | grep -qE "$API_MERGE_READ_RE"; } || \
    printf '%s' "$UNQUOTED" | grep -qE "(^|[^A-Za-z0-9_])(mergePullRequest|enablePullRequestAutoMerge)"; then
   echo "BLOCKED: merging a PR through the GitHub API is prohibited." >&2
   exit 2
