@@ -20,4 +20,61 @@
 # longer pins mcp==1.23.3, so `mcp` now resolves to 1.29.0 (>= the 1.27.2
 # and 1.28.1 fixes) and the findings are fixed rather than suppressed.
 #
-# No suppressions are active.
+# The five entries below were added on 2026-11-10 together with the bump to
+# semgrep 1.185.0 (which cleared every pyjwt and certifi finding). semgrep
+# 1.185.0 still pins mcp==1.29.0 and opentelemetry-api~=1.37.0, so the fixes
+# (mcp 1.30.0, opentelemetry-api 1.45.1) cannot be installed. When a semgrep
+# release relaxes those pins, re-lock and delete the matching entries.
+
+[[IgnoredVulns]]
+id = "GHSA-5h93-6whr-6q8j"
+ignoreUntil = 2027-01-31
+reason = """
+MCP Python SDK: the Streamable HTTP and SSE client transports follow redirects
+to other origins and resend custom headers and request bodies there. Fixed in
+mcp 1.30.0. Unreachable: semgrep 1.185.0 hard-pins mcp==1.29.0. Not exploitable
+here: semgrep runs only as a local lint CLI on repository files, LaunchPad never
+starts an MCP client, and no first-party code imports mcp.
+"""
+
+[[IgnoredVulns]]
+id = "GHSA-84m7-p3x7-pcfv"
+ignoreUntil = 2027-01-31
+reason = """
+MCP Python SDK: a stateful Streamable HTTP server never reclaims session state,
+so unbounded sessions exhaust memory. Fixed in mcp 1.30.0. Unreachable: semgrep
+1.185.0 hard-pins mcp==1.29.0. Not exploitable here: LaunchPad serves no MCP
+HTTP transport (it never runs `semgrep mcp`), and no first-party code imports
+mcp.
+"""
+
+[[IgnoredVulns]]
+id = "GHSA-rwrf-2pqf-9j8j"
+ignoreUntil = 2027-01-31
+reason = """
+MCP Python SDK: the client fetches server-chosen $ref URLs while validating tool
+results against output schemas. Fixed in mcp 1.30.0. Unreachable: semgrep
+1.185.0 hard-pins mcp==1.29.0. Not exploitable here: LaunchPad never connects an
+MCP client to any server, and no first-party code imports mcp.
+"""
+
+[[IgnoredVulns]]
+id = "GHSA-w4fh-qvv9-3v23"
+ignoreUntil = 2027-01-31
+reason = """
+MCP Python SDK: server-side bearer authentication accepts tokens issued for a
+different resource server. Fixed in mcp 1.30.0. Unreachable: semgrep 1.185.0
+hard-pins mcp==1.29.0. Not exploitable here: LaunchPad runs no MCP server and
+uses no MCP authentication, and no first-party code imports mcp.
+"""
+
+[[IgnoredVulns]]
+id = "GHSA-xcq7-p3pf-p88h"
+ignoreUntil = 2027-01-31
+reason = """
+OpenTelemetry Python: TraceState.from_header parses an inbound W3C tracestate
+header with quadratic cost. Fixed in opentelemetry-api 1.45.1. Unreachable:
+semgrep 1.185.0 pins opentelemetry-api~=1.37.0. Not exploitable here: semgrep
+runs as a local CLI with --metrics=off and receives no inbound HTTP requests or
+trace headers, and no first-party code imports opentelemetry.
+"""

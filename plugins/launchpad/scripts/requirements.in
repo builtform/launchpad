@@ -40,12 +40,12 @@ ruff==0.16.9           # style + import-order + bugbear (lefthook pre-commit)
 # Node dep) OR pin the node binary download via CI checksum verification.
 pyright==1.1.414       # type-check (lefthook pre-push, strict on 5 contract modules)
 bandit==1.9.4          # security audit at MEDIUM+ (lefthook pre-commit)
-# NOTE: semgrep hard-pins `mcp==1.23.3` (exact `==`, still true at 1.171.0),
-# which blocks the fixes for three MCP server-side advisories (GHSA-hvrp,
-# GHSA-jpw9 -> mcp 1.27.2; GHSA-vj7q -> mcp 1.28.1). Suppressed with
-# rationale + expiry in osv-scanner.toml (this directory). Whoever bumps
-# semgrep past that pin: re-lock so mcp moves to >=1.28.1, then delete the
-# suppression entries. (The earlier click~=8.1.8 pin cleared at semgrep
-# 1.171.0 -- click is now 8.4.2 and its suppression has been removed.)
-semgrep==1.178.0       # general patterns (pre-commit) + LP-internal invariants (pre-push)
+# NOTE: semgrep pins `mcp==1.29.0` and `opentelemetry-api~=1.37.0` (still
+# true at 1.185.0), which blocks the fixes for four MCP SDK advisories
+# (mcp 1.30.0) and one OpenTelemetry advisory (opentelemetry-api 1.45.1).
+# Suppressed with rationale + expiry in osv-scanner.toml (this directory).
+# Whoever bumps semgrep past those pins: re-lock, then delete the matching
+# suppression entries. (Earlier pins on click and mcp==1.23.3 cleared at
+# semgrep 1.171.0 and 1.177.0; their suppressions have been removed.)
+semgrep==1.185.0       # general patterns (pre-commit) + LP-internal invariants (pre-push)
 pytest==9.1.1          # test runner (lefthook pre-push + CI v2-handshake-lint); pinned for hash coverage (Codex PR #62 P1 #2)
