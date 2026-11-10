@@ -28,6 +28,8 @@ Read `.launchpad/config.yml` if it exists. Extract `paths.brainstorms_dir` (defa
 
 Silently run `mkdir -p <paths.brainstorms_dir>` (resolved path from 0.1). No prompt — it's just a directory. The prereq-check helper's rollback tracker logs this creation in case the user later exits mid-Step-0 via `[d]`.
 
+`docs/brainstorms/` is greenfield-neutral when it is the only child of `docs/` apart from OS noise (`docs/architecture/SCAFFOLD_HANDSHAKE.md` section 8), so writing there does not change the folder classification.
+
 ### 0.3 — Validate write path
 
 The resolved `paths.brainstorms_dir` must be inside the repo root (the config loader already enforces realpath-confinement, but if this command was invoked with a manually-overridden env var, re-verify here).

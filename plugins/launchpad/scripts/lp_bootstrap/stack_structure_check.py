@@ -2,18 +2,18 @@
 
 The kernel template ships with universal ALLOWED_DIRS / ALLOWED_CONFIGS
 entries plus sentinel-comment placeholders for per-stack additions. This
-module reads the persisted `stacks:` array from `.launchpad/config.yml`,
+module reads normalized config or decision stacks through the shared resolver,
 looks up each stack's allowlist data in
 `plugin_stack_adapters._structure_allowlists`, and rewrites the rendered
-shell-script bytes to inject those additions between the sentinels.
+shell-script bytes to inject those additions and declared layer roots between
+the sentinels. A separate splice renders the shipped agent inventory.
 
 Architecture mirrors `stack_lefthook.enrich_lefthook_with_stacks`:
 
   1. engine.py renders the kernel `check-repo-structure.sh.j2` -> kernel
      bytes.
   2. `enrich_structure_check_with_stacks(kernel_bytes, cwd)` reads
-     `.launchpad/config.yml` for persisted stacks via the existing
-     `plugin-config-loader.read_stacks` loader.
+     normalized config or decision stacks through the shared resolver.
   3. For each stack, look up `stack_allowed_dirs(stack_id)` and
      `stack_allowed_configs(stack_id)`.
   4. Splice the union of those entries between the sentinel-comment
@@ -21,8 +21,8 @@ Architecture mirrors `stack_lefthook.enrich_lefthook_with_stacks`:
   5. Return the rewritten bytes. The engine's SHA computation,
      manifest stamping, and policy dispatch see the enriched output.
 
-Greenfield (no `.launchpad/config.yml` or empty stacks list): returns
-kernel bytes unchanged for byte-identical behavior with v2.1.5.
+Without stack or layer additions, stack enrichment returns kernel bytes
+unchanged. Bootstrap separately renders built-in agent names in every mode.
 
 Defense-in-depth: every parse / lookup / splice failure path returns the
 input bytes rather than raising. The kernel `check-repo-structure.sh`
@@ -37,7 +37,11 @@ import importlib.util
 import re
 from pathlib import Path
 
-from ._enricher_common import dedupe_preserving_order, read_stacks_safe
+from ._enricher_common import (
+    dedupe_preserving_order,
+    read_decision_payload_safe,
+    read_enricher_stacks,
+)
 
 _SCRIPTS_ROOT = Path(__file__).resolve().parent.parent
 _ALLOWLISTS_PATH = _SCRIPTS_ROOT / "plugin_stack_adapters" / "_structure_allowlists.py"
@@ -51,6 +55,9 @@ _ALLOWLISTS_PATH = _SCRIPTS_ROOT / "plugin_stack_adapters" / "_structure_allowli
 # re-render).
 _DIRS_RE = re.compile(
     r"(  # STACK_AWARE_DIRS_BEGIN[^\n]*\n)[\s\S]*?(  # STACK_AWARE_DIRS_END[^\n]*\n)",
+)
+_BUILTIN_AGENTS_RE = re.compile(
+    r"(  # BUILTIN_AGENTS_BEGIN[^\n]*\n)[\s\S]*?(  # BUILTIN_AGENTS_END[^\n]*\n)"
 )
 _CONFIGS_RE = re.compile(
     r"(  # STACK_AWARE_CONFIGS_BEGIN[^\n]*\n)[\s\S]*?(  # STACK_AWARE_CONFIGS_END[^\n]*\n)",
@@ -122,19 +129,28 @@ def enrich_structure_check_with_stacks(kernel_bytes: bytes, cwd: Path) -> bytes:
     markers.
 
     Returns `kernel_bytes` unchanged when:
-      * `.launchpad/config.yml` is absent or has no `stacks:`
+      * neither stack data nor declared layer roots contribute entries
       * the allowlist data module fails to import
       * the sentinel markers are missing from the kernel template
-      * no stack contributes any entries
+      * no stack or layer contributes any entries
 
-    Greenfield projects (no stacks persisted) ship the kernel-only
-    allowlist — strictly safer than the pre-v2.1.6 monorepo-hardcoded
-    allowlist for any non-monorepo shape.
+    Declared layer roots join per-stack entries. Monorepo layouts also
+    contribute packages, matching workspace wiring. Agent-name enrichment is
+    a separate operation.
     """
-    stacks = read_stacks_safe(
+    stacks = read_enricher_stacks(
         cwd, module_spec_name="plugin_config_loader_stack_structure"
     )
-    if not stacks:
+    payload = read_decision_payload_safe(
+        cwd, module_spec_name="plugin_config_loader_structure_layers"
+    )
+    raw_layers = payload.get("layers", [])
+    layers = (
+        [layer for layer in raw_layers if isinstance(layer, dict)]
+        if isinstance(raw_layers, list)
+        else []
+    )
+    if not stacks and not layers:
         return kernel_bytes
 
     stack_dirs, stack_configs = _load_allowlists()
@@ -146,6 +162,22 @@ def enrich_structure_check_with_stacks(kernel_bytes: bytes, cwd: Path) -> bytes:
     for stack_id in stacks:
         dirs_accum.extend(stack_dirs.get(stack_id, ()))
         configs_accum.extend(stack_configs.get(stack_id, ()))
+
+    for layer in layers:
+        path = layer.get("path")
+        if not isinstance(path, str):
+            continue
+        head = path.split("/", 1)[0]
+        if head not in {".", ".."} and re.fullmatch(r"[A-Za-z0-9._-]+", head):
+            dirs_accum.append(head)
+    if layers:
+        try:
+            from lp_scaffold_stack.cross_cutting_wirer import _is_monorepo_layout
+
+            if _is_monorepo_layout(layers):
+                dirs_accum.append("packages")
+        except Exception:
+            return kernel_bytes
 
     dirs_accum = dedupe_preserving_order(dirs_accum)
     configs_accum = dedupe_preserving_order(configs_accum)
@@ -166,4 +198,33 @@ def enrich_structure_check_with_stacks(kernel_bytes: bytes, cwd: Path) -> bytes:
     return enriched
 
 
-__all__ = ["enrich_structure_check_with_stacks"]
+def enrich_structure_check_with_builtin_agents(kernel_bytes: bytes) -> bytes:
+    """Render sorted shipped agent names, leaving an empty block on lookup failure.
+
+    The plugin location supplies the inventory in every bootstrap mode.
+    A malformed input or absent marker returns the input bytes unchanged.
+    """
+    try:
+        agents_root = _SCRIPTS_ROOT.parent / "agents"
+        names = sorted(
+            {
+                path.stem
+                for path in agents_root.rglob("*.md")
+                if path.is_file()
+                and re.fullmatch(r"lp-[a-z0-9]+(-[a-z0-9]+)*", path.stem)
+            }
+        )
+    except Exception:
+        names = []
+    try:
+        return _splice_sentinel(
+            kernel_bytes, _BUILTIN_AGENTS_RE, _format_array_entries(names)
+        )
+    except Exception:
+        return kernel_bytes
+
+
+__all__ = [
+    "enrich_structure_check_with_builtin_agents",
+    "enrich_structure_check_with_stacks",
+]

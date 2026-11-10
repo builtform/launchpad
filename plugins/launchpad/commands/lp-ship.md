@@ -132,9 +132,27 @@ For each round (1, 2, 3):
    - `**/jwt/**`, `**/oauth/**`, `**/session/**` — token/session management
    - `**/crypto/**`, `**/encryption/**`, `**/keys/**` — cryptography
    - `**/permissions/**`, `**/iam/**`, `**/rbac/**`, `**/acl/**` — access control
-   - `prisma/schema.prisma`, `**/migrations/**` — database schema + migrations
+   - `**/*.prisma`, `**/migrations/**`, `**/migrate/**`, `**/drizzle/**`, `**/drizzle.config.*`, `**/supabase/migrations/**`, `**/supabase/schemas/**`, `**/alembic/**`, `**/db/schema.rb`, `**/db/structure.sql`: database schema and migrations
    - `lefthook.yml`, `.semgrep/**`, `.github/workflows/**`, `.claude/settings.json`, `**/CODEOWNERS` — CI + governance
    - `**/Dockerfile*`, `**/docker-compose*`, `**/*.tf` — infrastructure-as-code
+
+   At the start of each round, augment the static database patterns with
+   resolved database paths for the current PR scope:
+
+   ```bash
+   set -o pipefail; git diff --name-only -z origin/main...HEAD | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/db_change_detector.py" --null --repo-root .
+   ```
+
+   Parse the JSON as data. For every project, denylist every path in
+   `changed_schema`, `changed_migrations`, `changed_other` and `schema_paths`,
+   and every path under `migrations_dir`. When `migrations_dir` equals the
+   project's `root` (the detector reports several migration folders that way),
+   use instead the folder of each path in `changed_migrations`, skipping any
+   folder equal to the root. These are additional database schema and migration
+   exclusions for auto-fix eligibility.
+   If the command fails or the output does not parse, print exactly
+   `Database paths not resolved; only the static database patterns apply.`
+   Continue with the static list and the normal auto-fix loop.
 
    **Match semantics (advisory; PATH-BASED, NOT INTENT-BASED):** Claude interprets these patterns by examining the file's PATH SEGMENTS, not the file's purpose or location-in-test-tree. Worked examples:
    - `apps/api/src/auth/handler.ts` matches `**/auth/**` (segment `auth/` is in path)

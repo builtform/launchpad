@@ -1139,13 +1139,11 @@ def _render_loop(
     for template_relpath, target_relpath, policy, file_mode in targets:
         target_path = cwd / target_relpath
         rendered_bytes = _RENDERER.render_target(target_relpath, identity)
-        # BL-316 Slice 4c.4: stack-aware lefthook enrichment. Reads
-        # `.launchpad/config.yml` for persisted stacks, renders each stack's
-        # `lefthook.j2.fragment`, and additively merges into the kernel
-        # rendered bytes BEFORE SHA computation so the fast-path check and
-        # manifest stamping see the enriched output. Greenfield (no stacks
-        # persisted) returns kernel bytes unchanged for byte-identical
-        # behavior with prior versions.
+        # BL-316 Slice 4c.4: stack-aware lefthook enrichment. The shared
+        # resolver reads normalized config or decision stacks, renders each
+        # stack's lefthook fragment, and merges before SHA computation and
+        # manifest stamping. Greenfield decisions provide stacks before
+        # config exists; no usable source preserves the kernel bytes.
         if target_relpath == "lefthook.yml":
             from .stack_lefthook import enrich_lefthook_with_stacks
 
@@ -1153,30 +1151,31 @@ def _render_loop(
             # v2.1.6 BL-346: rewrite `pnpm <cmd>` hook bodies to
             # family-appropriate equivalents for non-TS primary stacks.
             # No-op for TS family (kernel hooks already correct) and
-            # for greenfield (no stacks => `ts` default).
+            # when neither source supplies stacks (the ts default).
             from .stack_pkg_manager import enrich_lefthook_yml_pkg_commands
 
             rendered_bytes = enrich_lefthook_yml_pkg_commands(rendered_bytes, cwd)
         # v2.1.6 BL-347: stack-aware structure-check allowlist injection.
         # The kernel template ships universal ALLOWED_DIRS / ALLOWED_CONFIGS
-        # entries plus sentinel-comment placeholders. The enricher reads
-        # the persisted `stacks:` list from `.launchpad/config.yml` and
-        # splices per-stack additions (`apps/` for ts_monorepo, `public/`
-        # + `astro.config.mjs` for astro, etc.) between the sentinels.
-        # Greenfield (no stacks persisted) passes kernel bytes unchanged;
-        # the kernel allowlist is now stack-agnostic so a fresh single-app
-        # project no longer hits a P0 first-commit blocker.
+        # entries plus sentinel-comment placeholders. The shared config or
+        # decision stack source selects additions such as public/ and
+        # astro.config.mjs for astro. Without usable stacks, the universal
+        # baseline remains.
         if target_relpath == "scripts/maintenance/check-repo-structure.sh":
-            from .stack_structure_check import enrich_structure_check_with_stacks
+            from .stack_structure_check import (
+                enrich_structure_check_with_builtin_agents,
+                enrich_structure_check_with_stacks,
+            )
 
             rendered_bytes = enrich_structure_check_with_stacks(rendered_bytes, cwd)
+            rendered_bytes = enrich_structure_check_with_builtin_agents(rendered_bytes)
         # v2.1.6 BL-350: stack-aware ignore-pattern injection. Three
         # surfaces (`.gitignore`, `.gitleaks.toml`, `.greptile.json`)
         # previously hardcoded TS-monorepo cruft (`.next/`, `.turbo/`,
         # `pnpm-lock.yaml`). Each now ships a stack-agnostic kernel plus
         # sentinel markers; the enricher injects per-stack patterns from
-        # `plugin_stack_adapters._ignore_patterns`. Greenfield passes
-        # kernel bytes unchanged.
+        # `plugin_stack_adapters._ignore_patterns`, using the same normalized
+        # config or decision stack source as the other enrichment surfaces.
         if target_relpath == ".gitignore":
             from .stack_ignore_patterns import enrich_gitignore_with_stacks
 

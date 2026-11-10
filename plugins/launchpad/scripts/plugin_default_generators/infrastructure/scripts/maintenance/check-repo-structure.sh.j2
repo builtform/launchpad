@@ -118,17 +118,15 @@ ALLOWED_CONFIGS=(
   ".worktreeinclude"
   "greptile.json"
   ".greptile.json"
+  ".gitleaks.toml"
   # STACK_AWARE_CONFIGS_BEGIN — BL-347 sentinel; do NOT edit by hand
   # STACK_AWARE_CONFIGS_END
 )
 
-# v2.1.6 BL-347: ALLOWED_DIRS no longer hard-codes the LaunchPad monorepo
-# shape (`apps/`, `packages/`). Stack-specific extensions are injected
-# between the sentinel comments below by
-# `lp_bootstrap/stack_structure_check.py` at /lp-bootstrap render time,
-# driven by the persisted `stacks:` list in `.launchpad/config.yml`. The
-# kernel allowlist below covers universal directories that every project
-# needs regardless of stack (scripts, docs, .github, .git, etc.).
+# v2.1.6 BL-347: universal directories form the baseline. Bootstrap adds
+# normalized stack directories and the decision's declared layer roots
+# between the sentinels. Monorepo layers also allow the packages folder
+# used by workspace wiring. Built-in agent names are rendered separately.
 ALLOWED_DIRS=(
   "scripts"
   "docs"
@@ -193,7 +191,7 @@ while IFS= read -r item; do
       # Allow common hidden config files and OS artifacts
       # v2.1 Codex PR #50 P1.C (D3): .greptile.json is a hidden config
       # file (Greptile's documented convention); whitelist it here.
-      if [[ "$item" =~ ^\.(env\.|editorconfig|gitignore|gitattributes|prettierrc|prettierignore|nvmrc|DS_Store|greptile\.json) ]]; then
+      if [[ "$item" =~ ^\.(env\.|editorconfig|gitignore|gitattributes|prettierrc|prettierignore|nvmrc|DS_Store|greptile\.json|gitleaks\.toml) ]]; then
         continue
       fi
       echo "   ❌ Non-whitelisted hidden file at root: $item"
@@ -382,9 +380,14 @@ echo ""
 
 
 # ============================================================================
-# Check 6: agents.yml → agent file resolution
+# Check 6: rendered built-ins, repository-local and project-local agent resolution
 # ============================================================================
 echo "📋 Validating agents.yml references..."
+
+BUILTIN_AGENTS=(
+  # BUILTIN_AGENTS_BEGIN: sentinel, do not edit by hand
+  # BUILTIN_AGENTS_END
+)
 
 AGENTS_YML="$REPO_ROOT/.launchpad/agents.yml"
 if [ -f "$AGENTS_YML" ]; then
@@ -393,13 +396,22 @@ if [ -f "$AGENTS_YML" ]; then
   # Filter: lines with "  - " under *_agents keys, not comments, not protected_branches
   while IFS= read -r agent_name; do
     [ -z "$agent_name" ] && continue
-    # Mirror the runtime resolver: scan plugins/launchpad/agents/** for
-    # built-ins first, then .claude/agents/** for project-local extensions.
-    # A downstream project legitimately holding a custom agent under
-    # .claude/agents/ should not fail the structure check just because the
-    # name does not exist in the shipped plugin tree.
+    if [[ ! "$agent_name" =~ ^[a-z0-9-]+$ ]]; then
+      MISSING_AGENTS="$MISSING_AGENTS      $agent_name\n"
+      continue
+    fi
+    # Accept rendered built-ins first, then repository-local plugin files,
+    # then project extensions. Built-in membership uses exact string equality.
     FOUND=""
-    [ -d "$REPO_ROOT/plugins/launchpad/agents" ] && FOUND=$(find "$REPO_ROOT/plugins/launchpad/agents" -name "${agent_name}.md" -type f 2>/dev/null | head -1)
+    for builtin_agent in "${BUILTIN_AGENTS[@]}"; do
+      if [ "$agent_name" = "$builtin_agent" ]; then
+        FOUND="builtin"
+        break
+      fi
+    done
+    if [ -z "$FOUND" ] && [ -d "$REPO_ROOT/plugins/launchpad/agents" ]; then
+      FOUND=$(find "$REPO_ROOT/plugins/launchpad/agents" -name "${agent_name}.md" -type f 2>/dev/null | head -1)
+    fi
     if [ -z "$FOUND" ] && [ -d "$REPO_ROOT/.claude/agents" ]; then
       FOUND=$(find "$REPO_ROOT/.claude/agents" -name "${agent_name}.md" -type f 2>/dev/null | head -1)
     fi
@@ -412,6 +424,7 @@ if [ -f "$AGENTS_YML" ]; then
     echo "   ❌ agents.yml references agents with no matching .md file:"
     echo -e "$MISSING_AGENTS"
     echo "   Fix: Create the agent file or remove the entry from agents.yml"
+    echo "   If this is a LaunchPad agent added in a newer plugin version, run /lp-bootstrap --refresh-all."
     echo ""
     ERRORS=$((ERRORS + 1))
   else
