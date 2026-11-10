@@ -10,7 +10,7 @@ Architecture (Slice 4c.4):
 
   1. engine.py renders kernel `lefthook.yml.j2` -> `kernel_bytes`.
   2. `enrich_lefthook_with_stacks(kernel_bytes, cwd)` reads
-     `.launchpad/config.yml` via the existing `plugin-config-loader.read_stacks`.
+     normalized config or decision stacks through the shared source resolver.
   3. For each persisted stack, renders
      `plugin_stack_adapters/<stack>/templates/lefthook.j2.fragment` via
      `make_stack_aware_jinja_env` (the env used by the previously
@@ -23,9 +23,8 @@ Architecture (Slice 4c.4):
      `apply_merge_keys` step (which merges with any pre-existing consumer
      `lefthook.yml`).
 
-Greenfield (no `.launchpad/config.yml` or empty stacks list): returns
-`kernel_bytes` unchanged for byte-identical behavior with v2.1.1 and
-prior. No idempotency hazard.
+Without usable config or decision stacks, returns kernel bytes unchanged.
+A greenfield decision can supply stacks before config is written.
 
 Defense-in-depth: every parse / render / import failure path returns the
 input bytes (or skips that stack) rather than raising into the bootstrap
@@ -35,43 +34,17 @@ infrastructure; a stack-fragment defect MUST NOT break `/lp-bootstrap`.
 
 from __future__ import annotations
 
-import importlib.util
 import sys
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from ._enricher_common import read_enricher_stacks
 from .policy import merge_keys_additive
 
 _SCRIPTS_ROOT = Path(__file__).resolve().parent.parent
 _STACK_FRAGMENTS_ROOT = _SCRIPTS_ROOT / "plugin_stack_adapters"
-_CONFIG_LOADER_PATH = _SCRIPTS_ROOT / "plugin-config-loader.py"
-
-
-def _read_stacks(cwd: Path) -> list[str]:
-    """Lazy-load `plugin-config-loader.read_stacks` (hyphenated filename
-    requires importlib.util.spec_from_file_location)."""
-    if not _CONFIG_LOADER_PATH.is_file():
-        return []
-    spec = importlib.util.spec_from_file_location(
-        "plugin_config_loader_stack_lefthook",
-        _CONFIG_LOADER_PATH,
-    )
-    if spec is None or spec.loader is None:
-        return []
-    mod = importlib.util.module_from_spec(spec)
-    try:
-        spec.loader.exec_module(mod)
-    except Exception:
-        return []
-    try:
-        result = mod.read_stacks(cwd)
-    except Exception:
-        return []
-    if not isinstance(result, list):
-        return []
-    return [str(s) for s in result]
 
 
 def _stack_fragment_path(stack_id: str) -> Path:
@@ -106,7 +79,7 @@ def enrich_lefthook_with_stacks(kernel_bytes: bytes, cwd: Path) -> bytes:
     """Merge persisted stack lefthook fragments into `kernel_bytes`.
 
     Returns `kernel_bytes` unchanged when:
-      * `.launchpad/config.yml` is absent or has no `stacks:`
+      * neither config nor decision yields usable stacks
       * the kernel YAML is malformed (defense; never block bootstrap)
       * no stack contributes a parseable fragment
 
@@ -114,7 +87,9 @@ def enrich_lefthook_with_stacks(kernel_bytes: bytes, cwd: Path) -> bytes:
     sort_keys=False)` to preserve declaration order so consumers see
     kernel hooks first, stack hooks appended.
     """
-    stacks = _read_stacks(cwd)
+    stacks = read_enricher_stacks(
+        cwd, module_spec_name="plugin_config_loader_stack_lefthook"
+    )
     if not stacks:
         return kernel_bytes
 
@@ -190,8 +165,8 @@ def enumerate_lefthook_template_dependencies() -> list[Path]:
     (`verify_source_template_shas`) fires on modification of ANY
     contributor, not just the kernel template.
 
-    Stable across bootstrap runs regardless of which stacks are persisted
-    in `.launchpad/config.yml`: the enumeration covers what CAN
+    Stable across bootstrap runs regardless of selected config or decision
+    stacks: the enumeration covers what CAN
     contribute, not what DID on a given run. This avoids false-positive
     tamper warnings when users legitimately add or remove stacks.
 

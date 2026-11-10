@@ -205,7 +205,7 @@ Agents are organized into 6 namespace subdirectories under `plugins/launchpad/ag
 | `lp-architecture-strategist`       | Architectural patterns, design integrity, structural compliance |
 | `lp-testing-reviewer`              | Test coverage, test quality, testing patterns                   |
 | `lp-spec-flow-analyzer`            | Spec completeness, user flow gaps, edge case discovery          |
-| `lp-schema-drift-detector`         | Detects schema.prisma changes without corresponding migrations  |
+| `lp-schema-drift-detector`         | Schema and migration drift across supported database tools      |
 | `lp-data-migration-auditor`        | Data migration safety, rollback procedures                      |
 | `lp-data-integrity-auditor`        | Database constraints, transaction boundaries, data consistency  |
 | `lp-deployment-verification-agent` | Deployment checklists, rollback procedures (opt-in)             |
