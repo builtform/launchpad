@@ -2,9 +2,9 @@
 stack: hugo
 pillar: Frontend Content (Go)
 type: orchestrate
-last_validated: 2026-09-18
+last_validated: 2026-11-10
 scaffolder_command: hugo new project <path> --force
-scaffolder_command_pinned_version: hugo@0.166+ (standard edition)
+scaffolder_command_pinned_version: hugo@0.169+ (standard edition)
 ---
 
 # Hugo — Knowledge Anchor
@@ -26,7 +26,8 @@ The canonical layout from `hugo new project`:
 - `archetypes/default.md` — frontmatter template for `hugo new`
 - `assets/` — pipeline-processed assets (Sass, JS, images)
 - `content/` — Markdown content (organized by section: `posts/`, `pages/`)
-- `data/` — TOML/YAML/JSON data files queryable via `.Site.Data`
+- `data/`: TOML/YAML/JSON data files queryable via `hugo.Data` (`.Site.Data` is
+  deprecated since v0.156.0)
 - `i18n/` — translations
 - `layouts/` — Go templates, v0.146+ structure: `baseof.html`, `home.html`,
   `page.html`, `section.html`, `taxonomy.html`, `term.html`, `all.html` at the
@@ -41,9 +42,10 @@ The canonical layout from `hugo new project`:
 Modules system (Hugo Modules) is the modern theme/component delivery; use
 `hugo mod init <module-path>` after `hugo new project` to enable.
 
-Version pins: hugo `0.166.x` standard (v0.158.0 is the documented floor). Track
+Version pins: hugo `0.169.x` standard (v0.158.0 is the documented floor). Track
 via `hugo version`; CI pins via `peaceiris/actions-hugo@v3` (or equivalent) with
-`hugo-version: 0.166.x`. Set `extended: true` only if the project still depends
+an exact `hugo-version: 0.169.0` (the action takes an exact version or `latest`,
+not a wildcard). Set `extended: true` only if the project still depends
 on embedded LibSass, which is deprecated; prefer installing `dart-sass`.
 
 ## Scaffolder behavior
@@ -56,7 +58,8 @@ toml (default), yaml, or json. LaunchPad scopes this to a freshly-detected
 greenfield via `cwd_state`, so the flag is safe. The scaffolder writes:
 
 - `assets/`, `content/`, `data/`, `i18n/`, `layouts/`, `static/`, `themes/`,
-  each containing only a `.gitkeep`
+  each created empty (Hugo skips its embedded `.gitkeep` placeholders, so git
+  does not track them until files are added)
 - `archetypes/default.md` (title/date/draft frontmatter template)
 - `hugo.toml` with default `baseURL`, `locale`, `title` placeholders. Note:
   `locale` replaced `languageCode`, which was deprecated in v0.158.0.
@@ -98,17 +101,18 @@ binary installed (plus `dart-sass` on PATH if the chosen theme uses Sass).
 - `hugo server` runs on port 1313 by default; conflicts with other dev servers
   in a polyglot monorepo require `--port <n>`.
 - Hugo Modules vs git-submodule themes: both are supported and Hugo's own quick
-  start still uses `git submodule add`. Modules require Git and Go 1.18+ and add
+  start still uses `git submodule add`. Modules require Git and Go and add
   `go.mod`/`go.sum`. Mixing both in the same repo causes module-path conflicts.
 - `--minify` on `hugo` build is opt-in; CI builds should pass it.
 
 ## Version evolution
 
-- Hugo 0.166.0 (2026-09-08): current stable.
-- Hugo 0.164.0 (2026-07-06): prior validated stable.
-- Hugo 0.158.0 (2026-03-16): `languageCode` deprecated in favor of `locale`;
-  `hugo new project` becomes the documented scaffolder name (`site` kept as an
-  alias).
+- Hugo 0.169.0 (2026-10-27): current stable.
+- Hugo 0.166.0 (2026-09-09): prior validated stable.
+- Hugo 0.158.0 (2026-03-16): `languageCode` deprecated in favor of `locale`.
+- Hugo 0.156.0 (2026-02-18): `hugo new project` becomes the documented
+  scaffolder name (`site` kept as an alias); `Site.Data` deprecated in favor of
+  `hugo.Data`.
 - Hugo 0.153.0 (2025-12-19): embedded LibSass deprecated in favor of Dart Sass;
   extended-version enforcement check disabled in 0.153.2.
 - Hugo 0.146.0 (2025): full template-system overhaul; `layouts/_default/`
