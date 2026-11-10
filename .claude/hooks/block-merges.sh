@@ -76,21 +76,37 @@ fi
 
 # gh pr merge anywhere in the command, except the exempt Dependabot merge
 # above. Fails closed if the author cannot be confirmed. Each simple command
-# is split into words (redirections and brace syntax also split), and a merge
-# is a `gh` word followed later by `pr` and then exactly `merge`, so options
-# or redirections between them (gh --repo x pr merge, gh 2>&1 pr merge) cannot
+# is split into words (redirections and brace syntax also split). After a `gh`
+# word and a later `pr` word, the first word that is not an option (skipping
+# -R/--repo and its value) is the subcommand, and anything outside a list of
+# known non-merge subcommands counts as a merge. Options or redirections
+# between words (gh --repo x pr merge, gh 2>&1 pr merge) and leftovers of
+# quoting or expansion in the subcommand (merge$'\0', merg?, mer{g,}e) cannot
 # hide it. Redirections that contain & or | (2>&1, <&0, &>, >|) are folded
 # into a plain > first, so only real separators (; & && | || parentheses,
 # backticks) start a new search; `gh pr view && git merge origin/main` and
 # `gh pr list --state merged` still pass. awk reads all input and prints a
-# verdict, and any pipeline failure counts as a merge.
+# verdict, and any pipeline failure counts as a merge. A `gh` or `pr` word
+# that is itself encoded or computed (escapes, variables, eval) is out of
+# reach of any text check; branch protection is the backstop.
 GH_PR_MERGE=$(printf '%s' "$JOINED" | tr -d "'\"\\\\\$" | sed -e 's/>|/>/g' -e 's/[<>]&/>/g' -e 's/&>/>/g' | tr ';&|()\140' '\n\n\n\n\n\n' | tr '<>{},' '     ' | awk '
-  { s = 0
+  BEGIN {
+    n = split("checkout checks close comment create diff edit list ls lock new ready reopen review revert status unlock update-branch view", a, " ")
+    for (k = 1; k <= n; k++) safe[a[k]] = 1
+  }
+  { s = 0; skip = 0
     for (i = 1; i <= NF; i++) {
       w = tolower($i)
-      if (w == "gh" || w ~ /\/gh$/) { s = 1; continue }
-      if (s == 1 && w == "pr") { s = 2; continue }
-      if (s == 2 && w == "merge") { found = 1 }
+      if (s < 2) {
+        if (w == "gh" || w ~ /\/gh$/) s = 1
+        else if (s == 1 && w == "pr") s = 2
+        continue
+      }
+      if (skip) { skip = 0; continue }
+      if (w == "-r" || w == "--repo") { skip = 1; continue }
+      if (w ~ /^-/) continue
+      if (!(w in safe)) found = 1
+      s = 0
     } }
   END { print (found ? "yes" : "no") }') || GH_PR_MERGE=yes
 if [ "$GH_PR_MERGE" != "no" ]; then
