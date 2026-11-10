@@ -126,23 +126,26 @@ function enqueue(s) {
 # A GraphQL request is judged per simple command that is an API call (gh api,
 # curl, wget, http, xh): its body is unreadable when that command also takes a
 # body from a file or stdin, or expands a variable or substitution (a literal
-# $ inside single quotes does not count). For gh api the endpoint is the first
-# non-option argument; a computed endpoint with a file or stdin body is blocked
-# too, since it may name the GraphQL endpoint (gh api graphql${SUFFIX:-} --input
-# f).
+# $ inside single quotes does not count). A body from a file or stdin covers
+# file options (--input, -T, --upload-file, --post-file, --body-file, -K,
+# --config, @ arguments and fields) and, for http and xh, which send stdin as
+# the body, stdin fed by < or a pipe. For gh api
+# the endpoint is the first non-option argument; a computed endpoint with any
+# file, stdin or computed body is blocked too, since it may name the GraphQL
+# endpoint (gh api graphql${SUFFIX:-} --input f).
 function newcmd() {
   if (EV[d] != "") enqueue(EV[d])
-  if (mode == "A" && AP[d] && ((GQ[d] && (FB[d] || CX[d])) || (EX[d] && FB[d]))) body = 1
+  if (mode == "A" && AP[d] && (GQ[d] || EX[d]) && (FB[d] || CX[d] > 0 || (HX[d] && (RI[d] || PI[d])))) body = 1
   S[d] = 0; SK[d] = 0; TG[d] = 0; NW[d] = 0; PV[d] = ""; EV[d] = ""; EVON[d] = 0; SH[d] = 0; GW[d] = 0
-  GQ[d] = 0; FB[d] = 0; CX[d] = 0; AP[d] = 0; GA[d] = 0; GV[d] = 0; EX[d] = 0
+  GQ[d] = 0; FB[d] = 0; CX[d] = 0; AP[d] = 0; GA[d] = 0; GV[d] = 0; EX[d] = 0; RI[d] = 0; PI[d] = 0; HX[d] = 0
 }
 function word(x, wc,   lx, px, comp, cmdpos) {
   px = pdec(x)
   if (tolower(px) ~ /pulls\/[^ \t\n]*\/merge/) rest = 1
   if (px ~ /(^|[^A-Za-z0-9_])(mergePullRequest|enablePullRequestAutoMerge|enqueuePullRequest)/) mut = 1
-  if (tolower(px) ~ /(^|\/)graphql(\/|\?|#|$)/) GQ[d] = 1
-  if (x ~ /^@/ || x ~ /=@/ || x ~ /^-[A-Za-z]+@/ || x ~ /^--(input|upload-file)(=|$)/ || x == "-T") FB[d] = 1
-  if (wc) CX[d] = 1
+  if (tolower(px) ~ /(^|\/)graphql(\/|\?|#|\$|$)/) GQ[d] = 1
+  if (x ~ /^@/ || x ~ /=@/ || x ~ /^-[A-Za-z]+@/ || x ~ /^--(input|upload-file|post-file|body-file|config)(=|$)/ || x == "-T" || x == "-K") FB[d] = 1
+  if (wc) CX[d]++
   if (TG[d]) { TG[d] = 0; return }
   lx = tolower(x)
   if (NW[d] == 0 && x ~ /^[A-Za-z_][A-Za-z0-9_]*=/) return
@@ -156,12 +159,13 @@ function word(x, wc,   lx, px, comp, cmdpos) {
     if (length(lx) < 256) {
       if (base(lx) in shell) SH[d] = 1
       if (base(lx) in api) AP[d] = 1
+      if (base(lx) ~ /^(http|https|xh)$/) HX[d] = 1
     }
     if (lx == "eval") EVON[d] = 1
     if (GA[d]) {
       if (GV[d]) GV[d] = 0
       else if (lx ~ /^(-x|--method|-h|--header|-f|--raw-field|--field|--input|-q|--jq|-t|--template|--hostname|-p|--preview|--cache)$/) GV[d] = 1
-      else if (lx !~ /^-/) { GA[d] = 0; if (wc) EX[d] = 1 }
+      else if (lx !~ /^-/) { GA[d] = 0; if (wc) { EX[d] = 1; CX[d]-- } }
     }
     if (S[d] == 1 && lx == "api") { AP[d] = 1; GA[d] = 1 }
   }
@@ -267,8 +271,14 @@ function feed(t,   L, i, c, nx, e, h, o, mx, v, j) {
     if ((c == "<" || c == ">") && nx == "(") { push(")"); i++; continue }
     if (c == "<" || c == ">" || (c == "&" && nx == ">")) {
       if (IW[d] && W[d] ~ /^[0-9]+$/) { W[d] = ""; IW[d] = 0 } else flush()
+      if (c == "<") RI[d] = 1
       while (i < L && index("<>&|", substr(t, i + 1, 1))) i++
       TG[d] = 1
+      continue
+    }
+    if (c == "|" && nx != "|" && substr(t, i - 1, 1) != "|") {
+      flush(); newcmd(); PI[d] = 1
+      if (nx == "&") i++
       continue
     }
     if (c == "(") { flush(); PD[d]++; newcmd(); continue }
