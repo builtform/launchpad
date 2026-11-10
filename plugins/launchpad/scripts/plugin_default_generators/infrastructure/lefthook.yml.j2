@@ -7,7 +7,7 @@ commit-msg:
     # perf|ci|wip) and delegates newline-injection defense + JSONL append
     # to the upstream plugin-restamp-history-hook.py.
     restamp-history:
-      run: python3 scripts/hooks/restamp-history-hook.py {1}
+      run: python3 scripts/hooks/restamp-history-hook.py "{1}"
 
 pre-commit:
   commands:

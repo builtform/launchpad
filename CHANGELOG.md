@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.2.0: BL-365 (parallelize preflight probe dispatch + short-TTL cache), BL-367 (programmatic GitHub-repo linkage verification for provider project probes), BL-368 (DNS `dig +short --` sentinel bug), and BL-366 (18-item preflight polish). The v2.2 series lands the 15 operational/security infrastructure surfaces deferred from v2.0, plus BL-374 (TypeScript 5.x -> 6.x upgrade audit, seeded by v2.1.9), BL-375 (Prisma 6.x -> 7.x upgrade audit, seeded by v2.1.10), BL-377 through BL-385 (CI gate correctness, freshness-contract enforcement, lint parity, and scaffolder catalog follow-ups), BL-386 through BL-395 (Codex follow-ups), plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
 
+### For LaunchPad users
+
+- **Commits work in git worktrees under folders with spaces.** The bootstrapped `commit-msg` hook now quotes the message-file path. Before, a worktree under a folder such as `My Projects` failed every commit with `unrecognized arguments`. In a project bootstrapped earlier, put double quotes around `{1}` in the `restamp-history` line of `lefthook.yml`.
+
 ## [v2.2.2]
 
 Greenfield pipeline and database review fixes. Eight defects found when running the full pipeline on a new project are fixed, from brainstorm through bootstrap, and database review now covers every migration tool LaunchPad scaffolds plus Drizzle and Prisma.
