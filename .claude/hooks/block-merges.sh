@@ -146,16 +146,6 @@ function shortfile(x,   j, c) {
   }
   return 0
 }
-# The same walk for -K alone: a curl config file can set the URL and the body.
-function shortk(x,   j, c) {
-  if (x !~ /^-[^-]/) return 0
-  for (j = 2; j <= length(x); j++) {
-    c = substr(x, j, 1)
-    if (c == "K") return 1
-    if (c == "T" || index("AbcCdDeEFHmoPQrtuUwxXyYz", c) || c !~ /[A-Za-z0-9#:]/) return 0
-  }
-  return 0
-}
 function enqueue(s) {
   if (Qn >= 64) found = 1
   else { Qn++; QT[Qn] = s }
@@ -179,32 +169,87 @@ function newcmd(   hidden) {
   }
   S[d] = 0; SK[d] = 0; TG[d] = 0; NW[d] = 0; PV[d] = ""; EV[d] = ""; EVON[d] = 0; SH[d] = 0; GW[d] = 0
   GQ[d] = 0; FB[d] = 0; CX[d] = 0; AP[d] = 0; EX[d] = 0; RI[d] = 0; PI[d] = 0; HX[d] = 0
-  SC[d] = 0; SCB[d] = ""; WR[d] = 0; GHA[d] = 0; CU[d] = 0; MW[d] = 0; CF[d] = 0; PVO[d] = 0
+  SC[d] = 0; SCB[d] = ""; WR[d] = 0; GHA[d] = 0; CU[d] = 0; CN[d] = ""; MW[d] = 0; CF[d] = 0; PVO[d] = 0
 }
-# One argument of an API call: option values are consumed, writes and config
-# files are noted, and a computed word that is not an option value is a
-# possible destination.
-function apiword(x, wc) {
-  if (PVO[d] == 2) { PVO[d] = 0; if (toupper(x) ~ /^(POST|PUT|PATCH|DELETE)$/) MW[d] = 1; return }
-  if (PVO[d] == 3) { PVO[d] = 0; if (wc) { EX[d] = 1; CX[d]-- }; return }
-  if (PVO[d] == 1) { PVO[d] = 0; return }
-  if (x ~ /^(-X|--request|--method)$/) { PVO[d] = 2; return }
-  if (toupper(x) ~ /^(-X|--REQUEST=|--METHOD=)(POST|PUT|PATCH|DELETE)$/) { MW[d] = 1; return }
-  if (x == "--url") { PVO[d] = 3; return }
-  if (x ~ /^--url=/) { if (wc) { EX[d] = 1; CX[d]-- }; return }
-  if (x ~ /^--config(=|$)/ || (CU[d] && shortk(x))) CF[d] = 1
-  if (GHA[d]) {
-    if (x ~ /^(-f|-F|--field|--raw-field|--input)$/) { MW[d] = 1; PVO[d] = 1; return }
-    if (x ~ /^(-f|-F)./ || x ~ /^(--field|--raw-field|--input)=/) { MW[d] = 1; return }
-    if (x ~ /^(-H|--header|-q|--jq|-t|--template|--hostname|-p|--preview|--cache)$/) { PVO[d] = 1; return }
-  } else {
-    if (x ~ /^(-d|--data|--data-raw|--data-binary|--data-urlencode|--data-ascii|--json|-F|--form|--form-string|--post-data|--body-data|--post-file|--body-file|-T|--upload-file)$/) { MW[d] = 1; PVO[d] = 1; return }
-    if (x ~ /^(-d|-F|-T)./ || x ~ /^(--data|--data-raw|--data-binary|--data-urlencode|--data-ascii|--json|--form|--form-string|--post-data|--body-data|--post-file|--body-file|--upload-file)=/) { MW[d] = 1; return }
-    if (x ~ /^(-H|--header|-u|--user|-A|--user-agent|-e|--referer|-b|--cookie|-a|--auth)$/) { PVO[d] = 1; return }
+# One argument of an API call, read by role. An option's value is consumed
+# with its role (PVO): 1 harmless (a header, user, output file: an expansion in
+# it does not count as a hidden body), 2 a method, 3 a URL, 5 a body, 6 a
+# wget -e command, 7 a body whose name@file form reads a file, 8 a form field
+# whose =@ or =< form reads a file. Writes, config files and URL files are
+# noted, and a computed word that is not an option value is a possible
+# destination.
+function apiword(x, wc,   v) {
+  if (PVO[d]) {
+    v = PVO[d]; PVO[d] = 0
+    if (v == 1) { if (wc) CX[d]-- }
+    else if (v == 2) { if (toupper(x) ~ /^(POST|PUT|PATCH|DELETE)$/) MW[d] = 1 }
+    else if (v == 3) { if (wc) { EX[d] = 1; CX[d]-- } }
+    else if (v == 6) { if (tolower(x) ~ /(method|post|body|header|input)/) CF[d] = 1 }
+    else if (v == 7) { if (index(x, "@")) FB[d] = 1 }
+    else if (v == 8) { if (x ~ /=[@<]/) FB[d] = 1 }
+    return
   }
-  if (x ~ /^-/) return
+  if (x ~ /^--./) { longopt(x, wc); return }
+  if (x ~ /^-./) { cluster(x, wc); return }
   if (CU[d] && x ~ /^(POST|PUT|PATCH|DELETE)$/) { MW[d] = 1; return }
   if (wc) { EX[d] = 1; CX[d]-- }
+}
+function longopt(x, wc,   eq, o, val) {
+  eq = index(x, "=")
+  o = eq ? substr(x, 1, eq - 1) : x
+  val = eq ? substr(x, eq + 1) : ""
+  if (o == "--request" || o == "--method") {
+    if (!eq) PVO[d] = 2
+    else if (toupper(val) ~ /^(POST|PUT|PATCH|DELETE)$/) MW[d] = 1
+    return
+  }
+  if (GHA[d]) {
+    if (o ~ /^--(field|raw-field|input)$/) { MW[d] = 1; if (!eq) PVO[d] = 5; return }
+    if (o ~ /^--(header|jq|template|hostname|preview|cache)$/) { if (!eq) PVO[d] = 1; else if (wc) CX[d]--; return }
+    return
+  }
+  if (o == "--url") { if (!eq) PVO[d] = 3; else if (wc) { EX[d] = 1; CX[d]-- }; return }
+  if (o == "--config") { CF[d] = 1; if (!eq) PVO[d] = 1; return }
+  if (o == "--input-file") { EX[d] = 1; if (!eq) PVO[d] = 1; return }
+  if (o == "--execute") { if (!eq) PVO[d] = 6; else if (tolower(val) ~ /(method|post|body|header|input)/) CF[d] = 1; return }
+  if (o ~ /^--expand-/) { MW[d] = 1; FB[d] = 1; if (!eq) PVO[d] = 5; return }
+  if (o == "--data-urlencode" || o == "--variable") {
+    if (o != "--variable") MW[d] = 1
+    if (!eq) PVO[d] = 7; else if (index(val, "@")) FB[d] = 1
+    return
+  }
+  if (o == "--form" || o == "--form-string") { MW[d] = 1; if (!eq) PVO[d] = 8; else if (val ~ /=[@<]/) FB[d] = 1; return }
+  if (o ~ /^--(data|data-raw|data-binary|data-ascii|json|post-data|body-data|post-file|body-file|upload-file)$/) { MW[d] = 1; if (!eq) PVO[d] = 5; return }
+  if (o ~ /^--(header|user|user-agent|referer|cookie|cookie-jar|auth|output|output-document|output-file|proxy|proxy-user|dump-header|write-out|cert|cacert|key|max-time|connect-timeout|retry|timeout|tries|password|http-user|http-password)$/) {
+    if (!eq) PVO[d] = 1; else if (wc) CX[d]--
+    return
+  }
+}
+# A short-option cluster walked letter by letter for the client: boolean
+# letters continue, and the first letter that takes a value ends the cluster
+# with the rest of the word, or the next word, as its value.
+function cluster(x, wc,   j, n, c, rest) {
+  n = length(x)
+  for (j = 2; j <= n; j++) {
+    c = substr(x, j, 1); rest = substr(x, j + 1)
+    if (GHA[d]) {
+      if (c == "X") { if (rest == "") PVO[d] = 2; else if (toupper(rest) ~ /^(POST|PUT|PATCH|DELETE)$/) MW[d] = 1; return }
+      if (c == "f" || c == "F") { MW[d] = 1; if (rest == "") PVO[d] = 5; return }
+      if (index("Hqtp", c)) { if (rest == "") PVO[d] = 1; else if (wc) CX[d]--; return }
+    } else if (CN[d] == "wget") {
+      if (c == "i") { EX[d] = 1; if (rest == "") PVO[d] = 1; return }
+      if (c == "e") { if (rest == "") PVO[d] = 6; else if (tolower(rest) ~ /(method|post|body|header|input)/) CF[d] = 1; return }
+      if (index("OoaBPUTtwQlARDXI", c)) { if (rest == "") PVO[d] = 1; else if (wc) CX[d]--; return }
+    } else if (CN[d] == "curl") {
+      if (c == "X") { if (rest == "") PVO[d] = 2; else if (toupper(rest) ~ /^(POST|PUT|PATCH|DELETE)$/) MW[d] = 1; return }
+      if (c == "d" || c == "T") { MW[d] = 1; if (rest == "") PVO[d] = 5; return }
+      if (c == "F") { MW[d] = 1; if (rest == "") PVO[d] = 8; else if (rest ~ /=[@<]/) FB[d] = 1; return }
+      if (c == "K") { CF[d] = 1; if (rest == "") PVO[d] = 1; return }
+      if (index("AbcCDeEHmoPQrtuUwxyYz", c)) { if (rest == "") PVO[d] = 1; else if (wc) CX[d]--; return }
+    } else {
+      if (index("aoAps", c)) { if (rest == "") PVO[d] = 1; else if (wc) CX[d]--; return }
+    }
+  }
 }
 function word(x, wc,   lx, px, comp, cmdpos, bl, client) {
   px = pdec(x)
@@ -233,7 +278,7 @@ function word(x, wc,   lx, px, comp, cmdpos, bl, client) {
       bl = base(lx)
       if (bl in shell) SH[d] = 1
       if ((cmdpos || WR[d]) && !AP[d] && (bl in api)) {
-        AP[d] = 1; CU[d] = 1; client = 1
+        AP[d] = 1; CU[d] = 1; CN[d] = bl; client = 1
         if (bl ~ /^(http|https|xh)$/) HX[d] = 1
       }
       if (cmdpos && (bl in prefix)) WR[d] = 1
