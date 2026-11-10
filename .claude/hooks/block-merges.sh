@@ -39,11 +39,15 @@ if [ -n "${CLAUDE_PROJECT_DIR:-}" ] && [ -n "$HOOK_CWD" ]; then
   fi
 fi
 
-# Merge detection runs on the whole command with quotes and backslashes removed
-# and newlines joined, so quoting, line continuations, redirections and command
-# prefixes cannot hide a merge. Text matching cannot see through variables or
-# eval; GitHub branch protection is the server-side backstop for those.
-UNQUOTED=$(printf '%s' "$COMMAND" | tr -d "'\"\\\\" | tr '\n' ' ')
+# Merge detection runs on the whole command with line continuations removed (as
+# Bash does), then quotes, backslashes and $ removed and newlines joined, so
+# quoting, continuations, redirections and command prefixes cannot hide a
+# merge. It fails closed: a command that only mentions a merge is blocked too.
+# Text matching cannot see through variables or eval; GitHub branch protection
+# is the server-side backstop for those.
+BACKSLASH_NEWLINE=$'\\\n'
+JOINED=${COMMAND//"$BACKSLASH_NEWLINE"/}
+UNQUOTED=$(printf '%s' "$JOINED" | tr -d "'\"\\\\\$" | tr '\n' ' ')
 
 # PR merges through the API are always blocked.
 if printf '%s' "$UNQUOTED" | grep -qiE "pulls/[^[:space:]]*/merge|mergePullRequest|enablePullRequestAutoMerge"; then
