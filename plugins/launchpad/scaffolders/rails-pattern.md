@@ -2,7 +2,7 @@
 stack: rails
 pillar: Backend MVC (Ruby)
 type: orchestrate
-last_validated: 2026-09-18
+last_validated: 2026-11-10
 scaffolder_command: rails new <path> --skip-git
 scaffolder_command_pinned_version: rails@8.1
 ---
@@ -72,8 +72,8 @@ Canonical layout from `rails new`:
 
 Version pins (Gemfile):
 
-- `gem "rails", "~> 8.1.3"` (the generator emits the current patch; 8.0.x is
-  security-only until 2026-11-07)
+- `gem "rails", "~> 8.1.4", ">= 8.1.4.1"` (the generator emits the current
+  patch; 8.0.x security support ended 2026-11-07)
 - `gem "pg", "~> 1.1"` (Postgres) OR `gem "sqlite3", ">= 2.1"` (default). Those
   are the constraints the generator writes, not the current gem versions.
 - `gem "puma", ">= 5.0"` (again, the generator's constraint)
@@ -161,7 +161,7 @@ esbuild` + manual `Gemfile` edit.
 - Rails 8.1 (2025-10-22): Active Job continuations; structured event reporting;
   local CI via `bin/ci` + `config/ci.rb`; registry-free Kamal deploys; markdown
   rendering; `config.load_defaults 8.1`; bundler-audit in the default Gemfile.
-- Rails 8 (2024 H4 → stable 2025): Solid Queue/Cache/Cable as defaults; Kamal
+- Rails 8 (2024-11-07): Solid Queue/Cache/Cable as defaults; Kamal
   - Thruster as deploy stack; Authentication generator (`bin/rails generate
 authentication`); native auth replacing Devise for simple cases.
 - Rails 7 (2021): Hotwire as default; importmap; Active Record encrypted
@@ -171,5 +171,6 @@ authentication`); native auth replacing Devise for simple cases.
 
 Rails maintenance is formal since 7.2 and applies per MINOR series: 1 year of
 bug fixes and 2 years of security fixes from the first release in the series.
-As of 2026-08: 8.1.x bug-fixed to 2026-10-10 and security-patched to 2027-10-10;
-8.0.x security-only to 2026-11-07; 7.2.x security-only to 2026-08-09.
+As of 2026-11: 8.1.x bug fixes ended 2026-10-10 and it is security-patched to
+2027-10-10; 8.0.x security support ended 2026-11-07; 7.2.x ended 2026-08-09
+(7.2.4, 2026-09-24, was its last release).

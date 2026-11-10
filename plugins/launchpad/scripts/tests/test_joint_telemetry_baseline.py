@@ -75,11 +75,6 @@ def _invoke_scaffold(cwd: Path, scaffolders_yml: Path, *,
         "--scaffolders-yml", str(scaffolders_yml),
         "--category-patterns-yml", str(DEFAULT_CATEGORY_PATTERNS_YML),
         "--plugins-root", str(DEFAULT_PLUGINS_ROOT),
-        # pick-stack with telemetry on writes `.harness/observations/`, which
-        # makes cwd_state classify the directory as `ambiguous` (the .harness
-        # dir is NOT in cwd_state.GREENFIELD_OK_DIRS). Bypass the greenfield
-        # gate per Phase 5 "rerun-after-fix" precedent.
-        "--skip-greenfield-gate",
     ]
     if no_telemetry:
         argv.append("--no-telemetry")

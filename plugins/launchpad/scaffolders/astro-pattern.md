@@ -2,7 +2,7 @@
 stack: astro
 pillar: Frontend Content/Performance
 type: orchestrate
-last_validated: 2026-09-18
+last_validated: 2026-11-10
 scaffolder_command: npm create astro@latest -- --yes --no-ai --no-install --no-git --template <template>
 scaffolder_command_pinned_version: astro@7
 ---
@@ -13,7 +13,8 @@ scaffolder_command_pinned_version: astro@7
 
 Astro 7 ships an islands-architecture frontend optimized for content-heavy sites
 (blogs, marketing pages, documentation) with TypeScript-first defaults and
-zero-JS-by-default rendering. Requires Node >= 22.12.0. The canonical 2026
+zero-JS-by-default rendering. Requires Node >= 22.23.4 (raised from 22.12.0 in
+the 7.4.x line). The canonical 2026
 layout uses `src/pages/` for file-based routing, `src/content/` for type-safe
 content collections declared in `src/content.config.ts` and backed by Zod 4
 schemas (`src/live.config.ts` for live collections), `src/layouts/` for shared
@@ -54,8 +55,9 @@ resolves install as `ctx.install ?? ctx.yes` and git as `ctx.git ?? ctx.yes`, so
 `--yes` alone DOES run the dependency install AND DOES run `git init`,
 `git add -A`, `git commit`. Pass `--no-install --no-git` so
 `/lp-scaffold-stack` keeps ownership of the install and VCS steps. Unless
-`--no-ai` is passed it also writes `AGENTS.md` plus a `CLAUDE.md` symlink to it,
-which collides with the harness-authored `CLAUDE.md`.
+`--no-ai` is passed it also writes `AGENTS.md`. create-astro 5.1.0 through 5.2.x
+additionally created a `CLAUDE.md` symlink to it, which collided with the
+harness-authored `CLAUDE.md`; 5.3.0 dropped the symlink.
 
 With `--no-install`, no lockfile is written by the scaffolder; it materializes
 during the post-scaffold install step. No `.env` written; `.env.example` is
@@ -93,7 +95,9 @@ Files that indicate Astro is already present in a brownfield repo (used by
 - Astro 7 replaces the remark/rehype markdown pipeline by default; install
   `@astrojs/markdown-remark` to keep existing remark/rehype plugins.
 - `@astrojs/db` was removed in Astro 7.
-- Scaffolding on Node 18 or 20 fails; Astro 6+ requires Node >= 22.12.0.
+- Scaffolding on Node 18 or 20 fails (`create-astro` exits below Node 22); the
+  published engines floor is Node >= 22.23.4 for astro 7.4.2+ and create-astro
+  5.3.1+ (Astro 6 through 7.3.x required >= 22.12.0).
 
 ## Version evolution
 
@@ -102,7 +106,7 @@ Files that indicate Astro is already present in a brownfield repo (used by
 - Astro 6 (2026-03-10): Fonts API; CSP API; Live Content Collections
   (`src/live.config.ts`); Vite 7; Zod 4; Node 22+ minimum; `Astro.glob()` and
   `<ViewTransitions />` removed.
-- Astro 5 (stable 2025): Content Layer API replaces collection config;
+- Astro 5 (2024-12-03): Content Layer API replaces collection config;
   `hybrid` output removed; sessions added; `astro:env` for type-safe env.
 - Astro 4 (2023 H4): View Transitions API introduced (experimental); Vite 5
   upgrade; Picture component added.

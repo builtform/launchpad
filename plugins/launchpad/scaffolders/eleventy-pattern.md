@@ -2,7 +2,7 @@
 stack: eleventy
 pillar: Frontend Content
 type: curate
-last_validated: 2026-09-18
+last_validated: 2026-11-10
 scaffolder_command: (curate — no npm create CLI; manual scaffold per this doc)
 scaffolder_command_pinned_version: "@11ty/eleventy@3"
 ---
@@ -34,7 +34,8 @@ and now require official plugins; WebC, TypeScript, JSX and MDX were never core.
 Version pins: `@11ty/eleventy@3.x` (3.1.x current), Node `>=18`, optional
 `@11ty/eleventy-img@6.x` for image optimization (7.x is ESM-only and requires
 Node >= 22, so stay on 6.x unless the project targets Node 22+),
-`@11ty/eleventy-fetch@5+` for build-time API fetching.
+`@11ty/eleventy-fetch@5.x` for build-time API fetching (6.x is ESM-only and
+requires Node >= 22, so the same rule applies).
 
 ## Scaffolder behavior
 
@@ -77,29 +78,35 @@ Post-scaffold install runs separately via the cross-cutting wiring step.
   individual files as CommonJS.
 - `.eleventy.js` is still checked FIRST in the config resolution order, so a
   stray legacy `.eleventy.js` silently wins over a new `eleventy.config.js`.
-- `dir.input` defaults to `.` (root) in older docs; canonical 2026 layout uses
-  `src/` and requires explicit `dir.input` setting.
+- `dir.input` defaults to `.` (root), still true in 3.1.8; canonical 2026 layout
+  uses `src/` and requires explicit `dir.input` setting.
 - Nunjucks template inheritance (`{% extends %}`) requires the layout path
   relative to `_includes/`, not relative to the template file.
-- Async filters and shortcodes require `addAsyncFilter` / `addAsyncShortcode`
-  (Eleventy 2.x introduced these as first-class; before that, Promises in
-  filters silently failed).
+- Since Eleventy 2.0, `addFilter`, `addShortcode` and `addPairedShortcode` accept
+  `async` callbacks directly; `addAsyncFilter` arrived with 2.0 and
+  `addAsyncShortcode` has existed since 0.10.0. Before 2.0, Promises in filters
+  silently failed.
 - `eleventyComputed` data is the recommended way to derive frontmatter from
   page context (slug, date, etc.); manually computing in templates leads to
   ordering bugs.
 
 ## Version evolution
 
-- Build Awesome / Eleventy 4 (alpha as of 2026-07): the project was rebranded to
-  "Build Awesome" on 2026-03-03 and the repo moved to `11ty/buildawesome`; the
-  npm package is still `@11ty/eleventy`. v4 raises the Node minimum, removes
-  `setDataDeepMerge(false)` and the `slug` filter, and swaps Nunjucks for the
-  `@11ty/nunjucks` fork. Do not pin to 4.x until stable.
-- Eleventy 3 (stable 2024-10-02): full ESM support added while KEEPING
+- Build Awesome / Eleventy 4 (alpha as of 2026-11, latest 4.0.0-alpha.10): the
+  project was rebranded to "Build Awesome" on 2026-03-03 and the repo moved to
+  `11ty/buildawesome`; the stable npm package is still `@11ty/eleventy`
+  (`latest` is 3.1.x), while v4 alphas also publish as
+  `@awesome.me/buildawesome@alpha`. v4 raises the Node minimum to 22.15,
+  removes `setDataDeepMerge(false)` and the `slug` filter, and swaps Nunjucks
+  for the `@11ty/nunjucks` fork. Do not pin to 4.x until stable.
+- Eleventy 3 (stable 2024-10-01): full ESM support added while KEEPING
   CommonJS; plain-text bundler built into core; Handlebars, Mustache, EJS, HAML
-  and Pug unbundled into plugins; Node 18 minimum.
-- Eleventy 2 (2023): async-first APIs including `addAsyncFilter`; bundled i18n
-  plugin; serverless deferred to community; declarative `addPlugin`.
+  and Pug unbundled into plugins; Serverless and Edge plugins removed; Node 18
+  minimum.
+- Eleventy 2 (2023-02-08): async-friendly `addFilter` and `addShortcode` plus
+  `addAsyncFilter`; bundled i18n plugin; `eleventy.config.js` and
+  `eleventy.config.cjs` filenames added; Serverless and Edge plugins still
+  bundled; Node 14 minimum.
 - Eleventy 1 (2022): first stable; CommonJS-only.
 
 Curate-mode means LaunchPad ships the pattern doc itself as the canonical

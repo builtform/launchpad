@@ -108,11 +108,11 @@ Each loop iteration (`loop.sh` inside `/lp-inf`) runs in a **fresh AI context**.
 
 ### 4. Multi-layer merge prevention
 
-No automated merge ever happens. Three layers enforce this:
+The pipeline never merges a pull request. Three layers enforce this, and the hook allows one exception for Dependabot pull requests:
 
-1. **Command prohibition** — `/lp-ship` and `/lp-commit` explicitly refuse to run `gh pr merge` or `git merge main`.
-2. **PreToolUse hook** — intercepts merge commands at the tool level.
-3. **GitHub branch protection** — server-side rules requiring approvals.
+1. **Command prohibition**: `/lp-ship` and `/lp-commit` explicitly refuse to run `gh pr merge` or `git merge main`.
+2. **PreToolUse hook**: intercepts merge commands at the tool level, except `gh pr merge <number>` on a Dependabot pull request.
+3. **GitHub branch protection**: server-side rules requiring approvals.
 
 Autonomous execution is further gated by `.launchpad/autonomous-ack.md` (D8, must exist in the repo before `/lp-build` runs) and a content-hash audit (D3) that records every invocation in `.launchpad/audit.log`.
 
@@ -194,16 +194,16 @@ Read-only documentarians. Dispatched during definition, planning, and hardening 
 
 Dispatched by `/lp-review` in parallel with confidence scoring.
 
-| Agent                                                                                                                                                                   | Dispatch condition                 |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| `pattern-finder` / `security-auditor` / `kieran-foad-ts-reviewer` / `performance-auditor` / `code-simplicity-reviewer` / `architecture-strategist` / `testing-reviewer` | Always                             |
-| `schema-drift-detector`                                                                                                                                                 | Prisma changes (runs first)        |
-| `data-migration-auditor` / `data-integrity-auditor`                                                                                                                     | Prisma changes (with drift report) |
-| `spec-flow-analyzer` / `frontend-races-reviewer`                                                                                                                        | Plan hardening                     |
-| `deployment-verification-agent`                                                                                                                                         | Opt-in                             |
-| `lp-claims-auditor`                                                                                                                                                     | Default, all stacks                |
-| `lp-foad-go-reviewer`                                                                                                                                                   | Default roster, Go stacks only     |
-| `lp-document-truth`                                                                                                                                                     | Opt-in via document roster         |
+| Agent                                                                                                                                                                   | Dispatch condition                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `pattern-finder` / `security-auditor` / `kieran-foad-ts-reviewer` / `performance-auditor` / `code-simplicity-reviewer` / `architecture-strategist` / `testing-reviewer` | Always                                                   |
+| `schema-drift-detector`                                                                                                                                                 | Database schema or migration changes (runs first)        |
+| `data-migration-auditor` / `data-integrity-auditor`                                                                                                                     | Database schema or migration changes (with drift report) |
+| `spec-flow-analyzer` / `frontend-races-reviewer`                                                                                                                        | Plan hardening                                           |
+| `deployment-verification-agent`                                                                                                                                         | Opt-in                                                   |
+| `lp-claims-auditor`                                                                                                                                                     | Default, all stacks                                      |
+| `lp-foad-go-reviewer`                                                                                                                                                   | Default roster, Go stacks only                           |
+| `lp-document-truth`                                                                                                                                                     | Opt-in via document roster                               |
 
 ### document-review/ (7 agents)
 
