@@ -19,6 +19,16 @@ if [ -z "$COMMAND" ]; then
   exit 0
 fi
 
+# grep_status <grep flags> <ERE> <text> prints 0 (match), 1 (no match) or 2
+# (error). grep reads all of its input (no -q), so an early exit can never
+# raise SIGPIPE upstream and turn a match into a miss under pipefail. Block
+# checks treat anything but 1 as a match, so they fail closed.
+grep_status() {
+  local rc=0
+  printf '%s' "$3" | grep "$1" -- "$2" >/dev/null || rc=$?
+  echo "$rc"
+}
+
 # Normalize: convert newlines to ;; (treating each line as a separate command)
 # then flatten to single line for boundary matching.
 FLAT=$(printf '%s' "$COMMAND" | tr '\n' ';')
@@ -57,9 +67,9 @@ UNQUOTED=$(printf '%s' "$JOINED" | tr -d "'\"\\\\\$" | tr '\n' ' ')
 # case-sensitive, so read-only fields such as viewerCanEnablePullRequestAutoMerge
 # do not match.
 API_MERGE_READ_RE='^gh api[[:space:]]+[A-Za-z0-9_.{}/-]*pulls/[0-9]+/merge([[:space:]]+(--silent|-i|--include))*$'
-if { printf '%s' "$UNQUOTED" | grep -qiE "pulls/[^[:space:]]*/merge" && \
-     ! printf '%s' "$TRIMMED" | grep -qE "$API_MERGE_READ_RE"; } || \
-   printf '%s' "$UNQUOTED" | grep -qE "(^|[^A-Za-z0-9_])(mergePullRequest|enablePullRequestAutoMerge)"; then
+if { [ "$(grep_status -iE "pulls/[^[:space:]]*/merge" "$UNQUOTED")" != 1 ] && \
+     [ "$(grep_status -E "$API_MERGE_READ_RE" "$TRIMMED")" != 0 ]; } || \
+   [ "$(grep_status -E "(^|[^A-Za-z0-9_])(mergePullRequest|enablePullRequestAutoMerge)" "$UNQUOTED")" != 1 ]; then
   echo "BLOCKED: merging a PR through the GitHub API is prohibited." >&2
   exit 2
 fi
@@ -68,21 +78,22 @@ fi
 # above. Fails closed if the author cannot be confirmed. Each simple command
 # is split into words (redirections and brace syntax also split), and a merge
 # is a `gh` word followed later by `pr` and then exactly `merge`, so options
-# or redirections between them (gh --repo x pr merge, gh > f pr merge) cannot
-# hide it. Command separators start a new search, so `gh pr view && git merge
-# origin/main` and `gh pr list --state merged` still pass.
-is_gh_pr_merge() {
-  printf '%s' "$JOINED" | tr -d "'\"\\\\\$" | tr ';&|()\140' '\n\n\n\n\n\n' | tr '<>{},' '     ' | awk '
-    { s = 0
-      for (i = 1; i <= NF; i++) {
-        w = tolower($i)
-        if (w == "gh" || w ~ /\/gh$/) { s = 1; continue }
-        if (s == 1 && w == "pr") { s = 2; continue }
-        if (s == 2 && w == "merge") { found = 1; exit }
-      } }
-    END { exit found ? 0 : 1 }'
-}
-if is_gh_pr_merge; then
+# or redirections between them (gh --repo x pr merge, gh 2>&1 pr merge) cannot
+# hide it. Redirections that contain & or | (2>&1, <&0, &>, >|) are folded
+# into a plain > first, so only real separators (; & && | || parentheses,
+# backticks) start a new search; `gh pr view && git merge origin/main` and
+# `gh pr list --state merged` still pass. awk reads all input and prints a
+# verdict, and any pipeline failure counts as a merge.
+GH_PR_MERGE=$(printf '%s' "$JOINED" | tr -d "'\"\\\\\$" | sed -e 's/>|/>/g' -e 's/[<>]&/>/g' -e 's/&>/>/g' | tr ';&|()\140' '\n\n\n\n\n\n' | tr '<>{},' '     ' | awk '
+  { s = 0
+    for (i = 1; i <= NF; i++) {
+      w = tolower($i)
+      if (w == "gh" || w ~ /\/gh$/) { s = 1; continue }
+      if (s == 1 && w == "pr") { s = 2; continue }
+      if (s == 2 && w == "merge") { found = 1 }
+    } }
+  END { print (found ? "yes" : "no") }') || GH_PR_MERGE=yes
+if [ "$GH_PR_MERGE" != "no" ]; then
   PR_AUTHOR=""
   if [ -n "$EXEMPT_PR_NUMBER" ] && [ "$IN_PROJECT" = "yes" ]; then
     PR_AUTHOR=$(CDPATH='' cd "$HOOK_CWD" && gh pr view "$EXEMPT_PR_NUMBER" --json author --jq '.author.login' 2>/dev/null) || PR_AUTHOR=""
@@ -101,26 +112,26 @@ while IFS= read -r seg; do
   [ -z "$seg" ] && continue
 
   # git merge main/master (but not origin/main)
-  if echo "$seg" | grep -qiE "^git merge[[:space:]]+(main|master)" && \
-     ! echo "$seg" | grep -qiE "^git merge[[:space:]]+origin/"; then
+  if [ "$(grep_status -iE "^git merge[[:space:]]+(main|master)" "$seg")" != 1 ] && \
+     [ "$(grep_status -iE "^git merge[[:space:]]+origin/" "$seg")" != 0 ]; then
     echo "BLOCKED: git merge main/master is prohibited. Use 'git merge origin/main' for safe sync." >&2
     exit 2
   fi
 
   # git push --force / -f
-  if echo "$seg" | grep -qiE "^git push[[:space:]].*--force|^git push[[:space:]]+-f"; then
+  if [ "$(grep_status -iE "^git push[[:space:]].*--force|^git push[[:space:]]+-f" "$seg")" != 1 ]; then
     echo "BLOCKED: force push is prohibited." >&2
     exit 2
   fi
 
   # git push to main/master (with any flags before origin)
-  if echo "$seg" | grep -qiE "^git push[[:space:]]+.*origin[[:space:]]+(main|master|HEAD:(main|master))"; then
+  if [ "$(grep_status -iE "^git push[[:space:]]+.*origin[[:space:]]+(main|master|HEAD:(main|master))" "$seg")" != 1 ]; then
     echo "BLOCKED: push to main/master is prohibited." >&2
     exit 2
   fi
 
   # gh pr review --approve
-  if echo "$seg" | grep -qiE "^gh pr review[[:space:]]+--approve"; then
+  if [ "$(grep_status -iE "^gh pr review[[:space:]]+--approve" "$seg")" != 1 ]; then
     echo "BLOCKED: PR auto-approve is prohibited." >&2
     exit 2
   fi
