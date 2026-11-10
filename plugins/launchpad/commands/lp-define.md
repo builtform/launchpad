@@ -198,6 +198,7 @@ next step.
 ## Step 2: Verify + Transition
 
 Check the generator's JSON summary (`written` / `kept` / `skipped` lists).
+When `.launchpad/config.yml` is in `written`, show `seeded_commands` as editable defaults under `commands.*` in that file; when it was kept, say the existing commands were left as they are.
 If everything looks right:
 
 > "Scaffolded the canonical docs adapted to your stack. Review

@@ -32,6 +32,30 @@ def test_lp_review_md_exists() -> None:
     )
 
 
+def test_database_detection_runs_in_every_scope_and_fails_open() -> None:
+    text = _md()
+    normal = text.split("## Step 1: Determine Diff Scope", 1)[1].split("### Step 1.A:", 1)[0]
+    fallback = text.split("### Step 1.A:", 1)[1].split("## Step 1.5:", 1)[0]
+    assert "db_change_detector.py" in normal
+    assert "set -o pipefail;" in normal
+    assert "db_review = null" in normal and "db_changes = true" in normal
+    assert "database detection failed (<reason>); dispatching database agents on the raw diff" in normal
+    assert "## Coverage Limitations" in normal
+    assert "database agents ran on the raw diff" in normal
+    assert fallback.count("db_change_detector.py") == 3
+    assert fallback.count("set -o pipefail;") == 3
+    assert "git ls-files --others --exclude-standard -z && git diff --cached --name-only -z; }" in fallback
+    assert "git diff --name-only -z HEAD && git diff --cached --name-only -z && git ls-files --others --exclude-standard -z; }" in fallback
+    assert "same fail-open handling as Step 1" in fallback
+    assert "db_review = null" in fallback and "db_changes = true" in fallback
+    assert "Coverage Limitations" in fallback
+    dispatch = text.split("## Step 4: Conditional DB Agent Dispatch", 1)[1].split("## Step 4.5:", 1)[0]
+    assert "IF db_changes:" in dispatch
+    assert "resolved_review_db_agents" in dispatch
+    assert "changed_*" in dispatch and "schema_paths" in dispatch and "migrations_dir" in dispatch
+    assert "prisma/schema.prisma" not in text
+
+
 def test_bl337_pre_first_commit_banner_present() -> None:
     """The `[pre-first-commit]` banner is the user-visible signal that
     the fallback mode fired. Dropping it = silent mode change."""

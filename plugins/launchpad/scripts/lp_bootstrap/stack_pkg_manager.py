@@ -33,8 +33,8 @@ Two enrichers, one per file:
     `json/css/md/yml/yaml/html` which non-TS projects DO have, so
     pre-fix they fired at the `pnpm` invocation and failed).
 
-Architecture mirrors BL-347's `stack_structure_check`: greenfield
-returns kernel bytes unchanged for TS-stack identity preservation. The
+Architecture uses the shared config or decision stack source. Without
+usable stacks, kernel bytes stay unchanged. The
 v2.1.5 baseline expects the kernel template to produce TS-style output
 by default; the enricher only rewrites when the primary detected stack
 family is non-TS.
@@ -50,7 +50,7 @@ import importlib.util
 import re
 from pathlib import Path
 
-from ._enricher_common import read_stacks_safe
+from ._enricher_common import read_enricher_stacks
 
 _SCRIPTS_ROOT = Path(__file__).resolve().parent.parent
 _PKG_MGRS_PATH = _SCRIPTS_ROOT / "plugin_stack_adapters" / "_package_managers.py"
@@ -81,12 +81,14 @@ def _load_pkg_data():  # type: ignore[no-untyped-def]
 def _primary_family(cwd: Path) -> str:
     """Return the primary stack family for the project at `cwd`.
 
-    Defaults to `"ts"` for greenfield (no config), unknown stack ids,
-    or any data-load failure. The `"ts"` family is byte-identical to
+    Defaults to `"ts"` without usable config or decision stacks,
+    or on any data-load failure. The `"ts"` family is byte-identical to
     the v2.1.5 kernel templates, so the default is also the
     no-op-enrichment path.
     """
-    stacks = read_stacks_safe(cwd, module_spec_name="plugin_config_loader_stack_pkg")
+    stacks = read_enricher_stacks(
+        cwd, module_spec_name="plugin_config_loader_stack_pkg"
+    )
     data = _load_pkg_data()
     if data is None:
         return "ts"
