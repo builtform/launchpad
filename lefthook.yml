@@ -53,7 +53,7 @@ commit-msg:
     # defenses (\\n / \\r\\n rejection) are enforceable. Appends a
     # restamp-history.jsonl entry on accept.
     restamp-history:
-      run: python3 plugins/launchpad/scripts/plugin-restamp-history-hook.py {1}
+      run: python3 plugins/launchpad/scripts/plugin-restamp-history-hook.py "{1}"
 
 pre-commit:
   commands:
