@@ -16,7 +16,12 @@ permissions:
 jobs:
   codex-review:
     name: Codex Code Review
-    runs-on: ubuntu-latest
+    # Pinned to ubuntu-24.04: codex-action's drop-sudo step fails on the
+    # ubuntu-26.04 image that ubuntu-latest now resolves to ("Could not
+    # restrict access to /run/dbus/system_bus_socket"), so Codex never
+    # starts. Upstream: openai/codex-action#188 (fix proposed in #191).
+    # Return to ubuntu-latest once a codex-action release ships the fix.
+    runs-on: ubuntu-24.04
     continue-on-error: true
     # v2.1.4 BL-332: cap the whole job at 20 minutes. Historical max for
     # the `Run Codex Review` step on this repo is ~3-4 minutes; 20
