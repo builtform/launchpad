@@ -110,9 +110,9 @@ LaunchPad self-host runs the following gates LOCALLY before any push, via `lefth
 
 ### Commit-msg gate (`lefthook.yml` `commit-msg:` block)
 
-| Gate              | Source                                                                 | Purpose                                                                                                           |
-| ----------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `restamp-history` | `python3 plugins/launchpad/scripts/plugin-restamp-history-hook.py {1}` | Subject-line injection defense + restamp-history.jsonl audit append (OPERATIONS §0 strip-back-aware Layer 9 P3-2) |
+| Gate              | Source                                                                   | Purpose                                                                                                           |
+| ----------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `restamp-history` | `python3 plugins/launchpad/scripts/plugin-restamp-history-hook.py "{1}"` | Subject-line injection defense + restamp-history.jsonl audit append (OPERATIONS §0 strip-back-aware Layer 9 P3-2) |
 
 ### Mandatory dual-pass review (`/lp-commit` Step 2.5 + `/lp-ship` Step 4.6)
 

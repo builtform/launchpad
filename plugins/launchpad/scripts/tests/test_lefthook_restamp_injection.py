@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -88,6 +89,34 @@ def test_hook_lefthook_yml_wired():
         "lefthook.yml restamp-history not wired to the Python hook"
     )
 
+
+
+@pytest.mark.parametrize(
+    "config_path",
+    [
+        _REPO_ROOT / "lefthook.yml",
+        _REPO_ROOT / "plugins" / "launchpad" / "scripts"
+        / "plugin_default_generators" / "infrastructure" / "lefthook.yml.j2",
+    ],
+    ids=["repo-lefthook", "downstream-template"],
+)
+def test_commit_msg_path_with_space_stays_one_argument(config_path):
+    """In a git worktree, git passes the commit-message file as an absolute
+    path, which contains a space when the checkout lives under a folder like
+    `My Projects`. lefthook substitutes `{1}` into the run line verbatim and
+    hands it to `sh -c`, so the placeholder must be quoted or the path splits
+    into two arguments and the hook exits 2."""
+    run_lines = [
+        line.split("run:", 1)[1].strip()
+        for line in config_path.read_text(encoding="utf-8").splitlines()
+        if "restamp-history-hook.py" in line and "run:" in line
+    ]
+    assert len(run_lines) == 1, f"expected one restamp run line in {config_path}"
+    msg_path = "/Users/dev/My Projects/repo/.git/worktrees/wt/COMMIT_EDITMSG"
+    argv = shlex.split(run_lines[0].replace("{1}", msg_path))
+    assert argv[-1] == msg_path, (
+        f"{config_path.name}: commit-msg path split into {argv[2:]!r}"
+    )
 
 def test_clean_subject_accepted():
     """Clean subject line accepted; JSONL entry written with canonical fields."""
