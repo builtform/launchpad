@@ -127,7 +127,7 @@ The following files require the same approver set (joint review — they are cro
 - `docs/architecture/SCAFFOLD_HANDSHAKE.md`
 - `docs/architecture/SCAFFOLD_OPERATIONS.md` (this file)
 
-As shipped, `.github/CODEOWNERS` assigns every file above to `@builtform/core` through its directory rules (`/plugins/launchpad/`, `/plugins/launchpad/scripts/` and `/docs/architecture/`). No `@v2-handshake-approvers` team exists. The per-file entry originally specified:
+As shipped, `.github/CODEOWNERS` assigns every file above to `@foadshafighi` through its directory rules (`/plugins/launchpad/`, `/plugins/launchpad/scripts/` and `/docs/architecture/`). No `@v2-handshake-approvers` team exists. The per-file entry originally specified:
 
 ```
 plugins/launchpad/scaffolders*.yml                              @v2-handshake-approvers

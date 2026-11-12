@@ -1,6 +1,6 @@
 # Growth (Internal)
 
-This folder holds **internal positioning, sales-pitch, and copy strategy work** for LaunchPad and the broader BuiltForm product line. Everything inside is gitignored except this README — the artifacts here are produced by the [Growth Toolkit](https://github.com/builtform/marketplace) plugin and consumed by maintainers when rewriting marketing surfaces.
+This folder holds **internal positioning, sales-pitch, and copy strategy work** for LaunchPad and the broader BuiltForm product line. Everything inside is gitignored except this README — the artifacts here are produced by the [Growth Toolkit](https://github.com/FrameworkedApp/marketplace) plugin and consumed by maintainers when rewriting marketing surfaces.
 
 ## Why this folder exists
 
@@ -16,7 +16,7 @@ Growth Toolkit is built on the same agentic-harness pattern as LaunchPad but app
 Growth Toolkit lives in the BuiltForm marketplace alongside LaunchPad:
 
 ```
-/plugin marketplace add github:builtform/marketplace
+/plugin marketplace add github:FrameworkedApp/marketplace
 /plugin install growth-toolkit@builtform
 ```
 
