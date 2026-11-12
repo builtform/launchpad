@@ -29,7 +29,7 @@
 psutil==7.2.2          # /lp-scaffold-stack runtime (pid_identity)
 pyyaml==6.0.3          # config loading (engine.py, plugin-v2-handshake-lint.py)
 jinja2==3.1.6          # /lp-bootstrap + /lp-scaffold-stack template rendering
-markupsafe==3.0.3      # transitive of jinja2; pinned explicitly for repro
+markupsafe==3.0.4      # transitive of jinja2; pinned explicitly for repro
 
 # --- v2.1.1 Phase 4 Layer 3 static analysis ---
 
