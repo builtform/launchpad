@@ -1,7 +1,7 @@
 """Phase 6 v2.1 Slice G -- security posture invariants.
 
 Three concrete tests covering Phase 6 §3.0 defenses:
-  1. CODEOWNERS file content includes `plugins/launchpad/agents/** @builtform/core`
+  1. CODEOWNERS file content includes `plugins/launchpad/agents/** @foadshafighi`
      (cycle-3 spec-flow P1-4 reframing: T1 defense is the file content,
      NOT runtime behavior).
   2. Symlink agent file is skipped at load time (`_safe_candidate` rejection).
@@ -43,18 +43,18 @@ def test_codeowners_pre_merge_gate_for_plugin_agents():
     assert CODEOWNERS.is_file(), f"CODEOWNERS not found at {CODEOWNERS}"
     text = CODEOWNERS.read_text(encoding="utf-8")
     # Match the rule loosely (whitespace tolerance) but strictly require
-    # the path glob + the @builtform/core handle.
+    # the path glob + the @foadshafighi handle.
     found = False
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith("#") or not stripped:
             continue
-        if stripped.startswith("/plugins/launchpad/agents/**") and "@builtform/core" in stripped:
+        if stripped.startswith("/plugins/launchpad/agents/**") and "@foadshafighi" in stripped:
             found = True
             break
     assert found, (
         "CODEOWNERS missing rule "
-        "'plugins/launchpad/agents/** @builtform/core' "
+        "'plugins/launchpad/agents/** @foadshafighi' "
         "(Phase 6 §3.0 T1 defense)."
     )
 

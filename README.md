@@ -56,7 +56,7 @@ LaunchPad is an **agentic coding harness**. It installs a governance kernel into
 
 Works on **brownfield** projects (add the plugin to an existing repo, run `/lp-define`, get the kernel retrofitted) and **greenfield** (run the `/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define` pipeline for a fresh project with the kernel materialized from scratch).
 
-LaunchPad ships under the **BuiltForm** marketplace at [github.com/builtform](https://github.com/builtform).
+LaunchPad ships under the **BuiltForm** marketplace at [github.com/FrameworkedApp](https://github.com/FrameworkedApp).
 
 For the full pipeline narrative, see [HOW_IT_WORKS.md](docs/guides/HOW_IT_WORKS.md). For the architecture and design principles behind the kernel, see [METHODOLOGY.md](docs/guides/METHODOLOGY.md).
 
@@ -73,7 +73,7 @@ For the full pipeline narrative, see [HOW_IT_WORKS.md](docs/guides/HOW_IT_WORKS.
 Inside Claude Code, in the project where you want the commands, register the BuiltForm marketplace and install the plugin. Copy-paste the two commands below into a fresh Claude Code session:
 
 ```
-/plugin marketplace add github:builtform/marketplace
+/plugin marketplace add github:FrameworkedApp/marketplace
 /plugin install launchpad@builtform
 ```
 
@@ -96,7 +96,7 @@ Don't `npm init`, don't drop in a `pyproject.toml`, don't open the folder in Fin
 **Step 2.** Open Claude Code in that folder and install the plugin using the same two commands from Path 1:
 
 ```
-/plugin marketplace add github:builtform/marketplace
+/plugin marketplace add github:FrameworkedApp/marketplace
 /plugin install launchpad@builtform
 ```
 
@@ -115,7 +115,7 @@ The pipeline scaffolds a fresh monorepo with `package.json`, `lefthook.yml`, the
 LaunchPad also runs on Codex, installed from the same BuiltForm marketplace. It is the same plugin: Codex reads the same command, agent, and skill files that Claude Code reads, through a single router. Nothing changes for Claude Code users.
 
 ```bash
-codex plugin marketplace add builtform/marketplace
+codex plugin marketplace add FrameworkedApp/marketplace
 codex plugin add launchpad@builtform
 ```
 
@@ -335,7 +335,7 @@ LaunchPad does not bundle either tool, does not auto-install them, and does not 
 Install LaunchPad and run `/lp-kickoff` in the repo you are actively shipping from:
 
 ```
-/plugin marketplace add github:builtform/marketplace
+/plugin marketplace add github:FrameworkedApp/marketplace
 /plugin install launchpad@builtform
 ```
 

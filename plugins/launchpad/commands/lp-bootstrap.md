@@ -207,7 +207,7 @@ Tooling notes:
 - For a one-off skip without editing `lefthook.yml`: `LEFTHOOK=0 git commit ...`.
 - To opt out permanently: remove the gate entry from `lefthook.yml`.
 
-See https://github.com/builtform/launchpad/blob/main/docs/architecture/CI_CD.md#consumer-python-gates
+See https://github.com/FrameworkedApp/launchpad/blob/main/docs/architecture/CI_CD.md#consumer-python-gates
 
 ## Post-bootstrap follow-up: Claude Code permission mode (BL-372, v2.1.8)
 

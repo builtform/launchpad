@@ -43,7 +43,7 @@ Commands appear in their Claude Code form, `/lp-<name>`. On Codex the same comma
 Inside Claude Code, in the project where you want the commands, register the BuiltForm marketplace and install the plugin. Copy-paste the two commands below into a fresh Claude Code session:
 
 ```
-/plugin marketplace add github:builtform/marketplace
+/plugin marketplace add github:FrameworkedApp/marketplace
 /plugin install launchpad@builtform
 ```
 
@@ -106,7 +106,7 @@ Codex installs the same plugin from the same BuiltForm marketplace as Claude Cod
 ### Installing on Codex
 
 ```bash
-codex plugin marketplace add builtform/marketplace
+codex plugin marketplace add FrameworkedApp/marketplace
 codex plugin add launchpad@builtform
 ```
 
@@ -877,7 +877,7 @@ Two patterns are in use across the LaunchPad-managed ecosystem. They aren't comp
 
 ### Pattern A: Manual ceremony (LaunchPad, growth-toolkit)
 
-Used by LaunchPad itself and by [growth-toolkit](https://github.com/builtform/growth-toolkit). The maintainer drives a 3-step ceremony: tag the merge commit, push the tag, watch the post-tag verification job, then publish a release with hand-authored notes.
+Used by LaunchPad itself and by [growth-toolkit](https://github.com/FrameworkedApp/growth-toolkit). The maintainer drives a 3-step ceremony: tag the merge commit, push the tag, watch the post-tag verification job, then publish a release with hand-authored notes.
 
 The ceremony assumes:
 
