@@ -8,11 +8,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.2.0: BL-365 (parallelize preflight probe dispatch + short-TTL cache), BL-367 (programmatic GitHub-repo linkage verification for provider project probes), BL-368 (DNS `dig +short --` sentinel bug), and BL-366 (18-item preflight polish). The v2.2 series lands the 15 operational/security infrastructure surfaces deferred from v2.0, plus BL-374 (TypeScript 5.x -> 6.x upgrade audit, seeded by v2.1.9), BL-375 (Prisma 6.x -> 7.x upgrade audit, seeded by v2.1.10), BL-377 through BL-385 (CI gate correctness, freshness-contract enforcement, lint parity, and scaffolder catalog follow-ups), BL-386 through BL-395 (Codex follow-ups), plus the 10 deferred stacks. See `docs/tasks/BACKLOG.md` for full scope.
 
+## [v2.3.0]
+
+Planning and building in separate sessions. The new `/lp-conductor` command coordinates a planning session and a building session, and worktree commits work under folders with spaces.
+
 ### For LaunchPad users
 
 - **Run planning and building in separate sessions.** `/lp-conductor` sets up one session to review the work of a planning session and a building session, answer their routine questions, and bring you only the decisions that need you. It works with Claude Code and Codex sessions; see [How It Works](docs/guides/HOW_IT_WORKS.md#lp-conductor).
 
 - **Commits work in git worktrees under folders with spaces.** The bootstrapped `commit-msg` hook now quotes the message-file path. Before, a worktree under a folder such as `My Projects` failed every commit with `unrecognized arguments`. In a project bootstrapped earlier, put double quotes around `{1}` in the `restamp-history` line of `lefthook.yml`.
+
+### Plugin-internal changes
+
+- **Repository moved to the FrameworkedApp GitHub organization.** Plugin manifests, docs links and the generated README and lefthook templates point at `github.com/FrameworkedApp/launchpad`. GitHub redirects the old URLs; the marketplace name and install commands are unchanged.
+- **Dependency and CI updates.** Routine bumps across the workspace, Python tooling and GitHub Actions, including semgrep 1.185.0, which clears the open pyjwt advisories.
 
 ## [v2.2.2]
 
@@ -587,7 +596,8 @@ Carried forward into v1.1:
 
 Full v1.1 scope in [ROADMAP.md](ROADMAP.md).
 
-[Unreleased]: https://github.com/builtform/launchpad/compare/v2.2.2...HEAD
+[Unreleased]: https://github.com/FrameworkedApp/launchpad/compare/v2.3.0...HEAD
+[v2.3.0]: https://github.com/FrameworkedApp/launchpad/compare/v2.2.2...v2.3.0
 [v2.2.2]: https://github.com/builtform/launchpad/compare/v2.2.1...v2.2.2
 [v2.2.1]: https://github.com/builtform/launchpad/compare/v2.2.0...v2.2.1
 [v2.2.0]: https://github.com/builtform/launchpad/compare/v2.1.12...v2.2.0
