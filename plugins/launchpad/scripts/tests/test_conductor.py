@@ -272,3 +272,22 @@ def test_midbuild_base_includes_unfinished_section_commits() -> None:
         "verify the base is its ancestor", "Do not reset the checkout to the verification base",
         "For (b), use the current branch head as the verification base",
     ))
+
+
+
+def test_final_review_has_separate_whole_branch_base() -> None:
+    command = " ".join((PLUGIN / "commands/lp-conductor.md").read_text().split())
+    protocol = " ".join((TEMPLATES / "protocol-implementer.md").read_text().split())
+    handoff = (TEMPLATES / "implementer-handoff.md").read_text()
+    assert all(token in command for token in (
+        "Resolve `review_base` at start in every mode", "original implementation or PR review base",
+        "Never derive it from a checkpoint", "`base_head` remains the checkpoint verification base",
+        "per unit, review_base", "Restore review_base from State or the Implementer handoff",
+    ))
+    assert 'git diff "<review_base>...HEAD"' in protocol
+    assert 'git diff "<base>...HEAD"' not in protocol
+    assert "not the checkpoint verification base" in protocol
+    assert "record the actual base, range and head" in protocol
+    assert "{{review_base}}" in handoff.split("## Preconditions", 1)[1].split("## Roles", 1)[0]
+    assert "{{review_base}}" in handoff.split("## Kickoff prompt", 1)[1].split("## CONTINUE prompt", 1)[0]
+    assert "{{review_base}}" in handoff.split("## CONTINUE prompt", 1)[1]
