@@ -242,3 +242,33 @@ def test_every_command_and_prompt_path_is_validated() -> None:
         "resolved plugin root before Step 0", "working directories",
         "plan and source paths", "handoff", "protocol", "inbox", "resume mode",
     ))
+
+
+
+def test_retry_contract_keeps_failed_section_active() -> None:
+    command = " ".join((PLUGIN / "commands/lp-conductor.md").read_text().split())
+    protocol = " ".join((TEMPLATES / "protocol-implementer.md").read_text().split())
+    handoff = (TEMPLATES / "implementer-handoff.md").read_text()
+    assert all(token in command for token in (
+        "checkpoint-N-retry-R.md", "verdict-implementer-N-retry-R.md",
+        "RETRY for any failed verification", "leaves the last successfully verified head unchanged",
+        "Never mark a failed checkpoint head verified", "pending RETRY keeps that section active",
+        "current section and retry attempt", "Verified: none",
+    ))
+    assert all(token in protocol for token in (
+        "RETRY: keep section N active", "same previous verified head",
+        "matching fresh answer", "separate `fix:` commits", "nothing is amended or rewritten",
+        "Do not advance or write the push stop until successful verification",
+    ))
+    assert "RETRY" in handoff.split("## Kickoff prompt", 1)[1].split("## CONTINUE prompt", 1)[0]
+    assert "RETRY" in handoff.split("## CONTINUE prompt", 1)[1]
+
+
+def test_midbuild_base_includes_unfinished_section_commits() -> None:
+    command = " ".join((PLUGIN / "commands/lp-conductor.md").read_text().split())
+    assert all(token in command for token in (
+        "verified last-finished-section head as the verification base",
+        "verified original implementation base", "current checkout head separately in Preconditions and State",
+        "verify the base is its ancestor", "Do not reset the checkout to the verification base",
+        "For (b), use the current branch head as the verification base",
+    ))
