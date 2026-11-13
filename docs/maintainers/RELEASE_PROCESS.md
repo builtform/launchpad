@@ -10,7 +10,7 @@ Codex adapter releases: bump `plugins/launchpad/.claude-plugin/plugin.json` and 
 
 ```bash
 # Install check: install the release candidate and verify the required installed files.
-codex plugin marketplace add https://github.com/builtform/launchpad.git --ref <release-ref> --json
+codex plugin marketplace add https://github.com/FrameworkedApp/launchpad.git --ref <release-ref> --json
 PLUGIN_PATH=$(codex plugin add launchpad@launchpad --json | jq -r '.installedPath')
 codex plugin list
 test -f "$PLUGIN_PATH/codex/skills/lp/SKILL.md"
@@ -35,7 +35,7 @@ After the tag is pushed, the `verify-v2-ship` workflow checks the release and th
 If verification fails for a transient reason, rerun the failed jobs of the original tag-push run with `gh run rerun <run-id> --failed`. A rerun keeps the push event, so promotion still happens. The manual `workflow_dispatch` lane verifies a tag but never moves `stable`.
 
 ```bash
-codex plugin marketplace add builtform/marketplace
+codex plugin marketplace add FrameworkedApp/marketplace
 codex plugin add launchpad@builtform
 codex exec '$launchpad:lp help'
 codex plugin remove launchpad@builtform

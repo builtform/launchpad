@@ -1388,7 +1388,7 @@ The command is **NOT a fit for branch-triggered automation projects** (e.g., pro
 
 **Status (2026-05-07)**: SHIPPED in v2.1.0 (Phase 8 mechanical decommission, commit `39ca5df`, 2026-05-06). Removed `init-project.sh`, the 8 `*.template.*` files at root, `pull-upstream.launchpad.sh`, `lp-pull-launchpad`, and `test_init_agents_yml.py`. REPOSITORY_STRUCTURE.md / CLAUDE.md / AGENTS.md whitelist entries updated.
 
-**Driver**: v2.0 introduced the four-command greenfield pipeline (`/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`) that supersedes the pre-v2.0 template-clone flow (`git clone github.com/builtform/launchpad my-project` + `./scripts/setup/init-project.sh`). v2.0.1 deprecates the template-clone flow in user-facing docs. v2.1 removes the supporting infrastructure now that BL-248 ships the plugin-owns-everything implementation that replaces it.
+**Driver**: v2.0 introduced the four-command greenfield pipeline (`/lp-brainstorm` → `/lp-pick-stack` → `/lp-scaffold-stack` → `/lp-define`) that supersedes the pre-v2.0 template-clone flow (`git clone github.com/FrameworkedApp/launchpad my-project` + `./scripts/setup/init-project.sh`). v2.0.1 deprecates the template-clone flow in user-facing docs. v2.1 removes the supporting infrastructure now that BL-248 ships the plugin-owns-everything implementation that replaces it.
 
 **Architectural decision context**: locked 2026-05-03. The LaunchPad repo stops doubling as plugin source AND user-cloneable template. Removing the infrastructure that supported the dual-purpose model is the structural enforcement of that decision; without removal, the template-clone flow remains accessible and the two-narrative problem persists.
 
@@ -4439,7 +4439,7 @@ Re-check the current manifest and catalog schemas. Add catalog metadata only whe
 
 **Notes**
 
-The BuiltForm marketplace (`builtform/marketplace`) is the supported Codex installation source, the same one Claude Code uses. Listing in OpenAI's public plugin directory is the scope of this item.
+The BuiltForm marketplace (`FrameworkedApp/marketplace`) is the supported Codex installation source, the same one Claude Code uses. Listing in OpenAI's public plugin directory is the scope of this item.
 
 ---
 
@@ -4584,8 +4584,8 @@ Add a lane only after Codex provides a supported headless authentication and bin
 **Encountered**
 
 - **Date**: 2026-09-19
-- **Location**: `.github/workflows/`, `builtform/marketplace`
-- **Scenario**: The `launchpad` entry in `builtform/marketplace` pins a release tag. The pin was last moved at v2.1.3 and later releases never reached marketplace users on either host, because moving it is a manual step in another repository.
+- **Location**: `.github/workflows/`, `FrameworkedApp/marketplace`
+- **Scenario**: The `launchpad` entry in `FrameworkedApp/marketplace` pins a release tag. The pin was last moved at v2.1.3 and later releases never reached marketplace users on either host, because moving it is a manual step in another repository.
 
 **Desired Behavior**
 

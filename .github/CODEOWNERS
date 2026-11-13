@@ -1,4 +1,4 @@
-# CODEOWNERS for builtform/launchpad
+# CODEOWNERS for FrameworkedApp/launchpad
 #
 # Each line maps a path pattern to one or more owners. When a PR touches a
 # matching path, GitHub automatically requests review from the listed owners.
@@ -7,62 +7,62 @@
 # Reference: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
 # Default owners — apply to every file unless overridden by a more specific rule below.
-* @builtform/core
+* @foadshafighi
 
 # Plugin source — the heart of LaunchPad
-/plugins/launchpad/                @builtform/core
+/plugins/launchpad/                @foadshafighi
 
 # Phase 6 v2.1 stack_scope frontmatter on plugin agents. Pre-merge gate
 # defense against malicious upstream PR rewriting stack_scope to disable
 # security review. (Rationale kept inline deliberately: the v2.1 Phase 6 plan
 # that first recorded it lives under docs/plans/, which is gitignored, so a
 # path citation would be unresolvable in a fresh clone.)
-/plugins/launchpad/agents/**       @builtform/core
+/plugins/launchpad/agents/**       @foadshafighi
 
 # Runtime scripts and stack adapters
-/plugins/launchpad/scripts/        @builtform/core
+/plugins/launchpad/scripts/        @foadshafighi
 
 # Test suite
-/plugins/launchpad/scripts/tests/  @builtform/core
+/plugins/launchpad/scripts/tests/  @foadshafighi
 
 # Marketplace + plugin manifests
-/.claude-plugin/                   @builtform/core
-/plugins/launchpad/.claude-plugin/ @builtform/core
+/.claude-plugin/                   @foadshafighi
+/plugins/launchpad/.claude-plugin/ @foadshafighi
 
 # CI and repo automation
-/.github/                          @builtform/core
-/scripts/maintenance/              @builtform/core
-/scripts/setup/                    @builtform/core
+/.github/                          @foadshafighi
+/scripts/maintenance/              @foadshafighi
+/scripts/setup/                    @foadshafighi
 
 # Top-level documentation and policy
-/README.md                         @builtform/core
-/CHANGELOG.md                      @builtform/core
-/CONTRIBUTING.md                   @builtform/core
-/SECURITY.md                       @builtform/core
-/ROADMAP.md                        @builtform/core
-/CODE_OF_CONDUCT.md                @builtform/core
-/CLAUDE.md                         @builtform/core
-/AGENTS.md                         @builtform/core
-/LICENSE                           @builtform/core
+/README.md                         @foadshafighi
+/CHANGELOG.md                      @foadshafighi
+/CONTRIBUTING.md                   @foadshafighi
+/SECURITY.md                       @foadshafighi
+/ROADMAP.md                        @foadshafighi
+/CODE_OF_CONDUCT.md                @foadshafighi
+/CLAUDE.md                         @foadshafighi
+/AGENTS.md                         @foadshafighi
+/LICENSE                           @foadshafighi
 
 # Architecture and methodology
-/docs/architecture/                @builtform/core
-/docs/guides/                      @builtform/core
-/docs/releases/                    @builtform/core
+/docs/architecture/                @foadshafighi
+/docs/guides/                      @foadshafighi
+/docs/releases/                    @foadshafighi
 
 # Schema-source files for the v2.1 schema-CODEOWNERS gate (V3 plan §11.6 +
 # §11.7, locked in HANDSHAKE §10.v2.1). Changes here MUST be paired with
 # a SCAFFOLD_HANDSHAKE.md update in the same PR; the gate is enforced by
 # `plugin-v2-handshake-lint.py --check-schema-codeowners-gate` running in
-# v2-handshake-lint.yml. CODEOWNERS rules below ensure @builtform/core is
+# v2-handshake-lint.yml. CODEOWNERS rules below ensure @foadshafighi is
 # pulled into review on every schema-source change so the gate result
 # lands in front of an owner who can interpret it.
-/plugins/launchpad/scripts/lp_pick_stack/__init__.py        @builtform/core
-/plugins/launchpad/scripts/lp_pick_stack/decision_writer.py @builtform/core
-/plugins/launchpad/scripts/plugin-config-loader.py          @builtform/core
-/plugins/launchpad/scripts/lp_bootstrap/                    @builtform/core
-/docs/architecture/SCAFFOLD_HANDSHAKE.md                    @builtform/core
-/docs/architecture/SCAFFOLD_OPERATIONS.md                   @builtform/core
+/plugins/launchpad/scripts/lp_pick_stack/__init__.py        @foadshafighi
+/plugins/launchpad/scripts/lp_pick_stack/decision_writer.py @foadshafighi
+/plugins/launchpad/scripts/plugin-config-loader.py          @foadshafighi
+/plugins/launchpad/scripts/lp_bootstrap/                    @foadshafighi
+/docs/architecture/SCAFFOLD_HANDSHAKE.md                    @foadshafighi
+/docs/architecture/SCAFFOLD_OPERATIONS.md                   @foadshafighi
 
 # Phase 4 v2.1 schema-source files (Adapter Protocol + pin registry +
 # composition wrapper + template cache). Same gate as the schema-CODEOWNERS
@@ -70,16 +70,16 @@
 # pin_registry.py also requires a same-commit append-only entry in the audit
 # log at docs/maintainers/upstream-pin-rotations.md (enforced by the
 # rotation-detector lint rule in plugin-v2-handshake-lint.py).
-/plugins/launchpad/scripts/plugin_stack_adapters/contracts.py        @builtform/core
-/plugins/launchpad/scripts/plugin_stack_adapters/pin_registry.py     @builtform/core
-/plugins/launchpad/scripts/plugin_stack_adapters/composition.py      @builtform/core
-/plugins/launchpad/scripts/plugin_stack_adapters/ts_monorepo.py      @builtform/core
-/plugins/launchpad/scripts/plugin_stack_adapters/nextjs_standalone.py @builtform/core
-/plugins/launchpad/scripts/plugin_stack_adapters/nextjs_fastapi.py   @builtform/core
-/plugins/launchpad/scripts/plugin_stack_adapters/astro.py            @builtform/core
-/plugins/launchpad/scripts/plugin_stack_adapters/generic.py          @builtform/core
-/plugins/launchpad/scripts/template_cache/                           @builtform/core
-/docs/maintainers/upstream-pin-rotations.md                          @builtform/core
+/plugins/launchpad/scripts/plugin_stack_adapters/contracts.py        @foadshafighi
+/plugins/launchpad/scripts/plugin_stack_adapters/pin_registry.py     @foadshafighi
+/plugins/launchpad/scripts/plugin_stack_adapters/composition.py      @foadshafighi
+/plugins/launchpad/scripts/plugin_stack_adapters/ts_monorepo.py      @foadshafighi
+/plugins/launchpad/scripts/plugin_stack_adapters/nextjs_standalone.py @foadshafighi
+/plugins/launchpad/scripts/plugin_stack_adapters/nextjs_fastapi.py   @foadshafighi
+/plugins/launchpad/scripts/plugin_stack_adapters/astro.py            @foadshafighi
+/plugins/launchpad/scripts/plugin_stack_adapters/generic.py          @foadshafighi
+/plugins/launchpad/scripts/template_cache/                           @foadshafighi
+/docs/maintainers/upstream-pin-rotations.md                          @foadshafighi
 
 # Phase 8.5 v2.1 schema-source files (DA1' = a2 buffered batch + scanner
 # gate + DA2 path-rewriter + DA3 pattern cache + DA4 allowlist + DA5
@@ -89,11 +89,11 @@
 # enforcement rule in plugin-v2-handshake-lint.py requires every deletion
 # under plugins/launchpad/scripts/ to carry a same-commit append in
 # docs/maintainers/decommission-history.md.
-/plugins/launchpad/scripts/plugin_default_generators/_renderer_base.py     @builtform/core
-/plugins/launchpad/scripts/plugin_default_generators/secret_allowlist.py   @builtform/core
-/plugins/launchpad/scripts/plugin_stack_adapters/polyglot_path_rewriter.py @builtform/core
-/plugins/launchpad/scripts/plugin_stack_adapters/secret_scanner.py         @builtform/core
-/plugins/launchpad/scripts/lp_define_runner.py                             @builtform/core
-/.github/workflows/release-notes-check.yml                                 @builtform/core
-/.launchpad/secret-patterns.txt                                            @builtform/core
-/docs/maintainers/decommission-history.md                                  @builtform/core
+/plugins/launchpad/scripts/plugin_default_generators/_renderer_base.py     @foadshafighi
+/plugins/launchpad/scripts/plugin_default_generators/secret_allowlist.py   @foadshafighi
+/plugins/launchpad/scripts/plugin_stack_adapters/polyglot_path_rewriter.py @foadshafighi
+/plugins/launchpad/scripts/plugin_stack_adapters/secret_scanner.py         @foadshafighi
+/plugins/launchpad/scripts/lp_define_runner.py                             @foadshafighi
+/.github/workflows/release-notes-check.yml                                 @foadshafighi
+/.launchpad/secret-patterns.txt                                            @foadshafighi
+/docs/maintainers/decommission-history.md                                  @foadshafighi
