@@ -457,7 +457,7 @@ Presents plan summary with hardening notes and design status. Four options:
 
 Use `/lp-conductor` for a change large enough to plan and build in separate sessions. One session becomes the Conductor, checking the work of an Author who plans and an Implementer who builds. It answers routine questions and brings you the decisions that need you. Both role sessions can use Claude Code or Codex.
 
-Run `/lp-define` first, then `/lp-conductor` and answer its questions. Paste the printed prompt into a new session and keep the Conductor open. It prints the Implementer prompt when the plan is ready. After the Conductor compacts, run `/lp-conductor resume` to restore its state and check for unanswered reports.
+Run `/lp-define` first, then `/lp-conductor` and answer its questions. Paste the printed prompt into a new session and keep the Conductor open. If a plan is already approved or a build is already under way, say so when it asks where the work stands; it then prints the Implementer prompt, or a short prompt for the session already building, instead. It prints the Implementer prompt when the plan is ready. After the Conductor compacts, run `/lp-conductor resume` to restore its state and check for unanswered reports.
 
 You make the decisions the Conductor brings you, and every push, PR and merge still needs your own go-ahead.
 
