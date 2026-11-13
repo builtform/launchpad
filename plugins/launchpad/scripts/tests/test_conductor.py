@@ -133,3 +133,44 @@ def test_loop_fires_after_ready_line(root: Path) -> None:
         if process.poll() is None:
             process.kill()
         process.communicate(timeout=10)
+
+
+PLUGIN = SCRIPT.parent.parent
+TEMPLATES = PLUGIN / "templates/conductor"
+
+
+def test_command_prerequisites_resume_and_join_cases() -> None:
+    text = (PLUGIN / "commands/lp-conductor.md").read_text(encoding="utf-8")
+    assert "name: lp-conductor" in text
+    assert "## Step 0" in text
+    assert "plugin-prereq-check.sh" in text
+    assert "--mode=lite" in text
+    assert "resume" in text
+    normalized = " ".join(text.split())
+    for case in ("Nothing yet", "A plan is approved", "An Implementer is mid-build"):
+        assert case in normalized
+
+
+def test_templates_require_native_reviews() -> None:
+    for name in ("author-handoff.md", "protocol-author.md"):
+        text = (TEMPLATES / name).read_text(encoding="utf-8")
+        assert "/lp-harden-plan" in text
+        assert "lp-code-simplicity-reviewer" in text
+    for name in ("implementer-handoff.md", "protocol-implementer.md"):
+        assert "/lp-review" in (TEMPLATES / name).read_text(encoding="utf-8")
+
+
+def test_continue_prompts_have_one_section_blank() -> None:
+    for name in ("author-handoff.md", "implementer-handoff.md"):
+        text = (TEMPLATES / name).read_text(encoding="utf-8")
+        prompt = text.split("## CONTINUE prompt", 1)[1].split("```", 2)[1]
+        assert prompt.count("<n>") == 1
+
+
+def test_public_command_templates_and_script() -> None:
+    paths = [PLUGIN / "commands/lp-conductor.md", SCRIPT, *TEMPLATES.glob("*.md")]
+    assert len(paths) == 6
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        for forbidden in ("\u2014", "/" + "Users/", "/" + "home/"):
+            assert forbidden not in text, f"{path.name}: {forbidden!r}"
