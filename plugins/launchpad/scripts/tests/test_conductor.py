@@ -224,7 +224,11 @@ def test_checkpoint_verifies_complete_section_range() -> None:
     assert all(token in command for token in (
         "previous verified head", "last verified checkpoint head", "ancestor",
         'git diff --stat "<previous>..<head>"', "including every fix commit",
-        "all changed files in that range",
+        "all changed files in that range", "Implementer checkout recorded at start",
+        "required subdirectory within that checkout",
+        'git -C "<implementer-directory>" rev-parse HEAD',
+        "reported checkpoint head", "tracked state is clean", "report the mismatch",
+        "do not advance the section or verify another checkout",
     ))
     assert "previous verified head" in protocol and "handoff base head" in protocol
 
