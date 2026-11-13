@@ -24,7 +24,7 @@ Claude Code: use `Subagent model (Claude Code):` from `conductor-rules.md`, name
 
 ## Stops
 
-Write `stop-K.md` in your inbox. K is the highest `stop-*` index there plus one, or 1 if none; never restart after a verdict. Include the question, evidence (file and line), options and your recommendation. Unless the stop says it blocks, carry on with your recommendation marked "Pending ruling (stop-K)" in the plan. Read every new `ruling-*` before each delivery and whenever a verdict arrives. For a blocking stop, wait on `ruling-K.md` by the host rule below.
+Write `stop-K.md` in your inbox. K is the highest `stop-*` index there plus one, or 1 if none; never restart after a verdict. Include the question, evidence (file and line), options and your recommendation. Unless the stop says it blocks, carry on with your recommendation marked "Pending ruling (stop-K)" in the plan. Read every new `ruling-*` before each delivery and whenever a verdict arrives. Fold every answered plan-affecting ruling into the plan before each delivery. For a blocking stop, wait on `ruling-K.md` by the host rule below.
 
 ## Delivery
 

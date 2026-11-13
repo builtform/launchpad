@@ -14,7 +14,7 @@ Read this protocol, your handoff and its Read first list in order. Make one comm
 
 After the section's commit and gates, write `checkpoint-N.md`, under 60 lines:
 
-- Head and title.
+- Head, title and previous verified head (the handoff base head for the first checkpoint).
 - Each gate as command plus last output lines, with any secret tokens redacted.
 - Counts the plan names.
 - Deviations with reasons, or "none".

@@ -205,3 +205,36 @@ def test_state_write_filesystem_error_exits_two(root: Path) -> None:
     result = run_watch(root)
     assert result.returncode == 2
     assert "watch error:" in result.stderr
+
+
+
+def test_author_close_requires_answered_and_folded_stops() -> None:
+    command = " ".join((PLUGIN / "commands/lp-conductor.md").read_text().split())
+    protocol = " ".join((TEMPLATES / "protocol-author.md").read_text().split())
+    assert all(token in command for token in (
+        "Never write CLOSE", "any Author stop", "matching ruling",
+        "plan-affecting ruling", "folded into the delivery", "CONTINUE instead",
+    ))
+    assert "Fold every answered plan-affecting ruling" in protocol
+
+
+def test_checkpoint_verifies_complete_section_range() -> None:
+    command = " ".join((PLUGIN / "commands/lp-conductor.md").read_text().split())
+    protocol = " ".join((TEMPLATES / "protocol-implementer.md").read_text().split())
+    assert all(token in command for token in (
+        "previous verified head", "last verified checkpoint head", "ancestor",
+        'git diff --stat "<previous>..<head>"', "including every fix commit",
+        "all changed files in that range",
+    ))
+    assert "previous verified head" in protocol and "handoff base head" in protocol
+
+
+def test_every_command_and_prompt_path_is_validated() -> None:
+    command = " ".join((PLUGIN / "commands/lp-conductor.md").read_text().split())
+    policy = command.split("## Path safety", 1)[1].split("## Step 0", 1)[0]
+    assert all(token in policy for token in (
+        "any other path placed in a command or prompt", "double quote",
+        "dollar sign", "backtick", "backslash", "after physical resolution",
+        "resolved plugin root before Step 0", "working directories",
+        "plan and source paths", "handoff", "protocol", "inbox", "resume mode",
+    ))
