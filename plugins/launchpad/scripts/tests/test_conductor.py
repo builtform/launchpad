@@ -19,9 +19,9 @@ def root(tmp_path: Path) -> Path:
     return folder
 
 
-def run_watch(*roots: Path) -> subprocess.CompletedProcess[str]:
+def run_watch(*roots: Path, interval: str | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(SCRIPT), "--once", *(str(root) for root in roots)],
+        [sys.executable, str(SCRIPT), "--once", *([f"--interval={interval}"] if interval is not None else []), *(str(root) for root in roots)],
         capture_output=True,
         text=True,
         timeout=10,
@@ -146,6 +146,9 @@ def test_command_prerequisites_resume_and_join_cases() -> None:
     assert "plugin-prereq-check.sh" in text
     assert "--mode=lite" in text
     assert "resume" in text
+    assert "refuse a repository or root path" in text
+    for character in ("double quote", "dollar sign", "backtick", "backslash"):
+        assert character in text
     normalized = " ".join(text.split())
     for case in ("Nothing yet", "A plan is approved", "An Implementer is mid-build"):
         assert case in normalized
@@ -174,3 +177,31 @@ def test_public_command_templates_and_script() -> None:
         text = path.read_text(encoding="utf-8")
         for forbidden in ("\u2014", "/" + "Users/", "/" + "home/"):
             assert forbidden not in text, f"{path.name}: {forbidden!r}"
+
+
+@pytest.mark.parametrize("contents", [b"invalid state", b"\xff", b"1\tbad\t/path\n"])
+def test_corrupt_state_rebaselines(root: Path, contents: bytes) -> None:
+    delivery = role_file(root)
+    (root / ".watch-state").write_bytes(contents)
+    result = run_watch(root)
+    assert result.returncode == 1, result.stderr
+    assert "CHANGED" not in result.stdout
+    info = delivery.stat()
+    assert (root / ".watch-state").read_text() == (
+        f"{info.st_mtime_ns}\t{info.st_size}\t{delivery}\n"
+    )
+
+
+@pytest.mark.parametrize("interval", ["0", "-0.5", "nan", "inf", "-inf", "not-a-number"])
+def test_invalid_interval_exits_two(root: Path, interval: str) -> None:
+    result = run_watch(root, interval=interval)
+    assert result.returncode == 2
+    assert "error:" in result.stderr
+    assert "--interval" in result.stderr
+
+
+def test_state_write_filesystem_error_exits_two(root: Path) -> None:
+    (root / ".watch-state").mkdir()
+    result = run_watch(root)
+    assert result.returncode == 2
+    assert "watch error:" in result.stderr
