@@ -78,7 +78,7 @@ def test_python_gates_have_command_v_preamble() -> None:
         assert f"command -v {tool} >/dev/null 2>&1" in rendered
         assert f"GATE MISSING: {tool}" in rendered
     assert "LEFTHOOK=0" in rendered
-    assert "https://github.com/builtform/launchpad/" in rendered
+    assert "https://github.com/FrameworkedApp/launchpad/" in rendered
 
 
 @pytest.mark.parametrize(
