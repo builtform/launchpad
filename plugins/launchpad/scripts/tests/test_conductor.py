@@ -291,3 +291,19 @@ def test_final_review_has_separate_whole_branch_base() -> None:
     assert "{{review_base}}" in handoff.split("## Preconditions", 1)[1].split("## Roles", 1)[0]
     assert "{{review_base}}" in handoff.split("## Kickoff prompt", 1)[1].split("## CONTINUE prompt", 1)[0]
     assert "{{review_base}}" in handoff.split("## CONTINUE prompt", 1)[1]
+
+
+
+def test_final_review_stops_outside_supported_origin_main_scope() -> None:
+    protocol = " ".join((TEMPLATES / "protocol-implementer.md").read_text().split())
+    final = protocol.split("## Last section", 1)[1].split("## Models", 1)[0]
+    guard = final.index("git merge-base origin/main HEAD")
+    invocation = final.index("Only after this precondition passes, run `/lp-review`")
+    assert guard < invocation
+    assert "git rev-parse --verify origin/main" in final
+    assert "must equal the recorded review_base" in final
+    assert "stop with an unsupported-scope explanation" in final
+    assert "never accept the working-tree fallback as a whole-branch review" in final
+    assert "both review modes" in final
+    command = " ".join((PLUGIN / "commands/lp-conductor.md").read_text().split())
+    assert "warn at start if this precondition does not hold" in command
