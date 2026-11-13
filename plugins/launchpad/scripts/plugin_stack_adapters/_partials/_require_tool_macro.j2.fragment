@@ -8,7 +8,7 @@
 command -v {{ name }} >/dev/null 2>&1 || {
   echo 'GATE MISSING: {{ name }}. Install with: pip install "{{ install_pin }}".' >&2
   echo 'To opt out, remove this gate from lefthook.yml or set LEFTHOOK=0 for one-off skip.' >&2
-  echo 'See LaunchPad CI_CD.md (https://github.com/builtform/launchpad/blob/main/docs/architecture/CI_CD.md#consumer-python-gates).' >&2
+  echo 'See LaunchPad CI_CD.md (https://github.com/FrameworkedApp/launchpad/blob/main/docs/architecture/CI_CD.md#consumer-python-gates).' >&2
   exit 1
 }
 {%- endmacro %}

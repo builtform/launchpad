@@ -48,4 +48,4 @@ bandit==1.9.4          # security audit at MEDIUM+ (lefthook pre-commit)
 # suppression entries. (Earlier pins on click and mcp==1.23.3 cleared at
 # semgrep 1.171.0 and 1.177.0; their suppressions have been removed.)
 semgrep==1.185.0       # general patterns (pre-commit) + LP-internal invariants (pre-push)
-pytest==9.1.1          # test runner (lefthook pre-push + CI v2-handshake-lint); pinned for hash coverage (Codex PR #62 P1 #2)
+pytest==9.2.0          # test runner (lefthook pre-push + CI v2-handshake-lint); pinned for hash coverage (Codex PR #62 P1 #2)

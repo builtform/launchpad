@@ -7,7 +7,7 @@ Thanks for your interest in contributing. This document covers how to get a work
 ## Getting started
 
 ```bash
-git clone https://github.com/builtform/launchpad
+git clone https://github.com/FrameworkedApp/launchpad
 cd launchpad
 pnpm install
 ```
@@ -48,7 +48,7 @@ All test suites must stay green before a PR is mergeable. CI runs them automatic
 Changes to the Codex manifest, router, or helper must keep the canonical `commands/`, `agents/`, and `skills/` trees unchanged. Run the Python adapter tests, then install your branch straight from this repository. This is the maintainer test route. Users install through the BuiltForm marketplace, as described in [How It Works: Codex](docs/guides/HOW_IT_WORKS.md#codex). Remove any marketplace install of LaunchPad first, so only one plugin named `launchpad` is present.
 
 ```bash
-codex plugin marketplace add https://github.com/builtform/launchpad.git --ref <your-branch>
+codex plugin marketplace add https://github.com/FrameworkedApp/launchpad.git --ref <your-branch>
 codex plugin add launchpad@launchpad
 ```
 
