@@ -29,11 +29,11 @@
 psutil==7.2.2          # /lp-scaffold-stack runtime (pid_identity)
 pyyaml==6.0.3          # config loading (engine.py, plugin-v2-handshake-lint.py)
 jinja2==3.1.6          # /lp-bootstrap + /lp-scaffold-stack template rendering
-markupsafe==3.0.3      # transitive of jinja2; pinned explicitly for repro
+markupsafe==3.0.4      # transitive of jinja2; pinned explicitly for repro
 
 # --- v2.1.1 Phase 4 Layer 3 static analysis ---
 
-ruff==0.16.9           # style + import-order + bugbear (lefthook pre-commit)
+ruff==0.17.4           # style + import-order + bugbear (lefthook pre-commit)
 # pyright pulls nodeenv, which downloads a Node.js binary at install-time.
 # That binary download is OUTSIDE pip's hash coverage — a residual supply-chain
 # hole at the pyright/nodeenv boundary. v2.1.x BL candidate: evaluate mypy (no
@@ -48,4 +48,4 @@ bandit==1.9.4          # security audit at MEDIUM+ (lefthook pre-commit)
 # suppression entries. (Earlier pins on click and mcp==1.23.3 cleared at
 # semgrep 1.171.0 and 1.177.0; their suppressions have been removed.)
 semgrep==1.185.0       # general patterns (pre-commit) + LP-internal invariants (pre-push)
-pytest==9.1.1          # test runner (lefthook pre-push + CI v2-handshake-lint); pinned for hash coverage (Codex PR #62 P1 #2)
+pytest==9.2.0          # test runner (lefthook pre-push + CI v2-handshake-lint); pinned for hash coverage (Codex PR #62 P1 #2)
