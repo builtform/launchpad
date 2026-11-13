@@ -15,7 +15,7 @@ def test_current_docs_report_39_agents() -> None:
 
     assert "| Sub-agents      | 39" in readme
     assert "# 39 sub-agents across 6 namespaces" in readme
-    assert "42 slash commands, 39 sub-agents, and 16 skills" in how_it_works
+    assert "43 slash commands, 39 sub-agents, and 16 skills" in how_it_works
 
 
 def test_methodology_uses_canonical_agent_ids() -> None:

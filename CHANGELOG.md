@@ -10,6 +10,8 @@ Tracked in [ROADMAP.md](ROADMAP.md). v2.1.x candidates carrying forward from v2.
 
 ### For LaunchPad users
 
+- **Run planning and building in separate sessions.** `/lp-conductor` sets up one session to review the work of a planning session and a building session, answer their routine questions, and bring you only the decisions that need you. It works with Claude Code and Codex sessions; see [How It Works](docs/guides/HOW_IT_WORKS.md#lp-conductor).
+
 - **Commits work in git worktrees under folders with spaces.** The bootstrapped `commit-msg` hook now quotes the message-file path. Before, a worktree under a folder such as `My Projects` failed every commit with `unrecognized arguments`. In a project bootstrapped earlier, put double quotes around `{1}` in the `restamp-history` line of `lefthook.yml`.
 
 ## [v2.2.2]

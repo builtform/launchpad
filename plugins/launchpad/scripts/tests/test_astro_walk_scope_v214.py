@@ -306,18 +306,21 @@ def test_astro_marketing_against_real_pin(tmp_path: Path, cache_root_tmp: Path):
     def real_fetcher(target: Path) -> None:
         # Depth-1 fetch + checkout the pinned SHA. Mirrors what
         # template_cache._resolver.git_clone_depth_one does in production.
+        git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
         target.mkdir(parents=True, exist_ok=True)
         subprocess.run(
             ["git", "init", "--quiet"],
             cwd=str(target),
             check=True,
             capture_output=True,
+            env=git_env,
         )
         subprocess.run(
             ["git", "fetch", "--quiet", "--depth", "1", pin["repo_url"], pin["sha"]],
             cwd=str(target),
             check=True,
             capture_output=True,
+            env=git_env,
             timeout=300,
         )
         subprocess.run(
@@ -325,6 +328,7 @@ def test_astro_marketing_against_real_pin(tmp_path: Path, cache_root_tmp: Path):
             cwd=str(target),
             check=True,
             capture_output=True,
+            env=git_env,
         )
         # Drop the .git dir so it doesn't appear in the cache manifest.
         shutil.rmtree(target / ".git")

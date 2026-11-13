@@ -14,7 +14,9 @@ which bypasses the singleton swap.
 """
 from __future__ import annotations
 
+import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -25,6 +27,16 @@ if str(_VENDOR) not in sys.path:
     sys.path.insert(0, str(_VENDOR))
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
+
+
+
+@pytest.fixture(scope="session", autouse=True)
+def isolated_git_environment():
+    with pytest.MonkeyPatch.context() as patch:
+        for name in tuple(os.environ):
+            if name.startswith("GIT_"):
+                patch.delenv(name)
+        yield
 
 
 def _next_forge_stub(target: Path) -> None:
@@ -139,7 +151,7 @@ def _prepopulate_template_cache(cache_root: Path) -> None:
             encoding="utf-8",
         )
         (entry / ".fetched_at").write_text(
-            "2026-05-08T00:00:00Z\n", encoding="utf-8",
+            datetime.now(timezone.utc).isoformat() + "\n", encoding="utf-8",
         )
         (entry / ".ready").write_text("ok\n", encoding="utf-8")
 

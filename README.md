@@ -191,7 +191,7 @@ LaunchPad is MIT-licensed and open-source. Every claim above maps to a file you 
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 5-file governance kernel             | Open `docs/architecture/REPOSITORY_STRUCTURE.md`, `lefthook.yml`, `.launchpad/config.yml`, `.harness/`, `docs/architecture/`. Tests verify the file set materializes on `/lp-define`.                                       |
 | Compound learning loop               | Walk `docs/solutions/` and read any entry. 14-category taxonomy with YAML-validated frontmatter.                                                                                                                            |
-| 42 commands, 39 agents, 16 skills    | Browse `plugins/launchpad/commands/`, `plugins/launchpad/agents/`, `plugins/launchpad/skills/`.                                                                                                                             |
+| 43 commands, 39 agents, 16 skills    | Browse `plugins/launchpad/commands/`, `plugins/launchpad/agents/`, `plugins/launchpad/skills/`.                                                                                                                             |
 | Multi-agent review dispatch          | Read `.launchpad/agents.yml` and the 16 review agents in `plugins/launchpad/agents/review/`. Dispatch logic is in the `/lp-review` command file.                                                                            |
 | 0.60 confidence threshold + P1 floor | Specified in the `/lp-review` command file and enforced in code. Suppression audit trail at `.harness/observations/`.                                                                                                       |
 | Stack-aware dispatch                 | `stack_scope:` frontmatter on every agent file. Test coverage: `test_define` + `test_pipeline_matrix` (1,457 passing as of v2.1.3).                                                                                         |
@@ -230,7 +230,7 @@ LaunchPad ships as a plugin for Claude Code and Codex with:
 
 | Component       | Count     | What it covers                                                                          |
 | --------------- | --------- | --------------------------------------------------------------------------------------- |
-| Slash commands  | 42        | The brainstorm, define, plan, build, review, resolve, ship, and learn lifecycle         |
+| Slash commands  | 43        | The brainstorm, define, plan, build, review, resolve, ship, and learn lifecycle         |
 | Sub-agents      | 39        | 6 namespaces: research, review, resolve, design, skills, document-review                |
 | Skills          | 16        | Reusable instruction sets for design, planning, review, compound docs                   |
 | Runtime scripts | several   | Stack detector, polyglot adapter, Jinja2 doc generator, install scripts                 |
